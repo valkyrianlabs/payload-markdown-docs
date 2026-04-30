@@ -53,9 +53,10 @@ export type PlanCommandOptions = {
 } & DocsCommandOptions
 
 export type PushCommandOptions = {
-  deleteBehavior?: Extract<DocsDeleteBehavior, 'archive' | 'ignore'>
+  deleteBehavior?: DocsDeleteBehavior
   endpoint: string
   keyId: string
   mode: 'dry-run' | 'sync'
   privateKey: string
+  publish: boolean
 } & DocsCommandOptions

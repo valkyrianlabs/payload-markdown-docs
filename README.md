@@ -4,13 +4,13 @@ Git-backed Markdown documentation sync for Payload CMS, powered by `@valkyrianla
 
 ## Status
 
-This package is in early pre-MVP development. It currently wires the dedicated docs storage model into Payload, provides pure manifest validation/planning utilities, includes a local CLI with signed `push`, registers a signed sync endpoint, and can apply sync-mode writes to the dedicated docs collection when explicitly enabled.
+This package is in early pre-MVP development. It currently wires the dedicated docs storage model into Payload, provides pure manifest validation/planning utilities, includes a local CLI with signed `push`, registers a signed sync endpoint, and can apply sync-mode writes to the dedicated docs collection when explicitly enabled. Draft/publish lifecycle controls are available for draft-enabled dedicated docs collections.
 
 Not implemented yet:
 
-- publish or draft/unpublish behavior
-- hard delete behavior
 - GitHub OIDC auth mode
+- existing collection targets
+- block targets
 
 ## Product Thesis
 
@@ -58,7 +58,7 @@ export default buildConfig({
 })
 ```
 
-In the current Phase 6 build, an enabled plugin registers dedicated docs infrastructure collections and a signed sync endpoint. Dry-run remains the default safe path. Sync-mode writes require explicit server configuration.
+An enabled plugin registers dedicated docs infrastructure collections and a signed sync endpoint. Dry-run remains the default safe path. Sync-mode writes require explicit server configuration.
 
 Default generated collections:
 
@@ -80,6 +80,8 @@ payloadMarkdownDocs({
     enableDrafts: true,
   },
   sync: {
+    allowHardDelete: false,
+    allowPublish: false,
     allowWrites: false,
     defaultPublishMode: 'draft',
     deleteBehavior: 'archive',
@@ -177,7 +179,19 @@ payload-markdown-docs push ./docs \
   --sync
 ```
 
-`push` does not implement publishing, hard delete, or draft/unpublish behavior.
+Publishing is requested with `--publish`. The server must allow publishing and the target docs collection must be draft-enabled:
+
+```bash
+payload-markdown-docs push ./docs \
+  --endpoint "$DOCS_SYNC_ENDPOINT" \
+  --source main-docs \
+  --key-id github-actions-main \
+  --private-key-env DOCS_SYNC_PRIVATE_KEY \
+  --sync \
+  --publish
+```
+
+`push` can request delete lifecycle behavior with `--delete-behavior archive|ignore|draft|delete`, but the server remains authoritative. Hard delete requires explicit server config.
 
 ## Signed Sync Endpoint
 
@@ -254,28 +268,43 @@ payloadMarkdownDocs({
       },
     ],
   },
+  target: {
+    type: 'docsCollection',
+    enableDrafts: true,
+  },
   sync: {
+    allowHardDelete: false,
+    allowPublish: true,
     allowWrites: true,
+    defaultPublishMode: 'draft',
     deleteBehavior: 'archive',
   },
 })
 ```
 
-In Phase 6, sync mode can create new docs, update changed docs, skip unchanged docs, and archive missing docs in the dedicated docs collection. It detects manual content edits before writing and aborts the sync if conflicts are found.
+Sync mode can create new docs, update changed docs, skip unchanged docs, and archive missing docs in the dedicated docs collection. It detects manual content edits before writing and aborts the sync if conflicts are found.
 
-Still not implemented in sync mode:
+Publishing and lifecycle controls:
 
-- publishing
-- draft/unpublish behavior
-- hard delete
+- `sync.allowPublish` defaults to `false`.
+- `publish: true` or CLI `--publish` is rejected unless `sync.allowPublish === true`.
+- Publishing requires `target.enableDrafts: true` because Payload represents docs status with `_status`.
+- `sync.defaultPublishMode` may be `draft`, `published`, or `preserve`.
+- `deleteBehavior: 'archive'` marks missing docs archived without deleting content.
+- `deleteBehavior: 'ignore'` leaves missing docs alone.
+- `deleteBehavior: 'draft'` marks missing docs archived and sets `_status: 'draft'` when drafts are enabled.
+- `deleteBehavior: 'delete'` hard deletes missing docs only when `sync.allowHardDelete === true`.
+
+Still not implemented:
+
 - existing collection targets
 - block targets
+- GitHub OIDC auth
 
 ## Current Limitations
 
-- No publish or draft/unpublish behavior is implemented.
-- No hard delete behavior is implemented.
 - Existing collection and block target modes are not implemented.
+- GitHub OIDC is not implemented.
 - Nonce uniqueness across `keyId + nonce` is not enforced by portable Payload config yet.
 
 ## Roadmap
@@ -287,7 +316,7 @@ Still not implemented in sync mode:
 - Phase 5: signed sync endpoint with Ed25519 verification and dry-run only. Done.
 - Phase 6: dedicated docs upsert engine. Done.
 - Phase 7A: CLI push and request signing. Done.
-- Phase 7B: publishing modes and expanded archive/delete behavior. Next.
+- Phase 7B: publishing modes and expanded archive/delete behavior. Done.
 - Phase 8: existing collection and block target modes.
 - Phase 9: CI workflow examples.
 - Phase 10: GitHub OIDC auth mode.

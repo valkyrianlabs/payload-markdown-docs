@@ -536,7 +536,7 @@ describe('push command', () => {
     )
   })
 
-  it('rejects invalid endpoint URLs and unsupported push flags', async () => {
+  it('rejects invalid endpoint URLs and invalid delete behavior', async () => {
     const root = await createDocsRoot()
     const { privateKey } = keyPair()
     const privateKeyPath = path.join(root, 'docs-sync-private.pem')
@@ -565,28 +565,54 @@ describe('push command', () => {
     const deleteBehavior = await runCli([
       ...validBaseArgs,
       '--delete-behavior',
-      'delete',
-    ])
-    const draftBehavior = await runCli([
-      ...validBaseArgs,
-      '--delete-behavior',
-      'draft',
-    ])
-    const publish = parseCliArgs([
-      ...validBaseArgs,
-      '--publish',
+      'remove',
     ])
 
     expect(invalidEndpoint.exitCode).toBe(1)
     expect(invalidEndpoint.stderr).toContain('http:// or https://')
     expect(deleteBehavior.exitCode).toBe(1)
-    expect(deleteBehavior.stderr).toContain('archive or ignore')
-    expect(draftBehavior.exitCode).toBe(1)
-    expect(draftBehavior.stderr).toContain('archive or ignore')
-    expect(publish.ok).toBe(false)
-    expect(publish).toMatchObject({
-      error: 'Unknown flag "--publish" for push.',
+    expect(deleteBehavior.stderr).toContain('archive, delete, draft, or ignore')
+  })
+
+  it('allows publish and lifecycle delete behavior flags client-side', async () => {
+    const root = await createDocsRoot()
+    const { requests: publishDryRunRequests, result: publishDryRunResult } =
+      await pushArgs(root, ['--publish'])
+    const publishDryRunManifest = JSON.parse(
+      publishDryRunRequests[0]?.body ?? '{}',
+    ) as {
+      mode?: string
+      publish?: boolean
+    }
+    const { requests: publishSyncRequests, result: publishSyncResult } =
+      await pushArgs(root, ['--sync', '--publish', '--delete-behavior', 'draft'])
+    const publishSyncManifest = JSON.parse(publishSyncRequests[0]?.body ?? '{}') as {
+      deleteBehavior?: string
+      mode?: string
+      publish?: boolean
+    }
+    const { requests: deleteRequests, result: deleteResult } = await pushArgs(root, [
+      '--sync',
+      '--delete-behavior',
+      'delete',
+    ])
+    const deleteManifest = JSON.parse(deleteRequests[0]?.body ?? '{}') as {
+      deleteBehavior?: string
+    }
+
+    expect(publishDryRunResult.exitCode).toBe(0)
+    expect(publishDryRunManifest).toMatchObject({
+      mode: 'dry-run',
+      publish: true,
     })
+    expect(publishSyncResult.exitCode).toBe(0)
+    expect(publishSyncManifest).toMatchObject({
+      deleteBehavior: 'draft',
+      mode: 'sync',
+      publish: true,
+    })
+    expect(deleteResult.exitCode).toBe(0)
+    expect(deleteManifest.deleteBehavior).toBe('delete')
   })
 
   it('exits failure for server errors and non-2xx responses', async () => {
@@ -654,6 +680,14 @@ describe('push command', () => {
     expect(humanResult.result.stdout).not.toContain(privateKey.trim())
     expect(humanResult.result.stdout).not.toContain('Do not leak this body.')
     expect(requests[0]?.body).toContain('Do not leak this body.')
+  })
+
+  it('shows publish and hard-delete server gates in push help', async () => {
+    const result = await runCli(['push', '--help'])
+
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout).toContain('--publish')
+    expect(result.stdout).toContain('sync.allowHardDelete')
   })
 })
 

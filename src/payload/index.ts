@@ -16,7 +16,11 @@ export {
   buildDocsData,
   getDocsDepth,
 } from './docsData.js'
-export type { BuildDocsDataInput } from './docsData.js'
+export type {
+  BuildDocsDataInput,
+  DocsDraftStatus,
+  DocsPublishMode,
+} from './docsData.js'
 export { findExistingDocsRecords } from './existingDocs.js'
 export {
   findExistingPayloadDocsRecords,

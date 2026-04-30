@@ -42,6 +42,7 @@ const pushBooleanFlags = new Set([
   'help',
   'json',
   'pretty',
+  'publish',
   'sync',
 ])
 const keygenValueFlags = new Set(['format', 'out'])

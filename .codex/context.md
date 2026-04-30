@@ -5,7 +5,7 @@
 - Package/repository name: `@valkyrianlabs/payload-markdown-docs`
 - Package metadata now uses the scoped package name and real description.
 - Purpose: Git-backed Markdown documentation sync into Payload CMS.
-- Current state: Phase 7A CLI push and request signing. The package exports `payloadMarkdownDocs()`, public config types, constants, collection builders, pure sync utilities for path normalization/frontmatter/hashing/manifest validation/planning, and a request signing helper. Enabled plugin mode injects the dedicated docs infrastructure collections and registers a signed sync endpoint. Disabled mode remains an exact no-op. The CLI supports `validate`, `manifest`, `plan`, `keygen`, and signed `push`. Sync-mode writes to the dedicated docs collection require `sync.allowWrites: true`. No publishing mode, hard delete, existing collection target, block target, GitHub OIDC, or agent skill installer exists yet.
+- Current state: Phase 7B publishing modes and lifecycle controls. The package exports `payloadMarkdownDocs()`, public config types, constants, collection builders, pure sync utilities for path normalization/frontmatter/hashing/manifest validation/planning, and a request signing helper. Enabled plugin mode injects the dedicated docs infrastructure collections and registers a signed sync endpoint. Disabled mode remains an exact no-op. The CLI supports `validate`, `manifest`, `plan`, `keygen`, and signed `push`, including `push --publish`. Sync-mode writes to the dedicated docs collection require `sync.allowWrites: true`. Publishing requires `sync.allowPublish: true` and a draft-enabled dedicated docs collection. Hard delete requires `sync.allowHardDelete: true`. Existing collection targets, block targets, GitHub OIDC, and agent skill installer do not exist yet.
 
 ## Product Direction
 
@@ -51,8 +51,8 @@ Current source structure:
 - `src/sync/` contains pure manifest/path/frontmatter/hash/validation/planning utilities and unit tests.
 - `src/cli/` contains the CLI runner, argument parser, filesystem walker, HTTP sender, output formatters, and command handlers for `validate`, `manifest`, `plan`, `keygen`, and `push`.
 - `src/security/` contains canonical signing string, signed header, body hash, timestamp, Ed25519 signing/verification, and nonce replay helpers.
-- `src/payload/` contains Payload Local API adapters for existing docs lookup, sync-run audit records, conflict detection, docs data mapping, and dedicated docs apply writes.
-- `src/endpoints/` contains the dry-run sync endpoint factory and handler.
+- `src/payload/` contains Payload Local API adapters for existing docs lookup, sync-run audit records, conflict detection, docs data/status mapping, and dedicated docs apply writes.
+- `src/endpoints/` contains the signed sync endpoint factory and handler.
 - `dev/` contains the local Payload app used for tests and manual development.
 - `dev/int.spec.ts` contains skeleton tests and a dev app integration smoke test.
 - `dev/e2e.spec.ts` contains Playwright e2e tests.
@@ -105,6 +105,10 @@ Focused signing/CLI tests can be run with:
 
 - `pnpm exec vitest src/security src/cli`
 
+Focused lifecycle tests can be run with:
+
+- `pnpm exec vitest src/payload src/endpoints src/cli`
+
 ## Guardrails
 
 - Avoid implementing all phases at once.
@@ -114,5 +118,7 @@ Focused signing/CLI tests can be run with:
 - Future implementation should prefer small phased passes with focused tests.
 - Do not let the request body choose target collections, arbitrary fields, destructive behavior, or server authority.
 - Dedicated docs collection mode should be the MVP default; existing collection and block target modes are later advanced features.
-- The CLI may build, validate, print, plan, keygen, and push signed manifests to a configured endpoint. It must not implement publishing, hard delete, draft/unpublish, GitHub OIDC, or Payload-local writes unless a later phase explicitly adds those capabilities.
-- The Phase 6 endpoint may write accepted nonces, sync-run audit records, and dedicated docs collection create/update/archive records when `sync.allowWrites === true`. It must not hard delete, publish, unpublish/draft, mutate existing collection targets, mutate block targets, or accept target fields from the request body.
+- The CLI may build, validate, print, plan, keygen, and push signed manifests to a configured endpoint. `push --publish` is only a request; the server decides whether publishing is allowed.
+- The endpoint may write accepted nonces, sync-run audit records, and dedicated docs collection create/update/archive/draft/delete lifecycle records when explicitly enabled. It must not mutate existing collection targets, mutate block targets, or accept target fields from the request body.
+- Publishing remains server-owned. Use `sync.allowPublish: true` plus `target.enableDrafts: true`.
+- Hard delete remains server-owned and requires `sync.allowHardDelete: true`.

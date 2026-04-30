@@ -5,10 +5,16 @@ import type {
 } from '../sync/index.js'
 
 export type PushSummaryInput = {
+  deleteBehavior?: string
+  effectivePublishMode?: string
   endpoint: string
   mode: 'dry-run' | 'sync'
+  publishRequested?: boolean
   response: {
+    deleteBehavior?: string
+    effectivePublishMode?: string
     ok?: boolean
+    publishRequested?: boolean
     summary?: {
       archive?: number
       create?: number
@@ -91,8 +97,11 @@ export const formatPlanSummary = (plan: DocsSyncPlan): string => {
 }
 
 export const formatPushSummary = ({
+  deleteBehavior,
+  effectivePublishMode,
   endpoint,
   mode,
+  publishRequested,
   response,
   sourceId,
 }: PushSummaryInput): string => {
@@ -103,6 +112,13 @@ export const formatPushSummary = ({
     `Endpoint: ${endpoint}`,
     `Mode: ${mode}`,
     `Source: ${sourceId}`,
+    `Publish requested: ${
+      (publishRequested ?? response.publishRequested) === true ? 'yes' : 'no'
+    }`,
+    `Publish mode: ${
+      effectivePublishMode ?? response.effectivePublishMode ?? 'unknown'
+    }`,
+    `Delete behavior: ${deleteBehavior ?? response.deleteBehavior ?? 'unknown'}`,
     '',
     `Create: ${summary.create ?? 0}`,
     `Update: ${summary.update ?? 0}`,

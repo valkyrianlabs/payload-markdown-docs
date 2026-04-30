@@ -4,6 +4,7 @@ import type {
   ValidatedDocsManifest,
 } from '../sync/index.js'
 import type { DocsSyncConflict } from './docsConflicts.js'
+import type { DocsPublishMode } from './docsData.js'
 import type { ExistingPayloadDocsRecord } from './existingDocs.js'
 
 import { findDocsSyncConflicts } from './docsConflicts.js'
@@ -13,6 +14,11 @@ export type ApplyDocsSyncPayloadOperations = {
   create: (args: {
     collection: string
     data: Record<string, unknown>
+    overrideAccess?: boolean
+  }) => Promise<Record<string, unknown>>
+  delete?: (args: {
+    collection: string
+    id: string
     overrideAccess?: boolean
   }) => Promise<Record<string, unknown>>
   update: (args: {
@@ -33,6 +39,8 @@ export type ApplyDocsSyncResult =
       writes: {
         archive: number
         create: number
+        delete: number
+        draft: number
         reactivate: number
         update: number
       }
@@ -40,27 +48,48 @@ export type ApplyDocsSyncResult =
 
 export const assertApplyDeleteBehaviorSupported = (
   deleteBehavior: DocsDeleteBehavior,
-): boolean => deleteBehavior === 'archive' || deleteBehavior === 'ignore'
+  {
+    allowHardDelete = false,
+    docsEnableDrafts = false,
+  }: {
+    allowHardDelete?: boolean
+    docsEnableDrafts?: boolean
+  } = {},
+): boolean => {
+  if (deleteBehavior === 'archive' || deleteBehavior === 'ignore') {
+    return true
+  }
+
+  if (deleteBehavior === 'draft') {
+    return docsEnableDrafts
+  }
+
+  return allowHardDelete
+}
 
 export const applyDocsSync = async ({
   collectionSlug,
   deleteBehavior,
+  docsEnableDrafts,
   existing,
   manifest,
   markdownFieldName,
   now,
   payload,
   plan,
+  publishMode,
   syncRunId,
 }: {
   collectionSlug: string
   deleteBehavior: DocsDeleteBehavior
+  docsEnableDrafts: boolean
   existing: ExistingPayloadDocsRecord[]
   manifest: ValidatedDocsManifest
   markdownFieldName: string
   now: Date
   payload: ApplyDocsSyncPayloadOperations
   plan: DocsSyncPlan
+  publishMode: DocsPublishMode
   syncRunId?: string
 }): Promise<ApplyDocsSyncResult> => {
   const existingBySourcePath = new Map(
@@ -69,7 +98,13 @@ export const applyDocsSync = async ({
   const reactivations = plan.unchanged.filter((change) => change.current?.archived)
   const conflicts = findDocsSyncConflicts({
     existingBySourcePath,
-    plannedChanges: [...plan.update, ...plan.archive, ...reactivations],
+    plannedChanges: [
+      ...plan.update,
+      ...plan.archive,
+      ...plan.draft,
+      ...plan.delete,
+      ...reactivations,
+    ],
   })
 
   if (conflicts.length > 0) {
@@ -82,6 +117,8 @@ export const applyDocsSync = async ({
   const writes = {
     archive: 0,
     create: 0,
+    delete: 0,
+    draft: 0,
     reactivate: 0,
     update: 0,
   }
@@ -95,9 +132,11 @@ export const applyDocsSync = async ({
       collection: collectionSlug,
       data: buildDocsData({
         desired: change.desired,
+        docsEnableDrafts,
         manifest,
         markdownFieldName,
         now,
+        publishMode,
         syncRunId,
       }),
       overrideAccess: true,
@@ -120,10 +159,13 @@ export const applyDocsSync = async ({
       id: current.id,
       collection: collectionSlug,
       data: buildDocsData({
+        current,
         desired: change.desired,
+        docsEnableDrafts,
         manifest,
         markdownFieldName,
         now,
+        publishMode,
         syncRunId,
       }),
       overrideAccess: true,
@@ -146,10 +188,13 @@ export const applyDocsSync = async ({
       id: current.id,
       collection: collectionSlug,
       data: buildDocsData({
+        current,
         desired: change.desired,
+        docsEnableDrafts,
         manifest,
         markdownFieldName,
         now,
+        publishMode,
         syncRunId,
       }),
       overrideAccess: true,
@@ -169,12 +214,57 @@ export const applyDocsSync = async ({
         id: current.id,
         collection: collectionSlug,
         data: buildArchiveData({
+          docsEnableDrafts,
           now,
           syncRunId,
         }),
         overrideAccess: true,
       })
       writes.archive += 1
+    }
+  }
+
+  if (deleteBehavior === 'draft') {
+    for (const change of plan.draft) {
+      const current = existingBySourcePath.get(change.sourcePath)
+
+      if (!current) {
+        continue
+      }
+
+      await payload.update({
+        id: current.id,
+        collection: collectionSlug,
+        data: buildArchiveData({
+          docsEnableDrafts,
+          draftMissing: true,
+          now,
+          syncRunId,
+        }),
+        overrideAccess: true,
+      })
+      writes.draft += 1
+    }
+  }
+
+  if (deleteBehavior === 'delete') {
+    if (!payload.delete) {
+      throw new Error('Payload delete operation is required for hard delete.')
+    }
+
+    for (const change of plan.delete) {
+      const current = existingBySourcePath.get(change.sourcePath)
+
+      if (!current) {
+        continue
+      }
+
+      await payload.delete({
+        id: current.id,
+        collection: collectionSlug,
+        overrideAccess: true,
+      })
+      writes.delete += 1
     }
   }
 

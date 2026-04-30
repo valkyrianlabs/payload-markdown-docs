@@ -26,7 +26,7 @@ Commands:
   manifest   Print a JSON docs manifest for a local Markdown docs directory.
   plan       Build a dry sync plan against optional existing docs records.
   push       Sign and upload a docs manifest to a Payload sync endpoint.
-  keygen     Generate Ed25519 keys for a future signed sync workflow.
+  keygen     Generate Ed25519 keys for signed sync.
 `
 
 const commandHelp: Record<Exclude<CliCommandName, 'help'>, string> = {
@@ -80,7 +80,8 @@ Options:
   --private-key-env <name>   Environment variable containing the private key.
   --dry-run                  Upload as dry-run mode. This is the default.
   --sync                     Upload as sync mode. Requires server sync.allowWrites.
-  --delete-behavior <value>  archive or ignore. Defaults to archive.
+  --publish                  Request published output. Server must allow publishing.
+  --delete-behavior <value>  archive, delete, draft, or ignore. Defaults to archive.
   --json                     Print structured JSON output.
   --pretty                   Pretty-print JSON output with --json.
   --source <id>              Manifest source id. Defaults to local-docs.
@@ -94,7 +95,7 @@ Options:
   --max-total-bytes <number> Maximum total Markdown bytes.
   --help                     Show this help.
 
-Publishing, hard delete, and draft delete behavior are not implemented yet.
+Hard delete requires explicit server sync.allowHardDelete. Existing collection and block targets are not supported yet.
 `,
   validate: `payload-markdown-docs validate <docs-root>
 

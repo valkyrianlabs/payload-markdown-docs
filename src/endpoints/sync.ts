@@ -2,6 +2,7 @@ import type { Endpoint, PayloadRequest } from 'payload'
 
 import type {
   ApplyDocsSyncPayloadOperations,
+  DocsPublishMode,
   ExistingDocsPayloadOperations,
   ExistingPayloadDocsRecord,
   SyncRunsPayloadOperations,
@@ -52,7 +53,9 @@ export type DocsSyncEndpointErrorCode =
   | 'auth_disabled'
   | 'body_hash_mismatch'
   | 'delete_behavior_not_implemented'
+  | 'draft_behavior_not_available'
   | 'dry_run_required_not_implemented'
+  | 'hard_delete_disabled'
   | 'invalid_body'
   | 'invalid_manifest'
   | 'invalid_method'
@@ -61,7 +64,8 @@ export type DocsSyncEndpointErrorCode =
   | 'manual_edit_conflict'
   | 'missing_header'
   | 'nonce_replay'
-  | 'publish_not_implemented'
+  | 'publish_disabled'
+  | 'publish_not_available'
   | 'replay_protection_unavailable'
   | 'source_not_allowed'
   | 'sync_apply_failed'
@@ -70,11 +74,15 @@ export type DocsSyncEndpointErrorCode =
   | 'unknown_key'
 
 export type CreateSyncEndpointOptions = {
+  allowHardDelete?: boolean
+  allowPublish?: boolean
   allowWrites?: boolean
   auth?: PayloadMarkdownDocsAuthConfig
+  defaultPublishMode?: DocsPublishMode
   deleteBehavior?: DocsDeleteBehavior
   docsCollectionSlug: string
   docsEnabled: boolean
+  docsEnableDrafts: boolean
   endpointPath: string
   getNow?: () => Date
   markdownFieldName: string
@@ -132,8 +140,11 @@ type SyncSuccessResponse = {
     unchanged: SerializedChange[]
     update: SerializedChange[]
   }
+  deleteBehavior: DocsDeleteBehavior
   dryRun: boolean
+  effectivePublishMode: DocsPublishMode
   ok: true
+  publishRequested: boolean
   summary: {
     archive: number
     create: number
@@ -312,7 +323,83 @@ const getPlannedConflictChanges = ({
     return current?.archived === true
   })
 
-  return [...plan.update, ...plan.archive, ...archivedUnchanged]
+  return [
+    ...plan.update,
+    ...plan.archive,
+    ...plan.draft,
+    ...plan.delete,
+    ...archivedUnchanged,
+  ]
+}
+
+const getDefaultPublishMode = (
+  options: CreateSyncEndpointOptions,
+): DocsPublishMode =>
+  options.defaultPublishMode ?? (options.docsEnableDrafts ? 'draft' : 'preserve')
+
+const getLifecyclePolicyError = ({
+  deleteBehavior,
+  manifest,
+  options,
+  publishMode,
+}: {
+  deleteBehavior: DocsDeleteBehavior
+  manifest: ValidatedDocsManifest
+  options: CreateSyncEndpointOptions
+  publishMode: DocsPublishMode
+}): Response | undefined => {
+  if (manifest.publish && options.allowPublish !== true) {
+    return errorResponse(
+      'publish_disabled',
+      'Publishing is disabled by server configuration.',
+      403,
+    )
+  }
+
+  if (
+    (manifest.publish || publishMode === 'published') &&
+    !options.docsEnableDrafts
+  ) {
+    return errorResponse(
+      'publish_not_available',
+      'Publishing requires a draft-enabled dedicated docs collection.',
+      400,
+    )
+  }
+
+  if (publishMode === 'published' && options.allowPublish !== true) {
+    return errorResponse(
+      'publish_disabled',
+      'Publishing is disabled by server configuration.',
+      403,
+    )
+  }
+
+  if (publishMode === 'draft' && !options.docsEnableDrafts) {
+    return errorResponse(
+      'draft_behavior_not_available',
+      'Draft mode requires a draft-enabled dedicated docs collection.',
+      400,
+    )
+  }
+
+  if (deleteBehavior === 'draft' && !options.docsEnableDrafts) {
+    return errorResponse(
+      'draft_behavior_not_available',
+      'Draft delete behavior requires a draft-enabled dedicated docs collection.',
+      400,
+    )
+  }
+
+  if (deleteBehavior === 'delete' && options.allowHardDelete !== true) {
+    return errorResponse(
+      'hard_delete_disabled',
+      'Hard delete is disabled by server configuration.',
+      403,
+    )
+  }
+
+  return undefined
 }
 
 const createSyncEndpointHandler =
@@ -475,6 +562,20 @@ const createSyncEndpointHandler =
     }
 
     const effectiveDeleteBehavior = options.deleteBehavior ?? 'archive'
+    const effectivePublishMode: DocsPublishMode = validation.data.publish
+      ? 'published'
+      : getDefaultPublishMode(options)
+    const lifecyclePolicyError = getLifecyclePolicyError({
+      deleteBehavior: effectiveDeleteBehavior,
+      manifest: validation.data,
+      options,
+      publishMode: effectivePublishMode,
+    })
+
+    if (lifecyclePolicyError) {
+      return lifecyclePolicyError
+    }
+
     const isSyncMode = validation.data.mode === 'sync'
 
     if (isSyncMode && options.allowWrites !== true) {
@@ -493,18 +594,16 @@ const createSyncEndpointHandler =
       )
     }
 
-    if (isSyncMode && validation.data.publish) {
-      return errorResponse(
-        'publish_not_implemented',
-        'Publishing is not implemented in Phase 6.',
-        400,
-      )
-    }
-
-    if (isSyncMode && !assertApplyDeleteBehaviorSupported(effectiveDeleteBehavior)) {
+    if (
+      isSyncMode &&
+      !assertApplyDeleteBehaviorSupported(effectiveDeleteBehavior, {
+        allowHardDelete: options.allowHardDelete,
+        docsEnableDrafts: options.docsEnableDrafts,
+      })
+    ) {
       return errorResponse(
         'delete_behavior_not_implemented',
-        'Only archive and ignore delete behavior can be applied in Phase 6.',
+        'Configured delete behavior cannot be applied.',
         400,
       )
     }
@@ -584,7 +683,7 @@ const createSyncEndpointHandler =
         commit: validation.data.source.commit,
         completedAt: isSyncMode ? startedAt : options.getNow?.() ?? new Date(),
         deleteBehavior: effectiveDeleteBehavior,
-        effectivePublishMode: 'draft',
+        effectivePublishMode,
         errors: [],
         fileCount: validation.data.files.length,
         keyId: headersResult.headers.keyId,
@@ -616,12 +715,14 @@ const createSyncEndpointHandler =
         const applyResult = await applyDocsSync({
           collectionSlug: options.docsCollectionSlug,
           deleteBehavior: effectiveDeleteBehavior,
+          docsEnableDrafts: options.docsEnableDrafts,
           existing: existingPayloadDocs,
           manifest: validation.data,
           markdownFieldName: options.markdownFieldName,
           now: options.getNow?.() ?? new Date(),
           payload: req.payload as unknown as ApplyDocsSyncPayloadOperations,
           plan,
+          publishMode: effectivePublishMode,
           syncRunId,
         })
 
@@ -668,8 +769,11 @@ const createSyncEndpointHandler =
 
     return jsonResponse({
       changes: serializeChanges(plan),
+      deleteBehavior: effectiveDeleteBehavior,
       dryRun: !isSyncMode,
+      effectivePublishMode,
       ok: true,
+      publishRequested: validation.data.publish,
       summary,
       syncRunId,
       warnings,

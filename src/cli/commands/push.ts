@@ -21,15 +21,20 @@ import { getDocsCommandOptions } from './validate.js'
 
 const supportedPushDeleteBehaviors = new Set<DocsDeleteBehavior>([
   'archive',
+  'delete',
+  'draft',
   'ignore',
 ])
 
 type ServerPushResponse = {
+  deleteBehavior?: string
+  effectivePublishMode?: string
   error?: {
     code?: string
     message?: string
   }
   ok?: boolean
+  publishRequested?: boolean
   summary?: {
     archive?: number
     create?: number
@@ -163,7 +168,7 @@ const getPushCommandOptions = async (
   ) {
     return {
       exitCode: 1,
-      stderr: '--delete-behavior for push must be archive or ignore.\n',
+      stderr: '--delete-behavior for push must be archive, delete, draft, or ignore.\n',
     }
   }
 
@@ -175,13 +180,12 @@ const getPushCommandOptions = async (
 
   return {
     ...docsOptions,
-    deleteBehavior: deleteBehaviorFlag as
-      | Extract<DocsDeleteBehavior, 'archive' | 'ignore'>
-      | undefined,
+    deleteBehavior: deleteBehaviorFlag as DocsDeleteBehavior | undefined,
     endpoint,
     keyId,
     mode: getFlagBoolean(args, 'sync') ? 'sync' : 'dry-run',
     privateKey,
+    publish: getFlagBoolean(args, 'publish'),
   }
 }
 
@@ -218,6 +222,7 @@ export const runPushCommand = async (
     deleteBehavior: options.deleteBehavior ?? 'archive',
     files,
     mode: options.mode,
+    publish: options.publish,
     repository: options.repository,
     root: options.sourceRoot,
     sourceId: options.sourceId,

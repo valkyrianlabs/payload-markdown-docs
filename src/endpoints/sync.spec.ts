@@ -31,6 +31,7 @@ const keyPair = () =>
 
 type MockPayload = {
   create: ReturnType<typeof vi.fn>
+  delete: ReturnType<typeof vi.fn>
   find: ReturnType<typeof vi.fn>
   update: ReturnType<typeof vi.fn>
 }
@@ -45,6 +46,11 @@ const createMockPayload = ({
   create: vi.fn(({ collection }) =>
     Promise.resolve({
       id: `${collection}-id`,
+    }),
+  ),
+  delete: vi.fn(({ id }) =>
+    Promise.resolve({
+      id,
     }),
   ),
   find: vi.fn(({ collection }) => {
@@ -148,17 +154,27 @@ const createRequest = ({
   ) as unknown as PayloadRequest
 
 const createEndpointForTests = ({
+  allowHardDelete = false,
+  allowPublish = false,
   allowWrites = false,
+  defaultPublishMode,
   deleteBehavior,
+  docsEnableDrafts = false,
   publicKey,
   syncRunsEnabled = true,
 }: {
+  allowHardDelete?: boolean
+  allowPublish?: boolean
   allowWrites?: boolean
+  defaultPublishMode?: 'draft' | 'preserve' | 'published'
   deleteBehavior?: 'archive' | 'delete' | 'draft' | 'ignore'
+  docsEnableDrafts?: boolean
   publicKey: string
   syncRunsEnabled?: boolean
 }) =>
   createSyncEndpoint({
+    allowHardDelete,
+    allowPublish,
     allowWrites,
     auth: {
       keys: [
@@ -171,9 +187,11 @@ const createEndpointForTests = ({
       mode: 'ed25519',
       nonceTtlSeconds: 600,
     },
+    defaultPublishMode,
     deleteBehavior,
     docsCollectionSlug: 'docs',
     docsEnabled: true,
+    docsEnableDrafts,
     endpointPath: DEFAULT_DOCS_SYNC_ENDPOINT_PATH,
     getNow: () => now,
     markdownFieldName: 'content',
@@ -199,8 +217,12 @@ const callEndpoint = async ({
 }: {
   body?: string
   endpointOptions?: {
+    allowHardDelete?: boolean
+    allowPublish?: boolean
     allowWrites?: boolean
+    defaultPublishMode?: 'draft' | 'preserve' | 'published'
     deleteBehavior?: 'archive' | 'delete' | 'draft' | 'ignore'
+    docsEnableDrafts?: boolean
     syncRunsEnabled?: boolean
   }
   headers?: Headers
@@ -256,6 +278,7 @@ describe('sync endpoint dry-run handling', () => {
     const endpoint = createSyncEndpoint({
       docsCollectionSlug: 'docs',
       docsEnabled: true,
+      docsEnableDrafts: false,
       endpointPath: DEFAULT_DOCS_SYNC_ENDPOINT_PATH,
       getNow: () => now,
       markdownFieldName: 'content',
@@ -531,13 +554,119 @@ describe('sync endpoint dry-run handling', () => {
     expect(json.error).toMatchObject({ code: 'audit_unavailable' })
   })
 
-  it('rejects sync mode when publishing is requested', async () => {
+  it('rejects publish requests when publishing is disabled', async () => {
     const { privateKey, publicKey } = keyPair()
     const body = JSON.stringify(createManifest({ mode: 'sync', publish: true }))
     const { json, response } = await callEndpoint({
       body,
       endpointOptions: {
         allowWrites: true,
+        docsEnableDrafts: true,
+      },
+      headers: signBody({
+        body,
+        privateKey,
+      }),
+      publicKey: publicKey.toString(),
+    })
+
+    expect(response.status).toBe(403)
+    expect(json.error).toMatchObject({ code: 'publish_disabled' })
+  })
+
+  it('accepts publish requests when publishing and drafts are enabled', async () => {
+    const { privateKey, publicKey } = keyPair()
+    const body = JSON.stringify(createManifest({ mode: 'sync', publish: true }))
+    const payload = createMockPayload()
+    const { json, response } = await callEndpoint({
+      body,
+      endpointOptions: {
+        allowPublish: true,
+        allowWrites: true,
+        docsEnableDrafts: true,
+      },
+      headers: signBody({
+        body,
+        privateKey,
+      }),
+      payload,
+      publicKey: publicKey.toString(),
+    })
+
+    expect(response.status).toBe(200)
+    expect(json).toMatchObject({
+      effectivePublishMode: 'published',
+      publishRequested: true,
+    })
+    expect(payload.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: 'docs',
+        data: expect.objectContaining({
+          _status: 'published',
+        }),
+      }),
+    )
+  })
+
+  it('applies default draft publish mode when drafts are enabled', async () => {
+    const { privateKey, publicKey } = keyPair()
+    const body = JSON.stringify(createManifest({ mode: 'sync' }))
+    const payload = createMockPayload()
+    const { json, response } = await callEndpoint({
+      body,
+      endpointOptions: {
+        allowWrites: true,
+        docsEnableDrafts: true,
+      },
+      headers: signBody({
+        body,
+        privateKey,
+      }),
+      payload,
+      publicKey: publicKey.toString(),
+    })
+
+    expect(response.status).toBe(200)
+    expect(json.effectivePublishMode).toBe('draft')
+    expect(payload.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          _status: 'draft',
+        }),
+      }),
+    )
+  })
+
+  it('rejects default published mode unless publishing is allowed', async () => {
+    const { privateKey, publicKey } = keyPair()
+    const body = JSON.stringify(createManifest({ mode: 'sync' }))
+    const { json, response } = await callEndpoint({
+      body,
+      endpointOptions: {
+        allowWrites: true,
+        defaultPublishMode: 'published',
+        docsEnableDrafts: true,
+      },
+      headers: signBody({
+        body,
+        privateKey,
+      }),
+      publicKey: publicKey.toString(),
+    })
+
+    expect(response.status).toBe(403)
+    expect(json.error).toMatchObject({ code: 'publish_disabled' })
+  })
+
+  it('rejects publish requests when drafts are not enabled', async () => {
+    const { privateKey, publicKey } = keyPair()
+    const body = JSON.stringify(createManifest({ mode: 'sync', publish: true }))
+    const { json, response } = await callEndpoint({
+      body,
+      endpointOptions: {
+        allowPublish: true,
+        allowWrites: true,
+        docsEnableDrafts: false,
       },
       headers: signBody({
         body,
@@ -547,31 +676,48 @@ describe('sync endpoint dry-run handling', () => {
     })
 
     expect(response.status).toBe(400)
-    expect(json.error).toMatchObject({ code: 'publish_not_implemented' })
+    expect(json.error).toMatchObject({ code: 'publish_not_available' })
   })
 
-  it.each(['delete', 'draft'] as const)(
-    'rejects sync mode when delete behavior is %s',
-    async (deleteBehavior) => {
-      const { privateKey, publicKey } = keyPair()
-      const body = JSON.stringify(createManifest({ mode: 'sync' }))
-      const { json, response } = await callEndpoint({
+  it('rejects draft delete behavior when drafts are unavailable', async () => {
+    const { privateKey, publicKey } = keyPair()
+    const body = JSON.stringify(createManifest({ mode: 'sync' }))
+    const { json, response } = await callEndpoint({
+      body,
+      endpointOptions: {
+        allowWrites: true,
+        deleteBehavior: 'draft',
+      },
+      headers: signBody({
         body,
-        endpointOptions: {
-          allowWrites: true,
-          deleteBehavior,
-        },
-        headers: signBody({
-          body,
-          privateKey,
-        }),
-        publicKey: publicKey.toString(),
-      })
+        privateKey,
+      }),
+      publicKey: publicKey.toString(),
+    })
 
-      expect(response.status).toBe(400)
-      expect(json.error).toMatchObject({ code: 'delete_behavior_not_implemented' })
-    },
-  )
+    expect(response.status).toBe(400)
+    expect(json.error).toMatchObject({ code: 'draft_behavior_not_available' })
+  })
+
+  it('rejects hard delete unless explicitly enabled', async () => {
+    const { privateKey, publicKey } = keyPair()
+    const body = JSON.stringify(createManifest({ mode: 'sync' }))
+    const { json, response } = await callEndpoint({
+      body,
+      endpointOptions: {
+        allowWrites: true,
+        deleteBehavior: 'delete',
+      },
+      headers: signBody({
+        body,
+        privateKey,
+      }),
+      publicKey: publicKey.toString(),
+    })
+
+    expect(response.status).toBe(403)
+    expect(json.error).toMatchObject({ code: 'hard_delete_disabled' })
+  })
 
   it('applies valid sync mode by creating docs and updating audit', async () => {
     const { privateKey, publicKey } = keyPair()
@@ -603,6 +749,16 @@ describe('sync endpoint dry-run handling', () => {
         collection: 'docs',
         data: expect.objectContaining({
           content: '# Home\n',
+        }),
+      }),
+    )
+    expect(payload.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: 'docs-sync-runs',
+        data: expect.objectContaining({
+          deleteBehavior: 'archive',
+          effectivePublishMode: 'preserve',
+          publishRequested: false,
         }),
       }),
     )
@@ -772,6 +928,173 @@ describe('sync endpoint dry-run handling', () => {
       expect.objectContaining({
         id: 'doc-1',
         collection: 'docs',
+      }),
+    )
+  })
+
+  it('drafts and archives missing docs in sync mode when delete behavior is draft', async () => {
+    const { privateKey, publicKey } = keyPair()
+    const body = JSON.stringify({
+      ...createManifest({ mode: 'sync' }),
+      files: [
+        {
+          content: '# New\n',
+          path: 'new.md',
+          sha256: sha256Hex('# New\n'),
+        },
+      ],
+    })
+    const payload = createMockPayload({
+      existingDocs: [
+        {
+          id: 'doc-1',
+          _status: 'published',
+          content: '# Old\n',
+          route: '/docs/old',
+          sourceHash: sha256Hex('# Old\n'),
+          sourcePath: 'old.md',
+          sync: {
+            archived: false,
+            managedBy: 'payload-markdown-docs',
+            sourceHashAtLastSync: sha256Hex('# Old\n'),
+            sourceId: 'main-docs',
+          },
+          title: 'Old',
+        },
+      ],
+    })
+
+    const { json, response } = await callEndpoint({
+      body,
+      endpointOptions: {
+        allowWrites: true,
+        deleteBehavior: 'draft',
+        docsEnableDrafts: true,
+      },
+      headers: signBody({
+        body,
+        privateKey,
+      }),
+      payload,
+      publicKey: publicKey.toString(),
+    })
+
+    expect(response.status).toBe(200)
+    expect(json.summary).toMatchObject({ create: 1, draft: 1 })
+    expect(payload.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'doc-1',
+        collection: 'docs',
+        data: expect.objectContaining({
+          _status: 'draft',
+          sync: expect.objectContaining({
+            archived: true,
+          }),
+        }),
+      }),
+    )
+  })
+
+  it('hard deletes missing docs only when explicitly enabled', async () => {
+    const { privateKey, publicKey } = keyPair()
+    const body = JSON.stringify({
+      ...createManifest({ mode: 'sync' }),
+      files: [
+        {
+          content: '# New\n',
+          path: 'new.md',
+          sha256: sha256Hex('# New\n'),
+        },
+      ],
+    })
+    const payload = createMockPayload({
+      existingDocs: [
+        {
+          id: 'doc-1',
+          content: '# Old\n',
+          route: '/docs/old',
+          sourceHash: sha256Hex('# Old\n'),
+          sourcePath: 'old.md',
+          sync: {
+            archived: false,
+            managedBy: 'payload-markdown-docs',
+            sourceHashAtLastSync: sha256Hex('# Old\n'),
+            sourceId: 'main-docs',
+          },
+          title: 'Old',
+        },
+      ],
+    })
+
+    const { json, response } = await callEndpoint({
+      body,
+      endpointOptions: {
+        allowHardDelete: true,
+        allowWrites: true,
+        deleteBehavior: 'delete',
+      },
+      headers: signBody({
+        body,
+        privateKey,
+      }),
+      payload,
+      publicKey: publicKey.toString(),
+    })
+
+    expect(response.status).toBe(200)
+    expect(json.summary).toMatchObject({ create: 1, delete: 1 })
+    expect(payload.delete).toHaveBeenCalledWith({
+      id: 'doc-1',
+      collection: 'docs',
+      overrideAccess: true,
+    })
+  })
+
+  it('preserves existing draft status in preserve mode', async () => {
+    const { privateKey, publicKey } = keyPair()
+    const body = JSON.stringify(createManifest({ mode: 'sync' }))
+    const payload = createMockPayload({
+      existingDocs: [
+        {
+          id: 'doc-1',
+          _status: 'published',
+          content: '# Old\n',
+          route: '/docs',
+          sourceHash: sha256Hex('# Old\n'),
+          sourcePath: 'index.md',
+          sync: {
+            archived: false,
+            managedBy: 'payload-markdown-docs',
+            sourceHashAtLastSync: sha256Hex('# Old\n'),
+            sourceId: 'main-docs',
+          },
+          title: 'Home',
+        },
+      ],
+    })
+
+    const { response } = await callEndpoint({
+      body,
+      endpointOptions: {
+        allowWrites: true,
+        defaultPublishMode: 'preserve',
+        docsEnableDrafts: true,
+      },
+      headers: signBody({
+        body,
+        privateKey,
+      }),
+      payload,
+      publicKey: publicKey.toString(),
+    })
+
+    expect(response.status).toBe(200)
+    expect(payload.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'doc-1',
+        data: expect.objectContaining({
+          _status: 'published',
+        }),
       }),
     )
   })

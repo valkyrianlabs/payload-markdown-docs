@@ -45,6 +45,7 @@ const existingRecord = ({
   managedBy = MANAGED_BY,
   sourceHashAtLastSync = sha256Hex(content),
   sourcePath = 'index.md',
+  status,
 }: {
   archived?: boolean
   content?: string
@@ -52,6 +53,7 @@ const existingRecord = ({
   managedBy?: string
   sourceHashAtLastSync?: string
   sourcePath?: string
+  status?: 'draft' | 'published'
 } = {}): ExistingPayloadDocsRecord => ({
   id,
   archived,
@@ -59,6 +61,7 @@ const existingRecord = ({
   route: sourcePath === 'index.md' ? '/docs' : `/docs/${sourcePath.replace(/\.md$/, '')}`,
   sourceHash: sourceHashAtLastSync,
   sourcePath,
+  status,
   sync: {
     archived,
     managedBy,
@@ -71,6 +74,7 @@ const existingRecord = ({
 
 const createPayloadMock = () => ({
   create: vi.fn((args) => Promise.resolve({ id: 'created-doc', ...args.data })),
+  delete: vi.fn((args) => Promise.resolve({ id: args.id })),
   update: vi.fn((args) => Promise.resolve({ id: args.id, ...args.data })),
 })
 
@@ -87,9 +91,11 @@ describe('docs sync apply helpers', () => {
     expect(
       buildDocsData({
         desired: manifest.files[0],
+        docsEnableDrafts: false,
         manifest,
         markdownFieldName: 'body',
         now,
+        publishMode: 'preserve',
         syncRunId: 'sync-run-1',
       }),
     ).toMatchObject({
@@ -121,12 +127,14 @@ describe('docs sync apply helpers', () => {
     const result = await applyDocsSync({
       collectionSlug: 'docs',
       deleteBehavior: 'archive',
+      docsEnableDrafts: false,
       existing: [],
       manifest,
       markdownFieldName: 'content',
       now,
       payload,
       plan,
+      publishMode: 'preserve',
       syncRunId: 'sync-run-1',
     })
 
@@ -140,6 +148,110 @@ describe('docs sync apply helpers', () => {
             lastSyncRunId: 'sync-run-1',
             sourceHashAtLastSync: sha256Hex('# Home\n'),
           }),
+        }),
+      }),
+    )
+    expect(payload.create.mock.calls[0]?.[0].data).not.toHaveProperty('_status')
+  })
+
+  it('creates docs as drafts when draft publish mode is effective', async () => {
+    const manifest = getValidatedManifest()
+    const payload = createPayloadMock()
+    const plan = planDocsSync({
+      desired: manifest,
+      existing: [],
+    })
+
+    const result = await applyDocsSync({
+      collectionSlug: 'docs',
+      deleteBehavior: 'archive',
+      docsEnableDrafts: true,
+      existing: [],
+      manifest,
+      markdownFieldName: 'content',
+      now,
+      payload,
+      plan,
+      publishMode: 'draft',
+    })
+
+    expect(result).toMatchObject({ ok: true, writes: { create: 1 } })
+    expect(payload.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          _status: 'draft',
+        }),
+      }),
+    )
+  })
+
+  it('creates docs as published when published mode is effective', async () => {
+    const manifest = getValidatedManifest()
+    const payload = createPayloadMock()
+    const plan = planDocsSync({
+      desired: manifest,
+      existing: [],
+    })
+
+    await applyDocsSync({
+      collectionSlug: 'docs',
+      deleteBehavior: 'archive',
+      docsEnableDrafts: true,
+      existing: [],
+      manifest,
+      markdownFieldName: 'content',
+      now,
+      payload,
+      plan,
+      publishMode: 'published',
+    })
+
+    expect(payload.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          _status: 'published',
+        }),
+      }),
+    )
+  })
+
+  it('preserves existing status and defaults new preserve-mode docs to draft', async () => {
+    const manifest = getValidatedManifest([
+      { content: '# Changed\n', path: 'index.md' },
+      { content: '# New\n', path: 'new.md' },
+    ])
+    const existing = [existingRecord({ content: '# Old\n', status: 'published' })]
+    const payload = createPayloadMock()
+    const plan = planDocsSync({
+      desired: manifest,
+      existing: existing.map(toExistingDocsRecord),
+    })
+
+    await applyDocsSync({
+      collectionSlug: 'docs',
+      deleteBehavior: 'archive',
+      docsEnableDrafts: true,
+      existing,
+      manifest,
+      markdownFieldName: 'content',
+      now,
+      payload,
+      plan,
+      publishMode: 'preserve',
+    })
+
+    expect(payload.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'doc-1',
+        data: expect.objectContaining({
+          _status: 'published',
+        }),
+      }),
+    )
+    expect(payload.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          _status: 'draft',
         }),
       }),
     )
@@ -163,12 +275,14 @@ describe('docs sync apply helpers', () => {
     const result = await applyDocsSync({
       collectionSlug: 'docs',
       deleteBehavior: 'archive',
+      docsEnableDrafts: false,
       existing,
       manifest,
       markdownFieldName: 'content',
       now,
       payload,
       plan,
+      publishMode: 'preserve',
     })
 
     expect(result).toMatchObject({ ok: true, writes: { update: 1 } })
@@ -192,12 +306,14 @@ describe('docs sync apply helpers', () => {
     const result = await applyDocsSync({
       collectionSlug: 'docs',
       deleteBehavior: 'archive',
+      docsEnableDrafts: false,
       existing,
       manifest,
       markdownFieldName: 'content',
       now,
       payload,
       plan,
+      publishMode: 'preserve',
     })
 
     expect(result).toMatchObject({ ok: true, writes: { reactivate: 1 } })
@@ -229,12 +345,14 @@ describe('docs sync apply helpers', () => {
     const result = await applyDocsSync({
       collectionSlug: 'docs',
       deleteBehavior: 'archive',
+      docsEnableDrafts: false,
       existing,
       manifest: desired,
       markdownFieldName: 'content',
       now,
       payload,
       plan,
+      publishMode: 'preserve',
       syncRunId: 'sync-run-1',
     })
 
@@ -268,24 +386,137 @@ describe('docs sync apply helpers', () => {
     const result = await applyDocsSync({
       collectionSlug: 'docs',
       deleteBehavior: 'ignore',
+      docsEnableDrafts: false,
       existing,
       manifest: desired,
       markdownFieldName: 'content',
       now,
       payload,
       plan,
+      publishMode: 'preserve',
     })
 
     expect(result).toMatchObject({ ok: true, writes: { archive: 0 } })
     expect(payload.update).not.toHaveBeenCalled()
   })
 
+  it('drafts and archives missing docs when delete behavior is draft', async () => {
+    const desired = {
+      ...getValidatedManifest(),
+      files: [],
+    }
+    const existing = [existingRecord({ status: 'published' })]
+    const payload = createPayloadMock()
+    const plan = planDocsSync({
+      deleteBehavior: 'draft',
+      desired,
+      existing: existing.map(toExistingDocsRecord),
+    })
+
+    const result = await applyDocsSync({
+      collectionSlug: 'docs',
+      deleteBehavior: 'draft',
+      docsEnableDrafts: true,
+      existing,
+      manifest: desired,
+      markdownFieldName: 'content',
+      now,
+      payload,
+      plan,
+      publishMode: 'preserve',
+    })
+
+    expect(result).toMatchObject({ ok: true, writes: { draft: 1 } })
+    expect(payload.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          _status: 'draft',
+          sync: expect.objectContaining({
+            archived: true,
+          }),
+        }),
+      }),
+    )
+  })
+
+  it('hard deletes missing docs when delete behavior is delete', async () => {
+    const desired = {
+      ...getValidatedManifest(),
+      files: [],
+    }
+    const existing = [existingRecord()]
+    const payload = createPayloadMock()
+    const plan = planDocsSync({
+      deleteBehavior: 'delete',
+      desired,
+      existing: existing.map(toExistingDocsRecord),
+    })
+
+    const result = await applyDocsSync({
+      collectionSlug: 'docs',
+      deleteBehavior: 'delete',
+      docsEnableDrafts: false,
+      existing,
+      manifest: desired,
+      markdownFieldName: 'content',
+      now,
+      payload,
+      plan,
+      publishMode: 'preserve',
+    })
+
+    expect(result).toMatchObject({ ok: true, writes: { delete: 1 } })
+    expect(payload.delete).toHaveBeenCalledWith({
+      id: 'doc-1',
+      collection: 'docs',
+      overrideAccess: true,
+    })
+  })
+
   it.each<DocsDeleteBehavior>(['delete', 'draft'])(
-    'rejects %s delete behavior as unsupported for apply',
+    'requires explicit support for %s delete behavior',
     (deleteBehavior) => {
       expect(assertApplyDeleteBehaviorSupported(deleteBehavior)).toBe(false)
     },
   )
+
+  it('detects hard-delete conflicts and aborts before writes', async () => {
+    const desired = {
+      ...getValidatedManifest(),
+      files: [],
+    }
+    const existing = [
+      existingRecord({
+        content: '# Manual edit\n',
+        sourceHashAtLastSync: sha256Hex('# Old\n'),
+      }),
+    ]
+    const payload = createPayloadMock()
+    const plan = planDocsSync({
+      deleteBehavior: 'delete',
+      desired,
+      existing: existing.map(toExistingDocsRecord),
+    })
+
+    const result = await applyDocsSync({
+      collectionSlug: 'docs',
+      deleteBehavior: 'delete',
+      docsEnableDrafts: false,
+      existing,
+      manifest: desired,
+      markdownFieldName: 'content',
+      now,
+      payload,
+      plan,
+      publishMode: 'preserve',
+    })
+
+    expect(result).toMatchObject({
+      conflicts: [{ reason: 'current_content_hash_mismatch' }],
+      ok: false,
+    })
+    expect(payload.delete).not.toHaveBeenCalled()
+  })
 
   it('detects manual content conflicts and aborts before writes', async () => {
     const manifest = getValidatedManifest([{ content: '# New\n', path: 'index.md' }])
@@ -304,12 +535,14 @@ describe('docs sync apply helpers', () => {
     const result = await applyDocsSync({
       collectionSlug: 'docs',
       deleteBehavior: 'archive',
+      docsEnableDrafts: false,
       existing,
       manifest,
       markdownFieldName: 'content',
       now,
       payload,
       plan,
+      publishMode: 'preserve',
     })
 
     expect(result).toMatchObject({
@@ -332,12 +565,14 @@ describe('docs sync apply helpers', () => {
     const result = await applyDocsSync({
       collectionSlug: 'docs',
       deleteBehavior: 'archive',
+      docsEnableDrafts: false,
       existing,
       manifest,
       markdownFieldName: 'content',
       now,
       payload,
       plan,
+      publishMode: 'preserve',
     })
 
     expect(result).toMatchObject({

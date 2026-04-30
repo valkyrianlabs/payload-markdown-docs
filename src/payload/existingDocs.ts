@@ -15,6 +15,7 @@ export type ExistingDocsPayloadOperations = {
 export type ExistingPayloadDocsRecord = {
   content?: string
   id: string
+  status?: 'draft' | 'published'
   sync?: {
     archived?: boolean
     archivedAt?: null | string
@@ -56,6 +57,10 @@ const toExistingPayloadDocsRecord = ({
   }
 
   const sync = isRecord(doc.sync) ? doc.sync : undefined
+  const status =
+    doc._status === 'draft' || doc._status === 'published'
+      ? doc._status
+      : undefined
 
   return {
     id,
@@ -65,6 +70,7 @@ const toExistingPayloadDocsRecord = ({
     route: doc.route,
     sourceHash: typeof doc.sourceHash === 'string' ? doc.sourceHash : undefined,
     sourcePath: doc.sourcePath,
+    status,
     sync: sync
       ? {
           archived: typeof sync.archived === 'boolean' ? sync.archived : undefined,
