@@ -4,14 +4,14 @@ Git-backed Markdown documentation sync for Payload CMS, powered by `@valkyrianla
 
 ## Status
 
-This package is in early pre-MVP development. It currently wires the dedicated docs storage model into Payload and provides pure manifest validation/planning utilities, but it does not sync remote Markdown content yet.
+This package is in early pre-MVP development. It currently wires the dedicated docs storage model into Payload, provides pure manifest validation/planning utilities, and includes the first local CLI for validating and planning repo-local Markdown docs.
 
 Not implemented yet:
 
 - signed sync endpoint
 - request authentication
 - docs upsert engine
-- CLI
+- remote `push`
 - publish, draft, archive, or delete behavior
 
 ## Product Thesis
@@ -60,7 +60,7 @@ export default buildConfig({
 })
 ```
 
-In the current Phase 2 build, an enabled plugin registers dedicated docs infrastructure collections. It does not register a sync endpoint or mutate existing user collections.
+In the current Phase 4 build, an enabled plugin registers dedicated docs infrastructure collections. It does not register a sync endpoint or mutate existing user collections.
 
 Default generated collections:
 
@@ -132,12 +132,37 @@ if (validated.ok) {
 
 The validation core handles safe docs paths, Markdown-only files, SHA-256 hashing, supported frontmatter, manifest defaults, size limits, duplicate path detection, route derivation, and abstract dry sync planning.
 
+## Local CLI
+
+Phase 4 adds local-only CLI commands. They read Markdown files from disk and reuse the validation/planning core. They do not upload content, sign requests, call Payload, or write to a database.
+
+```bash
+payload-markdown-docs validate ./docs --source main-docs
+payload-markdown-docs manifest ./docs --source main-docs --pretty
+payload-markdown-docs plan ./docs --existing existing-docs.json
+payload-markdown-docs keygen
+```
+
+`validate` walks a local docs directory, builds a manifest in memory, validates it, and prints a human summary by default. Use `--json` for machine-readable output.
+
+`manifest` prints the generated manifest JSON after validation succeeds. Use `--pretty` for formatted JSON.
+
+`plan` compares the desired local docs manifest against an optional JSON file containing abstract existing docs records. It prints create/update/unchanged/archive/delete/draft counts by default, or the full plan with `--json`.
+
+`keygen` generates Ed25519 keys for the future signed sync workflow:
+
+```bash
+payload-markdown-docs keygen --out .docs-sync-keys
+```
+
+Key generation is available now, but request signing, remote push, and server-side verification are not implemented yet.
+
 ## Current Limitations
 
 - No `/api/payload-markdown-docs/sync` endpoint is registered.
 - No request authentication or signature verification is implemented.
 - No docs create/update/archive behavior is implemented.
-- No filesystem-walking CLI is implemented.
+- No remote CLI push/upload command is implemented.
 - Existing collection and block target modes are not implemented.
 - Nonce uniqueness across `keyId + nonce` is not enforced by portable Payload config yet.
 
@@ -145,9 +170,9 @@ The validation core handles safe docs paths, Markdown-only files, SHA-256 hashin
 
 - Phase 1: clean plugin skeleton and public config types. Done.
 - Phase 2: dedicated docs collection, sync run audit collection, and nonce storage design. Done.
-- Phase 3: manifest builder and validation core. Current.
-- Phase 4: CLI foundation for local validate, plan, and keygen. Next.
-- Phase 5: signed sync endpoint with Ed25519 verification and dry-run only.
+- Phase 3: manifest builder and validation core. Done.
+- Phase 4: CLI foundation for local validate, manifest, plan, and keygen. Current.
+- Phase 5: signed sync endpoint with Ed25519 verification and dry-run only. Next.
 - Phase 6: docs upsert engine.
 - Phase 7: publishing modes and archive/delete behavior.
 - Phase 8: existing collection and block target modes.

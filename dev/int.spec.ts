@@ -38,6 +38,20 @@ const getGroupField = (collection: CollectionConfig | undefined, fieldName: stri
   return field?.type === 'group' ? field : undefined
 }
 
+const hasValidPostgresUrl = (): boolean => {
+  if (!process.env.DATABASE_URL) {
+    return false
+  }
+
+  try {
+    return new URL(process.env.DATABASE_URL).protocol.startsWith('postgres')
+  } catch {
+    return false
+  }
+}
+
+const describeWithPostgres = hasValidPostgresUrl() ? describe : describe.skip
+
 describe('payloadMarkdownDocs collection wiring', () => {
   test('exports the plugin factory', () => {
     expect(typeof payloadMarkdownDocs).toBe('function')
@@ -275,7 +289,7 @@ describe('payloadMarkdownDocs collection wiring', () => {
   })
 })
 
-describe('payloadMarkdownDocs dev app integration', () => {
+describeWithPostgres('payloadMarkdownDocs dev app integration', () => {
   let payload: Payload | undefined
 
   afterAll(async () => {
