@@ -19,14 +19,8 @@
       "@payload-config": [
         "./payload.config.ts"
       ],
-      "payload-markdown-docs": [
+      "@valkyrianlabs/payload-markdown-docs": [
         "../src/index.ts"
-      ],
-      "payload-markdown-docs/client": [
-        "../src/exports/client.ts"
-      ],
-      "payload-markdown-docs/rsc": [
-        "../src/exports/rsc.ts"
       ]
     },
     "noEmit": true,

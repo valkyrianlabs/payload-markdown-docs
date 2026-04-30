@@ -1,9 +1,9 @@
 import { mongooseAdapter } from '@payloadcms/db-mongodb'
 import { lexicalEditor } from '@payloadcms/richtext-lexical'
+import { payloadMarkdownDocs } from '@valkyrianlabs/payload-markdown-docs'
 import { MongoMemoryReplSet } from 'mongodb-memory-server'
 import path from 'path'
 import { buildConfig } from 'payload'
-import { payloadMarkdownDocs } from 'payload-markdown-docs'
 import sharp from 'sharp'
 import { fileURLToPath } from 'url'
 
@@ -59,9 +59,7 @@ const buildConfigWithMemoryDB = async () => {
     },
     plugins: [
       payloadMarkdownDocs({
-        collections: {
-          posts: true,
-        },
+        enabled: true,
       }),
     ],
     secret: process.env.PAYLOAD_SECRET || 'test-secret_key',

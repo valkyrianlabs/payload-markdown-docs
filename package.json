@@ -1,7 +1,14 @@
 {
-  "name": "payload-markdown-docs",
+  "name": "@valkyrianlabs/payload-markdown-docs",
   "version": "1.0.0",
-  "description": "A blank template to get started with Payload 3.0",
+  "description": "Git-backed Markdown documentation sync for Payload CMS, powered by payload-markdown.",
+  "keywords": [
+    "payload",
+    "payload-plugin",
+    "markdown",
+    "documentation",
+    "docs"
+  ],
   "license": "MIT",
   "type": "module",
   "exports": {
@@ -9,16 +16,6 @@
       "import": "./src/index.ts",
       "types": "./src/index.ts",
       "default": "./src/index.ts"
-    },
-    "./client": {
-      "import": "./src/exports/client.ts",
-      "types": "./src/exports/client.ts",
-      "default": "./src/exports/client.ts"
-    },
-    "./rsc": {
-      "import": "./src/exports/rsc.ts",
-      "types": "./src/exports/rsc.ts",
-      "default": "./src/exports/rsc.ts"
     }
   },
   "main": "./src/index.ts",
@@ -92,16 +89,6 @@
         "import": "./dist/index.js",
         "types": "./dist/index.d.ts",
         "default": "./dist/index.js"
-      },
-      "./client": {
-        "import": "./dist/exports/client.js",
-        "types": "./dist/exports/client.d.ts",
-        "default": "./dist/exports/client.js"
-      },
-      "./rsc": {
-        "import": "./dist/exports/rsc.js",
-        "types": "./dist/exports/rsc.d.ts",
-        "default": "./dist/exports/rsc.js"
       }
     },
     "main": "./dist/index.js",

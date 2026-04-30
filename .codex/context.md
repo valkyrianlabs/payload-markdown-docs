@@ -3,9 +3,9 @@
 ## Repository
 
 - Package/repository name: `@valkyrianlabs/payload-markdown-docs`
-- Current package metadata still reflects template setup in `package.json`; align naming and description during Phase 1.
+- Package metadata now uses the scoped package name and real description.
 - Purpose: Git-backed Markdown documentation sync into Payload CMS.
-- Current state: Payload plugin template is up and running with sample plugin behavior, sample endpoint, sample dashboard components, integration tests, and a dev Payload app.
+- Current state: Phase 1 clean plugin skeleton. The package exports a no-op `payloadMarkdownDocs()` plugin factory and public config types. Template demo collection, endpoint, field injection, dashboard components, and seed-on-init behavior have been removed.
 
 ## Product Direction
 
@@ -41,21 +41,19 @@ Do not duplicate the Markdown renderer. Store synced Markdown in a field or bloc
 
 ## Expected Source Tree Conventions
 
-Current template structure:
+Current source structure:
 
-- `src/index.ts` is the plugin entrypoint.
-- `src/endpoints/` contains custom endpoint handlers.
-- `src/components/` and `src/exports/` contain sample admin UI exports.
+- `src/index.ts` is the public entrypoint and re-exports the plugin factory, constants, and config types.
+- `src/plugin.ts` contains the no-op `payloadMarkdownDocs()` plugin factory.
+- `src/types.ts` contains public Phase 1 config types and default constants.
 - `dev/` contains the local Payload app used for tests and manual development.
-- `dev/int.spec.ts` contains integration tests.
+- `dev/int.spec.ts` contains skeleton tests and a dev app integration smoke test.
 - `dev/e2e.spec.ts` contains Playwright e2e tests.
 - `package.json`, `tsconfig.json`, `.swcrc`, `eslint.config.js`, `vitest.config.js`, and `playwright.config.js` control build/test tooling.
 
 Expected future source organization:
 
-- `src/index.ts` should export `payloadMarkdownDocs()` and public config types.
-- `src/types.ts` should hold public and internal config types once they grow.
-- `src/plugin.ts` can hold the plugin factory when `src/index.ts` becomes too busy.
+- Keep `src/index.ts`, `src/plugin.ts`, and `src/types.ts` as the Phase 1 public skeleton.
 - `src/collections/` can hold optional docs, sync run, and nonce collection builders.
 - `src/endpoints/` can hold the sync endpoint and endpoint helpers.
 - `src/sync/` can hold manifest validation, planning, hashing, and Payload upsert logic.
@@ -83,7 +81,7 @@ Discovered scripts in `package.json`:
 - `pnpm test:e2e`
 - `pnpm test:int`
 
-For Phase 0, prefer lightweight validation only: `pnpm lint`, `pnpm build`, and `pnpm test:int`. Avoid `pnpm test` unless deliberately running Playwright e2e.
+For current skeleton validation, prefer `pnpm test:int`, `pnpm lint`, and `pnpm build`. `pnpm test:int` is configured to exclude Playwright e2e specs; `pnpm test:e2e` remains the Playwright-only command.
 
 ## Guardrails
 
