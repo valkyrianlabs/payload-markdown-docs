@@ -109,11 +109,15 @@
   },
   "pnpm": {
     "onlyBuiltDependencies": [
-      "sharp",
+      "@swc/core",
       "esbuild",
+      "mongodb-memory-server",
+      "sharp",
       "unrs-resolver"
     ]
   },
   "registry": "https://registry.npmjs.org/",
-  "dependencies": {}
+  "dependencies": {
+    "@valkyrianlabs/payload-markdown": "^1.3.0"
+  }
 }
