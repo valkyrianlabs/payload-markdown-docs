@@ -1,0 +1,9 @@
+export const DEFAULT_DOCS_COLLECTION_SLUG = 'docs'
+export const DEFAULT_DOCS_SYNC_NONCES_COLLECTION_SLUG = 'docs-sync-nonces'
+export const DEFAULT_DOCS_SYNC_RUNS_COLLECTION_SLUG = 'docs-sync-runs'
+export const DEFAULT_DOCS_SYNC_ENDPOINT_PATH = '/payload-markdown-docs/sync'
+export const DEFAULT_MARKDOWN_FIELD_NAME = 'content'
+export const DEFAULT_MAX_BODY_BYTES = 5_000_000
+export const DEFAULT_MAX_SKEW_SECONDS = 300
+export const DEFAULT_NONCE_TTL_SECONDS = 600
+export const MANAGED_BY = 'payload-markdown-docs'

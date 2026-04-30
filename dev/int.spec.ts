@@ -1,17 +1,49 @@
 import type { PayloadMarkdownDocsConfig } from '@valkyrianlabs/payload-markdown-docs'
-import type { Config, Payload } from 'payload'
+import type { CollectionConfig, Config, Payload } from 'payload'
 
 import config from '@payload-config'
-import { payloadMarkdownDocs } from '@valkyrianlabs/payload-markdown-docs'
+import {
+  DEFAULT_DOCS_COLLECTION_SLUG,
+  DEFAULT_DOCS_SYNC_NONCES_COLLECTION_SLUG,
+  DEFAULT_DOCS_SYNC_RUNS_COLLECTION_SLUG,
+  DEFAULT_MARKDOWN_FIELD_NAME,
+  payloadMarkdownDocs,
+} from '@valkyrianlabs/payload-markdown-docs'
 import { getPayload } from 'payload'
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
-describe('payloadMarkdownDocs plugin skeleton', () => {
+type NamedField = {
+  admin?: {
+    components?: {
+      Field?: string
+    }
+  }
+  fields?: NamedField[]
+  name?: string
+  relationTo?: string
+  type?: string
+}
+
+const getCollection = (configToSearch: Config, slug: string) =>
+  configToSearch.collections?.find((collection) => collection.slug === slug)
+
+const getField = (collection: CollectionConfig | undefined, fieldName: string) =>
+  collection?.fields.find(
+    (field): field is NamedField => 'name' in field && field.name === fieldName,
+  )
+
+const getGroupField = (collection: CollectionConfig | undefined, fieldName: string) => {
+  const field = getField(collection, fieldName)
+
+  return field?.type === 'group' ? field : undefined
+}
+
+describe('payloadMarkdownDocs collection wiring', () => {
   test('exports the plugin factory', () => {
     expect(typeof payloadMarkdownDocs).toBe('function')
   })
 
-  test('disabled plugin returns incoming config unchanged', () => {
+  test('disabled plugin returns incoming config unchanged and adds no collections', () => {
     const incomingConfig = {
       collections: [
         {
@@ -24,69 +56,213 @@ describe('payloadMarkdownDocs plugin skeleton', () => {
     const transformedConfig = payloadMarkdownDocs({ enabled: false })(incomingConfig)
 
     expect(transformedConfig).toBe(incomingConfig)
+    expect(transformedConfig.collections).toHaveLength(1)
+    expect(getCollection(transformedConfig, DEFAULT_DOCS_COLLECTION_SLUG)).toBeUndefined()
   })
 
-  test('enabled plugin preserves existing collections without adding template fields', () => {
-    const incomingConfig = {
+  test('enabled plugin adds default docs infrastructure collections', () => {
+    const transformedConfig = payloadMarkdownDocs({ enabled: true })({
       collections: [
         {
           slug: 'posts',
-          fields: [
-            {
-              name: 'title',
-              type: 'text',
-            },
-          ],
+          fields: [],
         },
       ],
-    } as Config
+    } as Config)
 
-    const transformedConfig = payloadMarkdownDocs({ enabled: true })(incomingConfig)
-    const postsCollection = transformedConfig.collections?.find(
-      (collection) => collection.slug === 'posts',
-    )
+    expect(getCollection(transformedConfig, 'posts')).toBeDefined()
+    expect(getCollection(transformedConfig, DEFAULT_DOCS_COLLECTION_SLUG)).toBeDefined()
+    expect(
+      getCollection(transformedConfig, DEFAULT_DOCS_SYNC_RUNS_COLLECTION_SLUG),
+    ).toBeDefined()
+    expect(
+      getCollection(transformedConfig, DEFAULT_DOCS_SYNC_NONCES_COLLECTION_SLUG),
+    ).toBeDefined()
+  })
 
-    expect(transformedConfig).not.toBe(incomingConfig)
-    expect(transformedConfig.collections).toHaveLength(1)
-    expect(postsCollection?.fields).toEqual([
-      {
-        name: 'title',
-        type: 'text',
+  test('custom docs collection slug and markdown field name work', () => {
+    const transformedConfig = payloadMarkdownDocs({
+      enabled: true,
+      target: {
+        slug: 'knowledge-base',
+        type: 'docsCollection',
+        markdownField: 'body',
       },
-    ])
-    expect(postsCollection?.fields).not.toContainEqual(
-      expect.objectContaining({ name: 'addedByPlugin' }),
+    })({ collections: [] } as unknown as Config)
+
+    const docsCollection = getCollection(transformedConfig, 'knowledge-base')
+    const markdownField = getField(docsCollection, 'body')
+
+    expect(docsCollection).toBeDefined()
+    expect(markdownField?.type).toBe('text')
+    expect(markdownField?.admin?.components?.Field).toBe(
+      '@valkyrianlabs/payload-markdown/server#PayloadMarkdownField',
     )
   })
 
-  test('accepts the public Phase 1 config shape', () => {
-    const pluginConfig = {
-      auth: {
-        keys: [
-          {
-            id: 'github-actions-main',
-            publicKey: 'test-public-key',
-          },
-        ],
-        mode: 'ed25519',
+  test('custom infrastructure collection slugs work', () => {
+    const transformedConfig = payloadMarkdownDocs({
+      collections: {
+        nonces: {
+          slug: 'kb-sync-nonces',
+        },
+        syncRuns: {
+          slug: 'kb-sync-runs',
+        },
       },
       enabled: true,
-      endpoint: {
-        maxBodyBytes: 5_000_000,
-        path: '/payload-markdown-docs/sync',
-      },
-      sources: [
-        {
-          id: 'main-docs',
-          root: 'docs',
-          routeBase: '/docs',
+    })({ collections: [] } as unknown as Config)
+
+    expect(getCollection(transformedConfig, 'kb-sync-runs')).toBeDefined()
+    expect(getCollection(transformedConfig, 'kb-sync-nonces')).toBeDefined()
+  })
+
+  test('collection disabling is respected', () => {
+    const transformedConfig = payloadMarkdownDocs({
+      collections: {
+        nonces: {
+          enabled: false,
         },
-      ],
-      sync: {
-        defaultPublishMode: 'draft',
-        deleteBehavior: 'archive',
-        requireDryRunBeforeApply: false,
+        syncRuns: {
+          enabled: false,
+        },
       },
+      enabled: true,
+    })({ collections: [] } as unknown as Config)
+
+    expect(getCollection(transformedConfig, DEFAULT_DOCS_COLLECTION_SLUG)).toBeDefined()
+    expect(
+      getCollection(transformedConfig, DEFAULT_DOCS_SYNC_RUNS_COLLECTION_SLUG),
+    ).toBeUndefined()
+    expect(
+      getCollection(transformedConfig, DEFAULT_DOCS_SYNC_NONCES_COLLECTION_SLUG),
+    ).toBeUndefined()
+  })
+
+  test('duplicate collection slug conflicts throw clear errors', () => {
+    expect(() =>
+      payloadMarkdownDocs({ enabled: true })({
+        collections: [
+          {
+            slug: DEFAULT_DOCS_COLLECTION_SLUG,
+            fields: [],
+          },
+        ],
+      } as Config),
+    ).toThrow(/already exists/)
+  })
+
+  test('unsupported existing collection target throws a clear error', () => {
+    expect(() =>
+      payloadMarkdownDocs({
+        enabled: true,
+        target: {
+          type: 'existingCollection',
+          collection: 'pages',
+          markdownField: 'content',
+        },
+      })({ collections: [] } as unknown as Config),
+    ).toThrow(/existingCollection/)
+  })
+
+  test('docs collection contains expected fields', () => {
+    const transformedConfig = payloadMarkdownDocs({ enabled: true })({
+      collections: [],
+    } as unknown as Config)
+    const docsCollection = getCollection(transformedConfig, DEFAULT_DOCS_COLLECTION_SLUG)
+    const syncField = getGroupField(docsCollection, 'sync')
+    const syncFieldNames = syncField?.fields?.map((field) => field.name)
+
+    expect(getField(docsCollection, 'title')?.type).toBe('text')
+    expect(getField(docsCollection, 'navTitle')?.type).toBe('text')
+    expect(getField(docsCollection, 'description')?.type).toBe('textarea')
+    expect(getField(docsCollection, 'route')?.type).toBe('text')
+    expect(getField(docsCollection, 'sourcePath')?.type).toBe('text')
+    expect(getField(docsCollection, 'sourceHash')?.type).toBe('text')
+    expect(getField(docsCollection, 'depth')?.type).toBe('number')
+    expect(getField(docsCollection, 'order')?.type).toBe('number')
+    expect(getField(docsCollection, 'parent')?.relationTo).toBe(
+      DEFAULT_DOCS_COLLECTION_SLUG,
+    )
+    expect(getField(docsCollection, DEFAULT_MARKDOWN_FIELD_NAME)?.type).toBe('text')
+    expect(syncFieldNames).toEqual([
+      'sourceId',
+      'sourcePath',
+      'sourceHashAtLastSync',
+      'lastSyncedAt',
+      'lastSyncRunId',
+      'managedBy',
+      'archived',
+      'archivedAt',
+    ])
+  })
+
+  test('sync runs collection contains expected fields', () => {
+    const transformedConfig = payloadMarkdownDocs({ enabled: true })({
+      collections: [],
+    } as unknown as Config)
+    const syncRunsCollection = getCollection(
+      transformedConfig,
+      DEFAULT_DOCS_SYNC_RUNS_COLLECTION_SLUG,
+    )
+
+    expect(syncRunsCollection?.fields.map((field) => ('name' in field ? field.name : ''))).toEqual([
+      'sourceId',
+      'repository',
+      'branch',
+      'commit',
+      'actor',
+      'keyId',
+      'mode',
+      'status',
+      'publishRequested',
+      'effectivePublishMode',
+      'deleteBehavior',
+      'bodyHash',
+      'fileCount',
+      'totalBytes',
+      'summary',
+      'warnings',
+      'errors',
+      'startedAt',
+      'completedAt',
+    ])
+  })
+
+  test('nonces collection contains expected fields', () => {
+    const transformedConfig = payloadMarkdownDocs({ enabled: true })({
+      collections: [],
+    } as unknown as Config)
+    const noncesCollection = getCollection(
+      transformedConfig,
+      DEFAULT_DOCS_SYNC_NONCES_COLLECTION_SLUG,
+    )
+
+    expect(noncesCollection?.fields.map((field) => ('name' in field ? field.name : ''))).toEqual([
+      'keyId',
+      'nonce',
+      'sourceId',
+      'bodyHash',
+      'syncRunId',
+      'expiresAt',
+      'usedAt',
+    ])
+  })
+
+  test('accepts the public Phase 2 config shape', () => {
+    const pluginConfig = {
+      collections: {
+        docs: {
+          slug: 'docs',
+        },
+        nonces: {
+          slug: 'docs-sync-nonces',
+        },
+        syncRuns: {
+          slug: 'docs-sync-runs',
+        },
+      },
+      enabled: true,
       target: {
         slug: 'docs',
         type: 'docsCollection',
@@ -95,7 +271,7 @@ describe('payloadMarkdownDocs plugin skeleton', () => {
       },
     } satisfies PayloadMarkdownDocsConfig
 
-    expect(pluginConfig.auth?.mode).toBe('ed25519')
+    expect(pluginConfig.target.type).toBe('docsCollection')
   })
 })
 
@@ -110,16 +286,18 @@ describe('payloadMarkdownDocs dev app integration', () => {
     payload = await getPayload({ config })
   })
 
-  test('does not register template collections, fields, or endpoints in the dev app', () => {
-    expect(payload).toBeDefined()
+  test('registers Phase 2 collections in the dev app', () => {
+    expect(payload?.collections[DEFAULT_DOCS_COLLECTION_SLUG]).toBeDefined()
+    expect(payload?.collections[DEFAULT_DOCS_SYNC_RUNS_COLLECTION_SLUG]).toBeDefined()
+    expect(payload?.collections[DEFAULT_DOCS_SYNC_NONCES_COLLECTION_SLUG]).toBeDefined()
+  })
+
+  test('does not register sync endpoint or template behavior in the dev app', () => {
     expect(payload?.collections['plugin-collection']).toBeUndefined()
-
-    const postsCollection = payload?.config.collections.find(
-      (collection) => collection.slug === 'posts',
-    )
-
-    expect(postsCollection?.fields).not.toContainEqual(
-      expect.objectContaining({ name: 'addedByPlugin' }),
+    expect(payload?.config.endpoints).not.toContainEqual(
+      expect.objectContaining({
+        path: '/payload-markdown-docs/sync',
+      }),
     )
     expect(payload?.config.endpoints).not.toContainEqual(
       expect.objectContaining({

@@ -5,7 +5,7 @@
 - Package/repository name: `@valkyrianlabs/payload-markdown-docs`
 - Package metadata now uses the scoped package name and real description.
 - Purpose: Git-backed Markdown documentation sync into Payload CMS.
-- Current state: Phase 1 clean plugin skeleton. The package exports a no-op `payloadMarkdownDocs()` plugin factory and public config types. Template demo collection, endpoint, field injection, dashboard components, and seed-on-init behavior have been removed.
+- Current state: Phase 2 dedicated docs storage model. The package exports `payloadMarkdownDocs()`, public config types, constants, and collection builders. Enabled plugin mode injects the dedicated docs infrastructure collections; disabled mode remains an exact no-op. No sync endpoint, auth verification, manifest validation, CLI, or upsert engine exists yet.
 
 ## Product Direction
 
@@ -44,8 +44,10 @@ Do not duplicate the Markdown renderer. Store synced Markdown in a field or bloc
 Current source structure:
 
 - `src/index.ts` is the public entrypoint and re-exports the plugin factory, constants, and config types.
-- `src/plugin.ts` contains the no-op `payloadMarkdownDocs()` plugin factory.
-- `src/types.ts` contains public Phase 1 config types and default constants.
+- `src/plugin.ts` contains collection option resolution, duplicate slug checks, and Phase 2 collection wiring.
+- `src/types.ts` contains public config types.
+- `src/constants.ts` contains default slugs, default endpoint path, and default limits.
+- `src/collections/` contains the docs, sync runs, and nonce collection builders.
 - `dev/` contains the local Payload app used for tests and manual development.
 - `dev/int.spec.ts` contains skeleton tests and a dev app integration smoke test.
 - `dev/e2e.spec.ts` contains Playwright e2e tests.
@@ -53,8 +55,7 @@ Current source structure:
 
 Expected future source organization:
 
-- Keep `src/index.ts`, `src/plugin.ts`, and `src/types.ts` as the Phase 1 public skeleton.
-- `src/collections/` can hold optional docs, sync run, and nonce collection builders.
+- Keep `src/index.ts`, `src/plugin.ts`, `src/types.ts`, `src/constants.ts`, and `src/collections/` as the Phase 2 storage skeleton.
 - `src/endpoints/` can hold the sync endpoint and endpoint helpers.
 - `src/sync/` can hold manifest validation, planning, hashing, and Payload upsert logic.
 - `src/security/` can hold signing verification, canonical request logic, and nonce abstractions.

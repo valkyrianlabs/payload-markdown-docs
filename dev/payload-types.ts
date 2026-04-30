@@ -69,6 +69,9 @@ export interface Config {
   collections: {
     posts: Post;
     media: Media;
+    docs: Doc;
+    'docs-sync-runs': DocsSyncRun;
+    'docs-sync-nonces': DocsSyncNonce;
     'payload-kv': PayloadKv;
     users: User;
     'payload-locked-documents': PayloadLockedDocument;
@@ -79,6 +82,9 @@ export interface Config {
   collectionsSelect: {
     posts: PostsSelect<false> | PostsSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
+    docs: DocsSelect<false> | DocsSelect<true>;
+    'docs-sync-runs': DocsSyncRunsSelect<false> | DocsSyncRunsSelect<true>;
+    'docs-sync-nonces': DocsSyncNoncesSelect<false> | DocsSyncNoncesSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     users: UsersSelect<false> | UsersSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
@@ -148,6 +154,97 @@ export interface Media {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "docs".
+ */
+export interface Doc {
+  id: string;
+  title: string;
+  navTitle?: string | null;
+  description?: string | null;
+  route: string;
+  sourcePath: string;
+  sourceHash?: string | null;
+  depth?: number | null;
+  order?: number | null;
+  parent?: (string | null) | Doc;
+  content?: string | null;
+  sync?: {
+    sourceId?: string | null;
+    sourcePath?: string | null;
+    sourceHashAtLastSync?: string | null;
+    lastSyncedAt?: string | null;
+    lastSyncRunId?: (string | null) | DocsSyncRun;
+    managedBy?: string | null;
+    archived?: boolean | null;
+    archivedAt?: string | null;
+  };
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "docs-sync-runs".
+ */
+export interface DocsSyncRun {
+  id: string;
+  sourceId: string;
+  repository?: string | null;
+  branch?: string | null;
+  commit?: string | null;
+  actor?: string | null;
+  keyId?: string | null;
+  mode: 'dry-run' | 'sync';
+  status: 'pending' | 'success' | 'failed';
+  publishRequested?: boolean | null;
+  effectivePublishMode?: ('draft' | 'preserve' | 'published') | null;
+  deleteBehavior?: ('archive' | 'delete' | 'draft' | 'ignore') | null;
+  bodyHash?: string | null;
+  fileCount?: number | null;
+  totalBytes?: number | null;
+  summary?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  warnings?:
+    | {
+        message?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  errors?:
+    | {
+        message?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  startedAt: string;
+  completedAt?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "docs-sync-nonces".
+ */
+export interface DocsSyncNonce {
+  id: string;
+  keyId: string;
+  nonce: string;
+  sourceId?: string | null;
+  bodyHash?: string | null;
+  syncRunId?: (string | null) | DocsSyncRun;
+  expiresAt: string;
+  usedAt?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
 export interface PayloadKv {
@@ -202,6 +299,18 @@ export interface PayloadLockedDocument {
     | ({
         relationTo: 'media';
         value: string | Media;
+      } | null)
+    | ({
+        relationTo: 'docs';
+        value: string | Doc;
+      } | null)
+    | ({
+        relationTo: 'docs-sync-runs';
+        value: string | DocsSyncRun;
+      } | null)
+    | ({
+        relationTo: 'docs-sync-nonces';
+        value: string | DocsSyncNonce;
       } | null)
     | ({
         relationTo: 'users';
@@ -273,6 +382,88 @@ export interface MediaSelect<T extends boolean = true> {
   height?: T;
   focalX?: T;
   focalY?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "docs_select".
+ */
+export interface DocsSelect<T extends boolean = true> {
+  title?: T;
+  navTitle?: T;
+  description?: T;
+  route?: T;
+  sourcePath?: T;
+  sourceHash?: T;
+  depth?: T;
+  order?: T;
+  parent?: T;
+  content?: T;
+  sync?:
+    | T
+    | {
+        sourceId?: T;
+        sourcePath?: T;
+        sourceHashAtLastSync?: T;
+        lastSyncedAt?: T;
+        lastSyncRunId?: T;
+        managedBy?: T;
+        archived?: T;
+        archivedAt?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "docs-sync-runs_select".
+ */
+export interface DocsSyncRunsSelect<T extends boolean = true> {
+  sourceId?: T;
+  repository?: T;
+  branch?: T;
+  commit?: T;
+  actor?: T;
+  keyId?: T;
+  mode?: T;
+  status?: T;
+  publishRequested?: T;
+  effectivePublishMode?: T;
+  deleteBehavior?: T;
+  bodyHash?: T;
+  fileCount?: T;
+  totalBytes?: T;
+  summary?: T;
+  warnings?:
+    | T
+    | {
+        message?: T;
+        id?: T;
+      };
+  errors?:
+    | T
+    | {
+        message?: T;
+        id?: T;
+      };
+  startedAt?: T;
+  completedAt?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "docs-sync-nonces_select".
+ */
+export interface DocsSyncNoncesSelect<T extends boolean = true> {
+  keyId?: T;
+  nonce?: T;
+  sourceId?: T;
+  bodyHash?: T;
+  syncRunId?: T;
+  expiresAt?: T;
+  usedAt?: T;
+  updatedAt?: T;
+  createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema

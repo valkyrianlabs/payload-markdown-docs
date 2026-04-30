@@ -1,10 +1,6 @@
-export const DEFAULT_DOCS_SYNC_ENDPOINT_PATH = '/payload-markdown-docs/sync'
-export const DEFAULT_MAX_BODY_BYTES = 5_000_000
-export const DEFAULT_MAX_SKEW_SECONDS = 300
-export const DEFAULT_NONCE_TTL_SECONDS = 600
-
 export type PayloadMarkdownDocsConfig = {
   auth?: PayloadMarkdownDocsAuthConfig
+  collections?: PayloadMarkdownDocsCollectionsConfig
   enabled?: boolean
   endpoint?: PayloadMarkdownDocsEndpointConfig
   sources?: PayloadMarkdownDocsSourceConfig[]
@@ -31,6 +27,17 @@ export type PayloadMarkdownDocsAuthConfig =
 export type PayloadMarkdownDocsEd25519Key = {
   id: string
   publicKey: string
+}
+
+export type PayloadMarkdownDocsCollectionConfig = {
+  enabled?: boolean
+  slug?: string
+}
+
+export type PayloadMarkdownDocsCollectionsConfig = {
+  docs?: PayloadMarkdownDocsCollectionConfig
+  nonces?: PayloadMarkdownDocsCollectionConfig
+  syncRuns?: PayloadMarkdownDocsCollectionConfig
 }
 
 export type PayloadMarkdownDocsSourceConfig = {

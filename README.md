@@ -4,14 +4,13 @@ Git-backed Markdown documentation sync for Payload CMS, powered by `@valkyrianla
 
 ## Status
 
-This package is in early plugin skeleton stage. It currently exports a no-op Payload plugin factory and public configuration types so the real docs sync workflow can be built in small, reviewed phases.
+This package is in early pre-MVP development. It currently wires the dedicated docs storage model into Payload, but it does not sync remote Markdown content yet.
 
 Not implemented yet:
 
 - signed sync endpoint
 - request authentication
 - manifest validation
-- docs collections
 - docs upsert engine
 - CLI
 - publish, draft, archive, or delete behavior
@@ -62,37 +61,21 @@ export default buildConfig({
 })
 ```
 
-In the current Phase 1 skeleton, this preserves the incoming Payload config and does not register endpoints, collections, fields, or admin components.
+In the current Phase 2 build, an enabled plugin registers dedicated docs infrastructure collections. It does not register a sync endpoint or mutate existing user collections.
+
+Default generated collections:
+
+- `docs`
+- `docs-sync-runs`
+- `docs-sync-nonces`
 
 ## Configuration Shape
 
-The public config types are available for future phases:
+The dedicated docs collection can be configured with the MVP target mode:
 
 ```ts
 payloadMarkdownDocs({
   enabled: true,
-  endpoint: {
-    path: '/payload-markdown-docs/sync',
-    maxBodyBytes: 5_000_000,
-  },
-  auth: {
-    mode: 'ed25519',
-    keys: [
-      {
-        id: 'github-actions-main',
-        publicKey: process.env.DOCS_SYNC_PUBLIC_KEY!,
-      },
-    ],
-    maxSkewSeconds: 300,
-    nonceTtlSeconds: 600,
-  },
-  sources: [
-    {
-      id: 'main-docs',
-      root: 'docs',
-      routeBase: '/docs',
-    },
-  ],
   target: {
     type: 'docsCollection',
     slug: 'docs',
@@ -107,13 +90,24 @@ payloadMarkdownDocs({
 })
 ```
 
-This shape is scaffolding only. These options do not activate sync behavior yet.
+The docs collection includes title/nav metadata, generated route, source path/hash fields, hierarchy fields, a Markdown content field powered by `@valkyrianlabs/payload-markdown`, and sync metadata.
+
+The sync run and nonce collections are schema only in Phase 2. They exist for future audit and replay protection work; no endpoint writes to them yet.
+
+## Current Limitations
+
+- No `/api/payload-markdown-docs/sync` endpoint is registered.
+- No request authentication or signature verification is implemented.
+- No manifest validation is implemented.
+- No docs create/update/archive behavior is implemented.
+- Existing collection and block target modes are not implemented.
+- Nonce uniqueness across `keyId + nonce` is not enforced by portable Payload config yet.
 
 ## Roadmap
 
-- Phase 1: clean plugin skeleton and public config types.
-- Phase 2: dedicated docs collection, sync run audit collection, and nonce storage design.
-- Phase 3: manifest builder and validation core.
+- Phase 1: clean plugin skeleton and public config types. Done.
+- Phase 2: dedicated docs collection, sync run audit collection, and nonce storage design. Current.
+- Phase 3: manifest builder and validation core. Next.
 - Phase 4: CLI foundation for local validate, plan, and keygen.
 - Phase 5: signed sync endpoint with Ed25519 verification and dry-run only.
 - Phase 6: docs upsert engine.
