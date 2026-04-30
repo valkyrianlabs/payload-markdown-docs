@@ -170,14 +170,17 @@ export const payloadMarkdownDocs =
       endpoints: [
         ...(incomingConfig.endpoints ?? []),
         createSyncEndpoint({
+          allowWrites: pluginOptions.sync?.allowWrites,
           auth: pluginOptions.auth,
           deleteBehavior: pluginOptions.sync?.deleteBehavior,
           docsCollectionSlug,
           docsEnabled,
           endpointPath,
+          markdownFieldName,
           maxBodyBytes: pluginOptions.endpoint?.maxBodyBytes ?? DEFAULT_MAX_BODY_BYTES,
           noncesCollectionSlug,
           noncesEnabled,
+          requireDryRunBeforeApply: pluginOptions.sync?.requireDryRunBeforeApply,
           routeBase: DEFAULT_DOCS_ROUTE_BASE,
           sources: pluginOptions.sources,
           syncRunsCollectionSlug,

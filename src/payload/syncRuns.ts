@@ -22,6 +22,12 @@ export type SyncRunsPayloadOperations = {
     data: Record<string, unknown>
     overrideAccess?: boolean
   }) => Promise<Record<string, unknown>>
+  update?: (args: {
+    collection: string
+    data: Record<string, unknown>
+    id: string
+    overrideAccess?: boolean
+  }) => Promise<Record<string, unknown>>
 }
 
 export type CreateSyncRunAuditInput = {
@@ -109,3 +115,39 @@ export const getRecordId = (record: Record<string, unknown>): string | undefined
   return undefined
 }
 
+export const updateSyncRunAudit = async ({
+  collectionSlug,
+  completedAt,
+  errors,
+  payload,
+  status,
+  summary,
+  syncRunId,
+  warnings,
+}: {
+  collectionSlug: string
+  completedAt: Date
+  errors?: DocsValidationIssue[]
+  payload: SyncRunsPayloadOperations
+  status: SyncRunStatus
+  summary?: SyncRunSummary
+  syncRunId: string
+  warnings?: DocsValidationIssue[]
+}): Promise<Record<string, unknown> | undefined> => {
+  if (!payload.update) {
+    return undefined
+  }
+
+  return payload.update({
+    id: syncRunId,
+    collection: collectionSlug,
+    data: {
+      completedAt: completedAt.toISOString(),
+      errors: errors?.map(issueToArrayRow),
+      status,
+      summary,
+      warnings: warnings?.map(issueToArrayRow),
+    },
+    overrideAccess: true,
+  })
+}

@@ -4,13 +4,13 @@ Git-backed Markdown documentation sync for Payload CMS, powered by `@valkyrianla
 
 ## Status
 
-This package is in early pre-MVP development. It currently wires the dedicated docs storage model into Payload, provides pure manifest validation/planning utilities, includes the first local CLI, and registers a signed dry-run sync endpoint.
+This package is in early pre-MVP development. It currently wires the dedicated docs storage model into Payload, provides pure manifest validation/planning utilities, includes the first local CLI, registers a signed sync endpoint, and can apply sync-mode writes to the dedicated docs collection when explicitly enabled.
 
 Not implemented yet:
 
-- docs upsert engine
 - remote `push`
-- publish, draft, archive, or delete behavior
+- publish or draft/unpublish behavior
+- hard delete behavior
 
 ## Product Thesis
 
@@ -58,7 +58,7 @@ export default buildConfig({
 })
 ```
 
-In the current Phase 5 build, an enabled plugin registers dedicated docs infrastructure collections and a signed dry-run sync endpoint. It does not mutate docs content.
+In the current Phase 6 build, an enabled plugin registers dedicated docs infrastructure collections and a signed sync endpoint. Dry-run remains the default safe path. Sync-mode writes require explicit server configuration.
 
 Default generated collections:
 
@@ -80,6 +80,7 @@ payloadMarkdownDocs({
     enableDrafts: true,
   },
   sync: {
+    allowWrites: false,
     defaultPublishMode: 'draft',
     deleteBehavior: 'archive',
     requireDryRunBeforeApply: false,
@@ -89,7 +90,7 @@ payloadMarkdownDocs({
 
 The docs collection includes title/nav metadata, generated route, source path/hash fields, hierarchy fields, a Markdown content field powered by `@valkyrianlabs/payload-markdown`, and sync metadata.
 
-The sync run and nonce collections are active in Phase 5 for accepted dry-run requests. The endpoint may store accepted nonce records and sync-run audit records, but it does not create, update, archive, delete, or publish docs pages.
+The sync run and nonce collections are active for accepted endpoint requests. The endpoint stores accepted nonce records and sync-run audit records.
 
 ## Validation Core
 
@@ -155,15 +156,15 @@ payload-markdown-docs keygen --out .docs-sync-keys
 
 Key generation is available now, but CLI request signing and remote push are not implemented yet.
 
-## Dry-Run Sync Endpoint
+## Signed Sync Endpoint
 
-Phase 5 registers:
+Phase 6 registers:
 
 ```text
 POST /api/payload-markdown-docs/sync
 ```
 
-The endpoint accepts JSON manifests only. It verifies signed request headers, validates the manifest, reads existing docs from the dedicated docs collection when available, computes a dry-run plan, stores nonce/audit records, and returns a summary.
+The endpoint accepts JSON manifests only. It verifies signed request headers, validates the manifest, reads existing docs from the dedicated docs collection, computes a plan, stores nonce/audit records, and returns a summary.
 
 Required signed headers:
 
@@ -214,13 +215,46 @@ payloadMarkdownDocs({
 })
 ```
 
-If auth is omitted or disabled, the endpoint rejects sync requests. `mode: "sync"` is also rejected in Phase 5; only dry-run manifests are accepted.
+If auth is omitted or disabled, the endpoint rejects sync requests.
+
+Dry-run mode is always the safe default. Sync mode is only accepted when writes are explicitly enabled on the server:
+
+```ts
+payloadMarkdownDocs({
+  enabled: true,
+  auth: {
+    mode: 'ed25519',
+    keys: [
+      {
+        id: 'github-actions-main',
+        publicKey: process.env.DOCS_SYNC_PUBLIC_KEY!,
+      },
+    ],
+  },
+  sync: {
+    allowWrites: true,
+    deleteBehavior: 'archive',
+  },
+})
+```
+
+In Phase 6, sync mode can create new docs, update changed docs, skip unchanged docs, and archive missing docs in the dedicated docs collection. It detects manual content edits before writing and aborts the sync if conflicts are found.
+
+Still not implemented in sync mode:
+
+- publishing
+- draft/unpublish behavior
+- hard delete
+- existing collection targets
+- block targets
+- CLI push
 
 ## Current Limitations
 
-- No docs create/update/archive behavior is implemented.
 - No remote CLI push/upload command is implemented.
 - No request signing helper is implemented.
+- No publish or draft/unpublish behavior is implemented.
+- No hard delete behavior is implemented.
 - Existing collection and block target modes are not implemented.
 - Nonce uniqueness across `keyId + nonce` is not enforced by portable Payload config yet.
 
@@ -230,9 +264,9 @@ If auth is omitted or disabled, the endpoint rejects sync requests. `mode: "sync
 - Phase 2: dedicated docs collection, sync run audit collection, and nonce storage design. Done.
 - Phase 3: manifest builder and validation core. Done.
 - Phase 4: CLI foundation for local validate, manifest, plan, and keygen. Done.
-- Phase 5: signed sync endpoint with Ed25519 verification and dry-run only. Current.
-- Phase 6: docs upsert engine. Next.
-- Phase 7: publishing modes and archive/delete behavior.
+- Phase 5: signed sync endpoint with Ed25519 verification and dry-run only. Done.
+- Phase 6: dedicated docs upsert engine. Current.
+- Phase 7: publishing modes and expanded archive/delete behavior. Next.
 - Phase 8: existing collection and block target modes.
 - Phase 9: CI workflow examples.
 - Phase 10: GitHub OIDC auth mode.

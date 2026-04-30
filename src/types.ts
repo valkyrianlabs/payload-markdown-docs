@@ -61,6 +61,7 @@ export type PayloadMarkdownDocsTargetConfig =
     }
 
 export type PayloadMarkdownDocsSyncConfig = {
+  allowWrites?: boolean
   defaultPublishMode?: 'draft' | 'preserve' | 'published'
   deleteBehavior?: 'archive' | 'delete' | 'draft' | 'ignore'
   requireDryRunBeforeApply?: boolean

@@ -32,6 +32,7 @@ const keyPair = () =>
 type MockPayload = {
   create: ReturnType<typeof vi.fn>
   find: ReturnType<typeof vi.fn>
+  update: ReturnType<typeof vi.fn>
 }
 
 const createMockPayload = ({
@@ -63,6 +64,12 @@ const createMockPayload = ({
       docs: [],
     })
   }),
+  update: vi.fn(({ id, collection }) =>
+    Promise.resolve({
+      id,
+      collection,
+    }),
+  ),
 })
 
 const createManifest = (overrides: Record<string, unknown> = {}) => ({
@@ -141,11 +148,18 @@ const createRequest = ({
   ) as unknown as PayloadRequest
 
 const createEndpointForTests = ({
+  allowWrites = false,
+  deleteBehavior,
   publicKey,
+  syncRunsEnabled = true,
 }: {
+  allowWrites?: boolean
+  deleteBehavior?: 'archive' | 'delete' | 'draft' | 'ignore'
   publicKey: string
+  syncRunsEnabled?: boolean
 }) =>
   createSyncEndpoint({
+    allowWrites,
     auth: {
       keys: [
         {
@@ -157,10 +171,12 @@ const createEndpointForTests = ({
       mode: 'ed25519',
       nonceTtlSeconds: 600,
     },
+    deleteBehavior,
     docsCollectionSlug: 'docs',
     docsEnabled: true,
     endpointPath: DEFAULT_DOCS_SYNC_ENDPOINT_PATH,
     getNow: () => now,
+    markdownFieldName: 'content',
     noncesCollectionSlug: 'docs-sync-nonces',
     noncesEnabled: true,
     sources: [
@@ -171,21 +187,28 @@ const createEndpointForTests = ({
       },
     ],
     syncRunsCollectionSlug: 'docs-sync-runs',
-    syncRunsEnabled: true,
+    syncRunsEnabled,
   })
 
 const callEndpoint = async ({
   body = JSON.stringify(createManifest()),
+  endpointOptions = {},
   headers,
   payload,
   publicKey,
 }: {
   body?: string
+  endpointOptions?: {
+    allowWrites?: boolean
+    deleteBehavior?: 'archive' | 'delete' | 'draft' | 'ignore'
+    syncRunsEnabled?: boolean
+  }
   headers?: Headers
   payload?: MockPayload
   publicKey: string
 }) => {
   const endpoint = createEndpointForTests({
+    ...endpointOptions,
     publicKey,
   })
   const response = await endpoint.handler(
@@ -235,6 +258,7 @@ describe('sync endpoint dry-run handling', () => {
       docsEnabled: true,
       endpointPath: DEFAULT_DOCS_SYNC_ENDPOINT_PATH,
       getNow: () => now,
+      markdownFieldName: 'content',
       noncesCollectionSlug: 'docs-sync-nonces',
       noncesEnabled: true,
       syncRunsCollectionSlug: 'docs-sync-runs',
@@ -384,7 +408,7 @@ describe('sync endpoint dry-run handling', () => {
     })
   })
 
-  it('rejects sync mode in Phase 5', async () => {
+  it('rejects sync mode when writes are not enabled', async () => {
     const { privateKey, publicKey } = keyPair()
     const body = JSON.stringify(createManifest({ mode: 'sync' }))
     const { json, response } = await callEndpoint({
@@ -396,9 +420,9 @@ describe('sync endpoint dry-run handling', () => {
       publicKey: publicKey.toString(),
     })
 
-    expect(response.status).toBe(400)
+    expect(response.status).toBe(403)
     expect(json.error).toMatchObject({
-      code: 'sync_mode_not_implemented',
+      code: 'sync_writes_disabled',
     })
   })
 
@@ -450,11 +474,15 @@ describe('sync endpoint dry-run handling', () => {
     const payload = createMockPayload({
       existingDocs: [
         {
+          id: 'doc-1',
+          content: '# Home\n',
           route: '/docs',
           sourceHash: sha256Hex('# Home\n'),
           sourcePath: 'index.md',
           sync: {
             archived: false,
+            managedBy: 'payload-markdown-docs',
+            sourceHashAtLastSync: sha256Hex('# Home\n'),
             sourceId: 'main-docs',
           },
           title: 'Home',
@@ -480,6 +508,316 @@ describe('sync endpoint dry-run handling', () => {
       expect.objectContaining({
         collection: 'docs',
       }),
+    )
+  })
+
+  it('rejects sync mode when audit collection is disabled', async () => {
+    const { privateKey, publicKey } = keyPair()
+    const body = JSON.stringify(createManifest({ mode: 'sync' }))
+    const { json, response } = await callEndpoint({
+      body,
+      endpointOptions: {
+        allowWrites: true,
+        syncRunsEnabled: false,
+      },
+      headers: signBody({
+        body,
+        privateKey,
+      }),
+      publicKey: publicKey.toString(),
+    })
+
+    expect(response.status).toBe(500)
+    expect(json.error).toMatchObject({ code: 'audit_unavailable' })
+  })
+
+  it('rejects sync mode when publishing is requested', async () => {
+    const { privateKey, publicKey } = keyPair()
+    const body = JSON.stringify(createManifest({ mode: 'sync', publish: true }))
+    const { json, response } = await callEndpoint({
+      body,
+      endpointOptions: {
+        allowWrites: true,
+      },
+      headers: signBody({
+        body,
+        privateKey,
+      }),
+      publicKey: publicKey.toString(),
+    })
+
+    expect(response.status).toBe(400)
+    expect(json.error).toMatchObject({ code: 'publish_not_implemented' })
+  })
+
+  it.each(['delete', 'draft'] as const)(
+    'rejects sync mode when delete behavior is %s',
+    async (deleteBehavior) => {
+      const { privateKey, publicKey } = keyPair()
+      const body = JSON.stringify(createManifest({ mode: 'sync' }))
+      const { json, response } = await callEndpoint({
+        body,
+        endpointOptions: {
+          allowWrites: true,
+          deleteBehavior,
+        },
+        headers: signBody({
+          body,
+          privateKey,
+        }),
+        publicKey: publicKey.toString(),
+      })
+
+      expect(response.status).toBe(400)
+      expect(json.error).toMatchObject({ code: 'delete_behavior_not_implemented' })
+    },
+  )
+
+  it('applies valid sync mode by creating docs and updating audit', async () => {
+    const { privateKey, publicKey } = keyPair()
+    const body = JSON.stringify(createManifest({ mode: 'sync' }))
+    const payload = createMockPayload()
+    const { json, response } = await callEndpoint({
+      body,
+      endpointOptions: {
+        allowWrites: true,
+      },
+      headers: signBody({
+        body,
+        privateKey,
+      }),
+      payload,
+      publicKey: publicKey.toString(),
+    })
+
+    expect(response.status).toBe(200)
+    expect(json).toMatchObject({
+      dryRun: false,
+      ok: true,
+      summary: {
+        create: 1,
+      },
+    })
+    expect(payload.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: 'docs',
+        data: expect.objectContaining({
+          content: '# Home\n',
+        }),
+      }),
+    )
+    expect(payload.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: 'docs-sync-runs',
+        data: expect.objectContaining({
+          status: 'success',
+        }),
+      }),
+    )
+    expect(JSON.stringify(json)).not.toContain('# Home')
+  })
+
+  it('updates changed docs in sync mode', async () => {
+    const { privateKey, publicKey } = keyPair()
+    const body = JSON.stringify(createManifest({ mode: 'sync' }))
+    const payload = createMockPayload({
+      existingDocs: [
+        {
+          id: 'doc-1',
+          content: '# Old\n',
+          route: '/docs',
+          sourceHash: sha256Hex('# Old\n'),
+          sourcePath: 'index.md',
+          sync: {
+            archived: false,
+            managedBy: 'payload-markdown-docs',
+            sourceHashAtLastSync: sha256Hex('# Old\n'),
+            sourceId: 'main-docs',
+          },
+          title: 'Home',
+        },
+      ],
+    })
+
+    const { json, response } = await callEndpoint({
+      body,
+      endpointOptions: {
+        allowWrites: true,
+      },
+      headers: signBody({
+        body,
+        privateKey,
+      }),
+      payload,
+      publicKey: publicKey.toString(),
+    })
+
+    expect(response.status).toBe(200)
+    expect(json.summary).toMatchObject({ update: 1 })
+    expect(payload.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'doc-1',
+        collection: 'docs',
+      }),
+    )
+  })
+
+  it('archives missing docs in sync mode', async () => {
+    const { privateKey, publicKey } = keyPair()
+    const body = JSON.stringify({
+      ...createManifest({ mode: 'sync' }),
+      files: [
+        {
+          content: '# New\n',
+          path: 'new.md',
+          sha256: sha256Hex('# New\n'),
+        },
+      ],
+    })
+    const payload = createMockPayload({
+      existingDocs: [
+        {
+          id: 'doc-1',
+          content: '# Old\n',
+          route: '/docs/old',
+          sourceHash: sha256Hex('# Old\n'),
+          sourcePath: 'old.md',
+          sync: {
+            archived: false,
+            managedBy: 'payload-markdown-docs',
+            sourceHashAtLastSync: sha256Hex('# Old\n'),
+            sourceId: 'main-docs',
+          },
+          title: 'Old',
+        },
+      ],
+    })
+
+    const { json, response } = await callEndpoint({
+      body,
+      endpointOptions: {
+        allowWrites: true,
+      },
+      headers: signBody({
+        body,
+        privateKey,
+      }),
+      payload,
+      publicKey: publicKey.toString(),
+    })
+
+    expect(response.status).toBe(200)
+    expect(json.summary).toMatchObject({ archive: 1, create: 1 })
+    expect(payload.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'doc-1',
+        collection: 'docs',
+        data: expect.objectContaining({
+          sync: expect.objectContaining({
+            archived: true,
+          }),
+        }),
+      }),
+    )
+  })
+
+  it('ignores missing docs in sync mode when server delete behavior is ignore', async () => {
+    const { privateKey, publicKey } = keyPair()
+    const body = JSON.stringify({
+      ...createManifest({ mode: 'sync' }),
+      files: [
+        {
+          content: '# New\n',
+          path: 'new.md',
+          sha256: sha256Hex('# New\n'),
+        },
+      ],
+    })
+    const payload = createMockPayload({
+      existingDocs: [
+        {
+          id: 'doc-1',
+          content: '# Old\n',
+          route: '/docs/old',
+          sourceHash: sha256Hex('# Old\n'),
+          sourcePath: 'old.md',
+          sync: {
+            archived: false,
+            managedBy: 'payload-markdown-docs',
+            sourceHashAtLastSync: sha256Hex('# Old\n'),
+            sourceId: 'main-docs',
+          },
+          title: 'Old',
+        },
+      ],
+    })
+
+    const { json, response } = await callEndpoint({
+      body,
+      endpointOptions: {
+        allowWrites: true,
+        deleteBehavior: 'ignore',
+      },
+      headers: signBody({
+        body,
+        privateKey,
+      }),
+      payload,
+      publicKey: publicKey.toString(),
+    })
+
+    expect(response.status).toBe(200)
+    expect(json.summary).toMatchObject({ archive: 0, create: 1 })
+    expect(payload.update).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'doc-1',
+        collection: 'docs',
+      }),
+    )
+  })
+
+  it('rejects sync mode on manual conflicts without docs writes', async () => {
+    const { privateKey, publicKey } = keyPair()
+    const body = JSON.stringify(createManifest({ mode: 'sync' }))
+    const payload = createMockPayload({
+      existingDocs: [
+        {
+          id: 'doc-1',
+          content: '# Manual edit\n',
+          route: '/docs',
+          sourceHash: sha256Hex('# Old\n'),
+          sourcePath: 'index.md',
+          sync: {
+            archived: false,
+            managedBy: 'payload-markdown-docs',
+            sourceHashAtLastSync: sha256Hex('# Old\n'),
+            sourceId: 'main-docs',
+          },
+          title: 'Home',
+        },
+      ],
+    })
+
+    const { json, response } = await callEndpoint({
+      body,
+      endpointOptions: {
+        allowWrites: true,
+      },
+      headers: signBody({
+        body,
+        privateKey,
+      }),
+      payload,
+      publicKey: publicKey.toString(),
+    })
+
+    expect(response.status).toBe(409)
+    expect(json.error).toMatchObject({ code: 'manual_edit_conflict' })
+    expect(payload.create).not.toHaveBeenCalledWith(
+      expect.objectContaining({ collection: 'docs' }),
+    )
+    expect(payload.update).not.toHaveBeenCalledWith(
+      expect.objectContaining({ collection: 'docs' }),
     )
   })
 

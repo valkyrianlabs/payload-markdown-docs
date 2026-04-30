@@ -1,7 +1,9 @@
 import type { Endpoint, PayloadRequest } from 'payload'
 
 import type {
+  ApplyDocsSyncPayloadOperations,
   ExistingDocsPayloadOperations,
+  ExistingPayloadDocsRecord,
   SyncRunsPayloadOperations,
 } from '../payload/index.js'
 import type { NoncePayloadOperations } from '../security/index.js'
@@ -21,9 +23,14 @@ import {
   DEFAULT_NONCE_TTL_SECONDS,
 } from '../constants.js'
 import {
+  applyDocsSync,
+  assertApplyDeleteBehaviorSupported,
   createSyncRunAudit,
-  findExistingDocsRecords,
+  findDocsSyncConflicts,
+  findExistingPayloadDocsRecords,
   getRecordId,
+  toExistingDocsRecord,
+  updateSyncRunAudit,
 } from '../payload/index.js'
 import {
   assertNonceNotReplayed,
@@ -41,32 +48,42 @@ import {
 } from '../sync/index.js'
 
 export type DocsSyncEndpointErrorCode =
+  | 'audit_unavailable'
   | 'auth_disabled'
   | 'body_hash_mismatch'
+  | 'delete_behavior_not_implemented'
+  | 'dry_run_required_not_implemented'
   | 'invalid_body'
   | 'invalid_manifest'
   | 'invalid_method'
   | 'invalid_signature'
   | 'invalid_timestamp'
+  | 'manual_edit_conflict'
   | 'missing_header'
   | 'nonce_replay'
+  | 'publish_not_implemented'
   | 'replay_protection_unavailable'
   | 'source_not_allowed'
+  | 'sync_apply_failed'
   | 'sync_mode_not_implemented'
+  | 'sync_writes_disabled'
   | 'unknown_key'
 
 export type CreateSyncEndpointOptions = {
+  allowWrites?: boolean
   auth?: PayloadMarkdownDocsAuthConfig
   deleteBehavior?: DocsDeleteBehavior
   docsCollectionSlug: string
   docsEnabled: boolean
   endpointPath: string
   getNow?: () => Date
+  markdownFieldName: string
   maxBodyBytes?: number
   maxSkewSeconds?: number
   noncesCollectionSlug: string
   noncesEnabled: boolean
   nonceTtlSeconds?: number
+  requireDryRunBeforeApply?: boolean
   routeBase?: string
   sources?: {
     id: string
@@ -78,6 +95,11 @@ export type CreateSyncEndpointOptions = {
 }
 
 type SyncErrorResponse = {
+  conflicts?: {
+    reason: string
+    route?: string
+    sourcePath: string
+  }[]
   error: {
     code: DocsSyncEndpointErrorCode
     message: string
@@ -110,7 +132,7 @@ type SyncSuccessResponse = {
     unchanged: SerializedChange[]
     update: SerializedChange[]
   }
-  dryRun: true
+  dryRun: boolean
   ok: true
   summary: {
     archive: number
@@ -137,9 +159,11 @@ const errorResponse = (
   code: DocsSyncEndpointErrorCode,
   message: string,
   status = 400,
+  extras: Omit<SyncErrorResponse, 'error' | 'ok'> = {},
 ): Response =>
   jsonResponse(
     {
+      ...extras,
       error: {
         code,
         message,
@@ -272,6 +296,25 @@ const getTotalManifestBytes = (manifest: ValidatedDocsManifest): number =>
     0,
   )
 
+const getPlannedConflictChanges = ({
+  existing,
+  plan,
+}: {
+  existing: ExistingPayloadDocsRecord[]
+  plan: ReturnType<typeof planDocsSync>
+}): PlannedDocChange[] => {
+  const existingBySourcePath = new Map(
+    existing.map((record) => [record.sourcePath, record]),
+  )
+  const archivedUnchanged = plan.unchanged.filter((change) => {
+    const current = existingBySourcePath.get(change.sourcePath)
+
+    return current?.archived === true
+  })
+
+  return [...plan.update, ...plan.archive, ...archivedUnchanged]
+}
+
 const createSyncEndpointHandler =
   (options: CreateSyncEndpointOptions) =>
   async (req: PayloadRequest): Promise<Response> => {
@@ -400,14 +443,6 @@ const createSyncEndpointHandler =
       return errorResponse('invalid_body', 'Sync request body must be a JSON manifest.', 400)
     }
 
-    if (manifest.mode === 'sync') {
-      return errorResponse(
-        'sync_mode_not_implemented',
-        'Sync mode is not implemented yet. Phase 5 accepts dry-run only.',
-        400,
-      )
-    }
-
     const sourceError = assertSourceAllowed({
       manifest,
       options,
@@ -440,13 +475,57 @@ const createSyncEndpointHandler =
     }
 
     const effectiveDeleteBehavior = options.deleteBehavior ?? 'archive'
-    const existingDocs = options.docsEnabled
-      ? await findExistingDocsRecords({
+    const isSyncMode = validation.data.mode === 'sync'
+
+    if (isSyncMode && options.allowWrites !== true) {
+      return errorResponse(
+        'sync_writes_disabled',
+        'Sync writes are disabled by server configuration.',
+        403,
+      )
+    }
+
+    if (isSyncMode && options.requireDryRunBeforeApply === true) {
+      return errorResponse(
+        'dry_run_required_not_implemented',
+        'Required dry-run proof before apply is not implemented yet.',
+        400,
+      )
+    }
+
+    if (isSyncMode && validation.data.publish) {
+      return errorResponse(
+        'publish_not_implemented',
+        'Publishing is not implemented in Phase 6.',
+        400,
+      )
+    }
+
+    if (isSyncMode && !assertApplyDeleteBehaviorSupported(effectiveDeleteBehavior)) {
+      return errorResponse(
+        'delete_behavior_not_implemented',
+        'Only archive and ignore delete behavior can be applied in Phase 6.',
+        400,
+      )
+    }
+
+    if (isSyncMode && !options.syncRunsEnabled) {
+      return errorResponse(
+        'audit_unavailable',
+        'Applied sync requires the sync-run audit collection.',
+        500,
+      )
+    }
+
+    const existingPayloadDocs = options.docsEnabled
+      ? await findExistingPayloadDocsRecords({
           collectionSlug: options.docsCollectionSlug,
+          markdownFieldName: options.markdownFieldName,
           payload: req.payload as unknown as ExistingDocsPayloadOperations,
           sourceId: validation.data.source.id,
         })
       : []
+    const existingDocs = existingPayloadDocs.map(toExistingDocsRecord)
     const plan = planDocsSync({
       deleteBehavior: effectiveDeleteBehavior,
       desired: validation.data,
@@ -459,6 +538,30 @@ const createSyncEndpointHandler =
       options.nonceTtlSeconds ??
       DEFAULT_NONCE_TTL_SECONDS
     const expiresAt = new Date(startedAt.getTime() + nonceTtlSeconds * 1000)
+
+    if (isSyncMode) {
+      const existingBySourcePath = new Map(
+        existingPayloadDocs.map((record) => [record.sourcePath, record]),
+      )
+      const conflicts = findDocsSyncConflicts({
+        existingBySourcePath,
+        plannedChanges: getPlannedConflictChanges({
+          existing: existingPayloadDocs,
+          plan,
+        }),
+      })
+
+      if (conflicts.length > 0) {
+        return errorResponse(
+          'manual_edit_conflict',
+          'One or more docs were modified outside the docs sync workflow.',
+          409,
+          {
+            conflicts,
+          },
+        )
+      }
+    }
 
     await storeAcceptedNonce({
       bodyHash: bodyHash.computedHash,
@@ -479,19 +582,19 @@ const createSyncEndpointHandler =
         branch: validation.data.source.branch,
         collectionSlug: options.syncRunsCollectionSlug,
         commit: validation.data.source.commit,
-        completedAt: options.getNow?.() ?? new Date(),
+        completedAt: isSyncMode ? startedAt : options.getNow?.() ?? new Date(),
         deleteBehavior: effectiveDeleteBehavior,
         effectivePublishMode: 'draft',
         errors: [],
         fileCount: validation.data.files.length,
         keyId: headersResult.headers.keyId,
-        mode: 'dry-run',
+        mode: isSyncMode ? 'sync' : 'dry-run',
         payload: req.payload as unknown as SyncRunsPayloadOperations,
         publishRequested: validation.data.publish,
         repository: validation.data.source.repository,
         sourceId: validation.data.source.id,
         startedAt,
-        status: 'success',
+        status: isSyncMode ? 'pending' : 'success',
         summary,
         totalBytes: getTotalManifestBytes(validation.data),
         warnings,
@@ -500,9 +603,72 @@ const createSyncEndpointHandler =
       syncRunId = getRecordId(syncRun)
     }
 
+    if (isSyncMode) {
+      if (!syncRunId) {
+        return errorResponse(
+          'audit_unavailable',
+          'Applied sync could not create a sync-run audit record.',
+          500,
+        )
+      }
+
+      try {
+        const applyResult = await applyDocsSync({
+          collectionSlug: options.docsCollectionSlug,
+          deleteBehavior: effectiveDeleteBehavior,
+          existing: existingPayloadDocs,
+          manifest: validation.data,
+          markdownFieldName: options.markdownFieldName,
+          now: options.getNow?.() ?? new Date(),
+          payload: req.payload as unknown as ApplyDocsSyncPayloadOperations,
+          plan,
+          syncRunId,
+        })
+
+        if (!applyResult.ok) {
+          return errorResponse(
+            'manual_edit_conflict',
+            'One or more docs were modified outside the docs sync workflow.',
+            409,
+            {
+              conflicts: applyResult.conflicts,
+            },
+          )
+        }
+
+        await updateSyncRunAudit({
+          collectionSlug: options.syncRunsCollectionSlug,
+          completedAt: options.getNow?.() ?? new Date(),
+          payload: req.payload as unknown as SyncRunsPayloadOperations,
+          status: 'success',
+          summary,
+          syncRunId,
+          warnings,
+        })
+      } catch (error) {
+        await updateSyncRunAudit({
+          collectionSlug: options.syncRunsCollectionSlug,
+          completedAt: options.getNow?.() ?? new Date(),
+          errors: [
+            {
+              code: 'invalid_manifest',
+              message: error instanceof Error ? error.message : 'Sync apply failed.',
+            },
+          ],
+          payload: req.payload as unknown as SyncRunsPayloadOperations,
+          status: 'failed',
+          summary,
+          syncRunId,
+          warnings,
+        })
+
+        return errorResponse('sync_apply_failed', 'Sync apply failed.', 500)
+      }
+    }
+
     return jsonResponse({
       changes: serializeChanges(plan),
-      dryRun: true,
+      dryRun: !isSyncMode,
       ok: true,
       summary,
       syncRunId,
