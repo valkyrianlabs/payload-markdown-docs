@@ -4,6 +4,25 @@ import type {
   DocsValidationResult,
 } from '../sync/index.js'
 
+export type PushSummaryInput = {
+  endpoint: string
+  mode: 'dry-run' | 'sync'
+  response: {
+    ok?: boolean
+    summary?: {
+      archive?: number
+      create?: number
+      delete?: number
+      draft?: number
+      unchanged?: number
+      update?: number
+      warnings?: number
+    }
+    syncRunId?: string
+  }
+  sourceId: string
+}
+
 const formatIssue = (issue: DocsValidationIssue): string => {
   if (issue.path) {
     return `- ${issue.path}: ${issue.message}`
@@ -71,6 +90,37 @@ export const formatPlanSummary = (plan: DocsSyncPlan): string => {
   return `${lines.join('\n')}\n`
 }
 
+export const formatPushSummary = ({
+  endpoint,
+  mode,
+  response,
+  sourceId,
+}: PushSummaryInput): string => {
+  const summary = response.summary ?? {}
+  const lines = [
+    'payload-markdown-docs push',
+    '',
+    `Endpoint: ${endpoint}`,
+    `Mode: ${mode}`,
+    `Source: ${sourceId}`,
+    '',
+    `Create: ${summary.create ?? 0}`,
+    `Update: ${summary.update ?? 0}`,
+    `Unchanged: ${summary.unchanged ?? 0}`,
+    `Archive: ${summary.archive ?? 0}`,
+    `Delete: ${summary.delete ?? 0}`,
+    `Draft: ${summary.draft ?? 0}`,
+    `Warnings: ${summary.warnings ?? 0}`,
+    '',
+    `Status: ${mode === 'sync' ? 'applied' : 'accepted'}`,
+  ]
+
+  if (response.syncRunId) {
+    lines.push(`Sync run: ${response.syncRunId}`)
+  }
+
+  return `${lines.join('\n')}\n`
+}
+
 export const printJson = (value: unknown, pretty = false): string =>
   `${JSON.stringify(value, null, pretty ? 2 : 0)}\n`
-

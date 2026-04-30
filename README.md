@@ -4,13 +4,13 @@ Git-backed Markdown documentation sync for Payload CMS, powered by `@valkyrianla
 
 ## Status
 
-This package is in early pre-MVP development. It currently wires the dedicated docs storage model into Payload, provides pure manifest validation/planning utilities, includes the first local CLI, registers a signed sync endpoint, and can apply sync-mode writes to the dedicated docs collection when explicitly enabled.
+This package is in early pre-MVP development. It currently wires the dedicated docs storage model into Payload, provides pure manifest validation/planning utilities, includes a local CLI with signed `push`, registers a signed sync endpoint, and can apply sync-mode writes to the dedicated docs collection when explicitly enabled.
 
 Not implemented yet:
 
-- remote `push`
 - publish or draft/unpublish behavior
 - hard delete behavior
+- GitHub OIDC auth mode
 
 ## Product Thesis
 
@@ -133,13 +133,14 @@ The validation core handles safe docs paths, Markdown-only files, SHA-256 hashin
 
 ## Local CLI
 
-Phase 4 adds local-only CLI commands. They read Markdown files from disk and reuse the validation/planning core. They do not upload content, sign requests, call Payload, or write to a database.
+The CLI reads Markdown files from disk and reuses the validation/planning core.
 
 ```bash
 payload-markdown-docs validate ./docs --source main-docs
 payload-markdown-docs manifest ./docs --source main-docs --pretty
 payload-markdown-docs plan ./docs --existing existing-docs.json
 payload-markdown-docs keygen
+payload-markdown-docs push ./docs --endpoint "$DOCS_SYNC_ENDPOINT" --source main-docs --key-id github-actions-main --private-key-file .docs-sync/docs-sync-private.pem --dry-run
 ```
 
 `validate` walks a local docs directory, builds a manifest in memory, validates it, and prints a human summary by default. Use `--json` for machine-readable output.
@@ -148,17 +149,39 @@ payload-markdown-docs keygen
 
 `plan` compares the desired local docs manifest against an optional JSON file containing abstract existing docs records. It prints create/update/unchanged/archive/delete/draft counts by default, or the full plan with `--json`.
 
-`keygen` generates Ed25519 keys for the future signed sync workflow:
+`keygen` generates Ed25519 keys for signed sync:
 
 ```bash
 payload-markdown-docs keygen --out .docs-sync-keys
 ```
 
-Key generation is available now, but CLI request signing and remote push are not implemented yet.
+`push` builds a local manifest, validates it, signs the exact JSON request body, and uploads it to the configured sync endpoint. Default mode is dry-run:
+
+```bash
+payload-markdown-docs push ./docs \
+  --endpoint "$DOCS_SYNC_ENDPOINT" \
+  --source main-docs \
+  --key-id github-actions-main \
+  --private-key-file .docs-sync/docs-sync-private.pem \
+  --dry-run
+```
+
+Sync mode sends `mode: "sync"` and requires the server to be configured with `sync.allowWrites: true`:
+
+```bash
+payload-markdown-docs push ./docs \
+  --endpoint "$DOCS_SYNC_ENDPOINT" \
+  --source main-docs \
+  --key-id github-actions-main \
+  --private-key-env DOCS_SYNC_PRIVATE_KEY \
+  --sync
+```
+
+`push` does not implement publishing, hard delete, or draft/unpublish behavior.
 
 ## Signed Sync Endpoint
 
-Phase 6 registers:
+The plugin registers:
 
 ```text
 POST /api/payload-markdown-docs/sync
@@ -247,12 +270,9 @@ Still not implemented in sync mode:
 - hard delete
 - existing collection targets
 - block targets
-- CLI push
 
 ## Current Limitations
 
-- No remote CLI push/upload command is implemented.
-- No request signing helper is implemented.
 - No publish or draft/unpublish behavior is implemented.
 - No hard delete behavior is implemented.
 - Existing collection and block target modes are not implemented.
@@ -265,11 +285,12 @@ Still not implemented in sync mode:
 - Phase 3: manifest builder and validation core. Done.
 - Phase 4: CLI foundation for local validate, manifest, plan, and keygen. Done.
 - Phase 5: signed sync endpoint with Ed25519 verification and dry-run only. Done.
-- Phase 6: dedicated docs upsert engine. Current.
-- Phase 7: publishing modes and expanded archive/delete behavior. Next.
+- Phase 6: dedicated docs upsert engine. Done.
+- Phase 7A: CLI push and request signing. Done.
+- Phase 7B: publishing modes and expanded archive/delete behavior. Next.
 - Phase 8: existing collection and block target modes.
 - Phase 9: CI workflow examples.
 - Phase 10: GitHub OIDC auth mode.
-- Phase 11: agent workflow polish.
+- Phase 11: agent skill installer and workflow polish.
 
 See `.codex/scratch/roadmap.md` for the working implementation roadmap.

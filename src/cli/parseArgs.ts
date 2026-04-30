@@ -11,6 +11,7 @@ const commands = new Set<CliCommandName>([
   'keygen',
   'manifest',
   'plan',
+  'push',
   'validate',
 ])
 
@@ -28,6 +29,21 @@ const docsValueFlags = new Set([
 
 const docsBooleanFlags = new Set(['help', 'json', 'pretty'])
 const planValueFlags = new Set(['delete-behavior', 'existing', ...docsValueFlags])
+const pushValueFlags = new Set([
+  'delete-behavior',
+  'endpoint',
+  'key-id',
+  'private-key-env',
+  'private-key-file',
+  ...docsValueFlags,
+])
+const pushBooleanFlags = new Set([
+  'dry-run',
+  'help',
+  'json',
+  'pretty',
+  'sync',
+])
 const keygenValueFlags = new Set(['format', 'out'])
 const keygenBooleanFlags = new Set(['force', 'help'])
 
@@ -53,6 +69,13 @@ const allowedFlagsForCommand = (
     return {
       boolean: docsBooleanFlags,
       value: planValueFlags,
+    }
+  }
+
+  if (command === 'push') {
+    return {
+      boolean: pushBooleanFlags,
+      value: pushValueFlags,
     }
   }
 
@@ -205,4 +228,3 @@ export const parseIntegerFlag = (
 
   return parsed
 }
-

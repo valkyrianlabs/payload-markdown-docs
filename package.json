@@ -107,6 +107,6 @@
   },
   "registry": "https://registry.npmjs.org/",
   "dependencies": {
-    "@valkyrianlabs/payload-markdown": "^1.3.0"
+    "@valkyrianlabs/payload-markdown": "latest"
   }
 }

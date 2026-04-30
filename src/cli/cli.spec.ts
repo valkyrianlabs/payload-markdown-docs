@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto'
+import { generateKeyPairSync, randomUUID } from 'node:crypto'
 import {
   mkdir,
   readFile,
@@ -10,6 +10,9 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 
+import type { HttpPostJson } from './http.js'
+
+import { runPushCommand } from './commands/push.js'
 import { walkDocsFiles } from './filesystem.js'
 import { runCli } from './index.js'
 import { parseCliArgs } from './parseArgs.js'
@@ -36,6 +39,25 @@ const writeTempFile = async (
     recursive: true,
   })
   await writeFile(filePath, content, 'utf8')
+}
+
+const keyPair = () =>
+  generateKeyPairSync('ed25519', {
+    privateKeyEncoding: {
+      type: 'pkcs8',
+      format: 'pem',
+    },
+    publicKeyEncoding: {
+      type: 'spki',
+      format: 'pem',
+    },
+  })
+
+const createDocsRoot = async (): Promise<string> => {
+  const root = await createTempRoot()
+  await writeTempFile(root, 'index.md', '# Home\n\nDo not leak this body.\n')
+
+  return root
 }
 
 afterEach(async () => {
@@ -101,11 +123,37 @@ describe('parseCliArgs', () => {
   })
 
   it('rejects unknown commands', () => {
-    const parsed = parseCliArgs(['push', './docs'])
+    const parsed = parseCliArgs(['deploy', './docs'])
 
     expect(parsed.ok).toBe(false)
     expect(parsed).toMatchObject({
-      error: 'Unknown command "push". Run payload-markdown-docs --help.',
+      error: 'Unknown command "deploy". Run payload-markdown-docs --help.',
+    })
+  })
+
+  it('parses push as a known command', () => {
+    const parsed = parseCliArgs([
+      'push',
+      './docs',
+      '--endpoint',
+      'https://example.com/api/payload-markdown-docs/sync',
+      '--key-id',
+      'github-actions-main',
+      '--private-key-file',
+      '.docs-sync/docs-sync-private.pem',
+    ])
+
+    expect(parsed).toMatchObject({
+      args: {
+        command: 'push',
+        flags: {
+          endpoint: 'https://example.com/api/payload-markdown-docs/sync',
+          'key-id': 'github-actions-main',
+          'private-key-file': '.docs-sync/docs-sync-private.pem',
+        },
+        positionals: ['./docs'],
+      },
+      ok: true,
     })
   })
 
@@ -294,6 +342,318 @@ describe('plan command', () => {
 
     expect(result.exitCode).toBe(0)
     expect(plan.create).toHaveLength(1)
+  })
+})
+
+describe('push command', () => {
+  const endpoint = 'https://example.com/api/payload-markdown-docs/sync'
+
+  const pushArgs = async (
+    root: string,
+    extraArgs: string[] = [],
+  ): Promise<{
+    privateKey: string
+    requests: Parameters<HttpPostJson>[0][]
+    result: Awaited<ReturnType<typeof runPushCommand>>
+  }> => {
+    const { privateKey } = keyPair()
+    const requests: Parameters<HttpPostJson>[0][] = []
+    const httpPost: HttpPostJson = (request) => {
+      requests.push(request)
+
+      return Promise.resolve({
+        body: {
+          ok: true,
+          summary: {
+            archive: 0,
+            create: 1,
+            delete: 0,
+            draft: 0,
+            unchanged: 0,
+            update: 0,
+            warnings: 0,
+          },
+          syncRunId: 'sync-run-1',
+        },
+        ok: true,
+        status: 200,
+        text: '{"ok":true}',
+      })
+    }
+    const privateKeyPath = path.join(root, 'docs-sync-private.pem')
+    await writeFile(privateKeyPath, privateKey.toString(), 'utf8')
+    const parsed = parseCliArgs([
+      'push',
+      root,
+      '--endpoint',
+      endpoint,
+      '--key-id',
+      'github-actions-main',
+      '--private-key-file',
+      privateKeyPath,
+      ...extraArgs,
+    ])
+
+    if (!parsed.ok) {
+      throw new Error(parsed.error)
+    }
+
+    return {
+      privateKey: privateKey.toString(),
+      requests,
+      result: await runPushCommand(parsed.args, httpPost),
+    }
+  }
+
+  it('defaults to dry-run and signs a JSON manifest body', async () => {
+    const root = await createDocsRoot()
+    const { requests, result } = await pushArgs(root)
+    const request = requests[0]
+    const manifest = JSON.parse(request?.body ?? '{}') as {
+      files?: unknown[]
+      mode?: string
+    }
+
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout).toContain('Mode: dry-run')
+    expect(manifest.mode).toBe('dry-run')
+    expect(manifest.files).toHaveLength(1)
+    expect(request?.url).toBe(endpoint)
+    expect(request?.headers).toMatchObject({
+      'Content-Type': 'application/json',
+      'X-VL-MD-DOCS-Key-Id': 'github-actions-main',
+    })
+    expect(request?.headers['X-VL-MD-DOCS-Signature']).toEqual(expect.any(String))
+  })
+
+  it('sends sync mode when --sync is used', async () => {
+    const root = await createDocsRoot()
+    const { requests, result } = await pushArgs(root, ['--sync'])
+    const manifest = JSON.parse(requests[0]?.body ?? '{}') as {
+      mode?: string
+    }
+
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout).toContain('Mode: sync')
+    expect(manifest.mode).toBe('sync')
+  })
+
+  it('requires endpoint, key id, and one private key source', async () => {
+    const root = await createDocsRoot()
+    const { privateKey } = keyPair()
+    const privateKeyPath = path.join(root, 'docs-sync-private.pem')
+    await writeFile(privateKeyPath, privateKey.toString(), 'utf8')
+
+    const missingEndpoint = await runCli([
+      'push',
+      root,
+      '--key-id',
+      'github-actions-main',
+      '--private-key-file',
+      privateKeyPath,
+    ])
+    const missingKeyId = await runCli([
+      'push',
+      root,
+      '--endpoint',
+      endpoint,
+      '--private-key-file',
+      privateKeyPath,
+    ])
+    const missingPrivateKey = await runCli([
+      'push',
+      root,
+      '--endpoint',
+      endpoint,
+      '--key-id',
+      'github-actions-main',
+    ])
+
+    process.env.DOCS_SYNC_PRIVATE_KEY_TEST = privateKey.toString()
+    const bothPrivateKeySources = await runCli([
+      'push',
+      root,
+      '--endpoint',
+      endpoint,
+      '--key-id',
+      'github-actions-main',
+      '--private-key-file',
+      privateKeyPath,
+      '--private-key-env',
+      'DOCS_SYNC_PRIVATE_KEY_TEST',
+    ])
+    delete process.env.DOCS_SYNC_PRIVATE_KEY_TEST
+
+    expect(missingEndpoint.exitCode).toBe(1)
+    expect(missingEndpoint.stderr).toContain('Push requires --endpoint')
+    expect(missingKeyId.exitCode).toBe(1)
+    expect(missingKeyId.stderr).toContain('Push requires --key-id')
+    expect(missingPrivateKey.exitCode).toBe(1)
+    expect(missingPrivateKey.stderr).toContain('Push requires --private-key-file')
+    expect(bothPrivateKeySources.exitCode).toBe(1)
+    expect(bothPrivateKeySources.stderr).toContain('Use either --private-key-file')
+  })
+
+  it('supports private keys from environment variables', async () => {
+    const root = await createDocsRoot()
+    const { privateKey } = keyPair()
+    const requests: Parameters<HttpPostJson>[0][] = []
+    const httpPost: HttpPostJson = (request) => {
+      requests.push(request)
+
+      return Promise.resolve({
+        body: {
+          ok: true,
+          summary: {},
+        },
+        ok: true,
+        status: 200,
+        text: '{"ok":true}',
+      })
+    }
+    process.env.DOCS_SYNC_PRIVATE_KEY_TEST = privateKey.toString()
+    const parsed = parseCliArgs([
+      'push',
+      root,
+      '--endpoint',
+      endpoint,
+      '--key-id',
+      'github-actions-main',
+      '--private-key-env',
+      'DOCS_SYNC_PRIVATE_KEY_TEST',
+    ])
+
+    if (!parsed.ok) {
+      throw new Error(parsed.error)
+    }
+
+    const result = await runPushCommand(parsed.args, httpPost)
+    delete process.env.DOCS_SYNC_PRIVATE_KEY_TEST
+
+    expect(result.exitCode).toBe(0)
+    expect(requests[0]?.headers['X-VL-MD-DOCS-Signature']).toEqual(
+      expect.any(String),
+    )
+  })
+
+  it('rejects invalid endpoint URLs and unsupported push flags', async () => {
+    const root = await createDocsRoot()
+    const { privateKey } = keyPair()
+    const privateKeyPath = path.join(root, 'docs-sync-private.pem')
+    await writeFile(privateKeyPath, privateKey.toString(), 'utf8')
+    const validBaseArgs = [
+      'push',
+      root,
+      '--endpoint',
+      endpoint,
+      '--key-id',
+      'github-actions-main',
+      '--private-key-file',
+      privateKeyPath,
+    ]
+
+    const invalidEndpoint = await runCli([
+      'push',
+      root,
+      '--endpoint',
+      'ftp://example.com/sync',
+      '--key-id',
+      'github-actions-main',
+      '--private-key-file',
+      privateKeyPath,
+    ])
+    const deleteBehavior = await runCli([
+      ...validBaseArgs,
+      '--delete-behavior',
+      'delete',
+    ])
+    const draftBehavior = await runCli([
+      ...validBaseArgs,
+      '--delete-behavior',
+      'draft',
+    ])
+    const publish = parseCliArgs([
+      ...validBaseArgs,
+      '--publish',
+    ])
+
+    expect(invalidEndpoint.exitCode).toBe(1)
+    expect(invalidEndpoint.stderr).toContain('http:// or https://')
+    expect(deleteBehavior.exitCode).toBe(1)
+    expect(deleteBehavior.stderr).toContain('archive or ignore')
+    expect(draftBehavior.exitCode).toBe(1)
+    expect(draftBehavior.stderr).toContain('archive or ignore')
+    expect(publish.ok).toBe(false)
+    expect(publish).toMatchObject({
+      error: 'Unknown flag "--publish" for push.',
+    })
+  })
+
+  it('exits failure for server errors and non-2xx responses', async () => {
+    const root = await createDocsRoot()
+    const { privateKey } = keyPair()
+    const privateKeyPath = path.join(root, 'docs-sync-private.pem')
+    await writeFile(privateKeyPath, privateKey.toString(), 'utf8')
+    const parsed = parseCliArgs([
+      'push',
+      root,
+      '--endpoint',
+      endpoint,
+      '--key-id',
+      'github-actions-main',
+      '--private-key-file',
+      privateKeyPath,
+    ])
+
+    if (!parsed.ok) {
+      throw new Error(parsed.error)
+    }
+
+    const serverError = await runPushCommand(parsed.args, () =>
+      Promise.resolve({
+        body: {
+          error: {
+            message: 'Invalid sync request signature.',
+          },
+          ok: false,
+        },
+        ok: true,
+        status: 200,
+        text: '{"ok":false}',
+      }),
+    )
+    const httpError = await runPushCommand(parsed.args, () =>
+      Promise.resolve({
+        body: undefined,
+        ok: false,
+        status: 500,
+        text: 'Internal Server Error',
+      }),
+    )
+
+    expect(serverError.exitCode).toBe(1)
+    expect(serverError.stderr).toContain('Invalid sync request signature.')
+    expect(httpError.exitCode).toBe(1)
+    expect(httpError.stderr).toContain('HTTP status 500')
+  })
+
+  it('prints JSON output and does not print private keys or raw Markdown by default', async () => {
+    const root = await createDocsRoot()
+    const { privateKey, requests, result } = await pushArgs(root, ['--json'])
+    const output = JSON.parse(result.stdout ?? '{}') as {
+      mode?: string
+      response?: {
+        ok?: boolean
+      }
+    }
+    const humanResult = await pushArgs(root)
+
+    expect(result.exitCode).toBe(0)
+    expect(output.mode).toBe('dry-run')
+    expect(output.response?.ok).toBe(true)
+    expect(humanResult.result.stdout).not.toContain(privateKey.trim())
+    expect(humanResult.result.stdout).not.toContain('Do not leak this body.')
+    expect(requests[0]?.body).toContain('Do not leak this body.')
   })
 })
 

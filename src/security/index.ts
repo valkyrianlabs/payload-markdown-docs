@@ -13,6 +13,11 @@ export {
   storeAcceptedNonce,
 } from './nonce.js'
 export type { NoncePayloadOperations } from './nonce.js'
+export { signDocsSyncRequest } from './sign.js'
+export type {
+  SignDocsSyncRequestOptions,
+  SignedDocsSyncRequest,
+} from './sign.js'
 export {
   validateTimestampSkew,
   verifyBodySha256,

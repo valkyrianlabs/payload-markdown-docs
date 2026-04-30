@@ -1,6 +1,12 @@
 import type { DocsDeleteBehavior } from '../sync/index.js'
 
-export type CliCommandName = 'help' | 'keygen' | 'manifest' | 'plan' | 'validate'
+export type CliCommandName =
+  | 'help'
+  | 'keygen'
+  | 'manifest'
+  | 'plan'
+  | 'push'
+  | 'validate'
 
 export type CliFlagValue = boolean | string
 
@@ -46,3 +52,10 @@ export type PlanCommandOptions = {
   existingPath?: string
 } & DocsCommandOptions
 
+export type PushCommandOptions = {
+  deleteBehavior?: Extract<DocsDeleteBehavior, 'archive' | 'ignore'>
+  endpoint: string
+  keyId: string
+  mode: 'dry-run' | 'sync'
+  privateKey: string
+} & DocsCommandOptions

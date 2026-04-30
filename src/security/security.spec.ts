@@ -5,6 +5,7 @@ import { sha256Hex } from '../sync/index.js'
 import {
   buildCanonicalSigningString,
   extractSyncRequestHeaders,
+  signDocsSyncRequest,
   validateTimestampSkew,
   verifyBodySha256,
   verifyEd25519Signature,
@@ -155,5 +156,74 @@ describe('sync security helpers', () => {
       }).ok,
     ).toBe(false)
   })
-})
 
+  it('signs sync requests with required headers and a matching body hash', () => {
+    const { privateKey } = keyPair()
+    const body = '{"version":1}'
+    const signed = signDocsSyncRequest({
+      body,
+      endpoint: 'https://example.com/api/payload-markdown-docs/sync',
+      keyId: 'github-actions-main',
+      nonce: 'nonce-1',
+      now: new Date('2026-01-01T00:00:00.000Z'),
+      privateKey: privateKey.toString(),
+    })
+
+    expect(signed.body).toBe(body)
+    expect(signed.headers).toMatchObject({
+      'Content-Type': 'application/json',
+      'X-VL-MD-DOCS-Body-SHA256': sha256Hex(body),
+      'X-VL-MD-DOCS-Key-Id': 'github-actions-main',
+      'X-VL-MD-DOCS-Nonce': 'nonce-1',
+      'X-VL-MD-DOCS-Timestamp': '2026-01-01T00:00:00.000Z',
+    })
+    expect(typeof signed.headers['X-VL-MD-DOCS-Signature']).toBe('string')
+  })
+
+  it('signs using the endpoint URL pathname as the canonical path', () => {
+    const { privateKey, publicKey } = keyPair()
+    const body = '{"version":1}'
+    const signed = signDocsSyncRequest({
+      body,
+      endpoint: 'https://example.com/api/payload-markdown-docs/sync?ignored=true',
+      keyId: 'github-actions-main',
+      nonce: 'nonce-1',
+      now: new Date('2026-01-01T00:00:00.000Z'),
+      privateKey: privateKey.toString(),
+    })
+    const canonicalString = buildCanonicalSigningString({
+      bodySha256: sha256Hex(body),
+      method: 'POST',
+      nonce: 'nonce-1',
+      path: '/api/payload-markdown-docs/sync',
+      timestamp: '2026-01-01T00:00:00.000Z',
+    })
+
+    expect(
+      verifyEd25519Signature({
+        canonicalString,
+        publicKey: publicKey.toString(),
+        signature: signed.headers['X-VL-MD-DOCS-Signature'] ?? '',
+      }),
+    ).toBe(true)
+  })
+
+  it('detects altered bodies after signing', () => {
+    const { privateKey } = keyPair()
+    const signed = signDocsSyncRequest({
+      body: '{"version":1}',
+      endpoint: 'https://example.com/api/payload-markdown-docs/sync',
+      keyId: 'github-actions-main',
+      nonce: 'nonce-1',
+      now: new Date('2026-01-01T00:00:00.000Z'),
+      privateKey: privateKey.toString(),
+    })
+
+    expect(
+      verifyBodySha256({
+        body: '{"version":2}',
+        expectedHash: signed.headers['X-VL-MD-DOCS-Body-SHA256'] ?? '',
+      }).ok,
+    ).toBe(false)
+  })
+})

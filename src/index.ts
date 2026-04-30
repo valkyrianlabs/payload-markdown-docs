@@ -13,6 +13,11 @@ export {
   DEFAULT_NONCE_TTL_SECONDS,
 } from './constants.js'
 export { payloadMarkdownDocs } from './plugin.js'
+export { signDocsSyncRequest } from './security/index.js'
+export type {
+  SignDocsSyncRequestOptions,
+  SignedDocsSyncRequest,
+} from './security/index.js'
 export {
   buildDocsManifest,
   deriveRouteFromSourcePath,
