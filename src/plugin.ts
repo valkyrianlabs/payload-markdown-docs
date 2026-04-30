@@ -9,10 +9,14 @@ import {
 } from './collections/index.js'
 import {
   DEFAULT_DOCS_COLLECTION_SLUG,
+  DEFAULT_DOCS_ROUTE_BASE,
+  DEFAULT_DOCS_SYNC_ENDPOINT_PATH,
   DEFAULT_DOCS_SYNC_NONCES_COLLECTION_SLUG,
   DEFAULT_DOCS_SYNC_RUNS_COLLECTION_SLUG,
   DEFAULT_MARKDOWN_FIELD_NAME,
+  DEFAULT_MAX_BODY_BYTES,
 } from './constants.js'
+import { createSyncEndpoint } from './endpoints/index.js'
 
 type ResolvedCollectionOptions = {
   docsCollectionSlug: string
@@ -23,6 +27,12 @@ type ResolvedCollectionOptions = {
   noncesEnabled: boolean
   syncRunsCollectionSlug: string
   syncRunsEnabled: boolean
+}
+
+const normalizeEndpointPath = (path: string): string => {
+  const normalized = `/${path.trim()}`.replace(/\/+/g, '/')
+
+  return normalized.length > 1 ? normalized.replace(/\/+$/g, '') : normalized
 }
 
 const resolveCollectionOptions = (
@@ -114,6 +124,9 @@ export const payloadMarkdownDocs =
       syncRunsCollectionSlug,
       syncRunsEnabled,
     } = resolveCollectionOptions(pluginOptions)
+    const endpointPath = normalizeEndpointPath(
+      pluginOptions.endpoint?.path ?? DEFAULT_DOCS_SYNC_ENDPOINT_PATH,
+    )
 
     const collectionSlugsToAdd = [
       ...(docsEnabled ? [docsCollectionSlug] : []),
@@ -154,5 +167,22 @@ export const payloadMarkdownDocs =
     return {
       ...incomingConfig,
       collections: [...(incomingConfig.collections ?? []), ...addedCollections],
+      endpoints: [
+        ...(incomingConfig.endpoints ?? []),
+        createSyncEndpoint({
+          auth: pluginOptions.auth,
+          deleteBehavior: pluginOptions.sync?.deleteBehavior,
+          docsCollectionSlug,
+          docsEnabled,
+          endpointPath,
+          maxBodyBytes: pluginOptions.endpoint?.maxBodyBytes ?? DEFAULT_MAX_BODY_BYTES,
+          noncesCollectionSlug,
+          noncesEnabled,
+          routeBase: DEFAULT_DOCS_ROUTE_BASE,
+          sources: pluginOptions.sources,
+          syncRunsCollectionSlug,
+          syncRunsEnabled,
+        }),
+      ],
     }
   }

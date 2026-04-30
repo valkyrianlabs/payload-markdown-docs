@@ -71,6 +71,7 @@ describe('payloadMarkdownDocs collection wiring', () => {
 
     expect(transformedConfig).toBe(incomingConfig)
     expect(transformedConfig.collections).toHaveLength(1)
+    expect(transformedConfig.endpoints).toBeUndefined()
     expect(getCollection(transformedConfig, DEFAULT_DOCS_COLLECTION_SLUG)).toBeUndefined()
   })
 
@@ -92,6 +93,12 @@ describe('payloadMarkdownDocs collection wiring', () => {
     expect(
       getCollection(transformedConfig, DEFAULT_DOCS_SYNC_NONCES_COLLECTION_SLUG),
     ).toBeDefined()
+    expect(transformedConfig.endpoints).toContainEqual(
+      expect.objectContaining({
+        method: 'post',
+        path: '/payload-markdown-docs/sync',
+      }),
+    )
   })
 
   test('custom docs collection slug and markdown field name work', () => {
@@ -306,10 +313,11 @@ describeWithPostgres('payloadMarkdownDocs dev app integration', () => {
     expect(payload?.collections[DEFAULT_DOCS_SYNC_NONCES_COLLECTION_SLUG]).toBeDefined()
   })
 
-  test('does not register sync endpoint or template behavior in the dev app', () => {
+  test('registers sync endpoint without template behavior in the dev app', () => {
     expect(payload?.collections['plugin-collection']).toBeUndefined()
-    expect(payload?.config.endpoints).not.toContainEqual(
+    expect(payload?.config.endpoints).toContainEqual(
       expect.objectContaining({
+        method: 'post',
         path: '/payload-markdown-docs/sync',
       }),
     )

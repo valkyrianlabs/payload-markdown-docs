@@ -5,7 +5,7 @@
 - Package/repository name: `@valkyrianlabs/payload-markdown-docs`
 - Package metadata now uses the scoped package name and real description.
 - Purpose: Git-backed Markdown documentation sync into Payload CMS.
-- Current state: Phase 4 CLI foundation. The package exports `payloadMarkdownDocs()`, public config types, constants, collection builders, and pure sync utilities for path normalization, frontmatter parsing, hashing, manifest building/validation, and dry sync planning. Enabled plugin mode injects the dedicated docs infrastructure collections; disabled mode remains an exact no-op. A local-only CLI exists for `validate`, `manifest`, `plan`, and `keygen`. No sync endpoint, auth verification, remote push, or Payload upsert engine exists yet.
+- Current state: Phase 5 signed dry-run sync endpoint. The package exports `payloadMarkdownDocs()`, public config types, constants, collection builders, and pure sync utilities for path normalization, frontmatter parsing, hashing, manifest building/validation, and dry sync planning. Enabled plugin mode injects the dedicated docs infrastructure collections and registers a signed dry-run sync endpoint. Disabled mode remains an exact no-op. A local-only CLI exists for `validate`, `manifest`, `plan`, and `keygen`. No remote push or Payload docs upsert engine exists yet.
 
 ## Product Direction
 
@@ -50,6 +50,9 @@ Current source structure:
 - `src/collections/` contains the docs, sync runs, and nonce collection builders.
 - `src/sync/` contains pure manifest/path/frontmatter/hash/validation/planning utilities and unit tests.
 - `src/cli/` contains the local CLI runner, argument parser, filesystem walker, output formatters, and command handlers for `validate`, `manifest`, `plan`, and `keygen`.
+- `src/security/` contains canonical signing string, signed header, body hash, timestamp, Ed25519 verification, and nonce replay helpers.
+- `src/payload/` contains small Payload Local API adapters for existing docs lookup and sync-run audit records.
+- `src/endpoints/` contains the dry-run sync endpoint factory and handler.
 - `dev/` contains the local Payload app used for tests and manual development.
 - `dev/int.spec.ts` contains skeleton tests and a dev app integration smoke test.
 - `dev/e2e.spec.ts` contains Playwright e2e tests.
@@ -60,7 +63,7 @@ Expected future source organization:
 - Keep `src/index.ts`, `src/plugin.ts`, `src/types.ts`, `src/constants.ts`, `src/collections/`, and `src/sync/` as the Phase 3 storage and validation skeleton.
 - `src/endpoints/` can hold the sync endpoint and endpoint helpers.
 - Future Payload upsert logic should live outside the pure `src/sync/` validation core or in a clearly separated module.
-- `src/security/` can hold signing verification, canonical request logic, and nonce abstractions.
+- `src/security/` holds signing verification, canonical request logic, and nonce helpers. Future request signing can reuse the canonical string behavior but should not be added until the CLI push phase.
 - `src/cli/` should remain local-tooling only until a later phase explicitly adds remote `push`. Do not add network upload or request signing behavior there during endpoint/auth phases unless the phase calls for it.
 
 ## Commands
@@ -90,6 +93,10 @@ Focused CLI tests can be run with:
 
 - `pnpm exec vitest src/cli`
 
+Focused endpoint/security tests can be run with:
+
+- `pnpm exec vitest src/security src/endpoints`
+
 ## Guardrails
 
 - Avoid implementing all phases at once.
@@ -100,3 +107,4 @@ Focused CLI tests can be run with:
 - Do not let the request body choose target collections, arbitrary fields, destructive behavior, or server authority.
 - Dedicated docs collection mode should be the MVP default; existing collection and block target modes are later advanced features.
 - The CLI may build, validate, print, and plan local manifests. It must not upload, authenticate, sign requests, call Payload APIs, or mutate Payload until a later phase explicitly adds those capabilities.
+- The Phase 5 endpoint may write accepted nonces and sync-run audit records. It must not create, update, archive, delete, publish, or change draft status for docs records.

@@ -4,12 +4,10 @@ Git-backed Markdown documentation sync for Payload CMS, powered by `@valkyrianla
 
 ## Status
 
-This package is in early pre-MVP development. It currently wires the dedicated docs storage model into Payload, provides pure manifest validation/planning utilities, and includes the first local CLI for validating and planning repo-local Markdown docs.
+This package is in early pre-MVP development. It currently wires the dedicated docs storage model into Payload, provides pure manifest validation/planning utilities, includes the first local CLI, and registers a signed dry-run sync endpoint.
 
 Not implemented yet:
 
-- signed sync endpoint
-- request authentication
 - docs upsert engine
 - remote `push`
 - publish, draft, archive, or delete behavior
@@ -60,7 +58,7 @@ export default buildConfig({
 })
 ```
 
-In the current Phase 4 build, an enabled plugin registers dedicated docs infrastructure collections. It does not register a sync endpoint or mutate existing user collections.
+In the current Phase 5 build, an enabled plugin registers dedicated docs infrastructure collections and a signed dry-run sync endpoint. It does not mutate docs content.
 
 Default generated collections:
 
@@ -91,7 +89,7 @@ payloadMarkdownDocs({
 
 The docs collection includes title/nav metadata, generated route, source path/hash fields, hierarchy fields, a Markdown content field powered by `@valkyrianlabs/payload-markdown`, and sync metadata.
 
-The sync run and nonce collections are schema only in Phase 2. They exist for future audit and replay protection work; no endpoint writes to them yet.
+The sync run and nonce collections are active in Phase 5 for accepted dry-run requests. The endpoint may store accepted nonce records and sync-run audit records, but it does not create, update, archive, delete, or publish docs pages.
 
 ## Validation Core
 
@@ -155,14 +153,74 @@ payload-markdown-docs keygen
 payload-markdown-docs keygen --out .docs-sync-keys
 ```
 
-Key generation is available now, but request signing, remote push, and server-side verification are not implemented yet.
+Key generation is available now, but CLI request signing and remote push are not implemented yet.
+
+## Dry-Run Sync Endpoint
+
+Phase 5 registers:
+
+```text
+POST /api/payload-markdown-docs/sync
+```
+
+The endpoint accepts JSON manifests only. It verifies signed request headers, validates the manifest, reads existing docs from the dedicated docs collection when available, computes a dry-run plan, stores nonce/audit records, and returns a summary.
+
+Required signed headers:
+
+```text
+X-VL-MD-DOCS-Key-Id
+X-VL-MD-DOCS-Timestamp
+X-VL-MD-DOCS-Nonce
+X-VL-MD-DOCS-Body-SHA256
+X-VL-MD-DOCS-Signature
+```
+
+Canonical signing string:
+
+```text
+v1
+POST
+/api/payload-markdown-docs/sync
+<timestamp>
+<nonce>
+<sha256(body)>
+```
+
+The canonical path is the actual request pathname seen by the endpoint. For the default Payload API route, that is `/api/payload-markdown-docs/sync`.
+
+Configure Ed25519 auth before using the endpoint:
+
+```ts
+payloadMarkdownDocs({
+  enabled: true,
+  auth: {
+    mode: 'ed25519',
+    keys: [
+      {
+        id: 'github-actions-main',
+        publicKey: process.env.DOCS_SYNC_PUBLIC_KEY!,
+      },
+    ],
+    maxSkewSeconds: 300,
+    nonceTtlSeconds: 600,
+  },
+  sources: [
+    {
+      id: 'main-docs',
+      root: 'docs',
+      routeBase: '/docs',
+    },
+  ],
+})
+```
+
+If auth is omitted or disabled, the endpoint rejects sync requests. `mode: "sync"` is also rejected in Phase 5; only dry-run manifests are accepted.
 
 ## Current Limitations
 
-- No `/api/payload-markdown-docs/sync` endpoint is registered.
-- No request authentication or signature verification is implemented.
 - No docs create/update/archive behavior is implemented.
 - No remote CLI push/upload command is implemented.
+- No request signing helper is implemented.
 - Existing collection and block target modes are not implemented.
 - Nonce uniqueness across `keyId + nonce` is not enforced by portable Payload config yet.
 
@@ -171,9 +229,9 @@ Key generation is available now, but request signing, remote push, and server-si
 - Phase 1: clean plugin skeleton and public config types. Done.
 - Phase 2: dedicated docs collection, sync run audit collection, and nonce storage design. Done.
 - Phase 3: manifest builder and validation core. Done.
-- Phase 4: CLI foundation for local validate, manifest, plan, and keygen. Current.
-- Phase 5: signed sync endpoint with Ed25519 verification and dry-run only. Next.
-- Phase 6: docs upsert engine.
+- Phase 4: CLI foundation for local validate, manifest, plan, and keygen. Done.
+- Phase 5: signed sync endpoint with Ed25519 verification and dry-run only. Current.
+- Phase 6: docs upsert engine. Next.
 - Phase 7: publishing modes and archive/delete behavior.
 - Phase 8: existing collection and block target modes.
 - Phase 9: CI workflow examples.
