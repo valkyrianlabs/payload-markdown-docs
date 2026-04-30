@@ -5,7 +5,7 @@
 - Package/repository name: `@valkyrianlabs/payload-markdown-docs`
 - Package metadata now uses the scoped package name and real description.
 - Purpose: Git-backed Markdown documentation sync into Payload CMS.
-- Current state: Phase 7B publishing modes and lifecycle controls. The package exports `payloadMarkdownDocs()`, public config types, constants, collection builders, pure sync utilities for path normalization/frontmatter/hashing/manifest validation/planning, and a request signing helper. Enabled plugin mode injects the dedicated docs infrastructure collections and registers a signed sync endpoint. Disabled mode remains an exact no-op. The CLI supports `validate`, `manifest`, `plan`, `keygen`, and signed `push`, including `push --publish`. Sync-mode writes to the dedicated docs collection require `sync.allowWrites: true`. Publishing requires `sync.allowPublish: true` and a draft-enabled dedicated docs collection. Hard delete requires `sync.allowHardDelete: true`. Existing collection targets, block targets, GitHub OIDC, and agent skill installer do not exist yet.
+- Current state: Phase 8A CI workflow and dedicated docs dogfood hardening. The package exports `payloadMarkdownDocs()`, public config types, constants, collection builders, pure sync utilities for path normalization/frontmatter/hashing/manifest validation/planning, and a request signing helper. Enabled plugin mode injects the dedicated docs infrastructure collections and registers a signed sync endpoint. Disabled mode remains an exact no-op. The CLI supports `validate`, `manifest`, `plan`, `keygen`, and signed `push`, including `push --publish`. Sync-mode writes to the dedicated docs collection require `sync.allowWrites: true`. Publishing requires `sync.allowPublish: true` and a draft-enabled dedicated docs collection. Hard delete requires `sync.allowHardDelete: true`. The README, `docs/dedicated-docs-workflow.md`, `examples/docs/`, and `examples/github-actions/publish-docs.yml` now document and dogfood the default dedicated docs workflow. Existing collection targets, block targets, GitHub OIDC, and agent skill installer do not exist yet.
 
 ## Product Direction
 
@@ -53,6 +53,9 @@ Current source structure:
 - `src/security/` contains canonical signing string, signed header, body hash, timestamp, Ed25519 signing/verification, and nonce replay helpers.
 - `src/payload/` contains Payload Local API adapters for existing docs lookup, sync-run audit records, conflict detection, docs data/status mapping, and dedicated docs apply writes.
 - `src/endpoints/` contains the signed sync endpoint factory and handler.
+- `docs/dedicated-docs-workflow.md` documents the complete default dedicated docs collection workflow.
+- `examples/docs/` contains a small valid Markdown docs fixture for dogfooding CLI validation/manifest/plan behavior.
+- `examples/github-actions/publish-docs.yml` contains a CI workflow example for pull-request dry-runs and main-branch publish syncs.
 - `dev/` contains the local Payload app used for tests and manual development.
 - `dev/int.spec.ts` contains skeleton tests and a dev app integration smoke test.
 - `dev/e2e.spec.ts` contains Playwright e2e tests.
@@ -109,6 +112,10 @@ Focused lifecycle tests can be run with:
 
 - `pnpm exec vitest src/payload src/endpoints src/cli`
 
+Focused docs/workflow example tests can be run with:
+
+- `pnpm exec vitest src/cli`
+
 ## Guardrails
 
 - Avoid implementing all phases at once.
@@ -122,3 +129,5 @@ Focused lifecycle tests can be run with:
 - The endpoint may write accepted nonces, sync-run audit records, and dedicated docs collection create/update/archive/draft/delete lifecycle records when explicitly enabled. It must not mutate existing collection targets, mutate block targets, or accept target fields from the request body.
 - Publishing remains server-owned. Use `sync.allowPublish: true` plus `target.enableDrafts: true`.
 - Hard delete remains server-owned and requires `sync.allowHardDelete: true`.
+- Treat `examples/docs/` as a fixture/demo docs source, not as generated output.
+- Keep CI examples on signed JSON manifest upload. Do not switch examples to ZIP upload or unsigned sync.
