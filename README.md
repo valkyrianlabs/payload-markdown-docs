@@ -4,13 +4,12 @@ Git-backed Markdown documentation sync for Payload CMS, powered by `@valkyrianla
 
 ## Status
 
-This package is in early pre-MVP development. It currently wires the dedicated docs storage model into Payload, but it does not sync remote Markdown content yet.
+This package is in early pre-MVP development. It currently wires the dedicated docs storage model into Payload and provides pure manifest validation/planning utilities, but it does not sync remote Markdown content yet.
 
 Not implemented yet:
 
 - signed sync endpoint
 - request authentication
-- manifest validation
 - docs upsert engine
 - CLI
 - publish, draft, archive, or delete behavior
@@ -94,21 +93,60 @@ The docs collection includes title/nav metadata, generated route, source path/ha
 
 The sync run and nonce collections are schema only in Phase 2. They exist for future audit and replay protection work; no endpoint writes to them yet.
 
+## Validation Core
+
+Phase 3 adds pure utilities for building, validating, and planning docs manifests. These utilities do not read the filesystem, make network requests, call Payload, or write to the database.
+
+```ts
+import {
+  buildDocsManifest,
+  planDocsSync,
+  validateDocsManifest,
+} from '@valkyrianlabs/payload-markdown-docs'
+
+const manifest = buildDocsManifest({
+  sourceId: 'main-docs',
+  root: 'docs',
+  files: [
+    {
+      path: 'getting-started/installation.md',
+      content: '# Installation\n\nInstall the package.',
+    },
+  ],
+})
+
+const validated = validateDocsManifest(manifest, {
+  allowedSourceIds: ['main-docs'],
+  routeBase: '/docs',
+})
+
+if (validated.ok) {
+  const plan = planDocsSync({
+    desired: validated.data,
+    existing: [],
+  })
+
+  console.log(plan.create)
+}
+```
+
+The validation core handles safe docs paths, Markdown-only files, SHA-256 hashing, supported frontmatter, manifest defaults, size limits, duplicate path detection, route derivation, and abstract dry sync planning.
+
 ## Current Limitations
 
 - No `/api/payload-markdown-docs/sync` endpoint is registered.
 - No request authentication or signature verification is implemented.
-- No manifest validation is implemented.
 - No docs create/update/archive behavior is implemented.
+- No filesystem-walking CLI is implemented.
 - Existing collection and block target modes are not implemented.
 - Nonce uniqueness across `keyId + nonce` is not enforced by portable Payload config yet.
 
 ## Roadmap
 
 - Phase 1: clean plugin skeleton and public config types. Done.
-- Phase 2: dedicated docs collection, sync run audit collection, and nonce storage design. Current.
-- Phase 3: manifest builder and validation core. Next.
-- Phase 4: CLI foundation for local validate, plan, and keygen.
+- Phase 2: dedicated docs collection, sync run audit collection, and nonce storage design. Done.
+- Phase 3: manifest builder and validation core. Current.
+- Phase 4: CLI foundation for local validate, plan, and keygen. Next.
 - Phase 5: signed sync endpoint with Ed25519 verification and dry-run only.
 - Phase 6: docs upsert engine.
 - Phase 7: publishing modes and archive/delete behavior.

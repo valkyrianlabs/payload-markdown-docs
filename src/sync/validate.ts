@@ -1,0 +1,464 @@
+import type {
+  DocsDeleteBehavior,
+  DocsManifest,
+  DocsManifestFile,
+  DocsManifestSource,
+  DocsSyncMode,
+  ValidatedDocsManifest,
+  ValidatedDocsManifestFile,
+} from './manifest.js'
+
+import {
+  DEFAULT_DOCS_ROUTE_BASE,
+  DEFAULT_MAX_DOCS_FILE_BYTES,
+  DEFAULT_MAX_DOCS_FILES,
+  DEFAULT_MAX_DOCS_TOTAL_BYTES,
+} from '../constants.js'
+import {
+  parseDocsFrontmatter,
+  resolveDocsTitle,
+} from './frontmatter.js'
+import { sha256Hex } from './hash.js'
+import { deriveRouteFromSourcePath, normalizeDocsPath } from './paths.js'
+
+export type DocsValidationErrorCode =
+  | 'duplicate_existing_path'
+  | 'duplicate_path'
+  | 'empty_manifest'
+  | 'file_too_large'
+  | 'invalid_delete_behavior'
+  | 'invalid_frontmatter'
+  | 'invalid_hash'
+  | 'invalid_manifest'
+  | 'invalid_mode'
+  | 'invalid_path'
+  | 'invalid_source'
+  | 'invalid_version'
+  | 'manifest_too_large'
+  | 'non_markdown_file'
+  | 'path_traversal'
+  | 'too_many_files'
+
+export type DocsValidationIssue = {
+  code: DocsValidationErrorCode
+  message: string
+  path?: string
+}
+
+export type DocsValidationResult<T = unknown> =
+  | {
+      data: T
+      issues: DocsValidationIssue[]
+      ok: true
+      warnings: DocsValidationIssue[]
+    }
+  | {
+      issues: DocsValidationIssue[]
+      ok: false
+      warnings: DocsValidationIssue[]
+    }
+
+export type DocsValidationOptions = {
+  allowedSourceIds?: string[]
+  maxFileBytes?: number
+  maxFiles?: number
+  maxTotalBytes?: number
+  routeBase?: string
+}
+
+const syncModes = new Set<DocsSyncMode>(['dry-run', 'sync'])
+const deleteBehaviors = new Set<DocsDeleteBehavior>([
+  'archive',
+  'delete',
+  'draft',
+  'ignore',
+])
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
+
+const createIssue = ({
+  code,
+  message,
+  path,
+}: DocsValidationIssue): DocsValidationIssue => ({
+  code,
+  message,
+  path,
+})
+
+const byteLength = (content: string): number => Buffer.byteLength(content, 'utf8')
+
+const validateSource = ({
+  allowedSourceIds,
+  source,
+}: {
+  allowedSourceIds?: string[]
+  source: unknown
+}): {
+  issues: DocsValidationIssue[]
+  source?: DocsManifestSource
+} => {
+  if (!isRecord(source) || typeof source.id !== 'string' || source.id.trim() === '') {
+    return {
+      issues: [
+        createIssue({
+          code: 'invalid_source',
+          message: 'Manifest source.id is required.',
+        }),
+      ],
+    }
+  }
+
+  if (allowedSourceIds && !allowedSourceIds.includes(source.id)) {
+    return {
+      issues: [
+        createIssue({
+          code: 'invalid_source',
+          message: `Manifest source.id "${source.id}" is not allowed.`,
+        }),
+      ],
+    }
+  }
+
+  return {
+    issues: [],
+    source: {
+      id: source.id,
+      branch: typeof source.branch === 'string' ? source.branch : undefined,
+      commit: typeof source.commit === 'string' ? source.commit : undefined,
+      repository: typeof source.repository === 'string' ? source.repository : undefined,
+      root: typeof source.root === 'string' ? source.root : undefined,
+    },
+  }
+}
+
+const validateMode = (mode: unknown): {
+  issues: DocsValidationIssue[]
+  mode: DocsSyncMode
+} => {
+  if (mode === undefined) {
+    return {
+      issues: [],
+      mode: 'dry-run',
+    }
+  }
+
+  if (syncModes.has(mode as DocsSyncMode)) {
+    return {
+      issues: [],
+      mode: mode as DocsSyncMode,
+    }
+  }
+
+  return {
+    issues: [
+      createIssue({
+        code: 'invalid_mode',
+        message: 'Manifest mode must be "dry-run" or "sync".',
+      }),
+    ],
+    mode: 'dry-run',
+  }
+}
+
+const validateDeleteBehavior = (deleteBehavior: unknown): {
+  deleteBehavior: DocsDeleteBehavior
+  issues: DocsValidationIssue[]
+} => {
+  if (deleteBehavior === undefined) {
+    return {
+      deleteBehavior: 'archive',
+      issues: [],
+    }
+  }
+
+  if (deleteBehaviors.has(deleteBehavior as DocsDeleteBehavior)) {
+    return {
+      deleteBehavior: deleteBehavior as DocsDeleteBehavior,
+      issues: [],
+    }
+  }
+
+  return {
+    deleteBehavior: 'archive',
+    issues: [
+      createIssue({
+        code: 'invalid_delete_behavior',
+        message: 'Manifest deleteBehavior must be archive, delete, draft, or ignore.',
+      }),
+    ],
+  }
+}
+
+const validateManifestFile = ({
+  file,
+  maxFileBytes,
+  routeBase,
+}: {
+  file: unknown
+  maxFileBytes: number
+  routeBase: string
+}): {
+  fileBytes: number
+  issues: DocsValidationIssue[]
+  normalizedPath?: string
+  validatedFile?: ValidatedDocsManifestFile
+  warnings: DocsValidationIssue[]
+} => {
+  const issues: DocsValidationIssue[] = []
+  const warnings: DocsValidationIssue[] = []
+
+  if (!isRecord(file)) {
+    return {
+      fileBytes: 0,
+      issues: [
+        createIssue({
+          code: 'invalid_manifest',
+          message: 'Manifest file entries must be objects.',
+        }),
+      ],
+      warnings,
+    }
+  }
+
+  const path = typeof file.path === 'string' ? file.path : undefined
+  const content = typeof file.content === 'string' ? file.content : undefined
+
+  if (!path || content === undefined) {
+    return {
+      fileBytes: 0,
+      issues: [
+        createIssue({
+          code: 'invalid_manifest',
+          message: 'Manifest file entries require string path and content.',
+          path,
+        }),
+      ],
+      warnings,
+    }
+  }
+
+  const normalizedPath = normalizeDocsPath(path)
+
+  if (!normalizedPath.ok) {
+    return {
+      fileBytes: 0,
+      issues: [
+        createIssue({
+          code: normalizedPath.code,
+          message: normalizedPath.message,
+          path,
+        }),
+      ],
+      warnings,
+    }
+  }
+
+  const fileBytes = byteLength(content)
+
+  if (fileBytes > maxFileBytes) {
+    issues.push(
+      createIssue({
+        code: 'file_too_large',
+        message: `File exceeds maximum size of ${maxFileBytes} bytes.`,
+        path: normalizedPath.path,
+      }),
+    )
+  }
+
+  const computedHash = sha256Hex(content)
+
+  if (
+    file.sha256 !== undefined &&
+    (typeof file.sha256 !== 'string' ||
+      !/^[a-f0-9]{64}$/i.test(file.sha256) ||
+      file.sha256.toLowerCase() !== computedHash)
+  ) {
+    issues.push(
+      createIssue({
+        code: 'invalid_hash',
+        message: 'Manifest file sha256 does not match content.',
+        path: normalizedPath.path,
+      }),
+    )
+  }
+
+  const parsedFrontmatter = parseDocsFrontmatter(content, {
+    path: normalizedPath.path,
+  })
+
+  issues.push(...parsedFrontmatter.issues)
+  warnings.push(...parsedFrontmatter.warnings)
+
+  const route = deriveRouteFromSourcePath({
+    slug: parsedFrontmatter.frontmatter.slug,
+    routeBase,
+    sourcePath: normalizedPath.path,
+  })
+
+  return {
+    fileBytes,
+    issues,
+    normalizedPath: normalizedPath.path,
+    validatedFile: {
+      content: parsedFrontmatter.content,
+      frontmatter: parsedFrontmatter.frontmatter,
+      path: normalizedPath.path,
+      route,
+      sha256: computedHash,
+      title: resolveDocsTitle({
+        content: parsedFrontmatter.content,
+        frontmatter: parsedFrontmatter.frontmatter,
+        sourcePath: normalizedPath.path,
+      }),
+    },
+    warnings,
+  }
+}
+
+export const validateDocsManifest = (
+  manifest: unknown,
+  options: DocsValidationOptions = {},
+): DocsValidationResult<ValidatedDocsManifest> => {
+  const issues: DocsValidationIssue[] = []
+  const warnings: DocsValidationIssue[] = []
+  const maxFileBytes = options.maxFileBytes ?? DEFAULT_MAX_DOCS_FILE_BYTES
+  const maxFiles = options.maxFiles ?? DEFAULT_MAX_DOCS_FILES
+  const maxTotalBytes = options.maxTotalBytes ?? DEFAULT_MAX_DOCS_TOTAL_BYTES
+  const routeBase = options.routeBase ?? DEFAULT_DOCS_ROUTE_BASE
+
+  if (!isRecord(manifest)) {
+    return {
+      issues: [
+        createIssue({
+          code: 'invalid_manifest',
+          message: 'Manifest must be an object.',
+        }),
+      ],
+      ok: false,
+      warnings,
+    }
+  }
+
+  if (manifest.version !== 1) {
+    issues.push(
+      createIssue({
+        code: 'invalid_version',
+        message: 'Manifest version must be 1.',
+      }),
+    )
+  }
+
+  const sourceValidation = validateSource({
+    allowedSourceIds: options.allowedSourceIds,
+    source: manifest.source,
+  })
+
+  issues.push(...sourceValidation.issues)
+
+  const modeValidation = validateMode(manifest.mode)
+  issues.push(...modeValidation.issues)
+
+  const deleteBehaviorValidation = validateDeleteBehavior(manifest.deleteBehavior)
+  issues.push(...deleteBehaviorValidation.issues)
+
+  const publish =
+    manifest.publish === undefined ? false : manifest.publish === true ? true : false
+
+  if (manifest.publish !== undefined && typeof manifest.publish !== 'boolean') {
+    issues.push(
+      createIssue({
+        code: 'invalid_manifest',
+        message: 'Manifest publish must be a boolean.',
+      }),
+    )
+  }
+
+  const files = Array.isArray(manifest.files) ? manifest.files : undefined
+
+  if (!files || files.length === 0) {
+    issues.push(
+      createIssue({
+        code: 'empty_manifest',
+        message: 'Manifest must include at least one file.',
+      }),
+    )
+  }
+
+  if (files && files.length > maxFiles) {
+    issues.push(
+      createIssue({
+        code: 'too_many_files',
+        message: `Manifest exceeds maximum file count of ${maxFiles}.`,
+      }),
+    )
+  }
+
+  const validatedFiles: ValidatedDocsManifestFile[] = []
+  const normalizedPaths = new Set<string>()
+  let totalBytes = 0
+
+  for (const file of files ?? []) {
+    const fileValidation = validateManifestFile({
+      file,
+      maxFileBytes,
+      routeBase,
+    })
+
+    totalBytes += fileValidation.fileBytes
+    issues.push(...fileValidation.issues)
+    warnings.push(...fileValidation.warnings)
+
+    if (fileValidation.normalizedPath) {
+      if (normalizedPaths.has(fileValidation.normalizedPath)) {
+        issues.push(
+          createIssue({
+            code: 'duplicate_path',
+            message: 'Manifest contains duplicate normalized paths.',
+            path: fileValidation.normalizedPath,
+          }),
+        )
+      }
+
+      normalizedPaths.add(fileValidation.normalizedPath)
+    }
+
+    if (fileValidation.validatedFile) {
+      validatedFiles.push(fileValidation.validatedFile)
+    }
+  }
+
+  if (totalBytes > maxTotalBytes) {
+    issues.push(
+      createIssue({
+        code: 'manifest_too_large',
+        message: `Manifest content exceeds maximum total size of ${maxTotalBytes} bytes.`,
+      }),
+    )
+  }
+
+  if (issues.length > 0 || !sourceValidation.source) {
+    return {
+      issues,
+      ok: false,
+      warnings,
+    }
+  }
+
+  return {
+    data: {
+      deleteBehavior: deleteBehaviorValidation.deleteBehavior,
+      files: validatedFiles,
+      mode: modeValidation.mode,
+      publish,
+      source: sourceValidation.source,
+      version: 1,
+    },
+    issues,
+    ok: true,
+    warnings,
+  }
+}
+
+export type { DocsManifest, DocsManifestFile, DocsManifestSource }

@@ -1,4 +1,4 @@
-import { mongooseAdapter } from '@payloadcms/db-mongodb'
+import { postgresAdapter } from '@payloadcms/db-postgres'
 import { lexicalEditor } from '@payloadcms/richtext-lexical'
 import { payloadMarkdownDocs } from '@valkyrianlabs/payload-markdown-docs'
 import { MongoMemoryReplSet } from 'mongodb-memory-server'
@@ -48,9 +48,10 @@ const buildConfigWithMemoryDB = async () => {
         },
       },
     ],
-    db: mongooseAdapter({
-      ensureIndexes: true,
-      url: process.env.DATABASE_URL || '',
+    db: postgresAdapter({
+      pool: {
+        connectionString: process.env.DATABASE_URL || '',
+      },
     }),
     editor: lexicalEditor(),
     email: testEmailAdapter,

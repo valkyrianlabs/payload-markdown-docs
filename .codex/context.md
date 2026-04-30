@@ -5,7 +5,7 @@
 - Package/repository name: `@valkyrianlabs/payload-markdown-docs`
 - Package metadata now uses the scoped package name and real description.
 - Purpose: Git-backed Markdown documentation sync into Payload CMS.
-- Current state: Phase 2 dedicated docs storage model. The package exports `payloadMarkdownDocs()`, public config types, constants, and collection builders. Enabled plugin mode injects the dedicated docs infrastructure collections; disabled mode remains an exact no-op. No sync endpoint, auth verification, manifest validation, CLI, or upsert engine exists yet.
+- Current state: Phase 3 validation/planning core. The package exports `payloadMarkdownDocs()`, public config types, constants, collection builders, and pure sync utilities for path normalization, frontmatter parsing, hashing, manifest building/validation, and dry sync planning. Enabled plugin mode injects the dedicated docs infrastructure collections; disabled mode remains an exact no-op. No sync endpoint, auth verification, CLI, or Payload upsert engine exists yet.
 
 ## Product Direction
 
@@ -48,6 +48,7 @@ Current source structure:
 - `src/types.ts` contains public config types.
 - `src/constants.ts` contains default slugs, default endpoint path, and default limits.
 - `src/collections/` contains the docs, sync runs, and nonce collection builders.
+- `src/sync/` contains pure manifest/path/frontmatter/hash/validation/planning utilities and unit tests.
 - `dev/` contains the local Payload app used for tests and manual development.
 - `dev/int.spec.ts` contains skeleton tests and a dev app integration smoke test.
 - `dev/e2e.spec.ts` contains Playwright e2e tests.
@@ -55,9 +56,9 @@ Current source structure:
 
 Expected future source organization:
 
-- Keep `src/index.ts`, `src/plugin.ts`, `src/types.ts`, `src/constants.ts`, and `src/collections/` as the Phase 2 storage skeleton.
+- Keep `src/index.ts`, `src/plugin.ts`, `src/types.ts`, `src/constants.ts`, `src/collections/`, and `src/sync/` as the Phase 3 storage and validation skeleton.
 - `src/endpoints/` can hold the sync endpoint and endpoint helpers.
-- `src/sync/` can hold manifest validation, planning, hashing, and Payload upsert logic.
+- Future Payload upsert logic should live outside the pure `src/sync/` validation core or in a clearly separated module.
 - `src/security/` can hold signing verification, canonical request logic, and nonce abstractions.
 - `src/cli/` can be introduced later only when the CLI phase starts.
 

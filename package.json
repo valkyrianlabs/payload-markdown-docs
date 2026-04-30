@@ -1,6 +1,6 @@
 {
   "name": "@valkyrianlabs/payload-markdown-docs",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "Git-backed Markdown documentation sync for Payload CMS, powered by payload-markdown.",
   "keywords": [
     "payload",
@@ -42,14 +42,13 @@
     "test:int": "vitest"
   },
   "devDependencies": {
-    "@eslint/eslintrc": "^3.2.0",
-    "@payloadcms/db-mongodb": "3.84.0",
-    "@payloadcms/db-postgres": "3.84.0",
-    "@payloadcms/db-sqlite": "3.84.0",
+    "@eslint/eslintrc": "^3.3.5",
+    "@payloadcms/db-postgres": "latest",
+    "@payloadcms/db-sqlite": "latest",
     "@payloadcms/eslint-config": "3.28.0",
-    "@payloadcms/next": "3.84.0",
-    "@payloadcms/richtext-lexical": "3.84.0",
-    "@payloadcms/ui": "3.84.0",
+    "@payloadcms/next": "latest",
+    "@payloadcms/richtext-lexical": "latest",
+    "@payloadcms/ui": "latest",
     "@playwright/test": "1.58.2",
     "@swc-node/register": "1.10.9",
     "@swc/cli": "0.6.0",
@@ -58,26 +57,26 @@
     "@types/react-dom": "19.2.3",
     "copyfiles": "2.4.1",
     "cross-env": "^7.0.3",
-    "eslint": "^9.23.0",
+    "eslint": "^9.39.4",
     "eslint-config-next": "16.2.3",
-    "graphql": "^16.8.1",
+    "graphql": "^16.13.2",
     "mongodb-memory-server": "10.1.4",
     "next": "16.2.3",
-    "open": "^10.1.0",
-    "payload": "3.84.0",
-    "prettier": "^3.4.2",
+    "open": "^10.2.0",
+    "payload": "latest",
+    "prettier": "^3.8.3",
     "qs-esm": "8.0.1",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "rimraf": "3.0.2",
     "sharp": "0.34.2",
-    "sort-package-json": "^2.10.0",
+    "sort-package-json": "^2.15.1",
     "typescript": "5.7.3",
     "vite-tsconfig-paths": "6.0.5",
     "vitest": "4.0.18"
   },
   "peerDependencies": {
-    "payload": "^3.84.0"
+    "payload": ">=3.0.0"
   },
   "engines": {
     "node": "^18.20.2 || >=20.9.0",
