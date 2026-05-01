@@ -19,6 +19,11 @@
       "import": "./src/index.ts",
       "types": "./src/index.ts",
       "default": "./src/index.ts"
+    },
+    "./next": {
+      "import": "./src/next/index.ts",
+      "types": "./src/next/index.ts",
+      "default": "./src/next/index.ts"
     }
   },
   "main": "./src/index.ts",
@@ -91,6 +96,11 @@
         "import": "./dist/index.js",
         "types": "./dist/index.d.ts",
         "default": "./dist/index.js"
+      },
+      "./next": {
+        "import": "./dist/next/index.js",
+        "types": "./dist/next/index.d.ts",
+        "default": "./dist/next/index.js"
       }
     },
     "main": "./dist/index.js",

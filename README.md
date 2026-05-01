@@ -10,6 +10,7 @@ The dedicated docs collection workflow is implemented and ready to dogfood:
 - docs groups and docs sets as the user-facing management model
 - generated/internal docs records linked to docs sets
 - route reservation helpers and optional docs-side Pages collision checks
+- read-only native Pages route adapter and frontend rendering helpers
 - pure manifest validation and planning utilities
 - local CLI for `validate`, `manifest`, `plan`, `keygen`, and signed `push`
 - signed sync endpoint with nonce replay protection
@@ -24,7 +25,6 @@ Not implemented yet:
 - GitHub OIDC auth mode
 - existing collection targets
 - block targets
-- native Pages route adapter and frontend rendering helpers
 - central docs set admin manager
 - agent skill installer
 
@@ -155,7 +155,50 @@ payloadMarkdownDocs({
 })
 ```
 
-These checks can reject docs set route conflicts against existing Pages data. They do not mutate Pages and do not add Page hooks yet. A future route adapter can render docs sets natively without syncing every Markdown file into the Pages collection.
+These checks can reject docs set route conflicts against existing Pages data. They do not mutate Pages and do not add Page hooks. The native route adapter can render docs sets without syncing every Markdown file into the Pages collection.
+
+## Native Pages Route Adapter
+
+The `/next` export provides read-only helpers for resolving generated docs routes from a Next/Payload route layer. It does not mutate the Pages collection and does not require one Page per Markdown file.
+
+```tsx
+import { notFound } from 'next/navigation'
+import { getPayload } from 'payload'
+import config from '@payload-config'
+import {
+  PayloadMarkdownDocsPage,
+  resolvePayloadMarkdownDocsRoute,
+} from '@valkyrianlabs/payload-markdown-docs/next'
+
+export default async function Page({
+  params,
+}: {
+  params: Promise<{ slug?: string[] }>
+}) {
+  const { slug } = await params
+  const payload = await getPayload({ config })
+  const resolved = await resolvePayloadMarkdownDocsRoute({
+    payload,
+    slug,
+  })
+
+  if (resolved) {
+    return <PayloadMarkdownDocsPage resolved={resolved} />
+  }
+
+  // Fall back to normal Pages collection lookup/rendering here.
+  notFound()
+}
+```
+
+Available helpers:
+
+- `resolvePayloadMarkdownDocsRoute()` resolves exact docs records, docs set index routes, and served docs group index routes.
+- `getPayloadMarkdownDocsSidebar()` and `buildPayloadMarkdownDocsSidebar()` return deterministic sidebar data for a docs set.
+- `getPayloadMarkdownDocsMetadata()` and `generatePayloadMarkdownDocsMetadata()` return simple Next-compatible title/description metadata.
+- `PayloadMarkdownDocsPage` is a minimal server-compatible renderer that uses `@valkyrianlabs/payload-markdown/server` for Markdown content.
+
+The helper expects a Payload instance so users can decide how their app obtains Payload and where docs resolution sits relative to normal Pages routing. See `examples/next/app-docs-route.md` for a standalone route example.
 
 ## Dedicated Docs Workflow
 
@@ -469,13 +512,11 @@ Still not implemented:
 - existing collection targets
 - block targets
 - GitHub OIDC auth
-- native Pages route adapter and frontend rendering helpers
 - central docs set accordion/admin manager
 
 ## Current Limitations
 
 - Existing collection and block target modes are not implemented.
-- Native route rendering helpers are not implemented.
 - The central docs set admin manager is not implemented.
 - GitHub OIDC is not implemented.
 - Agent skill installer is not implemented.
@@ -493,7 +534,7 @@ Still not implemented:
 - Phase 7B: publishing modes and expanded archive/delete behavior. Done.
 - Phase 8A: CI workflow and dedicated docs dogfood hardening. Done.
 - Phase 8B: docs groups, docs sets, and route reservations. Done.
-- Phase 8C: native Pages route adapter and frontend rendering helpers.
+- Phase 8C: native Pages route adapter and frontend rendering helpers. Done.
 - Phase 8D: docs set admin manager.
 - Phase 9: CI workflow polish.
 - Phase 10: GitHub OIDC auth mode.

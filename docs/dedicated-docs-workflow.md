@@ -61,6 +61,8 @@ The default endpoint is exposed at:
 
 By default, the plugin also adds `docs-groups` and `docs-sets`. Docs sets are the user-facing unit for source ids and route bases. Generated docs records are linked to docs sets and remain the internal records used for routing, search, and sync correctness.
 
+The native route adapter can resolve and render generated docs routes from a Next/Payload catch-all route without creating one Page per Markdown file. It is read-only and does not mutate Pages.
+
 ## Docs Source Tree
 
 Keep project documentation in a local Markdown tree:
@@ -198,6 +200,41 @@ Required secrets:
 
 The Payload server must have the matching public key configured for the `github-actions-main` key id.
 
+## Native Route Adapter
+
+Use the `/next` export from an existing route layer to resolve docs routes before falling back to your normal Pages collection route.
+
+```tsx
+import { notFound } from 'next/navigation'
+import { getPayload } from 'payload'
+import config from '@payload-config'
+import {
+  PayloadMarkdownDocsPage,
+  resolvePayloadMarkdownDocsRoute,
+} from '@valkyrianlabs/payload-markdown-docs/next'
+
+export default async function Page({
+  params,
+}: {
+  params: Promise<{ slug?: string[] }>
+}) {
+  const { slug } = await params
+  const payload = await getPayload({ config })
+  const resolved = await resolvePayloadMarkdownDocsRoute({
+    payload,
+    slug,
+  })
+
+  if (resolved) {
+    return <PayloadMarkdownDocsPage resolved={resolved} />
+  }
+
+  notFound()
+}
+```
+
+The route adapter can resolve exact docs records, docs set index routes, and docs group index routes where `serveIndex` is enabled. It returns `null` for normal Page routes so your app can fall back to existing Page rendering.
+
 ## Current Boundaries
 
 Implemented for this workflow:
@@ -206,6 +243,7 @@ Implemented for this workflow:
 - docs groups and docs sets
 - signed sync endpoint
 - local CLI validation, manifest, plan, keygen, and push
+- native route adapter and frontend rendering helpers
 - sync writes behind `sync.allowWrites`
 - publish behind `sync.allowPublish`
 - hard delete behind `sync.allowHardDelete`

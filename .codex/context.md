@@ -5,7 +5,7 @@
 - Package/repository name: `@valkyrianlabs/payload-markdown-docs`
 - Package metadata now uses the scoped package name and real description.
 - Purpose: Git-backed Markdown documentation sync into Payload CMS.
-- Current state: Phase 8B docs groups, docs sets, and route reservations. The package exports `payloadMarkdownDocs()`, public config types, constants, collection builders, pure sync utilities for path normalization/frontmatter/hashing/manifest validation/planning, route helpers, and a request signing helper. Enabled plugin mode injects docs groups, docs sets, generated docs, sync-run, and nonce collections and registers a signed sync endpoint. Disabled mode remains an exact no-op. The CLI supports `validate`, `manifest`, `plan`, `keygen`, and signed `push`, including `push --publish`. Sync-mode writes to the dedicated generated docs collection require `sync.allowWrites: true`. Publishing requires `sync.allowPublish: true` and a draft-enabled dedicated docs collection. Hard delete requires `sync.allowHardDelete: true`. The endpoint now resolves `manifest.source.id` to a docs set when possible, uses the docs set route base, links synced docs to that docs set, and can perform docs-side route collision checks. Existing collection targets, block targets, frontend route rendering, GitHub OIDC, and agent skill installer do not exist yet.
+- Current state: Phase 8C native Pages route adapter and frontend rendering helpers. The package exports `payloadMarkdownDocs()`, public config types, constants, collection builders, pure sync utilities for path normalization/frontmatter/hashing/manifest validation/planning, route helpers, a request signing helper, and a `/next` read-only route adapter export. Enabled plugin mode injects docs groups, docs sets, generated docs, sync-run, and nonce collections and registers a signed sync endpoint. Disabled mode remains an exact no-op. The CLI supports `validate`, `manifest`, `plan`, `keygen`, and signed `push`, including `push --publish`. Sync-mode writes to the dedicated generated docs collection require `sync.allowWrites: true`. Publishing requires `sync.allowPublish: true` and a draft-enabled dedicated docs collection. Hard delete requires `sync.allowHardDelete: true`. The endpoint resolves `manifest.source.id` to a docs set when possible, uses the docs set route base, links synced docs to that docs set, and can perform docs-side route collision checks. The `/next` export can resolve docs routes, generate sidebar data, generate metadata, and render a minimal docs page via `@valkyrianlabs/payload-markdown/server`. Existing collection targets, block targets, central docs set admin manager, GitHub OIDC, and agent skill installer do not exist yet.
 
 ## Product Direction
 
@@ -54,6 +54,7 @@ Current source structure:
 - `src/security/` contains canonical signing string, signed header, body hash, timestamp, Ed25519 signing/verification, and nonce replay helpers.
 - `src/payload/` contains Payload Local API adapters for docs set source resolution, existing docs lookup, route collision checks, sync-run audit records, conflict detection, docs data/status mapping, and dedicated docs apply writes.
 - `src/endpoints/` contains the signed sync endpoint factory and handler.
+- `src/next/` contains the read-only native route adapter, sidebar helper, metadata helper, minimal server page component, and `/next` export surface.
 - `docs/dedicated-docs-workflow.md` documents the complete default dedicated docs collection workflow.
 - `examples/docs/` contains a small valid Markdown docs fixture for dogfooding CLI validation/manifest/plan behavior.
 - `examples/github-actions/publish-docs.yml` contains a CI workflow example for pull-request dry-runs and main-branch publish syncs.
@@ -69,6 +70,7 @@ Expected future source organization:
 - Future Payload upsert logic should live outside the pure `src/sync/` validation core or in a clearly separated module.
 - `src/security/` holds signing, verification, canonical request logic, and nonce helpers.
 - `src/cli/` may build, validate, plan, keygen, and push signed manifest requests. Keep network behavior scoped to explicit CLI upload commands.
+- `src/next/` should stay read-only. It may resolve/render docs routes and sidebar/metadata data, but must not mutate Pages or docs records.
 
 ## Commands
 
@@ -117,6 +119,10 @@ Focused docs/workflow example tests can be run with:
 
 - `pnpm exec vitest src/cli`
 
+Focused route adapter tests can be run with:
+
+- `pnpm exec vitest src/next src/payload src/routing`
+
 ## Guardrails
 
 - Avoid implementing all phases at once.
@@ -135,4 +141,5 @@ Focused docs/workflow example tests can be run with:
 - Users should manage docs groups and docs sets, not hundreds or thousands of Payload Pages.
 - Synced docs records are generated/internal records for routing, search, and sync correctness.
 - Route bases are server-owned through docs sets or configured sources. Do not let request bodies choose route bases or target fields.
-- Native frontend route rendering and central docs set management are future phases.
+- The native route adapter is read-only. It must not create Pages, mutate Pages, or sync one Page per Markdown file.
+- Central docs set management is a future phase.

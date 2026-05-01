@@ -1,0 +1,214 @@
+import type {
+  PayloadMarkdownDocsDefaults,
+  PayloadMarkdownDocsOverrides,
+  ResolvedPayloadMarkdownDocsGroup,
+  ResolvedPayloadMarkdownDocsRecord,
+  ResolvedPayloadMarkdownDocsSet,
+} from './types.js'
+
+import { normalizeRoutePath } from '../routing/index.js'
+
+export const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
+
+export const getRecordId = (doc: Record<string, unknown>): string | undefined => {
+  if (typeof doc.id === 'string' || typeof doc.id === 'number') {
+    return String(doc.id)
+  }
+
+  return undefined
+}
+
+export const getRelationshipId = (value: unknown): string | undefined => {
+  if (typeof value === 'string' || typeof value === 'number') {
+    return String(value)
+  }
+
+  if (isRecord(value)) {
+    return getRecordId(value)
+  }
+
+  return undefined
+}
+
+const getOptionalString = (
+  doc: Record<string, unknown>,
+  key: string,
+): string | undefined => (typeof doc[key] === 'string' ? doc[key] : undefined)
+
+const getOptionalNumber = (
+  doc: Record<string, unknown>,
+  key: string,
+): number | undefined => (typeof doc[key] === 'number' ? doc[key] : undefined)
+
+const getOptionalBoolean = (
+  doc: Record<string, unknown>,
+  key: string,
+): boolean | undefined => (typeof doc[key] === 'boolean' ? doc[key] : undefined)
+
+const cleanObject = <T extends Record<string, unknown>>(input: T): Partial<T> =>
+  Object.fromEntries(
+    Object.entries(input).filter(([, value]) => value !== undefined && value !== null),
+  ) as Partial<T>
+
+const toDefaults = (value: unknown): PayloadMarkdownDocsDefaults | undefined => {
+  if (!isRecord(value)) {
+    return undefined
+  }
+
+  const sidebarMode: PayloadMarkdownDocsDefaults['sidebarMode'] =
+    value.sidebarMode === 'auto' ||
+    value.sidebarMode === 'hidden' ||
+    value.sidebarMode === 'manual'
+      ? value.sidebarMode
+      : undefined
+  const defaults = cleanObject({
+    heroDescription: getOptionalString(value, 'heroDescription'),
+    heroEyebrow: getOptionalString(value, 'heroEyebrow'),
+    heroTitle: getOptionalString(value, 'heroTitle'),
+    seoDescription: getOptionalString(value, 'seoDescription'),
+    seoTitle: getOptionalString(value, 'seoTitle'),
+    sidebarMode,
+    theme: getOptionalString(value, 'theme'),
+  } satisfies PayloadMarkdownDocsDefaults)
+
+  return Object.keys(defaults).length > 0
+    ? (defaults as PayloadMarkdownDocsDefaults)
+    : undefined
+}
+
+const toOverrides = (value: unknown): PayloadMarkdownDocsOverrides | undefined => {
+  if (!isRecord(value)) {
+    return undefined
+  }
+
+  const overrides = cleanObject({
+    heroDescription: getOptionalString(value, 'heroDescription'),
+    heroEyebrow: getOptionalString(value, 'heroEyebrow'),
+    heroTitle: getOptionalString(value, 'heroTitle'),
+    hideFromNav: getOptionalBoolean(value, 'hideFromNav'),
+    navTitle: getOptionalString(value, 'navTitle'),
+    seoDescription: getOptionalString(value, 'seoDescription'),
+    seoTitle: getOptionalString(value, 'seoTitle'),
+    theme: getOptionalString(value, 'theme'),
+  })
+
+  return Object.keys(overrides).length > 0 ? overrides : undefined
+}
+
+export const toResolvedDocsSet = (
+  doc: unknown,
+): ResolvedPayloadMarkdownDocsSet | undefined => {
+  if (!isRecord(doc)) {
+    return undefined
+  }
+
+  const id = getRecordId(doc)
+  const routeBase = getOptionalString(doc, 'routeBase')
+  const title = getOptionalString(doc, 'title')
+
+  if (!id || !routeBase || !title) {
+    return undefined
+  }
+
+  return {
+    id,
+    slug: getOptionalString(doc, 'slug'),
+    defaults: toDefaults(doc.defaults),
+    description: getOptionalString(doc, 'description'),
+    navTitle: getOptionalString(doc, 'navTitle'),
+    order: getOptionalNumber(doc, 'order') ?? 0,
+    routeBase: normalizeRoutePath(routeBase),
+    sourceId: getOptionalString(doc, 'sourceId'),
+    sourceRoot: getOptionalString(doc, 'sourceRoot'),
+    title,
+  }
+}
+
+export const toResolvedDocsGroup = (
+  doc: unknown,
+): ResolvedPayloadMarkdownDocsGroup | undefined => {
+  if (!isRecord(doc)) {
+    return undefined
+  }
+
+  const id = getRecordId(doc)
+  const routePath = getOptionalString(doc, 'routePath')
+  const title = getOptionalString(doc, 'title')
+
+  if (!id || !routePath || !title) {
+    return undefined
+  }
+
+  return {
+    id,
+    slug: getOptionalString(doc, 'slug'),
+    description: getOptionalString(doc, 'description'),
+    navTitle: getOptionalString(doc, 'navTitle'),
+    order: getOptionalNumber(doc, 'order') ?? 0,
+    routePath: normalizeRoutePath(routePath),
+    serveIndex: getOptionalBoolean(doc, 'serveIndex') ?? false,
+    title,
+  }
+}
+
+export const toResolvedDocsRecord = ({
+  doc,
+  markdownField,
+}: {
+  doc: unknown
+  markdownField: string
+}): ResolvedPayloadMarkdownDocsRecord | undefined => {
+  if (!isRecord(doc)) {
+    return undefined
+  }
+
+  const id = getRecordId(doc)
+  const route = getOptionalString(doc, 'route')
+  const sourcePath = getOptionalString(doc, 'sourcePath')
+  const title = getOptionalString(doc, 'title')
+
+  if (!id || !route || !sourcePath || !title) {
+    return undefined
+  }
+
+  const sync = isRecord(doc.sync) ? doc.sync : undefined
+  const status =
+    doc._status === 'draft' || doc._status === 'published' ? doc._status : undefined
+
+  return {
+    id,
+    archived: getOptionalBoolean(sync ?? {}, 'archived') ?? false,
+    content:
+      typeof doc[markdownField] === 'string' ? doc[markdownField] : undefined,
+    depth: getOptionalNumber(doc, 'depth') ?? 0,
+    description: getOptionalString(doc, 'description'),
+    docsSetId: getRelationshipId(doc.docsSet),
+    navTitle: getOptionalString(doc, 'navTitle'),
+    order: getOptionalNumber(doc, 'order') ?? 0,
+    overrides: toOverrides(doc.overrides),
+    route: normalizeRoutePath(route),
+    sourceHash: getOptionalString(doc, 'sourceHash'),
+    sourcePath,
+    status,
+    title,
+  }
+}
+
+export const isVisibleDocsRecord = ({
+  includeDrafts = false,
+  record,
+}: {
+  includeDrafts?: boolean
+  record: ResolvedPayloadMarkdownDocsRecord
+}): boolean => {
+  if (record.archived) {
+    return false
+  }
+
+  if (!includeDrafts && record.status === 'draft') {
+    return false
+  }
+
+  return true
+}
