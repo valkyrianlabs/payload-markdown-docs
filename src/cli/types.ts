@@ -2,6 +2,7 @@ import type { DocsDeleteBehavior } from '../sync/index.js'
 
 export type CliCommandName =
   | 'help'
+  | 'install'
   | 'keygen'
   | 'manifest'
   | 'plan'

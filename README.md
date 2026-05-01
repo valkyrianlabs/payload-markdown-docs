@@ -19,6 +19,7 @@ Implemented:
 - publishing controls for draft-enabled dedicated docs collections
 - read-only `/next` route adapter, sidebar helper, metadata helper, and page component
 - read-only Docs Set Admin Manager
+- local agent skill installer
 - real `/docs` dogfood documentation set
 
 Not implemented yet:
@@ -27,7 +28,6 @@ Not implemented yet:
 - existing collection targets
 - block targets
 - inline override editing from the docs set manager
-- agent skill installer
 
 ## Install
 
@@ -96,6 +96,7 @@ pnpm exec payload-markdown-docs keygen --out .docs-sync
 pnpm exec payload-markdown-docs validate ./docs --source main-docs
 pnpm exec payload-markdown-docs manifest ./docs --source main-docs --pretty
 pnpm exec payload-markdown-docs plan ./docs --source main-docs
+pnpm exec payload-markdown-docs install skill --codex
 ```
 
 Signed dry-run:
@@ -132,6 +133,7 @@ The real plugin docs now live in [`docs/`](docs/index.md). Start with:
 - [Quick Start](docs/getting-started/quick-start.md)
 - [Architecture](docs/concepts/architecture.md)
 - [GitHub Actions](docs/workflow/ci-github-actions.md)
+- [Agent Skill Installer](docs/workflow/agent-skill-installer.md)
 - [Route Adapter](docs/frontend/route-adapter.md)
 - [Docs Set Admin Manager](docs/admin/docs-set-manager.md)
 - [Troubleshooting](docs/reference/troubleshooting.md)
@@ -148,9 +150,8 @@ The `/docs` tree is also dogfood material for the plugin: it uses supported fron
 
 Next major work:
 
-- CI workflow polish around docs sets and route adapter usage
 - GitHub OIDC auth mode
-- agent skill installer and workflow polish
 - existing collection or block bridges only if still needed
+- skill update/verify and drift-check workflow polish
 
 See [`.codex/scratch/roadmap.md`](.codex/scratch/roadmap.md) for the working implementation roadmap.

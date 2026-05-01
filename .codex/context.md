@@ -5,7 +5,7 @@
 - Package/repository name: `@valkyrianlabs/payload-markdown-docs`
 - Package metadata now uses the scoped package name and real description.
 - Purpose: Git-backed Markdown documentation sync into Payload CMS.
-- Current state: Phase 9 documentation, CI workflow polish, and docs dogfood content. The package exports `payloadMarkdownDocs()`, public config types, constants, collection builders, pure sync utilities for path normalization/frontmatter/hashing/manifest validation/planning, route helpers, a request signing helper, a `/next` read-only route adapter export, and an `/admin` export for the docs set manager component. Enabled plugin mode injects docs groups, docs sets, generated docs, sync-run, and nonce collections and registers a signed sync endpoint. Disabled mode remains an exact no-op. The CLI supports `validate`, `manifest`, `plan`, `keygen`, and signed `push`, including `push --publish`. Sync-mode writes to the dedicated generated docs collection require `sync.allowWrites: true`. Publishing requires `sync.allowPublish: true` and a draft-enabled dedicated docs collection. Hard delete requires `sync.allowHardDelete: true`. The endpoint resolves `manifest.source.id` to a docs set when possible, uses the docs set route base, links synced docs to that docs set, and can perform docs-side route collision checks. The `/next` export can resolve docs routes, generate sidebar data, generate metadata, and render a minimal docs page via `@valkyrianlabs/payload-markdown/server`. The docs set edit view includes a read-only Generated Docs overview with summary counts, source-path tree, override summaries, and generated-doc admin links. The root `docs/` tree is now real dogfood documentation with valid frontmatter, root-relative internal links, and `payload-markdown` directive examples. Existing collection targets, block targets, inline admin override editing, GitHub OIDC, and agent skill installer do not exist yet.
+- Current state: Phase 10 Agent Skill Installer / Agent Workflow Pack. The package exports `payloadMarkdownDocs()`, public config types, constants, collection builders, pure sync utilities for path normalization/frontmatter/hashing/manifest validation/planning, route helpers, a request signing helper, a `/next` read-only route adapter export, and an `/admin` export for the docs set manager component. Enabled plugin mode injects docs groups, docs sets, generated docs, sync-run, and nonce collections and registers a signed sync endpoint. Disabled mode remains an exact no-op. The CLI supports `validate`, `manifest`, `plan`, `keygen`, signed `push` including `push --publish`, and `install skill --codex` / `install ai-skill --codex`. Sync-mode writes to the dedicated generated docs collection require `sync.allowWrites: true`. Publishing requires `sync.allowPublish: true` and a draft-enabled dedicated docs collection. Hard delete requires `sync.allowHardDelete: true`. The endpoint resolves `manifest.source.id` to a docs set when possible, uses the docs set route base, links synced docs to that docs set, and can perform docs-side route collision checks. The `/next` export can resolve docs routes, generate sidebar data, generate metadata, and render a minimal docs page via `@valkyrianlabs/payload-markdown/server`. The docs set edit view includes a read-only Generated Docs overview with summary counts, source-path tree, override summaries, and generated-doc admin links. The root `docs/` tree is real dogfood documentation with valid frontmatter, root-relative internal links, and `payload-markdown` directive examples. The CLI can install a bundled Codex skill pack into `.agents/skills/payload-markdown-docs/`. Existing collection targets, block targets, inline admin override editing, and GitHub OIDC do not exist yet.
 
 ## Product Direction
 
@@ -52,6 +52,7 @@ Current source structure:
 - `src/routing/` contains route normalization, docs set route-base derivation, and route reservation/collision helpers.
 - `src/sync/` contains pure manifest/path/frontmatter/hash/validation/planning utilities and unit tests.
 - `src/cli/` contains the CLI runner, argument parser, filesystem walker, HTTP sender, output formatters, and command handlers for `validate`, `manifest`, `plan`, `keygen`, and `push`.
+- `src/skills/codex/` contains bundled Markdown templates for `payload-markdown-docs install skill --codex`.
 - `src/security/` contains canonical signing string, signed header, body hash, timestamp, Ed25519 signing/verification, and nonce replay helpers.
 - `src/payload/` contains Payload Local API adapters for docs set source resolution, existing docs lookup, route collision checks, sync-run audit records, conflict detection, docs data/status mapping, and dedicated docs apply writes.
 - `src/endpoints/` contains the signed sync endpoint factory and handler.
@@ -133,6 +134,10 @@ Focused docs asset tests can be run with:
 
 - `pnpm exec vitest src/cli/docs-assets.spec.ts`
 
+Focused skill installer tests can be run with:
+
+- `pnpm exec vitest src/cli/skill-install.spec.ts`
+
 ## Guardrails
 
 - Avoid implementing all phases at once.
@@ -143,6 +148,7 @@ Focused docs asset tests can be run with:
 - Do not let the request body choose target collections, arbitrary fields, destructive behavior, or server authority.
 - Dedicated docs collection mode should be the MVP default; existing collection and block target modes are later advanced features.
 - The CLI may build, validate, print, plan, keygen, and push signed manifests to a configured endpoint. `push --publish` is only a request; the server decides whether publishing is allowed.
+- The CLI may install local agent guidance with `install skill --codex`. This writes Markdown files only; it must not fetch remote docs, run package managers, or mutate Payload.
 - The endpoint may write accepted nonces, sync-run audit records, and dedicated docs collection create/update/archive/draft/delete lifecycle records when explicitly enabled. It must not mutate existing collection targets, mutate block targets, or accept target fields from the request body.
 - Publishing remains server-owned. Use `sync.allowPublish: true` plus `target.enableDrafts: true`.
 - Hard delete remains server-owned and requires `sync.allowHardDelete: true`.
@@ -154,3 +160,4 @@ Focused docs asset tests can be run with:
 - Route bases are server-owned through docs sets or configured sources. Do not let request bodies choose route bases or target fields.
 - The native route adapter is read-only. It must not create Pages, mutate Pages, or sync one Page per Markdown file.
 - The Docs Set Admin Manager is currently a read-only overview. It should make generated docs understandable from the docs set edit view, but inline override editing should remain a separate, explicit future phase unless implemented carefully.
+- The installed skill pack belongs to `payload-markdown-docs` and defaults to `.agents/skills/payload-markdown-docs/`; do not install into `.agents/skills/payload-markdown/` by default.

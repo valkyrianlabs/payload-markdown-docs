@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 
 import type { CliCommandName, CliResult, ParsedCliArgs } from './types.js'
 
+import { runInstallCommand } from './commands/install.js'
 import { runKeygenCommand } from './commands/keygen.js'
 import { runManifestCommand } from './commands/manifest.js'
 import { runPlanCommand } from './commands/plan.js'
@@ -20,6 +21,7 @@ Usage:
   payload-markdown-docs plan <docs-root> [options]
   payload-markdown-docs push <docs-root> [options]
   payload-markdown-docs keygen [options]
+  payload-markdown-docs install skill --codex [options]
 
 Commands:
   validate   Validate a local Markdown docs directory.
@@ -27,9 +29,28 @@ Commands:
   plan       Build a dry sync plan against optional existing docs records.
   push       Sign and upload a docs manifest to a Payload sync endpoint.
   keygen     Generate Ed25519 keys for signed sync.
+  install    Install local AI-agent guidance for docs maintenance.
 `
 
 const commandHelp: Record<Exclude<CliCommandName, 'help'>, string> = {
+  install: `payload-markdown-docs install skill --codex
+
+Aliases:
+  payload-markdown-docs install ai-skill --codex
+  payload-markdown-docs install skill --agent codex
+
+Options:
+  --codex                         Install the Codex skill pack.
+  --agent <codex>                 Agent target. Currently only codex.
+  --out <path>                    Output directory. Defaults to .agents/skills/payload-markdown-docs.
+  --docs-root <path>              Docs root to mention in installed guidance. Defaults to ./docs.
+  --package-manager <name>        pnpm, npm, yarn, or bun. Auto-detected when omitted.
+  --force                         Overwrite existing skill files.
+  --dry-run                       Print planned files without writing.
+  --help                          Show this help.
+
+Installs local AI-agent guidance only. It does not sync docs, call Payload, or run package manager commands.
+`,
   keygen: `payload-markdown-docs keygen
 
 Options:
@@ -124,6 +145,7 @@ const getHelpForArgs = (args: ParsedCliArgs): string => {
 
   if (
     topic === 'keygen' ||
+    topic === 'install' ||
     topic === 'manifest' ||
     topic === 'plan' ||
     topic === 'push' ||
@@ -155,6 +177,10 @@ export const runCli = async (argv: string[]): Promise<CliResult> => {
 
     if (parsed.args.command === 'keygen') {
       return runKeygenCommand(parsed.args)
+    }
+
+    if (parsed.args.command === 'install') {
+      return runInstallCommand(parsed.args)
     }
 
     if (parsed.args.command === 'manifest') {

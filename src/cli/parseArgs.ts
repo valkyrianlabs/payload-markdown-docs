@@ -8,6 +8,7 @@ import type {
 
 const commands = new Set<CliCommandName>([
   'help',
+  'install',
   'keygen',
   'manifest',
   'plan',
@@ -45,6 +46,13 @@ const pushBooleanFlags = new Set([
   'publish',
   'sync',
 ])
+const installValueFlags = new Set([
+  'agent',
+  'docs-root',
+  'out',
+  'package-manager',
+])
+const installBooleanFlags = new Set(['codex', 'dry-run', 'force', 'help'])
 const keygenValueFlags = new Set(['format', 'out'])
 const keygenBooleanFlags = new Set(['force', 'help'])
 
@@ -63,6 +71,13 @@ const allowedFlagsForCommand = (
     return {
       boolean: keygenBooleanFlags,
       value: keygenValueFlags,
+    }
+  }
+
+  if (command === 'install') {
+    return {
+      boolean: installBooleanFlags,
+      value: installValueFlags,
     }
   }
 

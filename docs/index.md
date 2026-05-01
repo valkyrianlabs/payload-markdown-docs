@@ -32,6 +32,10 @@ Understand the docs groups, docs sets, generated docs records, signed endpoint, 
 Render docs from your Next route layer without creating one Payload Page per Markdown file.
 :::
 
+:::card {title="Agent skill" href="/workflow/agent-skill-installer"}
+Install local agent guidance for writing docs that validate and sync.
+:::
+
 :::
 
 ## What Is Implemented
@@ -43,6 +47,7 @@ Render docs from your Next route layer without creating one Payload Page per Mar
 - route reservations and opt-in Pages collision checks
 - read-only `/next` route adapter, metadata helper, and sidebar helper
 - read-only Docs Set Admin Manager
+- local agent skill installer
 
 ## What Is Not Implemented
 
@@ -50,7 +55,6 @@ Render docs from your Next route layer without creating one Payload Page per Mar
 - existing collection targets
 - block targets
 - inline override editing in the Docs Set Admin Manager
-- agent skill installer
 
 ## Recommended Path
 

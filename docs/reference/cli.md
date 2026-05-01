@@ -61,6 +61,30 @@ payload-markdown-docs push ./docs \
 
 `push` supports `--dry-run`, `--sync`, and `--publish`. Dry-run is the default. Publishing and writes remain server-owned.
 
+## install skill
+
+```bash
+payload-markdown-docs install skill --codex
+```
+
+Installs local AI-agent guidance under `.agents/skills/payload-markdown-docs/`.
+
+Alias:
+
+```bash
+payload-markdown-docs install ai-skill --codex
+```
+
+Useful flags:
+
+- `--out <path>`
+- `--docs-root <path>`
+- `--package-manager <pnpm|npm|yarn|bun>`
+- `--force`
+- `--dry-run`
+
+The installer writes Markdown files only. It does not sync docs or run package manager commands.
+
 :::details {title="Common flags"}
 - `--source <id>`
 - `--route-base <route>`
