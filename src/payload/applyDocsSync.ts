@@ -71,6 +71,7 @@ export const applyDocsSync = async ({
   collectionSlug,
   deleteBehavior,
   docsEnableDrafts,
+  docsSetId,
   existing,
   manifest,
   markdownFieldName,
@@ -83,6 +84,7 @@ export const applyDocsSync = async ({
   collectionSlug: string
   deleteBehavior: DocsDeleteBehavior
   docsEnableDrafts: boolean
+  docsSetId?: string
   existing: ExistingPayloadDocsRecord[]
   manifest: ValidatedDocsManifest
   markdownFieldName: string
@@ -133,6 +135,7 @@ export const applyDocsSync = async ({
       data: buildDocsData({
         desired: change.desired,
         docsEnableDrafts,
+        docsSetId,
         manifest,
         markdownFieldName,
         now,
@@ -162,6 +165,7 @@ export const applyDocsSync = async ({
         current,
         desired: change.desired,
         docsEnableDrafts,
+        docsSetId,
         manifest,
         markdownFieldName,
         now,
@@ -191,6 +195,7 @@ export const applyDocsSync = async ({
         current,
         desired: change.desired,
         docsEnableDrafts,
+        docsSetId,
         manifest,
         markdownFieldName,
         now,

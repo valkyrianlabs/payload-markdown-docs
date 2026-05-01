@@ -1,6 +1,6 @@
 # Dedicated Docs Sync Workflow
 
-This guide covers the default workflow for syncing a Git-backed `docs/` folder into the dedicated Payload docs collection.
+This guide covers the default workflow for syncing a Git-backed `docs/` folder into Payload-managed docs sets and generated docs records.
 
 The client sends docs content. The Payload server decides which sources, collections, fields, lifecycle behavior, and publishing modes are allowed.
 
@@ -58,6 +58,8 @@ The default endpoint is exposed at:
 ```text
 /api/payload-markdown-docs/sync
 ```
+
+By default, the plugin also adds `docs-groups` and `docs-sets`. Docs sets are the user-facing unit for source ids and route bases. Generated docs records are linked to docs sets and remain the internal records used for routing, search, and sync correctness.
 
 ## Docs Source Tree
 
@@ -201,6 +203,7 @@ The Payload server must have the matching public key configured for the `github-
 Implemented for this workflow:
 
 - dedicated docs collection
+- docs groups and docs sets
 - signed sync endpoint
 - local CLI validation, manifest, plan, keygen, and push
 - sync writes behind `sync.allowWrites`

@@ -7,6 +7,9 @@ Git-backed Markdown documentation sync for Payload CMS, powered by `@valkyrianla
 The dedicated docs collection workflow is implemented and ready to dogfood:
 
 - dedicated docs, sync-run audit, and nonce collections
+- docs groups and docs sets as the user-facing management model
+- generated/internal docs records linked to docs sets
+- route reservation helpers and optional docs-side Pages collision checks
 - pure manifest validation and planning utilities
 - local CLI for `validate`, `manifest`, `plan`, `keygen`, and signed `push`
 - signed sync endpoint with nonce replay protection
@@ -21,6 +24,8 @@ Not implemented yet:
 - GitHub OIDC auth mode
 - existing collection targets
 - block targets
+- native Pages route adapter and frontend rendering helpers
+- central docs set admin manager
 - agent skill installer
 
 ## Product Thesis
@@ -34,7 +39,7 @@ Intended workflow:
 3. CI/CD validates and signs a docs manifest.
 4. The Payload plugin receives the signed sync request.
 5. The plugin authenticates, validates, diffs, and applies the docs update.
-6. Payload stores docs pages using `@valkyrianlabs/payload-markdown` as the content/rendering layer.
+6. Payload stores generated docs records under server-owned docs sets using `@valkyrianlabs/payload-markdown` as the content/rendering layer.
 
 The CI/client sends docs content. The Payload plugin/server decides where it may go.
 
@@ -73,6 +78,8 @@ An enabled plugin registers dedicated docs infrastructure collections and a sign
 
 Default generated collections:
 
+- `docs-groups`
+- `docs-sets`
 - `docs`
 - `docs-sync-runs`
 - `docs-sync-nonces`
@@ -101,9 +108,54 @@ payloadMarkdownDocs({
 })
 ```
 
-The docs collection includes title/nav metadata, generated route, source path/hash fields, hierarchy fields, a Markdown content field powered by `@valkyrianlabs/payload-markdown`, and sync metadata.
+The docs groups and docs sets collections are the user-facing management runway. The docs collection contains generated/internal records with title/nav metadata, generated route, docs set relationship, source path/hash fields, hierarchy fields, a Markdown content field powered by `@valkyrianlabs/payload-markdown`, optional per-doc override fields, and sync metadata.
 
 The sync run and nonce collections are active for accepted endpoint requests. The endpoint stores accepted nonce records and sync-run audit records.
+
+## Docs Groups, Docs Sets, And Routes
+
+Docs are managed as docs sets, not as one Payload Page per Markdown file.
+
+Example structure:
+
+```text
+Docs Groups
+  Plugins
+    Payload Markdown
+    Payload Markdown Docs
+
+Synced Docs
+  generated/internal records for routing, search, and sync correctness
+```
+
+`docsGroups` reserve route namespaces such as `/plugins` or `/internal/tools`. `docsSets` represent one documentation site, map a server-owned `sourceId` to a route base such as `/plugins/payload-markdown`, and own future rendering defaults.
+
+Synced docs records link back to a docs set. Their `sourcePath` is indexed but no longer globally unique, so multiple docs sets can each contain `index.md`. Generated `route` remains globally unique.
+
+When a signed sync request arrives, the endpoint first tries to resolve `manifest.source.id` to a docs set by `sourceId`. If it finds one, the docs set route base is used for route generation and applied docs are linked to that docs set. If no docs set exists, the endpoint falls back to the configured `sources` array for backward compatibility.
+
+Optional docs-side Pages collision checks can be enabled:
+
+```ts
+payloadMarkdownDocs({
+  enabled: true,
+
+  routing: {
+    pages: {
+      enabled: true,
+      collection: 'pages',
+      routeField: 'slug',
+    },
+  },
+
+  sync: {
+    allowWrites: true,
+    allowPublish: true,
+  },
+})
+```
+
+These checks can reject docs set route conflicts against existing Pages data. They do not mutate Pages and do not add Page hooks yet. A future route adapter can render docs sets natively without syncing every Markdown file into the Pages collection.
 
 ## Dedicated Docs Workflow
 
@@ -417,10 +469,14 @@ Still not implemented:
 - existing collection targets
 - block targets
 - GitHub OIDC auth
+- native Pages route adapter and frontend rendering helpers
+- central docs set accordion/admin manager
 
 ## Current Limitations
 
 - Existing collection and block target modes are not implemented.
+- Native route rendering helpers are not implemented.
+- The central docs set admin manager is not implemented.
 - GitHub OIDC is not implemented.
 - Agent skill installer is not implemented.
 - Nonce uniqueness across `keyId + nonce` is not enforced by portable Payload config yet.
@@ -436,9 +492,12 @@ Still not implemented:
 - Phase 7A: CLI push and request signing. Done.
 - Phase 7B: publishing modes and expanded archive/delete behavior. Done.
 - Phase 8A: CI workflow and dedicated docs dogfood hardening. Done.
-- Phase 8B: existing collection and block target modes.
-- Phase 9: GitHub OIDC auth mode.
-- Phase 10: agent skill installer.
-- Phase 11: agent workflow polish.
+- Phase 8B: docs groups, docs sets, and route reservations. Done.
+- Phase 8C: native Pages route adapter and frontend rendering helpers.
+- Phase 8D: docs set admin manager.
+- Phase 9: CI workflow polish.
+- Phase 10: GitHub OIDC auth mode.
+- Phase 11: agent skill installer and workflow polish.
+- Phase 12: existing collection and block bridges if still needed.
 
 See `.codex/scratch/roadmap.md` for the working implementation roadmap.

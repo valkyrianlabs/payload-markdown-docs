@@ -69,6 +69,8 @@ export interface Config {
   collections: {
     posts: Post;
     media: Media;
+    'docs-groups': DocsGroup;
+    'docs-sets': DocsSet;
     docs: Doc;
     'docs-sync-runs': DocsSyncRun;
     'docs-sync-nonces': DocsSyncNonce;
@@ -82,6 +84,8 @@ export interface Config {
   collectionsSelect: {
     posts: PostsSelect<false> | PostsSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
+    'docs-groups': DocsGroupsSelect<false> | DocsGroupsSelect<true>;
+    'docs-sets': DocsSetsSelect<false> | DocsSetsSelect<true>;
     docs: DocsSelect<false> | DocsSelect<true>;
     'docs-sync-runs': DocsSyncRunsSelect<false> | DocsSyncRunsSelect<true>;
     'docs-sync-nonces': DocsSyncNoncesSelect<false> | DocsSyncNoncesSelect<true>;
@@ -92,7 +96,7 @@ export interface Config {
     'payload-migrations': PayloadMigrationsSelect<false> | PayloadMigrationsSelect<true>;
   };
   db: {
-    defaultIDType: string;
+    defaultIDType: number;
   };
   fallbackLocale: null;
   globals: {};
@@ -130,7 +134,7 @@ export interface UserAuthOperations {
  * via the `definition` "posts".
  */
 export interface Post {
-  id: string;
+  id: number;
   updatedAt: string;
   createdAt: string;
 }
@@ -139,7 +143,7 @@ export interface Post {
  * via the `definition` "media".
  */
 export interface Media {
-  id: string;
+  id: number;
   updatedAt: string;
   createdAt: string;
   url?: string | null;
@@ -154,29 +158,50 @@ export interface Media {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "docs".
+ * via the `definition` "docs-groups".
  */
-export interface Doc {
-  id: string;
+export interface DocsGroup {
+  id: number;
   title: string;
-  navTitle?: string | null;
+  slug: string;
+  parent?: (number | null) | DocsGroup;
+  routePath: string;
   description?: string | null;
-  route: string;
-  sourcePath: string;
-  sourceHash?: string | null;
-  depth?: number | null;
+  navTitle?: string | null;
   order?: number | null;
-  parent?: (string | null) | Doc;
-  content?: string | null;
+  serveIndex?: boolean | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "docs-sets".
+ */
+export interface DocsSet {
+  id: number;
+  title: string;
+  slug: string;
+  sourceId: string;
+  sourceRoot?: string | null;
+  group?: (number | null) | DocsGroup;
+  routeBase: string;
+  description?: string | null;
+  navTitle?: string | null;
+  order?: number | null;
+  defaults?: {
+    theme?: string | null;
+    heroEyebrow?: string | null;
+    heroTitle?: string | null;
+    heroDescription?: string | null;
+    seoTitle?: string | null;
+    seoDescription?: string | null;
+    sidebarMode?: ('auto' | 'manual' | 'hidden') | null;
+  };
   sync?: {
-    sourceId?: string | null;
-    sourcePath?: string | null;
-    sourceHashAtLastSync?: string | null;
     lastSyncedAt?: string | null;
-    lastSyncRunId?: (string | null) | DocsSyncRun;
-    managedBy?: string | null;
-    archived?: boolean | null;
-    archivedAt?: string | null;
+    lastSyncRunId?: (number | null) | DocsSyncRun;
+    lastStatus?: ('failed' | 'pending' | 'success') | null;
+    docsCount?: number | null;
   };
   updatedAt: string;
   createdAt: string;
@@ -186,7 +211,7 @@ export interface Doc {
  * via the `definition` "docs-sync-runs".
  */
 export interface DocsSyncRun {
-  id: string;
+  id: number;
   sourceId: string;
   repository?: string | null;
   branch?: string | null;
@@ -229,15 +254,55 @@ export interface DocsSyncRun {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "docs".
+ */
+export interface Doc {
+  id: number;
+  title: string;
+  navTitle?: string | null;
+  description?: string | null;
+  route: string;
+  sourcePath: string;
+  docsSet?: (number | null) | DocsSet;
+  sourceHash?: string | null;
+  depth?: number | null;
+  order?: number | null;
+  parent?: (number | null) | Doc;
+  content?: string | null;
+  overrides?: {
+    navTitle?: string | null;
+    hideFromNav?: boolean | null;
+    theme?: string | null;
+    heroEyebrow?: string | null;
+    heroTitle?: string | null;
+    heroDescription?: string | null;
+    seoTitle?: string | null;
+    seoDescription?: string | null;
+  };
+  sync?: {
+    sourceId?: string | null;
+    sourcePath?: string | null;
+    sourceHashAtLastSync?: string | null;
+    lastSyncedAt?: string | null;
+    lastSyncRunId?: (number | null) | DocsSyncRun;
+    managedBy?: string | null;
+    archived?: boolean | null;
+    archivedAt?: string | null;
+  };
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "docs-sync-nonces".
  */
 export interface DocsSyncNonce {
-  id: string;
+  id: number;
   keyId: string;
   nonce: string;
   sourceId?: string | null;
   bodyHash?: string | null;
-  syncRunId?: (string | null) | DocsSyncRun;
+  syncRunId?: (number | null) | DocsSyncRun;
   expiresAt: string;
   usedAt?: string | null;
   updatedAt: string;
@@ -248,7 +313,7 @@ export interface DocsSyncNonce {
  * via the `definition` "payload-kv".
  */
 export interface PayloadKv {
-  id: string;
+  id: number;
   key: string;
   data:
     | {
@@ -265,7 +330,7 @@ export interface PayloadKv {
  * via the `definition` "users".
  */
 export interface User {
-  id: string;
+  id: number;
   updatedAt: string;
   createdAt: string;
   email: string;
@@ -290,36 +355,44 @@ export interface User {
  * via the `definition` "payload-locked-documents".
  */
 export interface PayloadLockedDocument {
-  id: string;
+  id: number;
   document?:
     | ({
         relationTo: 'posts';
-        value: string | Post;
+        value: number | Post;
       } | null)
     | ({
         relationTo: 'media';
-        value: string | Media;
+        value: number | Media;
+      } | null)
+    | ({
+        relationTo: 'docs-groups';
+        value: number | DocsGroup;
+      } | null)
+    | ({
+        relationTo: 'docs-sets';
+        value: number | DocsSet;
       } | null)
     | ({
         relationTo: 'docs';
-        value: string | Doc;
+        value: number | Doc;
       } | null)
     | ({
         relationTo: 'docs-sync-runs';
-        value: string | DocsSyncRun;
+        value: number | DocsSyncRun;
       } | null)
     | ({
         relationTo: 'docs-sync-nonces';
-        value: string | DocsSyncNonce;
+        value: number | DocsSyncNonce;
       } | null)
     | ({
         relationTo: 'users';
-        value: string | User;
+        value: number | User;
       } | null);
   globalSlug?: string | null;
   user: {
     relationTo: 'users';
-    value: string | User;
+    value: number | User;
   };
   updatedAt: string;
   createdAt: string;
@@ -329,10 +402,10 @@ export interface PayloadLockedDocument {
  * via the `definition` "payload-preferences".
  */
 export interface PayloadPreference {
-  id: string;
+  id: number;
   user: {
     relationTo: 'users';
-    value: string | User;
+    value: number | User;
   };
   key?: string | null;
   value?:
@@ -352,7 +425,7 @@ export interface PayloadPreference {
  * via the `definition` "payload-migrations".
  */
 export interface PayloadMigration {
-  id: string;
+  id: number;
   name?: string | null;
   batch?: number | null;
   updatedAt: string;
@@ -385,6 +458,58 @@ export interface MediaSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "docs-groups_select".
+ */
+export interface DocsGroupsSelect<T extends boolean = true> {
+  title?: T;
+  slug?: T;
+  parent?: T;
+  routePath?: T;
+  description?: T;
+  navTitle?: T;
+  order?: T;
+  serveIndex?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "docs-sets_select".
+ */
+export interface DocsSetsSelect<T extends boolean = true> {
+  title?: T;
+  slug?: T;
+  sourceId?: T;
+  sourceRoot?: T;
+  group?: T;
+  routeBase?: T;
+  description?: T;
+  navTitle?: T;
+  order?: T;
+  defaults?:
+    | T
+    | {
+        theme?: T;
+        heroEyebrow?: T;
+        heroTitle?: T;
+        heroDescription?: T;
+        seoTitle?: T;
+        seoDescription?: T;
+        sidebarMode?: T;
+      };
+  sync?:
+    | T
+    | {
+        lastSyncedAt?: T;
+        lastSyncRunId?: T;
+        lastStatus?: T;
+        docsCount?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "docs_select".
  */
 export interface DocsSelect<T extends boolean = true> {
@@ -393,11 +518,24 @@ export interface DocsSelect<T extends boolean = true> {
   description?: T;
   route?: T;
   sourcePath?: T;
+  docsSet?: T;
   sourceHash?: T;
   depth?: T;
   order?: T;
   parent?: T;
   content?: T;
+  overrides?:
+    | T
+    | {
+        navTitle?: T;
+        hideFromNav?: T;
+        theme?: T;
+        heroEyebrow?: T;
+        heroTitle?: T;
+        heroDescription?: T;
+        seoTitle?: T;
+        seoDescription?: T;
+      };
   sync?:
     | T
     | {

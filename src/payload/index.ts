@@ -21,6 +21,11 @@ export type {
   DocsDraftStatus,
   DocsPublishMode,
 } from './docsData.js'
+export { findDocsSetBySourceId } from './docsSets.js'
+export type {
+  DocsSetPayloadOperations,
+  ResolvedDocsSet,
+} from './docsSets.js'
 export { findExistingDocsRecords } from './existingDocs.js'
 export {
   findExistingPayloadDocsRecords,
@@ -30,6 +35,15 @@ export type {
   ExistingDocsPayloadOperations,
   ExistingPayloadDocsRecord,
 } from './existingDocs.js'
+export {
+  findConfiguredPagesRouteCollisions,
+  findDuplicateDesiredRouteCollisions,
+  findExistingDocsRouteCollisions,
+} from './routeCollisions.js'
+export type {
+  DocsRouteCollisionIssue,
+  RouteCollisionPayloadOperations,
+} from './routeCollisions.js'
 export {
   createSyncRunAudit,
   getRecordId,

@@ -10,6 +10,7 @@ export type BuildDocsDataInput = {
   current?: ExistingPayloadDocsRecord
   desired: ValidatedDocsManifestFile
   docsEnableDrafts: boolean
+  docsSetId?: string
   manifest: ValidatedDocsManifest
   markdownFieldName: string
   now: Date
@@ -48,6 +49,7 @@ export const buildDocsData = ({
   current,
   desired,
   docsEnableDrafts,
+  docsSetId,
   manifest,
   markdownFieldName,
   now,
@@ -64,6 +66,7 @@ export const buildDocsData = ({
     ...(draftStatus ? { _status: draftStatus } : {}),
     depth: getDocsDepth(desired.path),
     description: desired.frontmatter.description,
+    ...(docsSetId ? { docsSet: docsSetId } : {}),
     [markdownFieldName]: desired.content,
     navTitle: desired.frontmatter.navTitle,
     order: desired.frontmatter.order ?? 0,

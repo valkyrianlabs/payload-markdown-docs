@@ -4,6 +4,8 @@ import type { CollectionConfig, Config, Payload } from 'payload'
 import config from '@payload-config'
 import {
   DEFAULT_DOCS_COLLECTION_SLUG,
+  DEFAULT_DOCS_GROUPS_COLLECTION_SLUG,
+  DEFAULT_DOCS_SETS_COLLECTION_SLUG,
   DEFAULT_DOCS_SYNC_NONCES_COLLECTION_SLUG,
   DEFAULT_DOCS_SYNC_RUNS_COLLECTION_SLUG,
   DEFAULT_MARKDOWN_FIELD_NAME,
@@ -86,6 +88,8 @@ describe('payloadMarkdownDocs collection wiring', () => {
     } as Config)
 
     expect(getCollection(transformedConfig, 'posts')).toBeDefined()
+    expect(getCollection(transformedConfig, DEFAULT_DOCS_GROUPS_COLLECTION_SLUG)).toBeDefined()
+    expect(getCollection(transformedConfig, DEFAULT_DOCS_SETS_COLLECTION_SLUG)).toBeDefined()
     expect(getCollection(transformedConfig, DEFAULT_DOCS_COLLECTION_SLUG)).toBeDefined()
     expect(
       getCollection(transformedConfig, DEFAULT_DOCS_SYNC_RUNS_COLLECTION_SLUG),
@@ -124,6 +128,12 @@ describe('payloadMarkdownDocs collection wiring', () => {
   test('custom infrastructure collection slugs work', () => {
     const transformedConfig = payloadMarkdownDocs({
       collections: {
+        docsGroups: {
+          slug: 'kb-docs-groups',
+        },
+        docsSets: {
+          slug: 'kb-docs-sets',
+        },
         nonces: {
           slug: 'kb-sync-nonces',
         },
@@ -134,6 +144,8 @@ describe('payloadMarkdownDocs collection wiring', () => {
       enabled: true,
     })({ collections: [] } as unknown as Config)
 
+    expect(getCollection(transformedConfig, 'kb-docs-groups')).toBeDefined()
+    expect(getCollection(transformedConfig, 'kb-docs-sets')).toBeDefined()
     expect(getCollection(transformedConfig, 'kb-sync-runs')).toBeDefined()
     expect(getCollection(transformedConfig, 'kb-sync-nonces')).toBeDefined()
   })
@@ -193,12 +205,22 @@ describe('payloadMarkdownDocs collection wiring', () => {
     const docsCollection = getCollection(transformedConfig, DEFAULT_DOCS_COLLECTION_SLUG)
     const syncField = getGroupField(docsCollection, 'sync')
     const syncFieldNames = syncField?.fields?.map((field) => field.name)
+    const sourcePathField = getField(docsCollection, 'sourcePath')
 
     expect(getField(docsCollection, 'title')?.type).toBe('text')
     expect(getField(docsCollection, 'navTitle')?.type).toBe('text')
     expect(getField(docsCollection, 'description')?.type).toBe('textarea')
     expect(getField(docsCollection, 'route')?.type).toBe('text')
-    expect(getField(docsCollection, 'sourcePath')?.type).toBe('text')
+    expect(sourcePathField?.type).toBe('text')
+    expect(sourcePathField).toMatchObject({
+      index: true,
+    })
+    expect(sourcePathField).not.toMatchObject({
+      unique: true,
+    })
+    expect(getField(docsCollection, 'docsSet')?.relationTo).toBe(
+      DEFAULT_DOCS_SETS_COLLECTION_SLUG,
+    )
     expect(getField(docsCollection, 'sourceHash')?.type).toBe('text')
     expect(getField(docsCollection, 'depth')?.type).toBe('number')
     expect(getField(docsCollection, 'order')?.type).toBe('number')
@@ -206,6 +228,7 @@ describe('payloadMarkdownDocs collection wiring', () => {
       DEFAULT_DOCS_COLLECTION_SLUG,
     )
     expect(getField(docsCollection, DEFAULT_MARKDOWN_FIELD_NAME)?.type).toBe('text')
+    expect(getGroupField(docsCollection, 'overrides')).toBeDefined()
     expect(syncFieldNames).toEqual([
       'sourceId',
       'sourcePath',
@@ -215,6 +238,60 @@ describe('payloadMarkdownDocs collection wiring', () => {
       'managedBy',
       'archived',
       'archivedAt',
+    ])
+  })
+
+  test('docs groups collection contains expected fields', () => {
+    const transformedConfig = payloadMarkdownDocs({ enabled: true })({
+      collections: [],
+    } as unknown as Config)
+    const docsGroupsCollection = getCollection(
+      transformedConfig,
+      DEFAULT_DOCS_GROUPS_COLLECTION_SLUG,
+    )
+
+    expect(getField(docsGroupsCollection, 'title')?.type).toBe('text')
+    expect(getField(docsGroupsCollection, 'slug')?.type).toBe('text')
+    expect(getField(docsGroupsCollection, 'parent')?.relationTo).toBe(
+      DEFAULT_DOCS_GROUPS_COLLECTION_SLUG,
+    )
+    expect(getField(docsGroupsCollection, 'routePath')?.type).toBe('text')
+    expect(getField(docsGroupsCollection, 'serveIndex')?.type).toBe('checkbox')
+  })
+
+  test('docs sets collection contains expected fields', () => {
+    const transformedConfig = payloadMarkdownDocs({ enabled: true })({
+      collections: [],
+    } as unknown as Config)
+    const docsSetsCollection = getCollection(
+      transformedConfig,
+      DEFAULT_DOCS_SETS_COLLECTION_SLUG,
+    )
+    const defaultsField = getGroupField(docsSetsCollection, 'defaults')
+    const syncField = getGroupField(docsSetsCollection, 'sync')
+
+    expect(getField(docsSetsCollection, 'title')?.type).toBe('text')
+    expect(getField(docsSetsCollection, 'slug')?.type).toBe('text')
+    expect(getField(docsSetsCollection, 'sourceId')?.type).toBe('text')
+    expect(getField(docsSetsCollection, 'sourceRoot')?.type).toBe('text')
+    expect(getField(docsSetsCollection, 'group')?.relationTo).toBe(
+      DEFAULT_DOCS_GROUPS_COLLECTION_SLUG,
+    )
+    expect(getField(docsSetsCollection, 'routeBase')?.type).toBe('text')
+    expect(defaultsField?.fields?.map((field) => field.name)).toEqual([
+      'theme',
+      'heroEyebrow',
+      'heroTitle',
+      'heroDescription',
+      'seoTitle',
+      'seoDescription',
+      'sidebarMode',
+    ])
+    expect(syncField?.fields?.map((field) => field.name)).toEqual([
+      'lastSyncedAt',
+      'lastSyncRunId',
+      'lastStatus',
+      'docsCount',
     ])
   })
 
@@ -309,6 +386,8 @@ describeWithPostgres('payloadMarkdownDocs dev app integration', () => {
 
   test('registers Phase 2 collections in the dev app', () => {
     expect(payload?.collections[DEFAULT_DOCS_COLLECTION_SLUG]).toBeDefined()
+    expect(payload?.collections[DEFAULT_DOCS_GROUPS_COLLECTION_SLUG]).toBeDefined()
+    expect(payload?.collections[DEFAULT_DOCS_SETS_COLLECTION_SLUG]).toBeDefined()
     expect(payload?.collections[DEFAULT_DOCS_SYNC_RUNS_COLLECTION_SLUG]).toBeDefined()
     expect(payload?.collections[DEFAULT_DOCS_SYNC_NONCES_COLLECTION_SLUG]).toBeDefined()
   })

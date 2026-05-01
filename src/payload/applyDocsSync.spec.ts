@@ -12,7 +12,10 @@ import {
 } from '../sync/index.js'
 import { applyDocsSync, assertApplyDeleteBehaviorSupported } from './applyDocsSync.js'
 import { buildDocsData } from './docsData.js'
-import { toExistingDocsRecord } from './existingDocs.js'
+import {
+  findExistingPayloadDocsRecords,
+  toExistingDocsRecord,
+} from './existingDocs.js'
 
 const now = new Date('2026-01-01T00:00:00.000Z')
 
@@ -79,6 +82,44 @@ const createPayloadMock = () => ({
 })
 
 describe('docs sync apply helpers', () => {
+  it('filters existing docs by docs set when a docs set is resolved', async () => {
+    const payload = {
+      find: vi.fn(() =>
+        Promise.resolve({
+          docs: [],
+        }),
+      ),
+    }
+
+    await findExistingPayloadDocsRecords({
+      collectionSlug: 'docs',
+      docsSetId: 'docs-set-1',
+      markdownFieldName: 'content',
+      payload,
+      sourceId: 'main-docs',
+    })
+
+    expect(payload.find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: 'docs',
+        where: {
+          or: [
+            {
+              docsSet: {
+                equals: 'docs-set-1',
+              },
+            },
+            {
+              'sync.sourceId': {
+                equals: 'main-docs',
+              },
+            },
+          ],
+        },
+      }),
+    )
+  })
+
   it('maps validated files to docs collection data with configured markdown field', () => {
     const manifest = getValidatedManifest([
       {
@@ -152,6 +193,37 @@ describe('docs sync apply helpers', () => {
       }),
     )
     expect(payload.create.mock.calls[0]?.[0].data).not.toHaveProperty('_status')
+  })
+
+  it('writes docsSet relationships when a sync resolves to a docs set', async () => {
+    const manifest = getValidatedManifest()
+    const payload = createPayloadMock()
+    const plan = planDocsSync({
+      desired: manifest,
+      existing: [],
+    })
+
+    await applyDocsSync({
+      collectionSlug: 'docs',
+      deleteBehavior: 'archive',
+      docsEnableDrafts: false,
+      docsSetId: 'docs-set-1',
+      existing: [],
+      manifest,
+      markdownFieldName: 'content',
+      now,
+      payload,
+      plan,
+      publishMode: 'preserve',
+    })
+
+    expect(payload.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          docsSet: 'docs-set-1',
+        }),
+      }),
+    )
   })
 
   it('creates docs as drafts when draft publish mode is effective', async () => {

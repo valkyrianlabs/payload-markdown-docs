@@ -3,8 +3,11 @@ import type { Endpoint, PayloadRequest } from 'payload'
 import type {
   ApplyDocsSyncPayloadOperations,
   DocsPublishMode,
+  DocsSetPayloadOperations,
   ExistingDocsPayloadOperations,
   ExistingPayloadDocsRecord,
+  ResolvedDocsSet,
+  RouteCollisionPayloadOperations,
   SyncRunsPayloadOperations,
 } from '../payload/index.js'
 import type { NoncePayloadOperations } from '../security/index.js'
@@ -27,7 +30,11 @@ import {
   applyDocsSync,
   assertApplyDeleteBehaviorSupported,
   createSyncRunAudit,
+  findConfiguredPagesRouteCollisions,
+  findDocsSetBySourceId,
   findDocsSyncConflicts,
+  findDuplicateDesiredRouteCollisions,
+  findExistingDocsRouteCollisions,
   findExistingPayloadDocsRecords,
   getRecordId,
   toExistingDocsRecord,
@@ -67,6 +74,7 @@ export type DocsSyncEndpointErrorCode =
   | 'publish_disabled'
   | 'publish_not_available'
   | 'replay_protection_unavailable'
+  | 'route_collision'
   | 'source_not_allowed'
   | 'sync_apply_failed'
   | 'sync_mode_not_implemented'
@@ -83,6 +91,8 @@ export type CreateSyncEndpointOptions = {
   docsCollectionSlug: string
   docsEnabled: boolean
   docsEnableDrafts: boolean
+  docsSetsCollectionSlug: string
+  docsSetsEnabled: boolean
   endpointPath: string
   getNow?: () => Date
   markdownFieldName: string
@@ -93,6 +103,15 @@ export type CreateSyncEndpointOptions = {
   nonceTtlSeconds?: number
   requireDryRunBeforeApply?: boolean
   routeBase?: string
+  routing?: {
+    pages?: {
+      allowBridgePages: boolean
+      bridgeField: string
+      collection: string
+      enabled: boolean
+      routeField: string
+    }
+  }
   sources?: {
     id: string
     root?: string
@@ -113,6 +132,10 @@ type SyncErrorResponse = {
     message: string
   }
   ok: false
+  routeCollisions?: {
+    reason: string
+    route: string
+  }[]
 }
 
 type SerializedChange = {
@@ -212,39 +235,86 @@ const getAllowedSourceIds = (
   return sources.map((source) => source.id)
 }
 
-const getEffectiveRouteBase = ({
-  manifest,
-  options,
-}: {
-  manifest: DocsManifest
-  options: CreateSyncEndpointOptions
-}): string => {
-  const sourceConfig = findSourceConfig(manifest.source?.id, options.sources)
-
-  return sourceConfig?.routeBase ?? options.routeBase ?? DEFAULT_DOCS_ROUTE_BASE
+type ResolvedSyncSource = {
+  allowedSourceIds?: string[]
+  docsSet?: ResolvedDocsSet
+  routeBase: string
+  sourceRoot?: string
 }
 
-const assertSourceAllowed = ({
+const resolveSyncSource = async ({
   manifest,
   options,
+  payload,
 }: {
   manifest: DocsManifest
   options: CreateSyncEndpointOptions
-}): Response | undefined => {
+  payload: DocsSetPayloadOperations
+}): Promise<
+  | {
+      response: Response
+      source?: never
+    }
+  | {
+      response?: never
+      source: ResolvedSyncSource
+    }
+> => {
   const sourceId = manifest.source?.id
 
   if (!sourceId) {
-    return undefined
+    return {
+      source: {
+        allowedSourceIds: getAllowedSourceIds(options.sources),
+        routeBase: options.routeBase ?? DEFAULT_DOCS_ROUTE_BASE,
+      },
+    }
+  }
+
+  const docsSet =
+    options.docsSetsEnabled
+      ? await findDocsSetBySourceId({
+          collectionSlug: options.docsSetsCollectionSlug,
+          payload,
+          sourceId,
+        })
+      : undefined
+
+  if (docsSet) {
+    if (
+      docsSet.sourceRoot &&
+      manifest.source.root &&
+      docsSet.sourceRoot !== manifest.source.root
+    ) {
+      return {
+        response: errorResponse(
+          'source_not_allowed',
+          `Manifest source.root "${manifest.source.root}" is not allowed for docs set source "${sourceId}".`,
+          400,
+        ),
+      }
+    }
+
+    return {
+      source: {
+        allowedSourceIds: [sourceId],
+        docsSet,
+        routeBase: docsSet.routeBase,
+        sourceRoot: docsSet.sourceRoot,
+      },
+    }
   }
 
   const sourceConfig = findSourceConfig(sourceId, options.sources)
 
   if (options.sources && options.sources.length > 0 && !sourceConfig) {
-    return errorResponse(
-      'source_not_allowed',
-      `Manifest source.id "${sourceId}" is not configured for this endpoint.`,
-      400,
-    )
+    return {
+      response: errorResponse(
+        'source_not_allowed',
+        `Manifest source.id "${sourceId}" is not configured for this endpoint.`,
+        400,
+      ),
+    }
   }
 
   if (
@@ -252,14 +322,22 @@ const assertSourceAllowed = ({
     manifest.source.root &&
     sourceConfig.root !== manifest.source.root
   ) {
-    return errorResponse(
-      'source_not_allowed',
-      `Manifest source.root "${manifest.source.root}" is not allowed for source "${sourceId}".`,
-      400,
-    )
+    return {
+      response: errorResponse(
+        'source_not_allowed',
+        `Manifest source.root "${manifest.source.root}" is not allowed for source "${sourceId}".`,
+        400,
+      ),
+    }
   }
 
-  return undefined
+  return {
+    source: {
+      allowedSourceIds: getAllowedSourceIds(options.sources),
+      routeBase: sourceConfig?.routeBase ?? options.routeBase ?? DEFAULT_DOCS_ROUTE_BASE,
+      sourceRoot: sourceConfig?.root,
+    },
+  }
 }
 
 const summarizePlan = (plan: ReturnType<typeof planDocsSync>) => ({
@@ -402,6 +480,50 @@ const getLifecyclePolicyError = ({
   return undefined
 }
 
+const getRouteCollisionIssues = async ({
+  docsSet,
+  manifest,
+  options,
+  payload,
+  routeBase,
+}: {
+  docsSet?: ResolvedDocsSet
+  manifest: ValidatedDocsManifest
+  options: CreateSyncEndpointOptions
+  payload: RouteCollisionPayloadOperations
+  routeBase: string
+}) => {
+  const desiredRoutes = manifest.files.map((file) => file.route)
+  const duplicateDesiredRouteCollisions =
+    findDuplicateDesiredRouteCollisions(desiredRoutes)
+  const existingDocsRouteCollisions = options.docsEnabled
+    ? await findExistingDocsRouteCollisions({
+        collectionSlug: options.docsCollectionSlug,
+        docsSetId: docsSet?.id,
+        payload,
+        routes: desiredRoutes,
+        sourceId: manifest.source.id,
+      })
+    : []
+  const pageRouteCollisions =
+    options.routing?.pages?.enabled === true
+      ? await findConfiguredPagesRouteCollisions({
+          allowBridgePages: options.routing.pages.allowBridgePages,
+          bridgeField: options.routing.pages.bridgeField,
+          collectionSlug: options.routing.pages.collection,
+          docsSetRouteBase: routeBase,
+          payload,
+          routeField: options.routing.pages.routeField,
+        })
+      : []
+
+  return [
+    ...duplicateDesiredRouteCollisions,
+    ...existingDocsRouteCollisions,
+    ...pageRouteCollisions,
+  ]
+}
+
 const createSyncEndpointHandler =
   (options: CreateSyncEndpointOptions) =>
   async (req: PayloadRequest): Promise<Response> => {
@@ -530,22 +652,20 @@ const createSyncEndpointHandler =
       return errorResponse('invalid_body', 'Sync request body must be a JSON manifest.', 400)
     }
 
-    const sourceError = assertSourceAllowed({
+    const sourceResolution = await resolveSyncSource({
       manifest,
       options,
+      payload: req.payload as unknown as DocsSetPayloadOperations,
     })
 
-    if (sourceError) {
-      return sourceError
+    if (sourceResolution.response) {
+      return sourceResolution.response
     }
 
     const validation = validateDocsManifest(manifest, {
-      allowedSourceIds: getAllowedSourceIds(options.sources),
+      allowedSourceIds: sourceResolution.source.allowedSourceIds,
       maxTotalBytes: maxBodyBytes,
-      routeBase: getEffectiveRouteBase({
-        manifest,
-        options,
-      }),
+      routeBase: sourceResolution.source.routeBase,
     })
 
     if (!validation.ok) {
@@ -574,6 +694,25 @@ const createSyncEndpointHandler =
 
     if (lifecyclePolicyError) {
       return lifecyclePolicyError
+    }
+
+    const routeCollisions = await getRouteCollisionIssues({
+      docsSet: sourceResolution.source.docsSet,
+      manifest: validation.data,
+      options,
+      payload: req.payload as unknown as RouteCollisionPayloadOperations,
+      routeBase: sourceResolution.source.routeBase,
+    })
+
+    if (routeCollisions.length > 0) {
+      return errorResponse(
+        'route_collision',
+        'One or more docs routes collide with an existing route reservation.',
+        409,
+        {
+          routeCollisions,
+        },
+      )
     }
 
     const isSyncMode = validation.data.mode === 'sync'
@@ -619,6 +758,7 @@ const createSyncEndpointHandler =
     const existingPayloadDocs = options.docsEnabled
       ? await findExistingPayloadDocsRecords({
           collectionSlug: options.docsCollectionSlug,
+          docsSetId: sourceResolution.source.docsSet?.id,
           markdownFieldName: options.markdownFieldName,
           payload: req.payload as unknown as ExistingDocsPayloadOperations,
           sourceId: validation.data.source.id,
@@ -716,6 +856,7 @@ const createSyncEndpointHandler =
           collectionSlug: options.docsCollectionSlug,
           deleteBehavior: effectiveDeleteBehavior,
           docsEnableDrafts: options.docsEnableDrafts,
+          docsSetId: sourceResolution.source.docsSet?.id,
           existing: existingPayloadDocs,
           manifest: validation.data,
           markdownFieldName: options.markdownFieldName,

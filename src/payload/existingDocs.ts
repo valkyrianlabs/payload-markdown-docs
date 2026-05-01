@@ -14,6 +14,7 @@ export type ExistingDocsPayloadOperations = {
 
 export type ExistingPayloadDocsRecord = {
   content?: string
+  docsSetId?: string
   id: string
   status?: 'draft' | 'published'
   sync?: {
@@ -34,6 +35,18 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const getRecordId = (doc: Record<string, unknown>): string | undefined => {
   if (typeof doc.id === 'string' || typeof doc.id === 'number') {
     return String(doc.id)
+  }
+
+  return undefined
+}
+
+const getRelationshipId = (value: unknown): string | undefined => {
+  if (typeof value === 'string' || typeof value === 'number') {
+    return String(value)
+  }
+
+  if (isRecord(value)) {
+    return getRecordId(value)
   }
 
   return undefined
@@ -67,6 +80,7 @@ const toExistingPayloadDocsRecord = ({
     archived: typeof sync?.archived === 'boolean' ? sync.archived : undefined,
     content:
       typeof doc[markdownFieldName] === 'string' ? doc[markdownFieldName] : undefined,
+    docsSetId: getRelationshipId(doc.docsSet),
     route: doc.route,
     sourceHash: typeof doc.sourceHash === 'string' ? doc.sourceHash : undefined,
     sourcePath: doc.sourcePath,
@@ -107,11 +121,13 @@ export const toExistingDocsRecord = (
 
 export const findExistingPayloadDocsRecords = async ({
   collectionSlug,
+  docsSetId,
   markdownFieldName,
   payload,
   sourceId,
 }: {
   collectionSlug: string
+  docsSetId?: string
   markdownFieldName: string
   payload: ExistingDocsPayloadOperations
   sourceId: string
@@ -121,11 +137,26 @@ export const findExistingPayloadDocsRecords = async ({
     depth: 0,
     limit: 1000,
     overrideAccess: true,
-    where: {
-      'sync.sourceId': {
-        equals: sourceId,
-      },
-    },
+    where: docsSetId
+      ? {
+          or: [
+            {
+              docsSet: {
+                equals: docsSetId,
+              },
+            },
+            {
+              'sync.sourceId': {
+                equals: sourceId,
+              },
+            },
+          ],
+        }
+      : {
+          'sync.sourceId': {
+            equals: sourceId,
+          },
+        },
   })
 
   return result.docs
@@ -140,17 +171,20 @@ export const findExistingPayloadDocsRecords = async ({
 
 export const findExistingDocsRecords = async ({
   collectionSlug,
+  docsSetId,
   markdownFieldName,
   payload,
   sourceId,
 }: {
   collectionSlug: string
+  docsSetId?: string
   markdownFieldName: string
   payload: ExistingDocsPayloadOperations
   sourceId: string
 }): Promise<ExistingDocsRecord[]> => {
   const docs = await findExistingPayloadDocsRecords({
     collectionSlug,
+    docsSetId,
     markdownFieldName,
     payload,
     sourceId,

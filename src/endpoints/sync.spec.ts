@@ -3,7 +3,10 @@ import type { Config, PayloadRequest } from 'payload'
 import { generateKeyPairSync, sign } from 'node:crypto'
 import { describe, expect, it, vi } from 'vitest'
 
-import { DEFAULT_DOCS_SYNC_ENDPOINT_PATH } from '../constants.js'
+import {
+  DEFAULT_DOCS_SETS_COLLECTION_SLUG,
+  DEFAULT_DOCS_SYNC_ENDPOINT_PATH,
+} from '../constants.js'
 import { payloadMarkdownDocs } from '../plugin.js'
 import {
   buildCanonicalSigningString,
@@ -37,10 +40,14 @@ type MockPayload = {
 }
 
 const createMockPayload = ({
+  docsSets = [],
   existingDocs = [],
+  pages = [],
   replayNonce = false,
 }: {
+  docsSets?: unknown[]
   existingDocs?: unknown[]
+  pages?: unknown[]
   replayNonce?: boolean
 } = {}): MockPayload => ({
   create: vi.fn(({ collection }) =>
@@ -63,6 +70,18 @@ const createMockPayload = ({
     if (collection === 'docs') {
       return Promise.resolve({
         docs: existingDocs,
+      })
+    }
+
+    if (collection === DEFAULT_DOCS_SETS_COLLECTION_SLUG) {
+      return Promise.resolve({
+        docs: docsSets,
+      })
+    }
+
+    if (collection === 'pages') {
+      return Promise.resolve({
+        docs: pages,
       })
     }
 
@@ -160,7 +179,9 @@ const createEndpointForTests = ({
   defaultPublishMode,
   deleteBehavior,
   docsEnableDrafts = false,
+  docsSetsEnabled = false,
   publicKey,
+  routingPagesEnabled = false,
   syncRunsEnabled = true,
 }: {
   allowHardDelete?: boolean
@@ -169,7 +190,9 @@ const createEndpointForTests = ({
   defaultPublishMode?: 'draft' | 'preserve' | 'published'
   deleteBehavior?: 'archive' | 'delete' | 'draft' | 'ignore'
   docsEnableDrafts?: boolean
+  docsSetsEnabled?: boolean
   publicKey: string
+  routingPagesEnabled?: boolean
   syncRunsEnabled?: boolean
 }) =>
   createSyncEndpoint({
@@ -192,11 +215,22 @@ const createEndpointForTests = ({
     docsCollectionSlug: 'docs',
     docsEnabled: true,
     docsEnableDrafts,
+    docsSetsCollectionSlug: DEFAULT_DOCS_SETS_COLLECTION_SLUG,
+    docsSetsEnabled,
     endpointPath: DEFAULT_DOCS_SYNC_ENDPOINT_PATH,
     getNow: () => now,
     markdownFieldName: 'content',
     noncesCollectionSlug: 'docs-sync-nonces',
     noncesEnabled: true,
+    routing: {
+      pages: {
+        allowBridgePages: true,
+        bridgeField: 'docsBridge',
+        collection: 'pages',
+        enabled: routingPagesEnabled,
+        routeField: 'slug',
+      },
+    },
     sources: [
       {
         id: 'main-docs',
@@ -223,6 +257,8 @@ const callEndpoint = async ({
     defaultPublishMode?: 'draft' | 'preserve' | 'published'
     deleteBehavior?: 'archive' | 'delete' | 'draft' | 'ignore'
     docsEnableDrafts?: boolean
+    docsSetsEnabled?: boolean
+    routingPagesEnabled?: boolean
     syncRunsEnabled?: boolean
   }
   headers?: Headers
@@ -279,6 +315,8 @@ describe('sync endpoint dry-run handling', () => {
       docsCollectionSlug: 'docs',
       docsEnabled: true,
       docsEnableDrafts: false,
+      docsSetsCollectionSlug: DEFAULT_DOCS_SETS_COLLECTION_SLUG,
+      docsSetsEnabled: false,
       endpointPath: DEFAULT_DOCS_SYNC_ENDPOINT_PATH,
       getNow: () => now,
       markdownFieldName: 'content',
@@ -429,6 +467,27 @@ describe('sync endpoint dry-run handling', () => {
     expect(json.error).toMatchObject({
       code: 'invalid_manifest',
     })
+  })
+
+  it('rejects unknown sources when no docs set or configured source matches', async () => {
+    const { privateKey, publicKey } = keyPair()
+    const body = JSON.stringify(createManifest({
+      source: {
+        id: 'unknown-docs',
+        root: 'docs',
+      },
+    }))
+    const { json, response } = await callEndpoint({
+      body,
+      headers: signBody({
+        body,
+        privateKey,
+      }),
+      publicKey: publicKey.toString(),
+    })
+
+    expect(response.status).toBe(400)
+    expect(json.error).toMatchObject({ code: 'source_not_allowed' })
   })
 
   it('rejects sync mode when writes are not enabled', async () => {
@@ -771,6 +830,149 @@ describe('sync endpoint dry-run handling', () => {
       }),
     )
     expect(JSON.stringify(json)).not.toContain('# Home')
+  })
+
+  it('resolves docs sets by source id and uses the docs set route base', async () => {
+    const { privateKey, publicKey } = keyPair()
+    const body = JSON.stringify(createManifest({ mode: 'sync' }))
+    const payload = createMockPayload({
+      docsSets: [
+        {
+          id: 'docs-set-1',
+          routeBase: '/plugins/payload-markdown',
+          sourceId: 'main-docs',
+          sourceRoot: 'docs',
+        },
+      ],
+    })
+    const { json, response } = await callEndpoint({
+      body,
+      endpointOptions: {
+        allowWrites: true,
+        docsSetsEnabled: true,
+      },
+      headers: signBody({
+        body,
+        privateKey,
+      }),
+      payload,
+      publicKey: publicKey.toString(),
+    })
+
+    expect(response.status).toBe(200)
+    expect(json.summary).toMatchObject({ create: 1 })
+    expect(payload.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: 'docs',
+        data: expect.objectContaining({
+          docsSet: 'docs-set-1',
+          route: '/plugins/payload-markdown',
+        }),
+      }),
+    )
+    expect(payload.find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: 'docs',
+        where: {
+          or: [
+            {
+              docsSet: {
+                equals: 'docs-set-1',
+              },
+            },
+            {
+              'sync.sourceId': {
+                equals: 'main-docs',
+              },
+            },
+          ],
+        },
+      }),
+    )
+  })
+
+  it('rejects duplicate routes outside the resolved docs set', async () => {
+    const { privateKey, publicKey } = keyPair()
+    const body = JSON.stringify(createManifest({ mode: 'sync' }))
+    const payload = createMockPayload({
+      docsSets: [
+        {
+          id: 'docs-set-1',
+          routeBase: '/plugins/payload-markdown',
+          sourceId: 'main-docs',
+        },
+      ],
+      existingDocs: [
+        {
+          id: 'doc-from-other-set',
+          docsSet: 'other-docs-set',
+          route: '/plugins/payload-markdown',
+          sourcePath: 'index.md',
+          sync: {
+            sourceId: 'other-docs',
+          },
+        },
+      ],
+    })
+    const { json, response } = await callEndpoint({
+      body,
+      endpointOptions: {
+        allowWrites: true,
+        docsSetsEnabled: true,
+      },
+      headers: signBody({
+        body,
+        privateKey,
+      }),
+      payload,
+      publicKey: publicKey.toString(),
+    })
+
+    expect(response.status).toBe(409)
+    expect(json.error).toMatchObject({ code: 'route_collision' })
+    expect(JSON.stringify(json)).toContain('existing_doc_route_collision')
+    expect(payload.create).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: 'docs',
+      }),
+    )
+  })
+
+  it('rejects Pages routes inside a docs set namespace when Pages checks are enabled', async () => {
+    const { privateKey, publicKey } = keyPair()
+    const body = JSON.stringify(createManifest())
+    const payload = createMockPayload({
+      docsSets: [
+        {
+          id: 'docs-set-1',
+          routeBase: '/plugins/payload-markdown',
+          sourceId: 'main-docs',
+        },
+      ],
+      pages: [
+        {
+          id: 'page-1',
+          slug: '/plugins/payload-markdown/configuration',
+        },
+      ],
+    })
+    const { json, response } = await callEndpoint({
+      body,
+      endpointOptions: {
+        docsSetsEnabled: true,
+        routingPagesEnabled: true,
+      },
+      headers: signBody({
+        body,
+        privateKey,
+      }),
+      payload,
+      publicKey: publicKey.toString(),
+    })
+
+    expect(response.status).toBe(409)
+    expect(json.error).toMatchObject({ code: 'route_collision' })
+    expect(JSON.stringify(json)).toContain('descendant_route_collision')
   })
 
   it('updates changed docs in sync mode', async () => {

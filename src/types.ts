@@ -3,6 +3,7 @@ export type PayloadMarkdownDocsConfig = {
   collections?: PayloadMarkdownDocsCollectionsConfig
   enabled?: boolean
   endpoint?: PayloadMarkdownDocsEndpointConfig
+  routing?: PayloadMarkdownDocsRoutingConfig
   sources?: PayloadMarkdownDocsSourceConfig[]
   sync?: PayloadMarkdownDocsSyncConfig
   target?: PayloadMarkdownDocsTargetConfig
@@ -36,8 +37,22 @@ export type PayloadMarkdownDocsCollectionConfig = {
 
 export type PayloadMarkdownDocsCollectionsConfig = {
   docs?: PayloadMarkdownDocsCollectionConfig
+  docsGroups?: PayloadMarkdownDocsCollectionConfig
+  docsSets?: PayloadMarkdownDocsCollectionConfig
   nonces?: PayloadMarkdownDocsCollectionConfig
   syncRuns?: PayloadMarkdownDocsCollectionConfig
+}
+
+export type PayloadMarkdownDocsPagesRoutingConfig = {
+  allowBridgePages?: boolean
+  bridgeField?: string
+  collection?: string
+  enabled?: boolean
+  routeField?: string
+}
+
+export type PayloadMarkdownDocsRoutingConfig = {
+  pages?: PayloadMarkdownDocsPagesRoutingConfig
 }
 
 export type PayloadMarkdownDocsSourceConfig = {

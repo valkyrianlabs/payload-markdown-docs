@@ -5,6 +5,7 @@ import { markdownField } from '@valkyrianlabs/payload-markdown'
 import { MANAGED_BY } from '../constants.js'
 
 export type CreateDocsCollectionOptions = {
+  docsSetsCollectionSlug?: string
   enableDrafts?: boolean
   markdownFieldName: string
   slug: string
@@ -13,6 +14,7 @@ export type CreateDocsCollectionOptions = {
 
 export const createDocsCollection = ({
   slug,
+  docsSetsCollectionSlug,
   enableDrafts = false,
   markdownFieldName,
   syncRunsCollectionSlug,
@@ -48,8 +50,17 @@ export const createDocsCollection = ({
       type: 'text',
       index: true,
       required: true,
-      unique: true,
     },
+    ...(docsSetsCollectionSlug
+      ? [
+          {
+            name: 'docsSet',
+            type: 'relationship' as const,
+            index: true,
+            relationTo: docsSetsCollectionSlug,
+          },
+        ]
+      : []),
     {
       name: 'sourceHash',
       type: 'text',
@@ -74,6 +85,45 @@ export const createDocsCollection = ({
       name: markdownFieldName,
       label: 'Content',
     }),
+    {
+      name: 'overrides',
+      type: 'group',
+      fields: [
+        {
+          name: 'navTitle',
+          type: 'text',
+        },
+        {
+          name: 'hideFromNav',
+          type: 'checkbox',
+          defaultValue: false,
+        },
+        {
+          name: 'theme',
+          type: 'text',
+        },
+        {
+          name: 'heroEyebrow',
+          type: 'text',
+        },
+        {
+          name: 'heroTitle',
+          type: 'text',
+        },
+        {
+          name: 'heroDescription',
+          type: 'textarea',
+        },
+        {
+          name: 'seoTitle',
+          type: 'text',
+        },
+        {
+          name: 'seoDescription',
+          type: 'textarea',
+        },
+      ],
+    },
     {
       name: 'sync',
       type: 'group',
