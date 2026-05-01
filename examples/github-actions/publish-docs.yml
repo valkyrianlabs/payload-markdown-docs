@@ -32,6 +32,7 @@ jobs:
 
       - name: Dry-run docs sync
         if: github.event_name == 'pull_request'
+        # Requires the Payload server to know the public key for github-actions-main.
         run: |
           pnpm exec payload-markdown-docs push ./docs \
             --endpoint "$DOCS_SYNC_ENDPOINT" \
@@ -45,6 +46,8 @@ jobs:
 
       - name: Publish docs
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        # Requires sync.allowWrites: true, sync.allowPublish: true,
+        # and target.enableDrafts: true on the Payload server.
         run: |
           pnpm exec payload-markdown-docs push ./docs \
             --endpoint "$DOCS_SYNC_ENDPOINT" \

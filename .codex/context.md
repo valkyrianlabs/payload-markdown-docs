@@ -5,7 +5,7 @@
 - Package/repository name: `@valkyrianlabs/payload-markdown-docs`
 - Package metadata now uses the scoped package name and real description.
 - Purpose: Git-backed Markdown documentation sync into Payload CMS.
-- Current state: Phase 8C native Pages route adapter and frontend rendering helpers. The package exports `payloadMarkdownDocs()`, public config types, constants, collection builders, pure sync utilities for path normalization/frontmatter/hashing/manifest validation/planning, route helpers, a request signing helper, and a `/next` read-only route adapter export. Enabled plugin mode injects docs groups, docs sets, generated docs, sync-run, and nonce collections and registers a signed sync endpoint. Disabled mode remains an exact no-op. The CLI supports `validate`, `manifest`, `plan`, `keygen`, and signed `push`, including `push --publish`. Sync-mode writes to the dedicated generated docs collection require `sync.allowWrites: true`. Publishing requires `sync.allowPublish: true` and a draft-enabled dedicated docs collection. Hard delete requires `sync.allowHardDelete: true`. The endpoint resolves `manifest.source.id` to a docs set when possible, uses the docs set route base, links synced docs to that docs set, and can perform docs-side route collision checks. The `/next` export can resolve docs routes, generate sidebar data, generate metadata, and render a minimal docs page via `@valkyrianlabs/payload-markdown/server`. Existing collection targets, block targets, central docs set admin manager, GitHub OIDC, and agent skill installer do not exist yet.
+- Current state: Phase 9 documentation, CI workflow polish, and docs dogfood content. The package exports `payloadMarkdownDocs()`, public config types, constants, collection builders, pure sync utilities for path normalization/frontmatter/hashing/manifest validation/planning, route helpers, a request signing helper, a `/next` read-only route adapter export, and an `/admin` export for the docs set manager component. Enabled plugin mode injects docs groups, docs sets, generated docs, sync-run, and nonce collections and registers a signed sync endpoint. Disabled mode remains an exact no-op. The CLI supports `validate`, `manifest`, `plan`, `keygen`, and signed `push`, including `push --publish`. Sync-mode writes to the dedicated generated docs collection require `sync.allowWrites: true`. Publishing requires `sync.allowPublish: true` and a draft-enabled dedicated docs collection. Hard delete requires `sync.allowHardDelete: true`. The endpoint resolves `manifest.source.id` to a docs set when possible, uses the docs set route base, links synced docs to that docs set, and can perform docs-side route collision checks. The `/next` export can resolve docs routes, generate sidebar data, generate metadata, and render a minimal docs page via `@valkyrianlabs/payload-markdown/server`. The docs set edit view includes a read-only Generated Docs overview with summary counts, source-path tree, override summaries, and generated-doc admin links. The root `docs/` tree is now real dogfood documentation with valid frontmatter, root-relative internal links, and `payload-markdown` directive examples. Existing collection targets, block targets, inline admin override editing, GitHub OIDC, and agent skill installer do not exist yet.
 
 ## Product Direction
 
@@ -48,6 +48,7 @@ Current source structure:
 - `src/types.ts` contains public config types.
 - `src/constants.ts` contains default slugs, default endpoint path, and default limits.
 - `src/collections/` contains the docs groups, docs sets, generated docs, sync runs, and nonce collection builders.
+- `src/admin/` contains the docs set manager UI field component, pure manager data helpers, types, tests, and `/admin` export surface.
 - `src/routing/` contains route normalization, docs set route-base derivation, and route reservation/collision helpers.
 - `src/sync/` contains pure manifest/path/frontmatter/hash/validation/planning utilities and unit tests.
 - `src/cli/` contains the CLI runner, argument parser, filesystem walker, HTTP sender, output formatters, and command handlers for `validate`, `manifest`, `plan`, `keygen`, and `push`.
@@ -55,7 +56,8 @@ Current source structure:
 - `src/payload/` contains Payload Local API adapters for docs set source resolution, existing docs lookup, route collision checks, sync-run audit records, conflict detection, docs data/status mapping, and dedicated docs apply writes.
 - `src/endpoints/` contains the signed sync endpoint factory and handler.
 - `src/next/` contains the read-only native route adapter, sidebar helper, metadata helper, minimal server page component, and `/next` export surface.
-- `docs/dedicated-docs-workflow.md` documents the complete default dedicated docs collection workflow.
+- `docs/` contains the plugin's dogfood documentation set. It includes getting started, concepts, configuration, workflow, frontend, admin, and reference pages with supported frontmatter and `payload-markdown` directive examples.
+- `docs/dedicated-docs-workflow.md` remains a complete default dedicated docs collection workflow page inside the docs set.
 - `examples/docs/` contains a small valid Markdown docs fixture for dogfooding CLI validation/manifest/plan behavior.
 - `examples/github-actions/publish-docs.yml` contains a CI workflow example for pull-request dry-runs and main-branch publish syncs.
 - `dev/` contains the local Payload app used for tests and manual development.
@@ -123,6 +125,14 @@ Focused route adapter tests can be run with:
 
 - `pnpm exec vitest src/next src/payload src/routing`
 
+Focused docs set admin manager tests can be run with:
+
+- `pnpm exec vitest src/admin dev/int.spec.ts`
+
+Focused docs asset tests can be run with:
+
+- `pnpm exec vitest src/cli/docs-assets.spec.ts`
+
 ## Guardrails
 
 - Avoid implementing all phases at once.
@@ -138,8 +148,9 @@ Focused route adapter tests can be run with:
 - Hard delete remains server-owned and requires `sync.allowHardDelete: true`.
 - Treat `examples/docs/` as a fixture/demo docs source, not as generated output.
 - Keep CI examples on signed JSON manifest upload. Do not switch examples to ZIP upload or unsigned sync.
+- Treat `docs/` as real dogfood docs content. Keep frontmatter within the supported subset, keep internal docs links root-relative, and avoid documenting unsupported features as implemented.
 - Users should manage docs groups and docs sets, not hundreds or thousands of Payload Pages.
 - Synced docs records are generated/internal records for routing, search, and sync correctness.
 - Route bases are server-owned through docs sets or configured sources. Do not let request bodies choose route bases or target fields.
 - The native route adapter is read-only. It must not create Pages, mutate Pages, or sync one Page per Markdown file.
-- Central docs set management is a future phase.
+- The Docs Set Admin Manager is currently a read-only overview. It should make generated docs understandable from the docs set edit view, but inline override editing should remain a separate, explicit future phase unless implemented carefully.

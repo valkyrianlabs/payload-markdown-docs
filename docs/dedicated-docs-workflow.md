@@ -1,3 +1,14 @@
+---
+title: Dedicated Docs Sync Workflow
+navTitle: Dedicated Workflow
+description: Complete setup guide for syncing Git-backed docs into Payload docs sets.
+order: 5
+status: published
+tags:
+  - workflow
+  - setup
+---
+
 # Dedicated Docs Sync Workflow
 
 This guide covers the default workflow for syncing a Git-backed `docs/` folder into Payload-managed docs sets and generated docs records.
@@ -62,6 +73,8 @@ The default endpoint is exposed at:
 By default, the plugin also adds `docs-groups` and `docs-sets`. Docs sets are the user-facing unit for source ids and route bases. Generated docs records are linked to docs sets and remain the internal records used for routing, search, and sync correctness.
 
 The native route adapter can resolve and render generated docs routes from a Next/Payload catch-all route without creating one Page per Markdown file. It is read-only and does not mutate Pages.
+
+The docs set edit view includes a read-only generated docs manager. Use it to review generated docs for the set, inspect sync/archive/draft state, see which docs have overrides, and open generated docs records when per-doc override editing is needed.
 
 ## Docs Source Tree
 
@@ -235,6 +248,21 @@ export default async function Page({
 
 The route adapter can resolve exact docs records, docs set index routes, and docs group index routes where `serveIndex` is enabled. It returns `null` for normal Page routes so your app can fall back to existing Page rendering.
 
+## Docs Set Admin Manager
+
+Open a docs set in Payload Admin to review its generated docs records from one central place. The manager is read-only and shows:
+
+- route base
+- sync summary
+- total, archived, draft, published, hidden-from-nav, and override counts
+- generated docs grouped by source path
+- route, title, status, and override summary for each generated doc
+- links to generated docs records for deeper editing
+
+Per-doc override editing is currently done by opening the generated doc record. Inline override editing from the docs set manager is deferred to a later phase.
+
+The manager does not sync docs, mutate Pages, or create one Page per Markdown file.
+
 ## Current Boundaries
 
 Implemented for this workflow:
@@ -244,6 +272,7 @@ Implemented for this workflow:
 - signed sync endpoint
 - local CLI validation, manifest, plan, keygen, and push
 - native route adapter and frontend rendering helpers
+- docs set admin manager
 - sync writes behind `sync.allowWrites`
 - publish behind `sync.allowPublish`
 - hard delete behind `sync.allowHardDelete`

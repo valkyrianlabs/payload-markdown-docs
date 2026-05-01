@@ -1,6 +1,9 @@
 import type { CollectionConfig } from 'payload'
 
+import { DOCS_SET_MANAGER_COMPONENT } from '../constants.js'
+
 export type CreateDocsSetsCollectionOptions = {
+  docsCollectionSlug?: string
   docsGroupsCollectionSlug: string
   slug: string
   syncRunsCollectionSlug?: string
@@ -8,6 +11,7 @@ export type CreateDocsSetsCollectionOptions = {
 
 export const createDocsSetsCollection = ({
   slug,
+  docsCollectionSlug,
   docsGroupsCollectionSlug,
   syncRunsCollectionSlug,
 }: CreateDocsSetsCollectionOptions): CollectionConfig => ({
@@ -129,5 +133,22 @@ export const createDocsSetsCollection = ({
         },
       ],
     },
+    ...(docsCollectionSlug
+      ? [
+          {
+            name: 'docsSetManager',
+            type: 'ui' as const,
+            admin: {
+              components: {
+                Field: DOCS_SET_MANAGER_COMPONENT,
+              },
+              custom: {
+                docsCollectionSlug,
+                docsSetsCollectionSlug: slug,
+              },
+            },
+          },
+        ]
+      : []),
   ],
 })

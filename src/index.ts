@@ -16,6 +16,7 @@ export {
   DEFAULT_PAGES_BRIDGE_FIELD,
   DEFAULT_PAGES_COLLECTION_SLUG,
   DEFAULT_PAGES_ROUTE_FIELD,
+  DOCS_SET_MANAGER_COMPONENT,
 } from './constants.js'
 export { payloadMarkdownDocs } from './plugin.js'
 export {

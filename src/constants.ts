@@ -6,6 +6,8 @@ export const DEFAULT_DOCS_SYNC_NONCES_COLLECTION_SLUG = 'docs-sync-nonces'
 export const DEFAULT_DOCS_SYNC_RUNS_COLLECTION_SLUG = 'docs-sync-runs'
 export const DEFAULT_DOCS_SYNC_ENDPOINT_PATH = '/payload-markdown-docs/sync'
 export const DEFAULT_MARKDOWN_FIELD_NAME = 'content'
+export const DOCS_SET_MANAGER_COMPONENT =
+  '@valkyrianlabs/payload-markdown-docs/admin#DocsSetManager'
 export const DEFAULT_PAGES_BRIDGE_FIELD = 'docsBridge'
 export const DEFAULT_PAGES_COLLECTION_SLUG = 'pages'
 export const DEFAULT_PAGES_ROUTE_FIELD = 'slug'

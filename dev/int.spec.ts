@@ -9,6 +9,7 @@ import {
   DEFAULT_DOCS_SYNC_NONCES_COLLECTION_SLUG,
   DEFAULT_DOCS_SYNC_RUNS_COLLECTION_SLUG,
   DEFAULT_MARKDOWN_FIELD_NAME,
+  DOCS_SET_MANAGER_COMPONENT,
   payloadMarkdownDocs,
 } from '@valkyrianlabs/payload-markdown-docs'
 import { getPayload } from 'payload'
@@ -19,6 +20,7 @@ type NamedField = {
     components?: {
       Field?: string
     }
+    custom?: Record<string, unknown>
   }
   fields?: NamedField[]
   name?: string
@@ -293,6 +295,45 @@ describe('payloadMarkdownDocs collection wiring', () => {
       'lastStatus',
       'docsCount',
     ])
+    expect(getField(docsSetsCollection, 'docsSetManager')).toMatchObject({
+      type: 'ui',
+      admin: {
+        components: {
+          Field: DOCS_SET_MANAGER_COMPONENT,
+        },
+        custom: {
+          docsCollectionSlug: DEFAULT_DOCS_COLLECTION_SLUG,
+          docsSetsCollectionSlug: DEFAULT_DOCS_SETS_COLLECTION_SLUG,
+        },
+      },
+    })
+  })
+
+  test('docs set manager respects custom docs and docs set slugs', () => {
+    const transformedConfig = payloadMarkdownDocs({
+      collections: {
+        docsSets: {
+          slug: 'knowledge-sets',
+        },
+      },
+      enabled: true,
+      target: {
+        slug: 'generated-docs',
+        type: 'docsCollection',
+      },
+    })({
+      collections: [],
+    } as unknown as Config)
+    const docsSetsCollection = getCollection(transformedConfig, 'knowledge-sets')
+
+    expect(getField(docsSetsCollection, 'docsSetManager')).toMatchObject({
+      admin: {
+        custom: {
+          docsCollectionSlug: 'generated-docs',
+          docsSetsCollectionSlug: 'knowledge-sets',
+        },
+      },
+    })
   })
 
   test('sync runs collection contains expected fields', () => {

@@ -196,6 +196,7 @@ export const payloadMarkdownDocs =
         ? [
             createDocsSetsCollection({
               slug: docsSetsCollectionSlug,
+              docsCollectionSlug: docsEnabled ? docsCollectionSlug : undefined,
               docsGroupsCollectionSlug,
               syncRunsCollectionSlug: syncRunsEnabled ? syncRunsCollectionSlug : undefined,
             }),

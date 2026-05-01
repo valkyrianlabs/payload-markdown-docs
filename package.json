@@ -20,6 +20,11 @@
       "types": "./src/index.ts",
       "default": "./src/index.ts"
     },
+    "./admin": {
+      "import": "./src/admin/index.ts",
+      "types": "./src/admin/index.ts",
+      "default": "./src/admin/index.ts"
+    },
     "./next": {
       "import": "./src/next/index.ts",
       "types": "./src/next/index.ts",
@@ -96,6 +101,11 @@
         "import": "./dist/index.js",
         "types": "./dist/index.d.ts",
         "default": "./dist/index.js"
+      },
+      "./admin": {
+        "import": "./dist/admin/index.js",
+        "types": "./dist/admin/index.d.ts",
+        "default": "./dist/admin/index.js"
       },
       "./next": {
         "import": "./dist/next/index.js",
