@@ -12,6 +12,10 @@ on:
     paths:
       - 'docs/**'
 
+permissions:
+  id-token: write
+  contents: read
+
 jobs:
   docs:
     runs-on: ubuntu-latest
@@ -39,12 +43,11 @@ jobs:
           pnpm exec payload-markdown-docs push ./docs \
             --endpoint "$DOCS_SYNC_ENDPOINT" \
             --source main-docs \
-            --key-id github-actions-main \
-            --private-key-env DOCS_SYNC_PRIVATE_KEY \
+            --github-oidc \
+            --oidc-audience payload-markdown-docs \
             --dry-run
         env:
           DOCS_SYNC_ENDPOINT: ${{ secrets.DOCS_SYNC_ENDPOINT }}
-          DOCS_SYNC_PRIVATE_KEY: ${{ secrets.DOCS_SYNC_PRIVATE_KEY }}
 
       - name: Publish docs
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -52,11 +55,10 @@ jobs:
           pnpm exec payload-markdown-docs push ./docs \
             --endpoint "$DOCS_SYNC_ENDPOINT" \
             --source main-docs \
-            --key-id github-actions-main \
-            --private-key-env DOCS_SYNC_PRIVATE_KEY \
+            --github-oidc \
+            --oidc-audience payload-markdown-docs \
             --sync \
             --publish
         env:
           DOCS_SYNC_ENDPOINT: ${{ secrets.DOCS_SYNC_ENDPOINT }}
-          DOCS_SYNC_PRIVATE_KEY: ${{ secrets.DOCS_SYNC_PRIVATE_KEY }}
 ```

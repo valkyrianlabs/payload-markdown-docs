@@ -1,6 +1,6 @@
 # Sync Safety Model
 
-The sync workflow is signed and server-owned.
+The sync workflow is authenticated and server-owned.
 
 Important concepts:
 
@@ -13,13 +13,23 @@ Important concepts:
 - Archive is safer than delete.
 - Manual edit conflicts abort before writes.
 
-Signed pushes verify:
+Ed25519 signed pushes verify:
 
 - key id
 - timestamp skew
 - nonce replay
 - body SHA-256
 - Ed25519 signature
+- manifest validity
+
+GitHub OIDC pushes verify:
+
+- bearer JWT signature through GitHub JWKS
+- issuer and audience
+- repository, owner, ref, workflow, and environment allowlists when configured
+- pull request policy
+- JWT `jti` replay protection
+- body SHA-256
 - manifest validity
 
 Do not bypass failed auth or body verification. Fix the key, endpoint, source id, body, or server config.

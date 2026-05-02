@@ -1,21 +1,29 @@
 import { readFile } from 'node:fs/promises'
 
 import type { DocsDeleteBehavior } from '../../sync/index.js'
-import type { HttpPostJson } from '../http.js'
+import type {
+  HttpGetJson,
+  HttpPostJson,
+} from '../http.js'
 import type {
   CliResult,
   ParsedCliArgs,
   PushCommandOptions,
 } from '../types.js'
 
+import { DEFAULT_GITHUB_OIDC_AUDIENCE } from '../../constants.js'
 import { signDocsSyncRequest } from '../../security/index.js'
 import {
   buildDocsManifest,
+  sha256Hex,
   validateDocsManifest,
 } from '../../sync/index.js'
 import { walkDocsFiles } from '../filesystem.js'
 import { formatIssues, formatPushSummary, printJson } from '../format.js'
-import { postJson } from '../http.js'
+import {
+  getJson,
+  postJson,
+} from '../http.js'
 import { getFlagBoolean, getFlagString } from '../parseArgs.js'
 import { getDocsCommandOptions } from './validate.js'
 
@@ -120,6 +128,87 @@ const readPrivateKey = async (
   }
 }
 
+const getGithubOidcTokenRequestUrl = ({
+  audience,
+  requestUrl,
+}: {
+  audience: string
+  requestUrl: string
+}): CliResult | string => {
+  try {
+    const url = new URL(requestUrl)
+    url.searchParams.set('audience', audience)
+
+    return url.toString()
+  } catch {
+    return {
+      exitCode: 1,
+      stderr: 'ACTIONS_ID_TOKEN_REQUEST_URL is not a valid URL.\n',
+    }
+  }
+}
+
+const readGithubOidcToken = async ({
+  args,
+  audience,
+  httpGet,
+}: {
+  args: ParsedCliArgs
+  audience: string
+  httpGet: HttpGetJson
+}): Promise<CliResult | string> => {
+  const tokenEnv = getFlagString(args, 'oidc-token-env')
+
+  if (tokenEnv) {
+    const token = process.env[tokenEnv]
+
+    if (!token) {
+      return {
+        exitCode: 1,
+        stderr: `Environment variable "${tokenEnv}" is not set.\n`,
+      }
+    }
+
+    return token
+  }
+
+  const requestUrl = process.env.ACTIONS_ID_TOKEN_REQUEST_URL
+  const requestToken = process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN
+
+  if (!requestUrl || !requestToken) {
+    return {
+      exitCode: 1,
+      stderr:
+        'GitHub OIDC push requires ACTIONS_ID_TOKEN_REQUEST_URL and ACTIONS_ID_TOKEN_REQUEST_TOKEN, or --oidc-token-env.\n',
+    }
+  }
+
+  const url = getGithubOidcTokenRequestUrl({
+    audience,
+    requestUrl,
+  })
+
+  if (typeof url !== 'string') {
+    return url
+  }
+
+  const response = await httpGet({
+    headers: {
+      Authorization: `bearer ${requestToken}`,
+    },
+    url,
+  })
+
+  if (!response.ok || !isRecord(response.body) || typeof response.body.value !== 'string') {
+    return {
+      exitCode: 1,
+      stderr: `Could not retrieve GitHub OIDC token. HTTP status ${response.status}.\n`,
+    }
+  }
+
+  return response.body.value
+}
+
 const getPushCommandOptions = async (
   args: ParsedCliArgs,
 ): Promise<CliResult | PushCommandOptions> => {
@@ -144,15 +233,6 @@ const getPushCommandOptions = async (
     return endpoint
   }
 
-  const keyId = getFlagString(args, 'key-id')
-
-  if (!keyId) {
-    return {
-      exitCode: 1,
-      stderr: 'Push requires --key-id <id>.\n',
-    }
-  }
-
   if (getFlagBoolean(args, 'dry-run') && getFlagBoolean(args, 'sync')) {
     return {
       exitCode: 1,
@@ -172,6 +252,50 @@ const getPushCommandOptions = async (
     }
   }
 
+  const mode: PushCommandOptions['mode'] = getFlagBoolean(args, 'sync')
+    ? 'sync'
+    : 'dry-run'
+  const baseOptions = {
+    ...docsOptions,
+    deleteBehavior: deleteBehaviorFlag as DocsDeleteBehavior | undefined,
+    endpoint,
+    mode,
+    publish: getFlagBoolean(args, 'publish'),
+  }
+
+  if (getFlagBoolean(args, 'github-oidc')) {
+    if (getFlagString(args, 'key-id')) {
+      return {
+        exitCode: 1,
+        stderr: 'Do not use --key-id with --github-oidc.\n',
+      }
+    }
+
+    if (getFlagString(args, 'private-key-file') || getFlagString(args, 'private-key-env')) {
+      return {
+        exitCode: 1,
+        stderr: 'Do not use Ed25519 private key flags with --github-oidc.\n',
+      }
+    }
+
+    return {
+      ...baseOptions,
+      authMode: 'github-oidc',
+      oidcAudience:
+        getFlagString(args, 'oidc-audience') ?? DEFAULT_GITHUB_OIDC_AUDIENCE,
+      oidcTokenEnv: getFlagString(args, 'oidc-token-env'),
+    }
+  }
+
+  const keyId = getFlagString(args, 'key-id')
+
+  if (!keyId) {
+    return {
+      exitCode: 1,
+      stderr: 'Push requires --key-id <id>.\n',
+    }
+  }
+
   const privateKey = await readPrivateKey(args)
 
   if (typeof privateKey !== 'string') {
@@ -179,13 +303,10 @@ const getPushCommandOptions = async (
   }
 
   return {
-    ...docsOptions,
-    deleteBehavior: deleteBehaviorFlag as DocsDeleteBehavior | undefined,
-    endpoint,
+    ...baseOptions,
+    authMode: 'ed25519',
     keyId,
-    mode: getFlagBoolean(args, 'sync') ? 'sync' : 'dry-run',
     privateKey,
-    publish: getFlagBoolean(args, 'publish'),
   }
 }
 
@@ -206,6 +327,7 @@ const formatServerFailure = ({
 export const runPushCommand = async (
   args: ParsedCliArgs,
   httpPost: HttpPostJson = postJson,
+  httpGet: HttpGetJson = getJson,
 ): Promise<CliResult> => {
   const options = await getPushCommandOptions(args)
 
@@ -242,12 +364,41 @@ export const runPushCommand = async (
   }
 
   const body = JSON.stringify(manifest)
-  const signedRequest = signDocsSyncRequest({
-    body,
-    endpoint: options.endpoint,
-    keyId: options.keyId,
-    privateKey: options.privateKey,
-  })
+  let signedRequest:
+    | {
+        body: string
+        headers: Record<string, string>
+      }
+    | ReturnType<typeof signDocsSyncRequest>
+
+  if (options.authMode === 'github-oidc') {
+    const oidcToken = await readGithubOidcToken({
+      args,
+      audience: options.oidcAudience,
+      httpGet,
+    })
+
+    if (typeof oidcToken !== 'string') {
+      return oidcToken
+    }
+
+    signedRequest = {
+      body,
+      headers: {
+        Authorization: `Bearer ${oidcToken}`,
+        'Content-Type': 'application/json',
+        'X-VL-MD-DOCS-Body-SHA256': sha256Hex(body),
+      },
+    }
+  } else {
+    signedRequest = signDocsSyncRequest({
+      body,
+      endpoint: options.endpoint,
+      keyId: options.keyId,
+      privateKey: options.privateKey,
+    })
+  }
+
   const response = await httpPost({
     body: signedRequest.body,
     headers: signedRequest.headers,

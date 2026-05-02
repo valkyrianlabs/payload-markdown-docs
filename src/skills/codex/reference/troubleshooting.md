@@ -4,6 +4,18 @@
 
 Check key id, private key, endpoint pathname, timestamp, nonce, and exact body string.
 
+## OIDC invalid token
+
+Check that the workflow uses `--github-oidc`, grants `id-token: write`, and requests the configured audience.
+
+## OIDC repository or ref not allowed
+
+Check server OIDC allowlists. The request may ask; the server decides which repository and ref are trusted.
+
+## OIDC replay
+
+Rerun the workflow so GitHub issues a fresh OIDC token with a new `jti`.
+
 ## Body hash mismatch
 
 The signed body is not the body that was sent. Sign and send the exact same JSON string.

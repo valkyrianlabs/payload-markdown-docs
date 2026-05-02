@@ -17,4 +17,7 @@ export const DEFAULT_MAX_DOCS_TOTAL_BYTES = 5_000_000
 export const DEFAULT_MAX_BODY_BYTES = 5_000_000
 export const DEFAULT_MAX_SKEW_SECONDS = 300
 export const DEFAULT_NONCE_TTL_SECONDS = 600
+export const DEFAULT_GITHUB_OIDC_AUDIENCE = 'payload-markdown-docs'
+export const DEFAULT_GITHUB_OIDC_ISSUER =
+  'https://token.actions.githubusercontent.com'
 export const MANAGED_BY = 'payload-markdown-docs'

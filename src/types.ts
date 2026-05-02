@@ -16,6 +16,20 @@ export type PayloadMarkdownDocsEndpointConfig = {
 
 export type PayloadMarkdownDocsAuthConfig =
   | {
+      allowedEnvironments?: string[]
+      allowedRefs?: string[]
+      allowedRepositories?: string[]
+      allowedRepositoryOwners?: string[]
+      allowedWorkflowRefs?: string[]
+      allowedWorkflows?: string[]
+      allowPullRequests?: boolean
+      audience: string
+      issuer?: string
+      jwksUrl?: string
+      maxSkewSeconds?: number
+      mode: 'github-oidc'
+    }
+  | {
       keys: PayloadMarkdownDocsEd25519Key[]
       maxSkewSeconds?: number
       mode: 'ed25519'

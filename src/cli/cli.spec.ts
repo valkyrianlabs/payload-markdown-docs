@@ -10,7 +10,10 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 
-import type { HttpPostJson } from './http.js'
+import type {
+  HttpGetJson,
+  HttpPostJson,
+} from './http.js'
 
 import { runPushCommand } from './commands/push.js'
 import { walkDocsFiles } from './filesystem.js'
@@ -536,6 +539,140 @@ describe('push command', () => {
     )
   })
 
+  it('supports GitHub OIDC push with a token environment variable', async () => {
+    const root = await createDocsRoot()
+    const requests: Parameters<HttpPostJson>[0][] = []
+    const httpPost: HttpPostJson = (request) => {
+      requests.push(request)
+
+      return Promise.resolve({
+        body: {
+          ok: true,
+          summary: {},
+        },
+        ok: true,
+        status: 200,
+        text: '{"ok":true}',
+      })
+    }
+    process.env.GITHUB_OIDC_TOKEN_TEST = 'test-oidc-token'
+    const parsed = parseCliArgs([
+      'push',
+      root,
+      '--endpoint',
+      endpoint,
+      '--github-oidc',
+      '--oidc-token-env',
+      'GITHUB_OIDC_TOKEN_TEST',
+    ])
+
+    if (!parsed.ok) {
+      throw new Error(parsed.error)
+    }
+
+    const result = await runPushCommand(parsed.args, httpPost)
+    delete process.env.GITHUB_OIDC_TOKEN_TEST
+
+    expect(result.exitCode).toBe(0)
+    expect(requests[0]?.headers).toMatchObject({
+      Authorization: 'Bearer test-oidc-token',
+      'Content-Type': 'application/json',
+      'X-VL-MD-DOCS-Body-SHA256': expect.any(String),
+    })
+    expect(requests[0]?.headers['X-VL-MD-DOCS-Signature']).toBeUndefined()
+    expect(requests[0]?.headers['X-VL-MD-DOCS-Key-Id']).toBeUndefined()
+    expect(result.stdout).not.toContain('test-oidc-token')
+  })
+
+  it('fetches GitHub OIDC tokens from the Actions runner environment', async () => {
+    const root = await createDocsRoot()
+    const requests: Parameters<HttpPostJson>[0][] = []
+    const tokenRequests: Parameters<HttpGetJson>[0][] = []
+    const httpPost: HttpPostJson = (request) => {
+      requests.push(request)
+
+      return Promise.resolve({
+        body: {
+          ok: true,
+          summary: {},
+        },
+        ok: true,
+        status: 200,
+        text: '{"ok":true}',
+      })
+    }
+    const httpGet: HttpGetJson = (request) => {
+      tokenRequests.push(request)
+
+      return Promise.resolve({
+        body: {
+          value: 'runner-oidc-token',
+        },
+        ok: true,
+        status: 200,
+        text: '{"value":"runner-oidc-token"}',
+      })
+    }
+    process.env.ACTIONS_ID_TOKEN_REQUEST_URL =
+      'https://token.actions.githubusercontent.com/request?job=docs'
+    process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN = 'runner-request-token'
+    const parsed = parseCliArgs([
+      'push',
+      root,
+      '--endpoint',
+      endpoint,
+      '--github-oidc',
+      '--oidc-audience',
+      'payload-markdown-docs',
+    ])
+
+    if (!parsed.ok) {
+      throw new Error(parsed.error)
+    }
+
+    const result = await runPushCommand(parsed.args, httpPost, httpGet)
+    delete process.env.ACTIONS_ID_TOKEN_REQUEST_URL
+    delete process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN
+
+    expect(result.exitCode).toBe(0)
+    expect(tokenRequests[0]?.url).toContain('audience=payload-markdown-docs')
+    expect(tokenRequests[0]?.headers).toMatchObject({
+      Authorization: 'bearer runner-request-token',
+    })
+    expect(requests[0]?.headers.Authorization).toBe('Bearer runner-oidc-token')
+  })
+
+  it('rejects GitHub OIDC with Ed25519 key flags', async () => {
+    const root = await createDocsRoot()
+    const { privateKey } = keyPair()
+    const privateKeyPath = path.join(root, 'docs-sync-private.pem')
+    await writeFile(privateKeyPath, privateKey.toString(), 'utf8')
+
+    const keyIdResult = await runCli([
+      'push',
+      root,
+      '--endpoint',
+      endpoint,
+      '--github-oidc',
+      '--key-id',
+      'github-actions-main',
+    ])
+    const privateKeyResult = await runCli([
+      'push',
+      root,
+      '--endpoint',
+      endpoint,
+      '--github-oidc',
+      '--private-key-file',
+      privateKeyPath,
+    ])
+
+    expect(keyIdResult.exitCode).toBe(1)
+    expect(keyIdResult.stderr).toContain('Do not use --key-id')
+    expect(privateKeyResult.exitCode).toBe(1)
+    expect(privateKeyResult.stderr).toContain('Do not use Ed25519 private key flags')
+  })
+
   it('rejects invalid endpoint URLs and invalid delete behavior', async () => {
     const root = await createDocsRoot()
     const { privateKey } = keyPair()
@@ -687,6 +824,8 @@ describe('push command', () => {
 
     expect(result.exitCode).toBe(0)
     expect(result.stdout).toContain('--publish')
+    expect(result.stdout).toContain('--github-oidc')
+    expect(result.stdout).toContain('id-token: write')
     expect(result.stdout).toContain('sync.allowHardDelete')
   })
 })

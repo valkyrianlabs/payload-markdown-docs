@@ -10,7 +10,7 @@ tags:
 
 # Payload Markdown Docs
 
-`@valkyrianlabs/payload-markdown-docs` publishes Git-backed Markdown documentation into Payload CMS. Developers and agents edit files in a repo-local `docs/` folder, CI validates and signs a manifest, and the Payload plugin decides what can be synced.
+`@valkyrianlabs/payload-markdown-docs` publishes Git-backed Markdown documentation into Payload CMS. Developers and agents edit files in a repo-local `docs/` folder, CI validates and authenticates a manifest, and the Payload plugin decides what can be synced.
 
 :::callout {variant="info" title="Server-owned authority"}
 The client sends docs content. The Payload plugin decides where it may go, which source ids are allowed, whether writes are enabled, and whether publishing or hard delete is permitted.
@@ -42,6 +42,7 @@ Install local agent guidance for writing docs that validate and sync.
 
 - dedicated docs, docs groups, docs sets, sync runs, and nonce collections
 - signed Ed25519 sync endpoint with nonce replay protection
+- GitHub Actions OIDC auth mode with repository/ref allowlists
 - CLI commands for `validate`, `manifest`, `plan`, `keygen`, and signed `push`
 - server-gated sync writes, publishing, draft behavior, archive behavior, and hard delete
 - route reservations and opt-in Pages collision checks
@@ -51,7 +52,6 @@ Install local agent guidance for writing docs that validate and sync.
 
 ## What Is Not Implemented
 
-- GitHub OIDC auth
 - existing collection targets
 - block targets
 - inline override editing in the Docs Set Admin Manager

@@ -270,9 +270,11 @@ Implemented for this workflow:
 - dedicated docs collection
 - docs groups and docs sets
 - signed sync endpoint
+- GitHub Actions OIDC auth
 - local CLI validation, manifest, plan, keygen, and push
 - native route adapter and frontend rendering helpers
 - docs set admin manager
+- agent skill installer
 - sync writes behind `sync.allowWrites`
 - publish behind `sync.allowPublish`
 - hard delete behind `sync.allowHardDelete`
@@ -283,5 +285,3 @@ Not implemented yet:
 
 - existing collection targets
 - block targets
-- GitHub OIDC auth
-- agent skill installer

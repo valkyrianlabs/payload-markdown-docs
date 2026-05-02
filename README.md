@@ -20,11 +20,11 @@ Implemented:
 - read-only `/next` route adapter, sidebar helper, metadata helper, and page component
 - read-only Docs Set Admin Manager
 - local agent skill installer
+- GitHub Actions OIDC auth mode
 - real `/docs` dogfood documentation set
 
 Not implemented yet:
 
-- GitHub OIDC auth mode
 - existing collection targets
 - block targets
 - inline override editing from the docs set manager
@@ -89,6 +89,31 @@ payloadMarkdownDocs({
 })
 ```
 
+GitHub Actions can use OIDC instead of a long-lived private key:
+
+```ts
+payloadMarkdownDocs({
+  enabled: true,
+
+  auth: {
+    mode: 'github-oidc',
+    audience: 'payload-markdown-docs',
+    allowedRepositories: ['valkyrianlabs/payload-markdown-docs'],
+    allowedRefs: ['refs/heads/main'],
+  },
+
+  target: {
+    type: 'docsCollection',
+    enableDrafts: true,
+  },
+
+  sync: {
+    allowWrites: true,
+    allowPublish: true,
+  },
+})
+```
+
 ## Quick Commands
 
 ```bash
@@ -122,6 +147,18 @@ pnpm exec payload-markdown-docs push ./docs \
   --publish
 ```
 
+GitHub OIDC sync from Actions:
+
+```bash
+pnpm exec payload-markdown-docs push ./docs \
+  --endpoint "$DOCS_SYNC_ENDPOINT" \
+  --source main-docs \
+  --github-oidc \
+  --oidc-audience payload-markdown-docs \
+  --sync \
+  --publish
+```
+
 `--sync` requires `sync.allowWrites: true`. `--publish` requires `sync.allowPublish: true` and `target.enableDrafts: true`. Hard delete requires `sync.allowHardDelete: true`.
 
 ## Documentation
@@ -132,6 +169,7 @@ The real plugin docs now live in [`docs/`](docs/index.md). Start with:
 - [Installation](docs/getting-started/installation.md)
 - [Quick Start](docs/getting-started/quick-start.md)
 - [Architecture](docs/concepts/architecture.md)
+- [GitHub OIDC](docs/configuration/github-oidc.md)
 - [GitHub Actions](docs/workflow/ci-github-actions.md)
 - [Agent Skill Installer](docs/workflow/agent-skill-installer.md)
 - [Route Adapter](docs/frontend/route-adapter.md)
@@ -150,7 +188,6 @@ The `/docs` tree is also dogfood material for the plugin: it uses supported fron
 
 Next major work:
 
-- GitHub OIDC auth mode
 - existing collection or block bridges only if still needed
 - skill update/verify and drift-check workflow polish
 

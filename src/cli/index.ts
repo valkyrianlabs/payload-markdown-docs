@@ -99,6 +99,9 @@ Options:
   --key-id <id>              Server-configured Ed25519 key id.
   --private-key-file <path>  PEM private key file from keygen.
   --private-key-env <name>   Environment variable containing the private key.
+  --github-oidc              Use GitHub Actions OIDC bearer auth instead of Ed25519.
+  --oidc-audience <value>    GitHub OIDC audience. Defaults to payload-markdown-docs.
+  --oidc-token-env <name>    Environment variable containing an already-fetched OIDC token.
   --dry-run                  Upload as dry-run mode. This is the default.
   --sync                     Upload as sync mode. Requires server sync.allowWrites.
   --publish                  Request published output. Server must allow publishing.
@@ -116,6 +119,14 @@ Options:
   --max-total-bytes <number> Maximum total Markdown bytes.
   --help                     Show this help.
 
+Examples:
+  Ed25519:
+    payload-markdown-docs push ./docs --endpoint "$DOCS_SYNC_ENDPOINT" --source main-docs --key-id github-actions-main --private-key-env DOCS_SYNC_PRIVATE_KEY --sync
+
+  GitHub OIDC:
+    payload-markdown-docs push ./docs --endpoint "$DOCS_SYNC_ENDPOINT" --source main-docs --github-oidc --oidc-audience payload-markdown-docs --sync
+
+GitHub OIDC requires workflow permissions: id-token: write and contents: read.
 Hard delete requires explicit server sync.allowHardDelete. Existing collection and block targets are not supported yet.
 `,
   validate: `payload-markdown-docs validate <docs-root>

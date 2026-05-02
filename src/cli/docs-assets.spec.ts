@@ -127,7 +127,6 @@ describe('dogfood docs assets', () => {
     })
     const docsContent = files.map((file) => file.content).join('\n\n')
 
-    expect(docsContent).not.toMatch(/GitHub OIDC(?: auth)? (?:is )?implemented/i)
     expect(docsContent).not.toMatch(/existing collection targets? (?:are |is )?implemented/i)
     expect(docsContent).not.toMatch(/inline override editing (?:is )?implemented/i)
   })
@@ -144,7 +143,9 @@ describe('GitHub Actions workflow docs asset', () => {
     expect(workflow).toContain('--sync')
     expect(workflow).toContain('--publish')
     expect(workflow).toContain('DOCS_SYNC_ENDPOINT')
-    expect(workflow).toContain('DOCS_SYNC_PRIVATE_KEY')
+    expect(workflow).toContain('id-token: write')
+    expect(workflow).toContain('--github-oidc')
+    expect(workflow).toContain('--oidc-audience payload-markdown-docs')
     expect(workflow).toContain('sync.allowWrites: true')
     expect(workflow).toContain('sync.allowPublish: true')
     expect(workflow).toContain('target.enableDrafts: true')

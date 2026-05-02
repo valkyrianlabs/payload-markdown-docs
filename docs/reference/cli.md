@@ -50,6 +50,8 @@ Generates Ed25519 PEM keys for signed sync.
 
 ## push
 
+Ed25519:
+
 ```bash
 payload-markdown-docs push ./docs \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
@@ -59,7 +61,24 @@ payload-markdown-docs push ./docs \
   --dry-run
 ```
 
+GitHub OIDC:
+
+```bash
+payload-markdown-docs push ./docs \
+  --endpoint "$DOCS_SYNC_ENDPOINT" \
+  --source main-docs \
+  --github-oidc \
+  --oidc-audience payload-markdown-docs \
+  --sync
+```
+
 `push` supports `--dry-run`, `--sync`, and `--publish`. Dry-run is the default. Publishing and writes remain server-owned.
+
+OIDC-specific flags:
+
+- `--github-oidc`
+- `--oidc-audience <audience>`
+- `--oidc-token-env <env-name>`
 
 ## install skill
 

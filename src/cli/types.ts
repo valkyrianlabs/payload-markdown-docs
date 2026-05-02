@@ -56,8 +56,18 @@ export type PlanCommandOptions = {
 export type PushCommandOptions = {
   deleteBehavior?: DocsDeleteBehavior
   endpoint: string
-  keyId: string
   mode: 'dry-run' | 'sync'
-  privateKey: string
   publish: boolean
-} & DocsCommandOptions
+} & (
+  | {
+      authMode: 'ed25519'
+      keyId: string
+      privateKey: string
+    }
+  | {
+      authMode: 'github-oidc'
+      oidcAudience: string
+      oidcTokenEnv?: string
+    }
+) &
+  DocsCommandOptions

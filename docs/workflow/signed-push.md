@@ -11,7 +11,12 @@ tags:
 
 # Signed Push
 
-`payload-markdown-docs push` builds a manifest, validates it locally, signs the exact JSON body, and posts it to the configured endpoint.
+`payload-markdown-docs push` builds a manifest, validates it locally, authenticates the upload, and posts it to the configured endpoint.
+
+Two auth modes are supported:
+
+- Ed25519 request signing for provider-neutral CI/local workflows.
+- GitHub OIDC bearer auth for GitHub Actions without a long-lived private key.
 
 ## Dry Run
 
@@ -39,9 +44,9 @@ pnpm exec payload-markdown-docs push ./docs \
 
 Sync mode requires `sync.allowWrites: true` on the server.
 
-## Request Headers
+## Ed25519 Request Headers
 
-The CLI sends:
+In Ed25519 mode, the CLI sends:
 
 ```text
 X-VL-MD-DOCS-Key-Id
@@ -53,5 +58,26 @@ Content-Type: application/json
 ```
 
 The endpoint verifies the request before it validates or applies the manifest.
+
+## GitHub OIDC
+
+```bash
+pnpm exec payload-markdown-docs push ./docs \
+  --endpoint "$DOCS_SYNC_ENDPOINT" \
+  --source main-docs \
+  --github-oidc \
+  --oidc-audience payload-markdown-docs \
+  --sync
+```
+
+In OIDC mode, the CLI sends:
+
+```text
+Authorization: Bearer <github-oidc-jwt>
+X-VL-MD-DOCS-Body-SHA256
+Content-Type: application/json
+```
+
+OIDC is bearer authentication, not a body signature. The server verifies the JWT against GitHub's JWKS, checks configured claims, checks the body hash, and uses the token `jti` for replay protection.
 
 See the [security model](/concepts/security-model).

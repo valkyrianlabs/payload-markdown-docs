@@ -25,6 +25,30 @@ The `X-VL-MD-DOCS-Body-SHA256` header does not match the request body. Sign and 
 
 The nonce was already accepted for the same key id. Generate a fresh nonce by rerunning `push`.
 
+## `oidc_invalid_token`
+
+The GitHub OIDC JWT is malformed, uses an unsupported algorithm, has an invalid signature, or cannot be verified with GitHub's current signing keys.
+
+## `oidc_invalid_audience`
+
+The token audience does not match server `auth.audience`. Pass the same value with `--oidc-audience`.
+
+## `oidc_repository_not_allowed`
+
+The token repository is not in the server allowlist. Check `allowedRepositories` or `allowedRepositoryOwners`.
+
+## `oidc_ref_not_allowed`
+
+The token `ref` is not allowed by server config.
+
+## `oidc_pull_request_not_allowed`
+
+Pull request events are rejected by default. This keeps PR-originated workflows from applying docs sync unless the server explicitly opts in.
+
+## `oidc_replay`
+
+The token `jti` was already accepted. Rerun the workflow so GitHub issues a fresh OIDC token.
+
 ## `source_not_allowed`
 
 The manifest source id did not resolve to a docs set and was not allowed by configured fallback sources.

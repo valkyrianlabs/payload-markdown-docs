@@ -23,18 +23,18 @@ The docs source lives in `{{docsRoot}}` unless the user says otherwise. Edit Mar
 {{packageManager}} exec payload-markdown-docs plan {{docsRoot}} --source main-docs
 ```
 
-Only push when the user asks for a signed upload and provides endpoint/key context:
+Only push when the user asks for an upload and provides endpoint/auth context. Prefer GitHub OIDC in GitHub Actions:
 
 ```bash
 {{packageManager}} exec payload-markdown-docs push {{docsRoot}} \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
   --source main-docs \
-  --key-id github-actions-main \
-  --private-key-env DOCS_SYNC_PRIVATE_KEY \
+  --github-oidc \
+  --oidc-audience payload-markdown-docs \
   --dry-run
 ```
 
-Sync writes require server config:
+Ed25519 signed sync is still supported for non-GitHub CI or local workflows:
 
 ```bash
 {{packageManager}} exec payload-markdown-docs push {{docsRoot}} \
@@ -45,7 +45,7 @@ Sync writes require server config:
   --sync
 ```
 
-Publishing additionally requires `sync.allowPublish: true` and a draft-enabled docs collection.
+Sync writes require `sync.allowWrites: true`. Publishing additionally requires `sync.allowPublish: true` and a draft-enabled docs collection.
 
 ## References
 

@@ -27,6 +27,17 @@ sync: {
 
 Without `allowWrites: true`, `mode: "sync"` is rejected.
 
+## Auth Is Separate
+
+`sync` controls whether accepted requests may write or publish. `auth` controls whether a request is accepted.
+
+Supported auth modes:
+
+- `ed25519` for signed requests with configured public keys.
+- `github-oidc` for GitHub Actions workflows with repository/ref allowlists.
+
+See [GitHub OIDC](/configuration/github-oidc) and [signed push](/workflow/signed-push).
+
 ## Publish Gate
 
 ```ts

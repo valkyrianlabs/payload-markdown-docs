@@ -1,6 +1,6 @@
 import type { Config, PayloadRequest } from 'payload'
 
-import { generateKeyPairSync, sign } from 'node:crypto'
+import { generateKeyPairSync, randomUUID, sign } from 'node:crypto'
 import { describe, expect, it, vi } from 'vitest'
 
 import {
@@ -11,6 +11,7 @@ import { payloadMarkdownDocs } from '../plugin.js'
 import {
   buildCanonicalSigningString,
   getCanonicalPathFromRequestUrl,
+  toBase64Url,
 } from '../security/index.js'
 import {
   buildDocsManifest,
@@ -30,6 +31,11 @@ const keyPair = () =>
       type: 'spki',
       format: 'pem',
     },
+  })
+
+const rsaKeyPair = () =>
+  generateKeyPairSync('rsa', {
+    modulusLength: 2048,
   })
 
 type MockPayload = {
@@ -147,6 +153,65 @@ const signBody = ({
     'X-VL-MD-DOCS-Timestamp': timestamp,
   })
 }
+
+const createOidcTokenFixture = (
+  payloadOverrides: Record<string, unknown> = {},
+) => {
+  const { privateKey, publicKey } = rsaKeyPair()
+  const kid = `kid-${randomUUID()}`
+  const header = {
+    alg: 'RS256',
+    kid,
+    typ: 'JWT',
+  }
+  const payload = {
+    actor: 'octocat',
+    aud: 'payload-markdown-docs',
+    event_name: 'push',
+    exp: Math.floor(now.getTime() / 1000) + 600,
+    iat: Math.floor(now.getTime() / 1000),
+    iss: 'https://token.actions.githubusercontent.com',
+    jti: `jti-${randomUUID()}`,
+    ref: 'refs/heads/main',
+    repository: 'valkyrianlabs/payload-markdown-docs',
+    repository_owner: 'valkyrianlabs',
+    sha: 'abc123',
+    sub: 'repo:valkyrianlabs/payload-markdown-docs:ref:refs/heads/main',
+    ...payloadOverrides,
+  }
+  const encodedHeader = toBase64Url(JSON.stringify(header))
+  const encodedPayload = toBase64Url(JSON.stringify(payload))
+  const signature = sign(
+    'RSA-SHA256',
+    Buffer.from(`${encodedHeader}.${encodedPayload}`),
+    privateKey,
+  )
+  const jwk = {
+    ...publicKey.export({
+      format: 'jwk',
+    }),
+    kid,
+  } as Record<string, unknown>
+
+  return {
+    fetchJson: vi.fn(() => Promise.resolve({
+      keys: [jwk],
+    })),
+    token: `${encodedHeader}.${encodedPayload}.${toBase64Url(signature)}`,
+  }
+}
+
+const oidcHeaders = ({
+  body,
+  token,
+}: {
+  body: string
+  token: string
+}): Headers =>
+  new Headers({
+    Authorization: `Bearer ${token}`,
+    'X-VL-MD-DOCS-Body-SHA256': sha256Hex(body),
+  })
 
 const createRequest = ({
   body,
@@ -279,6 +344,88 @@ const callEndpoint = async ({
 
   return {
     json: (await response.json()) as Record<string, unknown>,
+    response,
+  }
+}
+
+const createOidcEndpointForTests = ({
+  allowPublish = false,
+  allowWrites = false,
+  fetchJson,
+}: {
+  allowPublish?: boolean
+  allowWrites?: boolean
+  fetchJson: NonNullable<Parameters<typeof createSyncEndpoint>[0]['oidcFetchJson']>
+}) =>
+  createSyncEndpoint({
+    allowPublish,
+    allowWrites,
+    auth: {
+      allowedRefs: ['refs/heads/main'],
+      allowedRepositories: ['valkyrianlabs/payload-markdown-docs'],
+      audience: 'payload-markdown-docs',
+      jwksUrl: `https://example.test/${randomUUID()}/jwks`,
+      mode: 'github-oidc',
+    },
+    docsCollectionSlug: 'docs',
+    docsEnabled: true,
+    docsEnableDrafts: true,
+    docsSetsCollectionSlug: DEFAULT_DOCS_SETS_COLLECTION_SLUG,
+    docsSetsEnabled: false,
+    endpointPath: DEFAULT_DOCS_SYNC_ENDPOINT_PATH,
+    getNow: () => now,
+    markdownFieldName: 'content',
+    noncesCollectionSlug: 'docs-sync-nonces',
+    noncesEnabled: true,
+    oidcFetchJson: fetchJson,
+    routeBase: '/docs',
+    sources: [
+      {
+        id: 'main-docs',
+        root: 'docs',
+        routeBase: '/docs',
+      },
+    ],
+    syncRunsCollectionSlug: 'docs-sync-runs',
+    syncRunsEnabled: true,
+  })
+
+const callOidcEndpoint = async ({
+  body = JSON.stringify(createManifest()),
+  endpointOptions = {},
+  headers,
+  payload = createMockPayload(),
+  tokenFixture = createOidcTokenFixture(),
+}: {
+  body?: string
+  endpointOptions?: {
+    allowPublish?: boolean
+    allowWrites?: boolean
+  }
+  headers?: Headers
+  payload?: MockPayload
+  tokenFixture?: ReturnType<typeof createOidcTokenFixture>
+}) => {
+  const endpoint = createOidcEndpointForTests({
+    ...endpointOptions,
+    fetchJson: tokenFixture.fetchJson,
+  })
+  const response = await endpoint.handler(
+    createRequest({
+      body,
+      headers:
+        headers ??
+        oidcHeaders({
+          body,
+          token: tokenFixture.token,
+        }),
+      payload,
+    }),
+  )
+
+  return {
+    json: (await response.json()) as Record<string, unknown>,
+    payload,
     response,
   }
 }
@@ -543,6 +690,98 @@ describe('sync endpoint dry-run handling', () => {
       }),
     )
     expect(payload.create).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: 'docs',
+      }),
+    )
+  })
+
+  it('rejects OIDC requests without Authorization in github-oidc mode', async () => {
+    const body = JSON.stringify(createManifest())
+    const { json, response } = await callOidcEndpoint({
+      body,
+      headers: new Headers({
+        'X-VL-MD-DOCS-Body-SHA256': sha256Hex(body),
+      }),
+    })
+
+    expect(response.status).toBe(401)
+    expect(json.error).toMatchObject({
+      code: 'missing_header',
+    })
+  })
+
+  it('accepts valid GitHub OIDC dry-run requests without Ed25519 headers', async () => {
+    const body = JSON.stringify(createManifest())
+    const payload = createMockPayload()
+    const { json, response } = await callOidcEndpoint({
+      body,
+      payload,
+    })
+
+    expect(response.status).toBe(200)
+    expect(json).toMatchObject({
+      dryRun: true,
+      ok: true,
+      summary: {
+        create: 1,
+      },
+    })
+    expect(payload.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: 'docs-sync-nonces',
+        data: expect.objectContaining({
+          keyId: 'github-oidc:valkyrianlabs/payload-markdown-docs',
+        }),
+      }),
+    )
+    expect(payload.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: 'docs-sync-runs',
+        data: expect.objectContaining({
+          actor: 'octocat',
+          branch: 'refs/heads/main',
+          commit: 'abc123',
+          keyId: 'github-oidc:valkyrianlabs/payload-markdown-docs',
+          repository: 'valkyrianlabs/payload-markdown-docs',
+        }),
+      }),
+    )
+  })
+
+  it('rejects repeated GitHub OIDC jti values as replay', async () => {
+    const { json, response } = await callOidcEndpoint({
+      payload: createMockPayload({
+        replayNonce: true,
+      }),
+    })
+
+    expect(response.status).toBe(409)
+    expect(json.error).toMatchObject({
+      code: 'oidc_replay',
+    })
+  })
+
+  it('applies sync mode with valid GitHub OIDC when writes are enabled', async () => {
+    const body = JSON.stringify(createManifest({ mode: 'sync' }))
+    const payload = createMockPayload()
+    const { json, response } = await callOidcEndpoint({
+      body,
+      endpointOptions: {
+        allowWrites: true,
+      },
+      payload,
+    })
+
+    expect(response.status).toBe(200)
+    expect(json).toMatchObject({
+      dryRun: false,
+      ok: true,
+      summary: {
+        create: 1,
+      },
+    })
+    expect(payload.create).toHaveBeenCalledWith(
       expect.objectContaining({
         collection: 'docs',
       }),

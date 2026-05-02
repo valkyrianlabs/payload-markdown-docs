@@ -34,12 +34,15 @@ const pushValueFlags = new Set([
   'delete-behavior',
   'endpoint',
   'key-id',
+  'oidc-audience',
+  'oidc-token-env',
   'private-key-env',
   'private-key-file',
   ...docsValueFlags,
 ])
 const pushBooleanFlags = new Set([
   'dry-run',
+  'github-oidc',
   'help',
   'json',
   'pretty',
