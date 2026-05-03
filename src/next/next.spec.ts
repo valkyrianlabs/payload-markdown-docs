@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs'
+import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 
 import type {
@@ -8,6 +9,7 @@ import type {
 } from './types.js'
 
 import { getPayloadMarkdownDocsMetadata } from './metadata.js'
+import { PayloadMarkdownDocsPage } from './PayloadMarkdownDocsPage.js'
 import {
   getPayloadMarkdownDocsRoutePath,
   resolvePayloadMarkdownDocsRoute,
@@ -598,6 +600,34 @@ describe('Payload Markdown Docs sidebar helpers', () => {
         label: 'Draft',
       }),
     ])
+  })
+})
+
+describe('Payload Markdown Docs page component', () => {
+  it('renders styled shell defaults for docs routes', async () => {
+    const markup = renderToStaticMarkup(
+      await PayloadMarkdownDocsPage({
+        resolved: {
+          type: 'docsSetIndex',
+          docsSet: resolvedDocsSet,
+          route: '/plugins/payload-markdown',
+          sidebar: [
+            {
+              depth: 0,
+              label: 'Overview',
+              order: 0,
+              route: '/plugins/payload-markdown',
+              sourcePath: 'index.md',
+            },
+          ],
+        },
+      }),
+    )
+
+    expect(markup).toContain('min-h-screen bg-background text-foreground')
+    expect(markup).toContain('lg:grid-cols-[16rem_minmax(0,1fr)]')
+    expect(markup).toContain('aria-label="Docs navigation"')
+    expect(markup).toContain('border-border')
   })
 })
 

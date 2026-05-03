@@ -1,0 +1,33 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+    --color-background: #09090b;
+    --color-foreground: #f4f4f5;
+    --color-muted: #a1a1aa;
+    --color-border: rgb(255 255 255 / 0.1);
+    --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+}
+
+@source "../../src";
+@source "../../dist";
+@source "../../node_modules/@valkyrianlabs/payload-markdown/dist";
+
+@source inline("flex inline-flex items-center gap-1 gap-2 gap-3 gap-4 flex-wrap text-foreground text-foreground/90 border-border bg-background");
+
+/* Base reset / polish */
+:root {
+    color-scheme: dark;
+}
+
+html,
+body {
+    height: 100%;
+}
+
+/* Optional: nicer defaults */
+body {
+    @apply bg-neutral-950 text-neutral-100;
+}

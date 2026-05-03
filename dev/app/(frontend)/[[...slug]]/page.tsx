@@ -5,7 +5,7 @@ import {
   PayloadMarkdownDocsPage,
   resolvePayloadMarkdownDocsRoute,
 } from '@valkyrianlabs/payload-markdown-docs/next'
-import { notFound } from 'next/navigation'
+import { notFound } from 'next/navigation.js'
 import { getPayload } from 'payload'
 
 type PageProps = {
@@ -19,31 +19,37 @@ const Page = async ({ params }: PageProps) => {
 
   if (slug.length === 0) {
     return (
-      <main
-        style={{
-          display: 'grid',
-          gap: '1.25rem',
-          margin: '0 auto',
-          maxWidth: '48rem',
-          padding: '4rem 1.5rem',
-        }}
-      >
+      <main className="mx-auto grid min-h-screen max-w-3xl content-center gap-8 px-6 py-16">
         <div>
-          <h1>Payload Markdown Docs Dev</h1>
-          <p>Local routes for testing the dedicated docs workflow.</p>
+          <p className="mb-3 text-sm font-medium uppercase tracking-wide text-cyan-300">
+            Dev harness
+          </p>
+          <h1 className="text-4xl font-semibold tracking-tight text-foreground">
+            Payload Markdown Docs
+          </h1>
+          <p className="mt-4 max-w-2xl text-base leading-7 text-foreground/70">
+            Local routes for testing the dedicated docs workflow.
+          </p>
         </div>
-        <nav
-          aria-label="Dev routes"
-          style={{
-            display: 'grid',
-            gap: '0.75rem',
-          }}
-        >
-          <a href="/plugins/payload-markdown-docs">Docs overview</a>
-          <a href="/plugins/payload-markdown-docs/getting-started/installation">
+        <nav aria-label="Dev routes" className="grid gap-3 sm:grid-cols-3">
+          <a
+            className="rounded-xl border border-border bg-white/[0.03] p-4 text-sm font-medium text-foreground transition-colors hover:bg-white/[0.06]"
+            href="/plugins/payload-markdown-docs"
+          >
+            Docs overview
+          </a>
+          <a
+            className="rounded-xl border border-border bg-white/[0.03] p-4 text-sm font-medium text-foreground transition-colors hover:bg-white/[0.06]"
+            href="/plugins/payload-markdown-docs/getting-started/installation"
+          >
             Installation fixture
           </a>
-          <a href="/admin">Payload Admin</a>
+          <a
+            className="rounded-xl border border-border bg-white/[0.03] p-4 text-sm font-medium text-foreground transition-colors hover:bg-white/[0.06]"
+            href="/admin"
+          >
+            Payload Admin
+          </a>
         </nav>
       </main>
     )

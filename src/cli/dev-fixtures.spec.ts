@@ -146,4 +146,18 @@ describe('dev harness docs and scripts', () => {
       routeFile.indexOf('notFound()'),
     )
   })
+
+  it('loads Tailwind sources and theme tokens for markdown rendering', async () => {
+    const globals = await readFile('dev/app/globals.css', 'utf8')
+    const layout = await readFile('dev/app/layout.tsx', 'utf8')
+
+    expect(globals).toContain('@import "tailwindcss"')
+    expect(globals).toContain('@plugin "@tailwindcss/typography"')
+    expect(globals).toContain('@source "../../src"')
+    expect(globals).toContain('@source "../../node_modules/@valkyrianlabs/payload-markdown/dist"')
+    expect(globals).toContain('--color-background')
+    expect(globals).toContain('--color-foreground')
+    expect(globals).toContain('--color-border')
+    expect(layout).toContain('className="dark"')
+  })
 })
