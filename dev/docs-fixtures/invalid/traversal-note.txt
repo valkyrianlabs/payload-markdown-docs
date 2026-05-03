@@ -1,0 +1,4 @@
+This non-Markdown file is intentionally ignored by the docs file walker.
+
+It exists so humans can see that invalid support files are not part of the
+happy-path manifest.

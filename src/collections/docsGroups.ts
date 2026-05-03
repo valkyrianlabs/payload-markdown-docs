@@ -10,6 +10,7 @@ export const createDocsGroupsCollection = ({
   slug,
   admin: {
     defaultColumns: ['title', 'routePath', 'serveIndex', 'updatedAt'],
+    group: 'Docs',
     useAsTitle: 'title',
   },
   fields: [

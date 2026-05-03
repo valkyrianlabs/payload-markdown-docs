@@ -183,6 +183,7 @@ The `/docs` tree is also dogfood material for the plugin: it uses supported fron
 - `examples/docs/` is a small fixture docs tree.
 - `examples/github-actions/publish-docs.yml` shows PR dry-run and main-branch sync/publish.
 - `examples/next/app-docs-route.md` shows the native route adapter pattern.
+- `dev/README.md` documents the local end-to-end dev harness for fixtures, seed scripts, signed push, and route adapter checks.
 
 ## Roadmap
 

@@ -18,6 +18,7 @@ export const createDocsSetsCollection = ({
   slug,
   admin: {
     defaultColumns: ['title', 'sourceId', 'routeBase', 'updatedAt'],
+    group: 'Docs',
     useAsTitle: 'title',
   },
   fields: [

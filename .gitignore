@@ -41,9 +41,10 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-.env
+dev/.env
 
 /dev/media
+/dev/.docs-sync/
 
 # Playwright
 /test-results/

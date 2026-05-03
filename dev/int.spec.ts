@@ -107,6 +107,52 @@ describe('payloadMarkdownDocs collection wiring', () => {
     )
   })
 
+  test('uses low-noise default admin sidebar visibility', () => {
+    const transformedConfig = payloadMarkdownDocs({ enabled: true })({
+      collections: [],
+    } as unknown as Config)
+    const docsGroupsCollection = getCollection(
+      transformedConfig,
+      DEFAULT_DOCS_GROUPS_COLLECTION_SLUG,
+    )
+    const docsSetsCollection = getCollection(
+      transformedConfig,
+      DEFAULT_DOCS_SETS_COLLECTION_SLUG,
+    )
+    const docsCollection = getCollection(transformedConfig, DEFAULT_DOCS_COLLECTION_SLUG)
+    const syncRunsCollection = getCollection(
+      transformedConfig,
+      DEFAULT_DOCS_SYNC_RUNS_COLLECTION_SLUG,
+    )
+    const noncesCollection = getCollection(
+      transformedConfig,
+      DEFAULT_DOCS_SYNC_NONCES_COLLECTION_SLUG,
+    )
+
+    expect(docsSetsCollection?.admin).toMatchObject({
+      group: 'Docs',
+      useAsTitle: 'title',
+    })
+    expect(docsSetsCollection?.admin?.hidden).not.toBe(true)
+    expect(docsGroupsCollection?.admin).toMatchObject({
+      group: 'Docs',
+      useAsTitle: 'title',
+    })
+    expect(docsGroupsCollection?.admin?.hidden).not.toBe(true)
+    expect(docsCollection?.admin).toMatchObject({
+      hidden: true,
+      useAsTitle: 'title',
+    })
+    expect(syncRunsCollection?.admin).toMatchObject({
+      hidden: true,
+      useAsTitle: 'sourceId',
+    })
+    expect(noncesCollection?.admin).toMatchObject({
+      hidden: true,
+      useAsTitle: 'nonce',
+    })
+  })
+
   test('custom docs collection slug and markdown field name work', () => {
     const transformedConfig = payloadMarkdownDocs({
       enabled: true,
@@ -150,6 +196,10 @@ describe('payloadMarkdownDocs collection wiring', () => {
     expect(getCollection(transformedConfig, 'kb-docs-sets')).toBeDefined()
     expect(getCollection(transformedConfig, 'kb-sync-runs')).toBeDefined()
     expect(getCollection(transformedConfig, 'kb-sync-nonces')).toBeDefined()
+    expect(getCollection(transformedConfig, 'kb-docs-groups')?.admin?.group).toBe('Docs')
+    expect(getCollection(transformedConfig, 'kb-docs-sets')?.admin?.group).toBe('Docs')
+    expect(getCollection(transformedConfig, 'kb-sync-runs')?.admin?.hidden).toBe(true)
+    expect(getCollection(transformedConfig, 'kb-sync-nonces')?.admin?.hidden).toBe(true)
   })
 
   test('collection disabling is respected', () => {
@@ -209,6 +259,7 @@ describe('payloadMarkdownDocs collection wiring', () => {
     const syncFieldNames = syncField?.fields?.map((field) => field.name)
     const sourcePathField = getField(docsCollection, 'sourcePath')
 
+    expect(docsCollection?.admin?.hidden).toBe(true)
     expect(getField(docsCollection, 'title')?.type).toBe('text')
     expect(getField(docsCollection, 'navTitle')?.type).toBe('text')
     expect(getField(docsCollection, 'description')?.type).toBe('textarea')
@@ -259,6 +310,7 @@ describe('payloadMarkdownDocs collection wiring', () => {
     )
     expect(getField(docsGroupsCollection, 'routePath')?.type).toBe('text')
     expect(getField(docsGroupsCollection, 'serveIndex')?.type).toBe('checkbox')
+    expect(docsGroupsCollection?.admin?.group).toBe('Docs')
   })
 
   test('docs sets collection contains expected fields', () => {
@@ -280,6 +332,7 @@ describe('payloadMarkdownDocs collection wiring', () => {
       DEFAULT_DOCS_GROUPS_COLLECTION_SLUG,
     )
     expect(getField(docsSetsCollection, 'routeBase')?.type).toBe('text')
+    expect(docsSetsCollection?.admin?.group).toBe('Docs')
     expect(defaultsField?.fields?.map((field) => field.name)).toEqual([
       'theme',
       'heroEyebrow',
@@ -431,6 +484,16 @@ describeWithPostgres('payloadMarkdownDocs dev app integration', () => {
     expect(payload?.collections[DEFAULT_DOCS_SETS_COLLECTION_SLUG]).toBeDefined()
     expect(payload?.collections[DEFAULT_DOCS_SYNC_RUNS_COLLECTION_SLUG]).toBeDefined()
     expect(payload?.collections[DEFAULT_DOCS_SYNC_NONCES_COLLECTION_SLUG]).toBeDefined()
+  })
+
+  test('enables the draft-capable generated docs collection in the dev app', () => {
+    const docsCollection = payload?.config
+      ? getCollection(payload.config, DEFAULT_DOCS_COLLECTION_SLUG)
+      : undefined
+
+    expect(docsCollection?.versions).toMatchObject({
+      drafts: expect.any(Object),
+    })
   })
 
   test('registers sync endpoint without template behavior in the dev app', () => {

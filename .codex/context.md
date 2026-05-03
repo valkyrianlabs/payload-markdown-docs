@@ -5,7 +5,7 @@
 - Package/repository name: `@valkyrianlabs/payload-markdown-docs`
 - Package metadata now uses the scoped package name and real description.
 - Purpose: Git-backed Markdown documentation sync into Payload CMS.
-- Current state: Phase 11 GitHub OIDC Auth Mode. The package exports `payloadMarkdownDocs()`, public config types, constants, collection builders, pure sync utilities for path normalization/frontmatter/hashing/manifest validation/planning, route helpers, a request signing helper, a `/next` read-only route adapter export, and an `/admin` export for the docs set manager component. Enabled plugin mode injects docs groups, docs sets, generated docs, sync-run, and nonce collections and registers an authenticated sync endpoint. Disabled mode remains an exact no-op. The CLI supports `validate`, `manifest`, `plan`, `keygen`, authenticated `push` including `push --publish`, GitHub OIDC push via `--github-oidc`, and `install skill --codex` / `install ai-skill --codex`. Sync-mode writes to the dedicated generated docs collection require `sync.allowWrites: true`. Publishing requires `sync.allowPublish: true` and a draft-enabled dedicated docs collection. Hard delete requires `sync.allowHardDelete: true`. The endpoint supports Ed25519 signed requests and GitHub Actions OIDC bearer auth with repository/ref allowlists, body-hash checks, and `jti` replay protection. The endpoint resolves `manifest.source.id` to a docs set when possible, uses the docs set route base, links synced docs to that docs set, and can perform docs-side route collision checks. The `/next` export can resolve docs routes, generate sidebar data, generate metadata, and render a minimal docs page via `@valkyrianlabs/payload-markdown/server`. The docs set edit view includes a read-only Generated Docs overview with summary counts, source-path tree, override summaries, and generated-doc admin links. The root `docs/` tree is real dogfood documentation with valid frontmatter, root-relative internal links, and `payload-markdown` directive examples. The CLI can install a bundled Codex skill pack into `.agents/skills/payload-markdown-docs/`. Existing collection targets, block targets, and inline admin override editing do not exist yet.
+- Current state: Phase 11B Dev Harness and Human Testing Pipeline. The package exports `payloadMarkdownDocs()`, public config types, constants, collection builders, pure sync utilities for path normalization/frontmatter/hashing/manifest validation/planning, route helpers, a request signing helper, a `/next` read-only route adapter export, and an `/admin` export for the docs set manager component. Enabled plugin mode injects docs groups, docs sets, generated docs, sync-run, and nonce collections and registers an authenticated sync endpoint. Disabled mode remains an exact no-op. By default, Payload Admin shows docs sets and docs groups grouped under `Docs`; generated docs, sync runs, and nonces are hidden from the main sidebar as internal/system collections. The CLI supports `validate`, `manifest`, `plan`, `keygen`, authenticated `push` including `push --publish`, GitHub OIDC push via `--github-oidc`, and `install skill --codex` / `install ai-skill --codex`. Sync-mode writes to the dedicated generated docs collection require `sync.allowWrites: true`. Publishing requires `sync.allowPublish: true` and a draft-enabled dedicated docs collection. Hard delete requires `sync.allowHardDelete: true`. The endpoint supports Ed25519 signed requests and GitHub Actions OIDC bearer auth with repository/ref allowlists, body-hash checks, and `jti` replay protection. The endpoint resolves `manifest.source.id` to a docs set when possible, uses the docs set route base, links synced docs to that docs set, and can perform docs-side route collision checks. The `/next` export can resolve docs routes, generate sidebar data, generate metadata, and render a minimal docs page via `@valkyrianlabs/payload-markdown/server`. The docs set edit view includes a read-only Generated Docs overview with summary counts, source-path tree, override summaries, and generated-doc admin links. The root `docs/` tree is real dogfood documentation with valid frontmatter, root-relative internal links, and `payload-markdown` directive examples. The CLI can install a bundled Codex skill pack into `.agents/skills/payload-markdown-docs/`. The `dev/` app now has a dedicated local harness with docs fixtures, seed/reset/keypair scripts, a route adapter catch-all, direct `dev/.env` loading for Payload dev commands, and manual testing instructions. Existing collection targets, block targets, and inline admin override editing do not exist yet.
 
 ## Product Direction
 
@@ -61,7 +61,8 @@ Current source structure:
 - `docs/dedicated-docs-workflow.md` remains a complete default dedicated docs collection workflow page inside the docs set.
 - `examples/docs/` contains a small valid Markdown docs fixture for dogfooding CLI validation/manifest/plan behavior.
 - `examples/github-actions/publish-docs.yml` contains a CI workflow example for pull-request dry-runs and main-branch publish syncs.
-- `dev/` contains the local Payload app used for tests and manual development.
+- `dev/` contains the local Payload app used for tests and manual development. It includes `dev/docs-fixtures/`, `dev/scripts/` keypair/seed/reset helpers, `dev/README.md`, and a frontend route adapter mount at `dev/app/(frontend)/[[...slug]]/page.tsx`.
+- Dev Payload commands intentionally load `dev/.env` through `dev/helpers/loadDevEnv.ts`; do not require or document moving the dev env file to the repository root.
 - `dev/int.spec.ts` contains skeleton tests and a dev app integration smoke test.
 - `dev/e2e.spec.ts` contains Playwright e2e tests.
 - `package.json`, `tsconfig.json`, `.swcrc`, `eslint.config.js`, `vitest.config.js`, and `playwright.config.js` control build/test tooling.
@@ -85,6 +86,12 @@ Discovered scripts in `package.json`:
 - `pnpm clean`
 - `pnpm copyfiles`
 - `pnpm dev`
+- `pnpm dev:docs:keygen`
+- `pnpm dev:docs:manifest`
+- `pnpm dev:docs:plan`
+- `pnpm dev:docs:reset`
+- `pnpm dev:docs:seed`
+- `pnpm dev:docs:validate`
 - `pnpm dev:generate-importmap`
 - `pnpm dev:generate-types`
 - `pnpm dev:payload`
@@ -134,6 +141,10 @@ Focused docs asset tests can be run with:
 
 - `pnpm exec vitest src/cli/docs-assets.spec.ts`
 
+Focused dev harness fixture tests can be run with:
+
+- `pnpm exec vitest src/cli/dev-fixtures.spec.ts`
+
 Focused skill installer tests can be run with:
 
 - `pnpm exec vitest src/cli/skill-install.spec.ts`
@@ -158,6 +169,7 @@ Focused skill installer tests can be run with:
 - Treat `docs/` as real dogfood docs content. Keep frontmatter within the supported subset, keep internal docs links root-relative, and avoid documenting unsupported features as implemented.
 - Users should manage docs groups and docs sets, not hundreds or thousands of Payload Pages.
 - Synced docs records are generated/internal records for routing, search, and sync correctness.
+- Keep the default Payload Admin sidebar low-noise: docs sets and docs groups are user-facing under `Docs`; generated docs, sync runs, and nonce collections are internal/system by default.
 - Route bases are server-owned through docs sets or configured sources. Do not let request bodies choose route bases or target fields.
 - The native route adapter is read-only. It must not create Pages, mutate Pages, or sync one Page per Markdown file.
 - The Docs Set Admin Manager is currently a read-only overview. It should make generated docs understandable from the docs set edit view, but inline override editing should remain a separate, explicit future phase unless implemented carefully.

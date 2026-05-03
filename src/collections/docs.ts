@@ -22,6 +22,7 @@ export const createDocsCollection = ({
   slug,
   admin: {
     defaultColumns: ['title', 'route', 'sourcePath', 'updatedAt'],
+    hidden: true,
     useAsTitle: 'title',
   },
   fields: [

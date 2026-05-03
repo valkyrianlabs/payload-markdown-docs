@@ -12,6 +12,7 @@ export const createNoncesCollection = ({
   slug,
   admin: {
     defaultColumns: ['keyId', 'nonce', 'sourceId', 'expiresAt', 'usedAt'],
+    hidden: true,
     useAsTitle: 'nonce',
   },
   fields: [

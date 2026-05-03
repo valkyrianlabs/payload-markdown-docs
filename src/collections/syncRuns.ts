@@ -10,6 +10,7 @@ export const createSyncRunsCollection = ({
   slug,
   admin: {
     defaultColumns: ['sourceId', 'mode', 'status', 'startedAt', 'completedAt'],
+    hidden: true,
     useAsTitle: 'sourceId',
   },
   fields: [
