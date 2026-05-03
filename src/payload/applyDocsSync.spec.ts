@@ -12,6 +12,7 @@ import {
 } from '../sync/index.js'
 import { applyDocsSync, assertApplyDeleteBehaviorSupported } from './applyDocsSync.js'
 import { buildDocsData } from './docsData.js'
+import { findDocsSetBySourceId } from './docsSets.js'
 import {
   findExistingPayloadDocsRecords,
   toExistingDocsRecord,
@@ -120,6 +121,33 @@ describe('docs sync apply helpers', () => {
     )
   })
 
+  it('preserves numeric docs set ids from Payload records', async () => {
+    const payload = {
+      find: vi.fn(() =>
+        Promise.resolve({
+          docs: [
+            {
+              id: 123,
+              routeBase: '/plugins/payload-markdown-docs',
+              sourceId: 'main-docs',
+              sourceRoot: 'docs',
+            },
+          ],
+        }),
+      ),
+    }
+
+    await expect(
+      findDocsSetBySourceId({
+        collectionSlug: 'docs-sets',
+        payload,
+        sourceId: 'main-docs',
+      }),
+    ).resolves.toMatchObject({
+      id: 123,
+    })
+  })
+
   it('maps validated files to docs collection data with configured markdown field', () => {
     const manifest = getValidatedManifest([
       {
@@ -176,7 +204,7 @@ describe('docs sync apply helpers', () => {
       payload,
       plan,
       publishMode: 'preserve',
-      syncRunId: 'sync-run-1',
+      syncRunId: 456,
     })
 
     expect(result).toMatchObject({ ok: true, writes: { create: 1 } })
@@ -186,7 +214,7 @@ describe('docs sync apply helpers', () => {
         data: expect.objectContaining({
           content: '# Home\n',
           sync: expect.objectContaining({
-            lastSyncRunId: 'sync-run-1',
+            lastSyncRunId: 456,
             sourceHashAtLastSync: sha256Hex('# Home\n'),
           }),
         }),
@@ -207,7 +235,7 @@ describe('docs sync apply helpers', () => {
       collectionSlug: 'docs',
       deleteBehavior: 'archive',
       docsEnableDrafts: false,
-      docsSetId: 'docs-set-1',
+      docsSetId: 123,
       existing: [],
       manifest,
       markdownFieldName: 'content',
@@ -220,7 +248,7 @@ describe('docs sync apply helpers', () => {
     expect(payload.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          docsSet: 'docs-set-1',
+          docsSet: 123,
         }),
       }),
     )

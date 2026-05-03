@@ -16,6 +16,8 @@ export type SyncRunSummary = {
   warnings: number
 }
 
+export type PayloadRecordId = number | string
+
 export type SyncRunsPayloadOperations = {
   create: (args: {
     collection: string
@@ -25,7 +27,7 @@ export type SyncRunsPayloadOperations = {
   update?: (args: {
     collection: string
     data: Record<string, unknown>
-    id: string
+    id: PayloadRecordId
     overrideAccess?: boolean
   }) => Promise<Record<string, unknown>>
 }
@@ -107,9 +109,11 @@ export const createSyncRunAudit = async ({
     overrideAccess: true,
   })
 
-export const getRecordId = (record: Record<string, unknown>): string | undefined => {
+export const getRecordId = (
+  record: Record<string, unknown>,
+): PayloadRecordId | undefined => {
   if (typeof record.id === 'string' || typeof record.id === 'number') {
-    return String(record.id)
+    return record.id
   }
 
   return undefined
@@ -131,7 +135,7 @@ export const updateSyncRunAudit = async ({
   payload: SyncRunsPayloadOperations
   status: SyncRunStatus
   summary?: SyncRunSummary
-  syncRunId: string
+  syncRunId: PayloadRecordId
   warnings?: DocsValidationIssue[]
 }): Promise<Record<string, unknown> | undefined> => {
   if (!payload.update) {

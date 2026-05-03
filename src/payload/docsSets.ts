@@ -10,8 +10,10 @@ export type DocsSetPayloadOperations = {
   }>
 }
 
+export type PayloadRecordId = number | string
+
 export type ResolvedDocsSet = {
-  id: string
+  id: PayloadRecordId
   routeBase: string
   sourceId: string
   sourceRoot?: string
@@ -20,9 +22,9 @@ export type ResolvedDocsSet = {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
 
-const getRecordId = (doc: Record<string, unknown>): string | undefined => {
+const getRecordId = (doc: Record<string, unknown>): PayloadRecordId | undefined => {
   if (typeof doc.id === 'string' || typeof doc.id === 'number') {
-    return String(doc.id)
+    return doc.id
   }
 
   return undefined

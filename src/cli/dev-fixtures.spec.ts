@@ -73,8 +73,6 @@ describe('dev harness docs and scripts', () => {
       sourceId,
       '--root',
       'docs',
-      '--route-base',
-      routeBase,
       '--key-id',
       'dev-local',
       '--private-key-file',
@@ -85,9 +83,11 @@ describe('dev harness docs and scripts', () => {
 
     expect(parsedPush.ok).toBe(true)
     expect(readme).toContain(`--source ${sourceId}`)
-    expect(readme).toContain(`--route-base ${routeBase}`)
+    expect(readme).toContain('--root docs')
+    expect(readme).toContain(`--endpoint "http://localhost:3000/api/${sourceId}/sync"`)
     expect(readme).toContain('--private-key-file dev/.docs-sync/docs-sync-private.pem')
     expect(readme).toContain('node --import @swc-node/register/esm-register ./src/cli/index.ts push')
+    expect(readme).toContain('push ./dev/docs-fixtures/publishing')
     expect(readme).toContain('load `dev/.env` directly')
     expect(readme).not.toContain('pnpm exec payload-markdown-docs push')
     expect(readme).not.toContain('cp dev/.env.example .env')
@@ -137,6 +137,13 @@ describe('dev harness docs and scripts', () => {
 
     expect(routeFile).toContain('resolvePayloadMarkdownDocsRoute')
     expect(routeFile).toContain('PayloadMarkdownDocsPage')
+    expect(routeFile).toContain('slug.length === 0')
+    expect(routeFile).toContain('/plugins/payload-markdown-docs')
+    expect(routeFile).toContain('/plugins/payload-markdown-docs/getting-started/installation')
+    expect(routeFile).toContain('/admin')
     expect(routeFile).toContain('notFound()')
+    expect(routeFile.indexOf('slug.length === 0')).toBeLessThan(
+      routeFile.indexOf('notFound()'),
+    )
   })
 })

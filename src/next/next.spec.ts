@@ -12,7 +12,10 @@ import {
   getPayloadMarkdownDocsRoutePath,
   resolvePayloadMarkdownDocsRoute,
 } from './route.js'
-import { buildPayloadMarkdownDocsSidebar } from './sidebar.js'
+import {
+  buildPayloadMarkdownDocsSidebar,
+  getPayloadMarkdownDocsSidebar,
+} from './sidebar.js'
 
 type TestPayloadData = {
   docs?: Record<string, unknown>[]
@@ -212,6 +215,53 @@ describe('Payload Markdown Docs route adapter', () => {
     expect(resolved?.type === 'doc' ? resolved.sidebar.length : 0).toBe(1)
   })
 
+  it('uses access override for server-side route adapter reads', async () => {
+    const route = '/plugins/payload-markdown/getting-started/installation'
+    const payload = createPayloadMock({
+      docs: [createDoc()],
+      docsSets: [docsSet],
+    })
+
+    await resolvePayloadMarkdownDocsRoute({
+      path: route,
+      payload,
+    })
+
+    expect(payload.find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: 'docs-sets',
+        overrideAccess: true,
+        where: {
+          routeBase: {
+            equals: route,
+          },
+        },
+      }),
+    )
+    expect(payload.find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: 'docs',
+        overrideAccess: true,
+        where: {
+          route: {
+            equals: route,
+          },
+        },
+      }),
+    )
+    expect(payload.find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: 'docs',
+        overrideAccess: true,
+        where: {
+          docsSet: {
+            equals: docsSet.id,
+          },
+        },
+      }),
+    )
+  })
+
   it('resolves a docs set route base with an index doc', async () => {
     const payload = createPayloadMock({
       docs: [
@@ -303,6 +353,46 @@ describe('Payload Markdown Docs route adapter', () => {
     ).resolves.toBeNull()
   })
 
+  it('uses access override for docs group and child docs set reads', async () => {
+    const payload = createPayloadMock({
+      docsGroups: [docsGroup],
+      docsSets: [
+        {
+          ...docsSet,
+          group: docsGroup,
+        },
+      ],
+    })
+
+    await resolvePayloadMarkdownDocsRoute({
+      path: '/plugins',
+      payload,
+    })
+
+    expect(payload.find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: 'docs-groups',
+        overrideAccess: true,
+        where: {
+          routePath: {
+            equals: '/plugins',
+          },
+        },
+      }),
+    )
+    expect(payload.find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: 'docs-sets',
+        overrideAccess: true,
+        where: {
+          group: {
+            equals: docsGroup.id,
+          },
+        },
+      }),
+    )
+  })
+
   it('returns null for unknown routes', async () => {
     const payload = createPayloadMock({
       docs: [],
@@ -365,6 +455,29 @@ describe('Payload Markdown Docs route adapter', () => {
 })
 
 describe('Payload Markdown Docs sidebar helpers', () => {
+  it('uses access override when reading sidebar docs records', async () => {
+    const payload = createPayloadMock({
+      docs: [createDoc()],
+    })
+
+    await getPayloadMarkdownDocsSidebar({
+      docsSet: resolvedDocsSet,
+      payload,
+    })
+
+    expect(payload.find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: 'docs',
+        overrideAccess: true,
+        where: {
+          docsSet: {
+            equals: resolvedDocsSet.id,
+          },
+        },
+      }),
+    )
+  })
+
   it('builds sorted nested sidebar items from docs records', () => {
     const sidebar = buildPayloadMarkdownDocsSidebar(
       [
@@ -388,6 +501,20 @@ describe('Payload Markdown Docs sidebar helpers', () => {
           route: '/plugins/payload-markdown/getting-started/installation',
           sourcePath: 'getting-started/installation.md',
           title: 'Installation',
+        }),
+        resolvedRecord({
+          archived: true,
+          order: 30,
+          route: '/plugins/payload-markdown/archived',
+          sourcePath: 'archived.md',
+          title: 'Archived',
+        }),
+        resolvedRecord({
+          order: 40,
+          route: '/plugins/payload-markdown/draft',
+          sourcePath: 'draft.md',
+          status: 'draft',
+          title: 'Draft',
         }),
         resolvedRecord({
           overrides: {
@@ -422,6 +549,53 @@ describe('Payload Markdown Docs sidebar helpers', () => {
           }),
         ],
         label: 'Configuration',
+      }),
+    ])
+  })
+
+  it('keeps archived and hidden docs out of sidebar when drafts are included', () => {
+    const sidebar = buildPayloadMarkdownDocsSidebar(
+      [
+        resolvedRecord({
+          order: 0,
+          route: '/plugins/payload-markdown',
+          sourcePath: 'index.md',
+          title: 'Overview',
+        }),
+        resolvedRecord({
+          order: 10,
+          route: '/plugins/payload-markdown/draft',
+          sourcePath: 'draft.md',
+          status: 'draft',
+          title: 'Draft',
+        }),
+        resolvedRecord({
+          archived: true,
+          route: '/plugins/payload-markdown/archived',
+          sourcePath: 'archived.md',
+          title: 'Archived',
+        }),
+        resolvedRecord({
+          overrides: {
+            hideFromNav: true,
+          },
+          route: '/plugins/payload-markdown/hidden',
+          sourcePath: 'hidden.md',
+          title: 'Hidden',
+        }),
+      ],
+      {
+        docsSet: resolvedDocsSet,
+        includeDrafts: true,
+      },
+    )
+
+    expect(sidebar).toEqual([
+      expect.objectContaining({
+        label: 'Overview',
+      }),
+      expect.objectContaining({
+        label: 'Draft',
       }),
     ])
   })

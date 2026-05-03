@@ -84,7 +84,7 @@ export const applyDocsSync = async ({
   collectionSlug: string
   deleteBehavior: DocsDeleteBehavior
   docsEnableDrafts: boolean
-  docsSetId?: string
+  docsSetId?: number | string
   existing: ExistingPayloadDocsRecord[]
   manifest: ValidatedDocsManifest
   markdownFieldName: string
@@ -92,7 +92,7 @@ export const applyDocsSync = async ({
   payload: ApplyDocsSyncPayloadOperations
   plan: DocsSyncPlan
   publishMode: DocsPublishMode
-  syncRunId?: string
+  syncRunId?: number | string
 }): Promise<ApplyDocsSyncResult> => {
   const existingBySourcePath = new Map(
     existing.map((record) => [record.sourcePath, record]),

@@ -90,7 +90,7 @@ export const findExistingDocsRouteCollisions = async ({
   sourceId,
 }: {
   collectionSlug: string
-  docsSetId?: string
+  docsSetId?: number | string
   payload: RouteCollisionPayloadOperations
   routes: string[]
   sourceId: string
@@ -121,7 +121,7 @@ export const findExistingDocsRouteCollisions = async ({
     const existingDocsSetId = getRelationshipId(doc.docsSet)
     const existingSourceId = getNestedString(doc, 'sync.sourceId')
     const sameOwner = docsSetId
-      ? existingDocsSetId === docsSetId ||
+      ? existingDocsSetId === String(docsSetId) ||
         (!existingDocsSetId && existingSourceId === sourceId)
       : !existingDocsSetId && existingSourceId === sourceId
 

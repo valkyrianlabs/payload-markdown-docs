@@ -1128,7 +1128,7 @@ const createSyncEndpointHandler =
       usedAt: startedAt,
     })
 
-    let syncRunId: string | undefined
+    let syncRunId: number | string | undefined
 
     if (options.syncRunsEnabled) {
       const syncRun = await createSyncRunAudit({
@@ -1233,7 +1233,7 @@ const createSyncEndpointHandler =
       ok: true,
       publishRequested: validation.data.publish,
       summary,
-      syncRunId,
+      syncRunId: syncRunId === undefined ? undefined : String(syncRunId),
       warnings,
     })
   }

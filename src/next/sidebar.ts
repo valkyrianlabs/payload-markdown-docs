@@ -211,7 +211,9 @@ export const getPayloadMarkdownDocsSidebar = async ({
   docsSet,
   includeDrafts = false,
   markdownField = DEFAULT_MARKDOWN_FIELD_NAME,
-  overrideAccess = false,
+  // Sidebar data reads plugin-owned generated docs server-side.
+  // Access is overridden here, then nav visibility is enforced explicitly.
+  overrideAccess = true,
   payload,
 }: GetPayloadMarkdownDocsSidebarOptions): Promise<PayloadMarkdownDocsSidebarItem[]> => {
   const result = await payload.find({

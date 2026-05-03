@@ -361,7 +361,9 @@ export const resolvePayloadMarkdownDocsRoute = async ({
   collections: collectionOptions,
   includeDrafts = false,
   markdownField = DEFAULT_MARKDOWN_FIELD_NAME,
-  overrideAccess = false,
+  // Route adapter reads plugin-owned generated docs collections server-side.
+  // Access is overridden here, then public visibility is enforced explicitly.
+  overrideAccess = true,
   path,
   payload,
 }: ResolvePayloadMarkdownDocsRouteOptions): Promise<null | ResolvedPayloadMarkdownDocsRoute> => {

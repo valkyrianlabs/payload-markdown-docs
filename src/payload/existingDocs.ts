@@ -14,7 +14,7 @@ export type ExistingDocsPayloadOperations = {
 
 export type ExistingPayloadDocsRecord = {
   content?: string
-  docsSetId?: string
+  docsSetId?: number | string
   id: string
   status?: 'draft' | 'published'
   sync?: {
@@ -127,7 +127,7 @@ export const findExistingPayloadDocsRecords = async ({
   sourceId,
 }: {
   collectionSlug: string
-  docsSetId?: string
+  docsSetId?: number | string
   markdownFieldName: string
   payload: ExistingDocsPayloadOperations
   sourceId: string
@@ -177,7 +177,7 @@ export const findExistingDocsRecords = async ({
   sourceId,
 }: {
   collectionSlug: string
-  docsSetId?: string
+  docsSetId?: number | string
   markdownFieldName: string
   payload: ExistingDocsPayloadOperations
   sourceId: string

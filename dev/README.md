@@ -86,10 +86,9 @@ Dry-run against the local endpoint:
 
 ```bash
 node --import @swc-node/register/esm-register ./src/cli/index.ts push ./dev/docs-fixtures/basic \
-  --endpoint http://localhost:3000/api/payload-markdown-docs/sync \
+  --endpoint "http://localhost:3000/api/payload-markdown-docs/sync" \
   --source payload-markdown-docs \
   --root docs \
-  --route-base /plugins/payload-markdown-docs \
   --key-id dev-local \
   --private-key-file dev/.docs-sync/docs-sync-private.pem \
   --dry-run
@@ -99,10 +98,9 @@ Apply as draft records:
 
 ```bash
 node --import @swc-node/register/esm-register ./src/cli/index.ts push ./dev/docs-fixtures/basic \
-  --endpoint http://localhost:3000/api/payload-markdown-docs/sync \
+  --endpoint "http://localhost:3000/api/payload-markdown-docs/sync" \
   --source payload-markdown-docs \
   --root docs \
-  --route-base /plugins/payload-markdown-docs \
   --key-id dev-local \
   --private-key-file dev/.docs-sync/docs-sync-private.pem \
   --sync
@@ -111,11 +109,10 @@ node --import @swc-node/register/esm-register ./src/cli/index.ts push ./dev/docs
 Apply and publish:
 
 ```bash
-node --import @swc-node/register/esm-register ./src/cli/index.ts push ./dev/docs-fixtures/basic \
-  --endpoint http://localhost:3000/api/payload-markdown-docs/sync \
+node --import @swc-node/register/esm-register ./src/cli/index.ts push ./dev/docs-fixtures/publishing \
+  --endpoint "http://localhost:3000/api/payload-markdown-docs/sync" \
   --source payload-markdown-docs \
   --root docs \
-  --route-base /plugins/payload-markdown-docs \
   --key-id dev-local \
   --private-key-file dev/.docs-sync/docs-sync-private.pem \
   --sync \
@@ -143,6 +140,7 @@ Login:
 
 Check:
 
+- `/` renders the dev landing page with links to Admin and docs routes.
 - The `Docs` sidebar group contains `Sets` and `Groups`.
 - `Docs > Groups` contains `Plugins`.
 - `Docs > Sets` contains `Payload Markdown Docs`.

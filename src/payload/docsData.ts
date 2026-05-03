@@ -10,12 +10,12 @@ export type BuildDocsDataInput = {
   current?: ExistingPayloadDocsRecord
   desired: ValidatedDocsManifestFile
   docsEnableDrafts: boolean
-  docsSetId?: string
+  docsSetId?: number | string
   manifest: ValidatedDocsManifest
   markdownFieldName: string
   now: Date
   publishMode: DocsPublishMode
-  syncRunId?: string
+  syncRunId?: number | string
 }
 
 export type DocsDraftStatus = 'draft' | 'published'
@@ -96,7 +96,7 @@ export const buildArchiveData = ({
   docsEnableDrafts?: boolean
   draftMissing?: boolean
   now: Date
-  syncRunId?: string
+  syncRunId?: number | string
 }): Record<string, unknown> => ({
   ...(draftMissing && docsEnableDrafts ? { _status: 'draft' } : {}),
   sync: {
