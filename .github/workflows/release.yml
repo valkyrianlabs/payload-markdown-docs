@@ -1,0 +1,222 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: npm-production
+  cancel-in-progress: false
+
+jobs:
+  publish-to-npm:
+    name: Publish to npm
+    runs-on: ubuntu-latest
+    environment:
+      name: Production
+      url: https://www.npmjs.com/package/${{ vars.NPM_PACKAGE_NAME }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'pnpm'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        run: |
+          set -euo pipefail
+          corepack enable
+          pnpm install --frozen-lockfile --prefer-offline
+
+      - name: Read package metadata
+        id: pkg
+        shell: bash
+        run: |
+          set -euo pipefail
+          NAME="$(node -p "require('./package.json').name")"
+          VERSION="$(node -p "require('./package.json').version")"
+          PRIVATE="$(node -p "Boolean(require('./package.json').private)")"
+
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "private=$PRIVATE" >> "$GITHUB_OUTPUT"
+
+          echo "Package: $NAME"
+          echo "Version: $VERSION"
+          echo "Private: $PRIVATE"
+
+      - name: Ensure package is publishable
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ steps.pkg.outputs.private }}" = "true" ]; then
+            echo "package.json has private=true; refusing to publish."
+            exit 1
+          fi
+
+      - name: Ensure release tag matches package.json version
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          PKG_VERSION: ${{ steps.pkg.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          EXPECTED_ONE="v${PKG_VERSION}"
+          EXPECTED_TWO="${PKG_VERSION}"
+
+          if [ "$RELEASE_TAG" != "$EXPECTED_ONE" ] && [ "$RELEASE_TAG" != "$EXPECTED_TWO" ]; then
+            echo "Release tag '$RELEASE_TAG' does not match package.json version '$PKG_VERSION'."
+            echo "Expected '$EXPECTED_ONE' or '$EXPECTED_TWO'."
+            exit 1
+          fi
+
+      - name: Ensure version is newer than npm
+        shell: bash
+        env:
+          PKG_NAME: ${{ steps.pkg.outputs.name }}
+          PKG_VERSION: ${{ steps.pkg.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          PUBLISHED_VERSION="$(npm view "$PKG_NAME" version 2>/dev/null || true)"
+
+          if [ -z "$PUBLISHED_VERSION" ]; then
+            echo "Package not found on npm yet. First publish allowed."
+            exit 0
+          fi
+
+          echo "npm version: $PUBLISHED_VERSION"
+          echo "local version: $PKG_VERSION"
+
+          PUBLISHED_VERSION="$PUBLISHED_VERSION" PKG_VERSION="$PKG_VERSION" node - <<'NODE'
+          const published = process.env.PUBLISHED_VERSION;
+          const local = process.env.PKG_VERSION;
+
+          const parse = (v) => {
+            const match = v.match(
+              /^([0-9]+)\.([0-9]+)\.([0-9]+)(?:-([0-9A-Za-z.-]+))?(?:\+([0-9A-Za-z.-]+))?$/
+            );
+            if (!match) return null;
+            return {
+              major: Number(match[1]),
+              minor: Number(match[2]),
+              patch: Number(match[3]),
+              prerelease: match[4] ?? null,
+            };
+          };
+
+          const compareIdentifiers = (a, b) => {
+            const aNum = /^[0-9]+$/.test(a);
+            const bNum = /^[0-9]+$/.test(b);
+            if (aNum && bNum) return Number(a) - Number(b);
+            if (aNum) return -1;
+            if (bNum) return 1;
+            return a.localeCompare(b);
+          };
+
+          const comparePrerelease = (a, b) => {
+            if (a === null && b === null) return 0;
+            if (a === null) return 1;
+            if (b === null) return -1;
+
+            const aParts = a.split('.');
+            const bParts = b.split('.');
+            const len = Math.max(aParts.length, bParts.length);
+
+            for (let i = 0; i < len; i++) {
+              const aPart = aParts[i];
+              const bPart = bParts[i];
+              if (aPart === undefined) return -1;
+              if (bPart === undefined) return 1;
+
+              const cmp = compareIdentifiers(aPart, bPart);
+              if (cmp !== 0) return cmp;
+            }
+
+            return 0;
+          };
+
+          const compare = (a, b) => {
+            if (a.major !== b.major) return a.major - b.major;
+            if (a.minor !== b.minor) return a.minor - b.minor;
+            if (a.patch !== b.patch) return a.patch - b.patch;
+            return comparePrerelease(a.prerelease, b.prerelease);
+          };
+
+          const parsedPublished = parse(published);
+          const parsedLocal = parse(local);
+
+          if (!parsedPublished) {
+            console.error(`Published version is not valid semver: ${published}`);
+            process.exit(1);
+          }
+
+          if (!parsedLocal) {
+            console.error(`Local version is not valid semver: ${local}`);
+            process.exit(1);
+          }
+
+          if (compare(parsedLocal, parsedPublished) <= 0) {
+            console.error(
+              `Refusing publish: local version ${local} is not greater than npm version ${published}`
+            );
+            process.exit(1);
+          }
+
+          console.log(`Version check passed: ${local} > ${published}`);
+          NODE
+
+      - name: Run tests
+        run: |
+          set -euo pipefail
+          pnpm test:int
+
+      - name: Build package
+        run: |
+          set -euo pipefail
+          export NEXT_CPU_COUNT="$(nproc)"
+          pnpm build
+
+      - name: Validate package contents
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          npm pack --dry-run
+
+          TMP_DIR="$(mktemp -d)"
+          TARBALL="$(npm pack --pack-destination "$TMP_DIR" | tail -n 1)"
+          echo "Created tarball: $TMP_DIR/$TARBALL"
+
+          tar -tf "$TMP_DIR/$TARBALL" > "$TMP_DIR/files.txt"
+          echo "Packed files:"
+          cat "$TMP_DIR/files.txt"
+
+          if ! grep -q '^package/package.json$' "$TMP_DIR/files.txt"; then
+            echo "Packed tarball does not contain package.json"
+            exit 1
+          fi
+
+      - name: Publish dry-run
+        run: |
+          set -euo pipefail
+          npm publish --dry-run --access public
+
+      - name: Publish to npm
+        run: |
+          set -euo pipefail
+          npm publish --access public

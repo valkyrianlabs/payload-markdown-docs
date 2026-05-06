@@ -1,5 +1,5 @@
-import type { DocsFrontmatter } from './frontmatter.js'
 import type { DocsAiExportManifest } from './aiExportManifest.js'
+import type { DocsFrontmatter } from './frontmatter.js'
 
 import { sha256Hex } from './hash.js'
 

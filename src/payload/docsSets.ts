@@ -47,6 +47,7 @@ export const updateDocsSetAfterSync = async ({
   }
 
   await payload.update({
+    id: String(docsSetId),
     collection: collectionSlug,
     data: {
       aiExport: aiExport ?? null,
@@ -57,7 +58,6 @@ export const updateDocsSetAfterSync = async ({
         lastSyncRunId: syncRunId,
       },
     },
-    id: String(docsSetId),
     overrideAccess: true,
   })
 }

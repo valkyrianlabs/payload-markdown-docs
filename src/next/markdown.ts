@@ -54,8 +54,8 @@ const resolveCollectionSlugs = (
 })
 
 const getRoutePath = ({
-  path,
   slug,
+  path,
 }: Pick<ResolvePayloadMarkdownDocsRouteOptions, 'path' | 'slug'>): string => {
   if (path !== undefined) {
     return normalizeRoutePath(path)
@@ -105,8 +105,8 @@ const findDocsSetByRouteBase = async ({
 
 const findDocsSetByAiExportOutput = async ({
   collections,
-  overrideAccess,
   output,
+  overrideAccess,
   payload,
 }: {
   collections: ResolvedCollectionSlugs
@@ -353,8 +353,8 @@ export const resolvePayloadMarkdownDocsMarkdownRoute = async ({
   null | ResolvedPayloadMarkdownDocsMarkdownRoute
 > => {
   const route = getRoutePath({
-    path,
     slug,
+    path,
   })
   const collections = resolveCollectionSlugs(collectionOptions)
   const docsSet = await findDocsSetForMarkdownRoute({
@@ -391,6 +391,7 @@ export const resolvePayloadMarkdownDocsMarkdownRoute = async ({
   })
 
   return {
+    type: 'markdown',
     contentType: 'text/markdown; charset=utf-8',
     docsSet,
     markdown: renderMarkdownExport({
@@ -400,14 +401,13 @@ export const resolvePayloadMarkdownDocsMarkdownRoute = async ({
     }),
     output: manifest.output ?? `${docsSet.routeBase}.md`,
     route,
-    type: 'markdown',
     warnings: ordered.warnings,
   }
 }
 
 export const createPayloadMarkdownDocsMarkdownResponse = async (
   options: ResolvePayloadMarkdownDocsMarkdownRouteOptions,
-): Promise<Response | null> => {
+): Promise<null | Response> => {
   const resolved = await resolvePayloadMarkdownDocsMarkdownRoute(options)
 
   if (!resolved) {

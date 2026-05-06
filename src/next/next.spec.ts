@@ -8,9 +8,9 @@ import type {
   ResolvedPayloadMarkdownDocsSet,
 } from './types.js'
 
+import { resolvePayloadMarkdownDocsMarkdownRoute } from './markdown.js'
 import { getPayloadMarkdownDocsMetadata } from './metadata.js'
 import { PayloadMarkdownDocsPage } from './PayloadMarkdownDocsPage.js'
-import { resolvePayloadMarkdownDocsMarkdownRoute } from './markdown.js'
 import {
   getPayloadMarkdownDocsRoutePath,
   resolvePayloadMarkdownDocsRoute,
@@ -519,17 +519,17 @@ describe('Payload Markdown Docs raw Markdown export', () => {
         {
           ...docsSet,
           aiExport: {
-            version: 1,
-            title: 'Payload Markdown Documentation',
             canonical: '/plugins/payload-markdown',
-            output: '/plugins/payload-markdown.md',
             description: 'Consolidated AI docs.',
-            preamble: 'Read the documents in order.',
-            order: ['./index.md', './install.md'],
             exclude: ['./internal.md'],
-            orphans: 'append',
             headingMode: 'normalize',
+            order: ['./index.md', './install.md'],
+            orphans: 'append',
+            output: '/plugins/payload-markdown.md',
+            preamble: 'Read the documents in order.',
             sourcePath: 'index.ai.yml',
+            title: 'Payload Markdown Documentation',
+            version: 1,
           },
         },
       ],
@@ -541,9 +541,9 @@ describe('Payload Markdown Docs raw Markdown export', () => {
     })
 
     expect(resolved).toMatchObject({
+      type: 'markdown',
       contentType: 'text/markdown; charset=utf-8',
       output: '/plugins/payload-markdown.md',
-      type: 'markdown',
     })
     expect(resolved?.markdown.startsWith('# Payload Markdown Documentation')).toBe(
       true,
@@ -582,12 +582,12 @@ describe('Payload Markdown Docs raw Markdown export', () => {
         {
           ...docsSet,
           aiExport: {
-            version: 1,
-            order: ['./index.md'],
             exclude: [],
-            orphans: 'ignore',
             headingMode: 'preserve',
+            order: ['./index.md'],
+            orphans: 'ignore',
             sourcePath: 'index.ai.yml',
+            version: 1,
           },
         },
       ],
@@ -617,13 +617,13 @@ describe('Payload Markdown Docs raw Markdown export', () => {
         {
           ...docsSet,
           aiExport: {
-            version: 1,
-            output: '/ai/payload-markdown.md',
-            order: ['./index.md'],
             exclude: [],
-            orphans: 'append',
             headingMode: 'normalize',
+            order: ['./index.md'],
+            orphans: 'append',
+            output: '/ai/payload-markdown.md',
             sourcePath: 'index.ai.yml',
+            version: 1,
           },
         },
       ],

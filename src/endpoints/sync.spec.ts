@@ -1135,14 +1135,14 @@ describe('sync endpoint dry-run handling', () => {
     const body = JSON.stringify(
       createManifest({
         aiExport: {
-          version: 1,
-          title: 'Payload Markdown Documentation',
-          output: '/plugins/payload-markdown.md',
-          order: ['./index.md'],
           exclude: ['./internal.md'],
-          orphans: 'append',
           headingMode: 'normalize',
+          order: ['./index.md'],
+          orphans: 'append',
+          output: '/plugins/payload-markdown.md',
           sourcePath: 'index.ai.yml',
+          title: 'Payload Markdown Documentation',
+          version: 1,
         },
         mode: 'sync',
       }),

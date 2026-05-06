@@ -21,7 +21,7 @@ export type DocsAiExportManifest = {
   orphans: DocsAiExportOrphans
   output?: string
   preamble?: string
-  sourcePath: (typeof AI_MARKDOWN_EXPORT_MANIFEST_FILENAMES)[number] | string
+  sourcePath: string
   title?: string
   version: 1
 }
@@ -123,8 +123,6 @@ const parseInlineArray = (value: string): string[] | undefined => {
   return body.split(',').map((item) => unquote(item))
 }
 
-const keyLinePattern = /^([A-Za-z][A-Za-z0-9]*):(?:\s*(.*))?$/
-
 const getTopLevelKeyLine = (
   line: string,
 ): { key: string; value: string } | undefined => {
@@ -132,15 +130,22 @@ const getTopLevelKeyLine = (
     return undefined
   }
 
-  const match = keyLinePattern.exec(line.trimEnd())
+  const trimmed = line.trimEnd()
+  const separatorIndex = trimmed.indexOf(':')
 
-  if (!match) {
+  if (separatorIndex <= 0) {
+    return undefined
+  }
+
+  const key = trimmed.slice(0, separatorIndex)
+
+  if (!/^[a-z][a-z0-9]*$/i.test(key)) {
     return undefined
   }
 
   return {
-    key: match[1] ?? '',
-    value: match[2] ?? '',
+    key,
+    value: trimmed.slice(separatorIndex + 1).trimStart(),
   }
 }
 
@@ -251,14 +256,15 @@ const collectList = ({
       break
     }
 
-    const match = /^\s*[-*]\s+(.+)$/.exec(line)
+    const trimmed = line.trimStart()
+    const marker = trimmed[0]
 
-    if (!match) {
+    if ((marker !== '-' && marker !== '*') || trimmed[1] !== ' ') {
       break
     }
 
     sawList = true
-    values.push(unquote(match[1] ?? ''))
+    values.push(unquote(trimmed.slice(2)))
     index += 1
   }
 
@@ -705,4 +711,3 @@ export const isExcludedFromAiExport = ({
       sourcePath,
     }),
   )
-
