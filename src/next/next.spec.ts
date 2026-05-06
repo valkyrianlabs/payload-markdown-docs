@@ -10,6 +10,7 @@ import type {
 
 import { getPayloadMarkdownDocsMetadata } from './metadata.js'
 import { PayloadMarkdownDocsPage } from './PayloadMarkdownDocsPage.js'
+import { resolvePayloadMarkdownDocsMarkdownRoute } from './markdown.js'
 import {
   getPayloadMarkdownDocsRoutePath,
   resolvePayloadMarkdownDocsRoute,
@@ -410,6 +411,27 @@ describe('Payload Markdown Docs route adapter', () => {
     ).resolves.toBeNull()
   })
 
+  it('does not resolve AI export manifest files as normal docs routes', async () => {
+    const payload = createPayloadMock({
+      docs: [
+        createDoc({
+          id: 'ai-manifest',
+          route: '/plugins/payload-markdown/index.ai.yml',
+          sourcePath: 'index.ai.yml',
+          title: 'AI Manifest',
+        }),
+      ],
+      docsSets: [docsSet],
+    })
+
+    await expect(
+      resolvePayloadMarkdownDocsRoute({
+        path: '/plugins/payload-markdown/index.ai.yml',
+        payload,
+      }),
+    ).resolves.toBeNull()
+  })
+
   it('does not resolve archived docs or drafts by default', async () => {
     const archivedPayload = createPayloadMock({
       docs: [
@@ -453,6 +475,215 @@ describe('Payload Markdown Docs route adapter', () => {
     ).resolves.toMatchObject({
       type: 'doc',
     })
+  })
+})
+
+describe('Payload Markdown Docs raw Markdown export', () => {
+  it('assembles raw Markdown from docs records using index.ai.yml ordering', async () => {
+    const payload = createPayloadMock({
+      docs: [
+        createDoc({
+          id: 'doc-index',
+          content: '# Overview\n\nWelcome.\n',
+          order: 0,
+          route: '/plugins/payload-markdown',
+          sourcePath: 'index.md',
+          title: 'Overview',
+        }),
+        createDoc({
+          id: 'doc-usage',
+          content: '# Usage\n\nUse it.\n',
+          order: 30,
+          route: '/plugins/payload-markdown/usage',
+          sourcePath: 'usage.md',
+          title: 'Usage',
+        }),
+        createDoc({
+          id: 'doc-install',
+          content: '# Install\n\nInstall it.\n',
+          order: 20,
+          route: '/plugins/payload-markdown/install',
+          sourcePath: 'install.md',
+          title: 'Install',
+        }),
+        createDoc({
+          id: 'doc-internal',
+          content: '# Internal\n\nSecret.\n',
+          order: 10,
+          route: '/plugins/payload-markdown/internal',
+          sourcePath: 'internal.md',
+          title: 'Internal',
+        }),
+      ],
+      docsSets: [
+        {
+          ...docsSet,
+          aiExport: {
+            version: 1,
+            title: 'Payload Markdown Documentation',
+            canonical: '/plugins/payload-markdown',
+            output: '/plugins/payload-markdown.md',
+            description: 'Consolidated AI docs.',
+            preamble: 'Read the documents in order.',
+            order: ['./index.md', './install.md'],
+            exclude: ['./internal.md'],
+            orphans: 'append',
+            headingMode: 'normalize',
+            sourcePath: 'index.ai.yml',
+          },
+        },
+      ],
+    })
+
+    const resolved = await resolvePayloadMarkdownDocsMarkdownRoute({
+      path: '/plugins/payload-markdown.md',
+      payload,
+    })
+
+    expect(resolved).toMatchObject({
+      contentType: 'text/markdown; charset=utf-8',
+      output: '/plugins/payload-markdown.md',
+      type: 'markdown',
+    })
+    expect(resolved?.markdown.startsWith('# Payload Markdown Documentation')).toBe(
+      true,
+    )
+    expect(resolved?.markdown).toContain('Read the documents in order.')
+    expect(resolved?.markdown).toContain('## Overview')
+    expect(resolved?.markdown).toContain('### Overview')
+    expect(resolved?.markdown).not.toContain('Secret.')
+    expect(resolved?.markdown.indexOf('## Overview')).toBeLessThan(
+      resolved?.markdown.indexOf('## Install') ?? -1,
+    )
+    expect(resolved?.markdown.indexOf('## Install')).toBeLessThan(
+      resolved?.markdown.indexOf('## Usage') ?? -1,
+    )
+  })
+
+  it('omits unlisted docs when manifest orphans is ignore', async () => {
+    const payload = createPayloadMock({
+      docs: [
+        createDoc({
+          id: 'doc-index',
+          content: '# Overview\n',
+          route: '/plugins/payload-markdown',
+          sourcePath: 'index.md',
+          title: 'Overview',
+        }),
+        createDoc({
+          id: 'doc-usage',
+          content: '# Usage\n',
+          route: '/plugins/payload-markdown/usage',
+          sourcePath: 'usage.md',
+          title: 'Usage',
+        }),
+      ],
+      docsSets: [
+        {
+          ...docsSet,
+          aiExport: {
+            version: 1,
+            order: ['./index.md'],
+            exclude: [],
+            orphans: 'ignore',
+            headingMode: 'preserve',
+            sourcePath: 'index.ai.yml',
+          },
+        },
+      ],
+    })
+
+    const resolved = await resolvePayloadMarkdownDocsMarkdownRoute({
+      path: '/plugins/payload-markdown.md',
+      payload,
+    })
+
+    expect(resolved?.markdown).toContain('# Overview')
+    expect(resolved?.markdown).not.toContain('# Usage')
+  })
+
+  it('uses manifest output as an alternate raw Markdown route', async () => {
+    const payload = createPayloadMock({
+      docs: [
+        createDoc({
+          id: 'doc-index',
+          content: '# Overview\n',
+          route: '/plugins/payload-markdown',
+          sourcePath: 'index.md',
+          title: 'Overview',
+        }),
+      ],
+      docsSets: [
+        {
+          ...docsSet,
+          aiExport: {
+            version: 1,
+            output: '/ai/payload-markdown.md',
+            order: ['./index.md'],
+            exclude: [],
+            orphans: 'append',
+            headingMode: 'normalize',
+            sourcePath: 'index.ai.yml',
+          },
+        },
+      ],
+    })
+
+    const resolved = await resolvePayloadMarkdownDocsMarkdownRoute({
+      path: '/ai/payload-markdown.md',
+      payload,
+    })
+
+    expect(resolved?.output).toBe('/ai/payload-markdown.md')
+    expect(resolved?.markdown).toContain('## Overview')
+  })
+
+  it('falls back to deterministic ordering when no AI manifest exists', async () => {
+    const payload = createPayloadMock({
+      docs: [
+        createDoc({
+          id: 'doc-b',
+          content: '# Beta\n',
+          order: 20,
+          route: '/plugins/payload-markdown/beta',
+          sourcePath: 'beta.md',
+          title: 'Beta',
+        }),
+        createDoc({
+          id: 'doc-a',
+          content: '# Alpha\n',
+          order: 10,
+          route: '/plugins/payload-markdown/alpha',
+          sourcePath: 'alpha.md',
+          title: 'Alpha',
+        }),
+      ],
+      docsSets: [docsSet],
+    })
+
+    const resolved = await resolvePayloadMarkdownDocsMarkdownRoute({
+      path: '/plugins/payload-markdown.md',
+      payload,
+    })
+
+    expect(resolved?.markdown.indexOf('## Alpha')).toBeLessThan(
+      resolved?.markdown.indexOf('## Beta') ?? -1,
+    )
+  })
+
+  it('returns null for missing raw Markdown docs set routes', async () => {
+    const payload = createPayloadMock({
+      docs: [],
+      docsGroups: [docsGroup],
+      docsSets: [],
+    })
+
+    await expect(
+      resolvePayloadMarkdownDocsMarkdownRoute({
+        path: '/plugins/missing.md',
+        payload,
+      }),
+    ).resolves.toBeNull()
   })
 })
 

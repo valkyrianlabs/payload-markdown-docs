@@ -1130,6 +1130,64 @@ describe('sync endpoint dry-run handling', () => {
     )
   })
 
+  it('stores validated AI export manifest data on the docs set when syncing', async () => {
+    const { privateKey, publicKey } = keyPair()
+    const body = JSON.stringify(
+      createManifest({
+        aiExport: {
+          version: 1,
+          title: 'Payload Markdown Documentation',
+          output: '/plugins/payload-markdown.md',
+          order: ['./index.md'],
+          exclude: ['./internal.md'],
+          orphans: 'append',
+          headingMode: 'normalize',
+          sourcePath: 'index.ai.yml',
+        },
+        mode: 'sync',
+      }),
+    )
+    const payload = createMockPayload({
+      docsSets: [
+        {
+          id: 'docs-set-1',
+          routeBase: '/plugins/payload-markdown',
+          sourceId: 'main-docs',
+          sourceRoot: 'docs',
+        },
+      ],
+    })
+    const { json, response } = await callEndpoint({
+      body,
+      endpointOptions: {
+        allowWrites: true,
+        docsSetsEnabled: true,
+      },
+      headers: signBody({
+        body,
+        privateKey,
+      }),
+      payload,
+      publicKey: publicKey.toString(),
+    })
+
+    expect(response.status).toBe(200)
+    expect(json.ok).toBe(true)
+    expect(payload.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'docs-set-1',
+        collection: DEFAULT_DOCS_SETS_COLLECTION_SLUG,
+        data: expect.objectContaining({
+          aiExport: expect.objectContaining({
+            order: ['index.md'],
+            output: '/plugins/payload-markdown.md',
+            title: 'Payload Markdown Documentation',
+          }),
+        }),
+      }),
+    )
+  })
+
   it('rejects duplicate routes outside the resolved docs set', async () => {
     const { privateKey, publicKey } = keyPair()
     const body = JSON.stringify(createManifest({ mode: 'sync' }))

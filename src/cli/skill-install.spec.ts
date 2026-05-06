@@ -106,6 +106,23 @@ describe('install skill command', () => {
     expect(skill).toContain('npm exec payload-markdown-docs validate ./content/docs')
     expect(skill).toContain('npm exec payload-markdown-docs plan ./content/docs')
     expect(skill).toContain('npm exec payload-markdown-docs push ./content/docs')
+    expect(skill).toContain('./content/docs/index.ai.yml')
+  })
+
+  it('installs AI export manifest guidance with a valid example', async () => {
+    const root = await createTempRoot()
+    const out = path.join(root, 'skill')
+
+    const result = await runCli(['install', 'skill', '--codex', '--out', out])
+    const skill = await readInstalledFile(out, 'SKILL.md')
+
+    expect(result.exitCode).toBe(0)
+    expect(skill).toContain('create or\nupdate this file automatically')
+    expect(skill).toContain('output: /plugins/payload-markdown.md')
+    expect(skill).toContain('order:\n  - ./index.md')
+    expect(skill).toContain('The manifest is source-controlled alongside the docs')
+    expect(skill).toContain('Do not show the manifest in human docs navigation')
+    expect(skill).toContain('Do not render the manifest as a normal docs page')
   })
 
   it('refuses overwrites unless forced', async () => {

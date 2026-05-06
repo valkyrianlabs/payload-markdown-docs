@@ -21,7 +21,10 @@ export type {
   DocsDraftStatus,
   DocsPublishMode,
 } from './docsData.js'
-export { findDocsSetBySourceId } from './docsSets.js'
+export {
+  findDocsSetBySourceId,
+  updateDocsSetAfterSync,
+} from './docsSets.js'
 export type {
   DocsSetPayloadOperations,
   ResolvedDocsSet,

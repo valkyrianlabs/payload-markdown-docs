@@ -52,3 +52,46 @@ The manifest does not include target collection, target fields, route base, publ
 :::
 
 See [frontmatter](/reference/frontmatter).
+
+## AI Export Manifest
+
+`docs/index.ai.yml` is a separate source-controlled YAML manifest for the
+AI-facing raw Markdown export. The CLI parses it during manifest generation and
+the sync endpoint stores the validated control data on the docs set. The file is
+not a docs page and is not shown in human docs navigation.
+
+Preferred path:
+
+```text
+docs/index.ai.yml
+```
+
+`docs/index.ai.yaml` is also supported. Plain `docs/index.yml` is intentionally
+not used because that name is too generic for future human docs navigation,
+metadata, sidebar, or indexing features.
+
+```yaml
+version: 1
+title: Payload Markdown Documentation
+canonical: /plugins/payload-markdown
+output: /plugins/payload-markdown.md
+description: >
+  Consolidated AI-facing documentation export for Payload Markdown.
+preamble: |
+  This file is intended for AI agents, editor tooling, Codex, ChatGPT,
+  and offline reference.
+order:
+  - ./index.md
+  - ./install.md
+orphans: append
+headingMode: normalize
+```
+
+Supported first-pass behavior:
+
+- `orphans: append` includes unlisted docs at the end using deterministic fallback order.
+- `orphans: ignore` omits unlisted docs.
+- `headingMode: normalize` renders each page under a generated section heading and shifts nested headings down.
+- `headingMode: preserve` keeps original Markdown headings as-is.
+
+Defaults are `orphans: append` and `headingMode: normalize`.

@@ -8,6 +8,12 @@ export type DocsSetPayloadOperations = {
   }) => Promise<{
     docs: unknown[]
   }>
+  update?: (args: {
+    collection: string
+    data: Record<string, unknown>
+    id: string
+    overrideAccess?: boolean
+  }) => Promise<Record<string, unknown>>
 }
 
 export type PayloadRecordId = number | string
@@ -17,6 +23,43 @@ export type ResolvedDocsSet = {
   routeBase: string
   sourceId: string
   sourceRoot?: string
+}
+
+export const updateDocsSetAfterSync = async ({
+  aiExport,
+  collectionSlug,
+  docsCount,
+  docsSetId,
+  now,
+  payload,
+  syncRunId,
+}: {
+  aiExport?: unknown
+  collectionSlug: string
+  docsCount: number
+  docsSetId: PayloadRecordId
+  now: Date
+  payload: DocsSetPayloadOperations
+  syncRunId?: PayloadRecordId
+}): Promise<void> => {
+  if (!payload.update) {
+    return
+  }
+
+  await payload.update({
+    collection: collectionSlug,
+    data: {
+      aiExport: aiExport ?? null,
+      sync: {
+        docsCount,
+        lastStatus: 'success',
+        lastSyncedAt: now.toISOString(),
+        lastSyncRunId: syncRunId,
+      },
+    },
+    id: String(docsSetId),
+    overrideAccess: true,
+  })
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>

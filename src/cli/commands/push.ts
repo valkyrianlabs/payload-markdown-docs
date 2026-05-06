@@ -18,7 +18,10 @@ import {
   sha256Hex,
   validateDocsManifest,
 } from '../../sync/index.js'
-import { walkDocsFiles } from '../filesystem.js'
+import {
+  readDocsAiExportManifest,
+  walkDocsFiles,
+} from '../filesystem.js'
 import { formatIssues, formatPushSummary, printJson } from '../format.js'
 import {
   getJson,
@@ -338,7 +341,19 @@ export const runPushCommand = async (
   const files = await walkDocsFiles({
     root: options.docsRoot,
   })
+  const aiExport = await readDocsAiExportManifest({
+    root: options.docsRoot,
+  })
+
+  if (!aiExport.ok) {
+    return {
+      exitCode: 1,
+      stderr: `AI export manifest is invalid.\n\nErrors:\n${formatIssues(aiExport.issues)}\n`,
+    }
+  }
+
   const manifest = buildDocsManifest({
+    aiExport: aiExport.manifest,
     branch: options.branch,
     commit: options.commit,
     deleteBehavior: options.deleteBehavior ?? 'archive',

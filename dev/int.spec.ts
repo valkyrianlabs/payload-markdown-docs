@@ -332,6 +332,7 @@ describe('payloadMarkdownDocs collection wiring', () => {
       DEFAULT_DOCS_GROUPS_COLLECTION_SLUG,
     )
     expect(getField(docsSetsCollection, 'routeBase')?.type).toBe('text')
+    expect(getField(docsSetsCollection, 'aiExport')?.type).toBe('json')
     expect(docsSetsCollection?.admin?.group).toBe('Docs')
     expect(defaultsField?.fields?.map((field) => field.name)).toEqual([
       'theme',

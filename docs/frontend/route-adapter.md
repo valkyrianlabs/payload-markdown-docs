@@ -62,3 +62,38 @@ The helper resolves:
 4. `null` for normal fallback routes
 
 See [metadata](/frontend/metadata) and [sidebar](/frontend/sidebar).
+
+## Raw Markdown Export
+
+Use `createPayloadMarkdownDocsMarkdownResponse` from the `/next` export for an
+AI-facing `.md` route. It returns `text/markdown; charset=utf-8`, does not render
+React, and assembles generated docs records according to `docs/index.ai.yml`
+when that manifest was included in the docs sync.
+
+```ts
+import { notFound } from 'next/navigation'
+import { getPayload } from 'payload'
+import config from '@payload-config'
+import {
+  createPayloadMarkdownDocsMarkdownResponse,
+} from '@valkyrianlabs/payload-markdown-docs/next'
+
+export async function GET({
+  params,
+}: {
+  params: Promise<{ slug?: string[] }>
+}) {
+  const { slug } = await params
+  const payload = await getPayload({ config })
+  const response = await createPayloadMarkdownDocsMarkdownResponse({
+    payload,
+    slug,
+  })
+
+  if (response) {
+    return response
+  }
+
+  notFound()
+}
+```

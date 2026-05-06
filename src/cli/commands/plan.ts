@@ -11,7 +11,10 @@ import {
   planDocsSync,
   validateDocsManifest,
 } from '../../sync/index.js'
-import { walkDocsFiles } from '../filesystem.js'
+import {
+  readDocsAiExportManifest,
+  walkDocsFiles,
+} from '../filesystem.js'
 import { formatIssues, formatPlanSummary, printJson } from '../format.js'
 import { getFlagBoolean, getFlagString } from '../parseArgs.js'
 import { getDocsCommandOptions } from './validate.js'
@@ -99,8 +102,20 @@ export const runPlanCommand = async (args: ParsedCliArgs): Promise<CliResult> =>
   const files = await walkDocsFiles({
     root: options.docsRoot,
   })
+  const aiExport = await readDocsAiExportManifest({
+    root: options.docsRoot,
+  })
+
+  if (!aiExport.ok) {
+    return {
+      exitCode: 1,
+      stderr: `AI export manifest is invalid.\n\nErrors:\n${formatIssues(aiExport.issues)}\n`,
+    }
+  }
+
   const deleteBehavior = deleteBehaviorFlag as DocsDeleteBehavior | undefined
   const manifest = buildDocsManifest({
+    aiExport: aiExport.manifest,
     branch: options.branch,
     commit: options.commit,
     deleteBehavior,

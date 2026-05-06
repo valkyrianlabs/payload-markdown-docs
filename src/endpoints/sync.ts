@@ -41,6 +41,7 @@ import {
   findExistingPayloadDocsRecords,
   getRecordId,
   toExistingDocsRecord,
+  updateDocsSetAfterSync,
   updateSyncRunAudit,
 } from '../payload/index.js'
 import {
@@ -1204,6 +1205,18 @@ const createSyncEndpointHandler =
           syncRunId,
           warnings,
         })
+
+        if (sourceResolution.source.docsSet) {
+          await updateDocsSetAfterSync({
+            aiExport: validation.data.aiExport,
+            collectionSlug: options.docsSetsCollectionSlug,
+            docsCount: validation.data.files.length,
+            docsSetId: sourceResolution.source.docsSet.id,
+            now: options.getNow?.() ?? new Date(),
+            payload: req.payload as unknown as DocsSetPayloadOperations,
+            syncRunId,
+          })
+        }
       } catch (error) {
         await updateSyncRunAudit({
           collectionSlug: options.syncRunsCollectionSlug,

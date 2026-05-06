@@ -1,3 +1,5 @@
+import type { DocsAiExportManifest } from '../sync/index.js'
+
 export type PayloadMarkdownDocsFindArgs = {
   collection: string
   depth?: number
@@ -51,6 +53,7 @@ export type PayloadMarkdownDocsOverrides = {
 }
 
 export type ResolvedPayloadMarkdownDocsSet = {
+  aiExport?: DocsAiExportManifest
   defaults?: PayloadMarkdownDocsDefaults
   description?: string
   id: string

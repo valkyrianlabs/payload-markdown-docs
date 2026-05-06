@@ -106,6 +106,14 @@ export const createDocsSetsCollection = ({
       ],
     },
     {
+      name: 'aiExport',
+      type: 'json',
+      admin: {
+        description:
+          'Parsed index.ai.yml control data for the raw Markdown AI export route.',
+      },
+    },
+    {
       name: 'sync',
       type: 'group',
       fields: [

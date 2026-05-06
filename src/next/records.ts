@@ -7,6 +7,10 @@ import type {
 } from './types.js'
 
 import { normalizeRoutePath } from '../routing/index.js'
+import {
+  isAiMarkdownExportManifestPath,
+  validateDocsAiExportManifest,
+} from '../sync/index.js'
 
 export const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -111,7 +115,13 @@ export const toResolvedDocsSet = (
     return undefined
   }
 
+  const aiExportValidation =
+    doc.aiExport === undefined || doc.aiExport === null
+      ? undefined
+      : validateDocsAiExportManifest(doc.aiExport)
+
   return {
+    ...(aiExportValidation?.ok ? { aiExport: aiExportValidation.manifest } : {}),
     id,
     slug: getOptionalString(doc, 'slug'),
     defaults: toDefaults(doc.defaults),
@@ -203,6 +213,10 @@ export const isVisibleDocsRecord = ({
   record: ResolvedPayloadMarkdownDocsRecord
 }): boolean => {
   if (record.archived) {
+    return false
+  }
+
+  if (isAiMarkdownExportManifestPath(record.sourcePath)) {
     return false
   }
 

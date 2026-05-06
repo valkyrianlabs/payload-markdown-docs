@@ -2,7 +2,10 @@ import { readFile } from 'node:fs/promises'
 import { describe, expect, it } from 'vitest'
 
 import { buildDocsManifest, planDocsSync, validateDocsManifest } from '../sync/index.js'
-import { walkDocsFiles } from './filesystem.js'
+import {
+  readDocsAiExportManifest,
+  walkDocsFiles,
+} from './filesystem.js'
 
 const docsRoot = 'docs'
 const workflowPath = 'examples/github-actions/publish-docs.yml'
@@ -22,7 +25,11 @@ describe('dogfood docs assets', () => {
     const files = await walkDocsFiles({
       root: docsRoot,
     })
+    const aiExport = await readDocsAiExportManifest({
+      root: docsRoot,
+    })
     const manifest = buildDocsManifest({
+      aiExport: aiExport.ok ? aiExport.manifest : undefined,
       files,
       root: 'docs',
       sourceId: 'main-docs',
@@ -33,6 +40,7 @@ describe('dogfood docs assets', () => {
     })
 
     expect(validated.ok).toBe(true)
+    expect(aiExport.ok).toBe(true)
     expect(files.length).toBeGreaterThan(20)
 
     if (!validated.ok) {
@@ -42,6 +50,7 @@ describe('dogfood docs assets', () => {
     expect(validated.data.files.find((file) => file.path === 'index.md')?.route).toBe(
       '/plugins/payload-markdown-docs',
     )
+    expect(validated.data.aiExport?.output).toBe('/plugins/payload-markdown-docs.md')
   })
 
   it('plans the dogfood docs as creates against an empty target', async () => {

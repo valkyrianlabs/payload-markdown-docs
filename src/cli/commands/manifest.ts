@@ -4,7 +4,10 @@ import {
   buildDocsManifest,
   validateDocsManifest,
 } from '../../sync/index.js'
-import { walkDocsFiles } from '../filesystem.js'
+import {
+  readDocsAiExportManifest,
+  walkDocsFiles,
+} from '../filesystem.js'
 import { formatIssues, printJson } from '../format.js'
 import { getFlagBoolean } from '../parseArgs.js'
 import { getDocsCommandOptions } from './validate.js'
@@ -21,7 +24,19 @@ export const runManifestCommand = async (
   const files = await walkDocsFiles({
     root: options.docsRoot,
   })
+  const aiExport = await readDocsAiExportManifest({
+    root: options.docsRoot,
+  })
+
+  if (!aiExport.ok) {
+    return {
+      exitCode: 1,
+      stderr: `AI export manifest is invalid.\n\nErrors:\n${formatIssues(aiExport.issues)}\n`,
+    }
+  }
+
   const manifest = buildDocsManifest({
+    aiExport: aiExport.manifest,
     branch: options.branch,
     commit: options.commit,
     files,
@@ -48,4 +63,3 @@ export const runManifestCommand = async (
     stdout: printJson(manifest, getFlagBoolean(args, 'pretty')),
   }
 }
-

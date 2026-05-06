@@ -47,6 +47,11 @@ Default output:
     github-actions.md
 ```
 
+The installed skill also teaches agents to create and maintain
+`docs/index.ai.yml`. That manifest is source-controlled with the Markdown docs,
+controls the generated raw Markdown export such as `/plugins/payload-markdown.md`,
+and is not rendered as a human docs page or shown in human docs navigation.
+
 ## Options
 
 ```bash
@@ -64,6 +69,8 @@ Use `--dry-run` to preview files and `--force` to overwrite existing skill files
 - use supported frontmatter only
 - use supported `payload-markdown` directives
 - keep internal links root-relative inside the docs set
+- create and maintain `docs/index.ai.yml` from the actual docs files present
+- use `docs/index.ai.yml` as the preferred ordering source for the `.md` export
 - run validate and plan before finishing
 - use signed dry-run/sync push only when explicitly requested
 - respect server-owned sync, publish, and hard-delete gates

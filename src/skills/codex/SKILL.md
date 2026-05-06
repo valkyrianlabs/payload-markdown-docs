@@ -16,6 +16,107 @@ The docs source lives in `{{docsRoot}}` unless the user says otherwise. Edit Mar
 - Run validation before finishing docs edits.
 - Treat sync and publishing as server-owned. The request may ask; the Payload plugin decides.
 
+## AI Markdown Export Manifest
+
+Treat `{{docsRoot}}/index.ai.yml` as part of the standard docs package.
+When creating, scaffolding, migrating, or updating Payload Markdown docs, create or
+update this file automatically. Do not wait for the user to request it.
+
+The manifest is source-controlled alongside the docs. It controls the generated
+AI-facing raw Markdown route, usually `/plugins/<docs-package>.md`, while the
+human docs continue to render at `/plugins/<docs-package>`.
+
+Rules for `index.ai.yml`:
+
+- Prefer `index.ai.yml`; `index.ai.yaml` is supported when already present.
+- Generate `order` from the actual Markdown files present under `{{docsRoot}}`.
+- Update `order` in the same change when docs pages are added, renamed, moved, or removed.
+- Do not invent page names just to fill the manifest.
+- Do not show the manifest in human docs navigation.
+- Do not render the manifest as a normal docs page.
+- Use it as the canonical ordering source for the `.md` export.
+- Avoid backend hand-sorting unless the project already has a docs sort field.
+
+Ordering source preference:
+
+1. `{{docsRoot}}/index.ai.yml`
+2. `{{docsRoot}}/index.ai.yaml`
+3. existing docs/nav order field
+4. deterministic fallback order: title, slug/path, id
+
+Default ordering pattern when applicable:
+
+1. `index.md`
+2. installation/setup docs
+3. basic usage docs
+4. rendering docs
+5. blocks/component docs
+6. styling/theming docs
+7. configuration docs
+8. advanced docs
+9. examples
+10. troubleshooting/reference
+
+Supported first-pass values:
+
+- `orphans: append`
+- `orphans: ignore`
+- `headingMode: normalize`
+- `headingMode: preserve`
+
+Defaults are `orphans: append` and `headingMode: normalize`.
+
+Example manifest:
+
+```yaml
+version: 1
+
+title: Payload Markdown Documentation
+canonical: /plugins/payload-markdown
+output: /plugins/payload-markdown.md
+
+description: >
+  Consolidated AI-facing documentation export for Payload Markdown.
+
+preamble: |
+  This file is intended for AI agents, editor tooling, Codex, ChatGPT,
+  and offline reference.
+
+  Read the documents in the listed order. Installation and basic usage
+  should be treated as prerequisite context before rendering, styling,
+  configuration, or advanced examples.
+
+order:
+  - ./index.md
+  - ./install.md
+  - ./usage.md
+  - ./rendering.md
+  - ./blocks.md
+  - ./styling.md
+  - ./configuration.md
+  - ./examples.md
+
+exclude:
+  - ./drafts/**
+  - ./internal.md
+
+orphans: append
+headingMode: normalize
+```
+
+Manifest fields:
+
+- `version`: manifest format version.
+- `title`: title of the generated Markdown export.
+- `canonical`: canonical human-facing docs URL.
+- `output`: canonical AI-facing Markdown export URL.
+- `description`: short summary included near the top of the export.
+- `preamble`: AI-facing usage note included before page content.
+- `order`: ordered list of docs files to include first.
+- `exclude`: glob/path list of docs to omit from the AI export.
+- `orphans`: behavior for docs not listed in `order`.
+- `headingMode`: heading normalization behavior.
+
 ## Default Workflow
 
 ```bash
@@ -64,8 +165,9 @@ Sync writes require `sync.allowWrites: true`. Publishing additionally requires `
 Before finishing:
 
 1. Confirm changed docs have valid frontmatter.
-2. Confirm internal links are root-relative.
-3. Confirm directives match the reference.
-4. Run validate.
-5. Run plan when sync behavior matters.
-6. Report any validation failures instead of guessing.
+2. Confirm `index.ai.yml` matches the current docs files.
+3. Confirm internal links are root-relative.
+4. Confirm directives match the reference.
+5. Run validate.
+6. Run plan when sync behavior matters.
+7. Report any validation failures instead of guessing.

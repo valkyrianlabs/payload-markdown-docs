@@ -10,7 +10,10 @@ import {
   buildDocsManifest,
   validateDocsManifest,
 } from '../../sync/index.js'
-import { walkDocsFiles } from '../filesystem.js'
+import {
+  readDocsAiExportManifest,
+  walkDocsFiles,
+} from '../filesystem.js'
 import { formatValidationSummary, printJson } from '../format.js'
 import {
   getFlagBoolean,
@@ -66,7 +69,28 @@ export const runValidateCommand = async (
   const files = await walkDocsFiles({
     root: options.docsRoot,
   })
+  const aiExport = await readDocsAiExportManifest({
+    root: options.docsRoot,
+  })
+
+  if (!aiExport.ok) {
+    return {
+      exitCode: 1,
+      stdout: formatValidationSummary({
+        fileCount: files.length,
+        root: options.docsRoot,
+        sourceId: options.sourceId,
+        validation: {
+          issues: aiExport.issues,
+          ok: false,
+          warnings: aiExport.warnings,
+        },
+      }),
+    }
+  }
+
   const manifest = buildDocsManifest({
+    aiExport: aiExport.manifest,
     branch: options.branch,
     commit: options.commit,
     files,
@@ -80,6 +104,10 @@ export const runValidateCommand = async (
     maxTotalBytes: options.maxTotalBytes,
     routeBase: options.routeBase,
   })
+  const validationWithReadWarnings = {
+    ...validation,
+    warnings: [...aiExport.warnings, ...validation.warnings],
+  } as typeof validation
 
   if (getFlagBoolean(args, 'json')) {
     return {
@@ -88,7 +116,7 @@ export const runValidateCommand = async (
         fileCount: files.length,
         root: options.docsRoot,
         sourceId: options.sourceId,
-        validation,
+        validation: validationWithReadWarnings,
       }, getFlagBoolean(args, 'pretty')),
     }
   }
@@ -99,8 +127,7 @@ export const runValidateCommand = async (
       fileCount: files.length,
       root: options.docsRoot,
       sourceId: options.sourceId,
-      validation,
+      validation: validationWithReadWarnings,
     }),
   }
 }
-

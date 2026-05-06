@@ -14,6 +14,7 @@ import {
   DEFAULT_MAX_DOCS_FILES,
   DEFAULT_MAX_DOCS_TOTAL_BYTES,
 } from '../constants.js'
+import { validateDocsAiExportManifest } from './aiExportManifest.js'
 import {
   parseDocsFrontmatter,
   resolveDocsTitle,
@@ -27,6 +28,7 @@ export type DocsValidationErrorCode =
   | 'empty_manifest'
   | 'file_too_large'
   | 'invalid_delete_behavior'
+  | 'invalid_ai_export_manifest'
   | 'invalid_frontmatter'
   | 'invalid_hash'
   | 'invalid_manifest'
@@ -35,6 +37,7 @@ export type DocsValidationErrorCode =
   | 'invalid_source'
   | 'invalid_version'
   | 'manifest_too_large'
+  | 'missing_ai_export_order_path'
   | 'non_markdown_file'
   | 'path_traversal'
   | 'too_many_files'
@@ -438,7 +441,23 @@ export const validateDocsManifest = (
     )
   }
 
-  if (issues.length > 0 || !sourceValidation.source) {
+  const aiExportValidation =
+    manifest.aiExport === undefined
+      ? undefined
+      : validateDocsAiExportManifest(manifest.aiExport, {
+          knownDocsPaths: normalizedPaths,
+        })
+
+  if (aiExportValidation) {
+    issues.push(...aiExportValidation.issues)
+    warnings.push(...aiExportValidation.warnings)
+  }
+
+  if (
+    issues.length > 0 ||
+    !sourceValidation.source ||
+    aiExportValidation?.ok === false
+  ) {
     return {
       issues,
       ok: false,
@@ -449,6 +468,7 @@ export const validateDocsManifest = (
   return {
     data: {
       deleteBehavior: deleteBehaviorValidation.deleteBehavior,
+      ...(aiExportValidation?.ok ? { aiExport: aiExportValidation.manifest } : {}),
       files: validatedFiles,
       mode: modeValidation.mode,
       publish,
