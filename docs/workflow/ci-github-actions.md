@@ -32,7 +32,9 @@ Required secret or environment value:
 
 - `DOCS_SYNC_ENDPOINT`
 
-The server must be configured with `auth.mode: 'github-oidc'`, the expected audience, and a repository/ref allowlist.
+The server must be configured with `auth.githubOidc`, the expected audience,
+and a repository/ref allowlist. It may also keep `auth.ed25519` enabled for
+local machines or non-GitHub CI on the same endpoint.
 
 ## Ed25519 Secrets
 

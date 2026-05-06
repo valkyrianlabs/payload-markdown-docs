@@ -4,7 +4,7 @@ import {
   verify,
 } from 'node:crypto'
 
-import type { PayloadMarkdownDocsAuthConfig } from '../types.js'
+import type { PayloadMarkdownDocsGitHubOidcAuthConfig } from '../types.js'
 import type { FetchJson } from './jwks.js'
 
 import {
@@ -71,10 +71,7 @@ export type VerifyGitHubOidcTokenResult =
       token: VerifiedGitHubOidcToken
     }
 
-type GitHubOidcAuthConfig = Extract<
-  PayloadMarkdownDocsAuthConfig,
-  { mode: 'github-oidc' }
->
+type GitHubOidcAuthConfig = PayloadMarkdownDocsGitHubOidcAuthConfig
 
 const isString = (value: unknown): value is string =>
   typeof value === 'string' && value.trim() !== ''

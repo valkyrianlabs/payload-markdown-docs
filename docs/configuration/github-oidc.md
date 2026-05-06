@@ -24,10 +24,11 @@ payloadMarkdownDocs({
   enabled: true,
 
   auth: {
-    mode: 'github-oidc',
-    audience: 'payload-markdown-docs',
-    allowedRepositories: ['valkyrianlabs/payload-markdown-docs'],
-    allowedRefs: ['refs/heads/main'],
+    githubOidc: {
+      audience: 'payload-markdown-docs',
+      allowedRepositories: ['valkyrianlabs/payload-markdown-docs'],
+      allowedRefs: ['refs/heads/main'],
+    },
   },
 
   target: {
@@ -38,6 +39,27 @@ payloadMarkdownDocs({
   sync: {
     allowWrites: true,
     allowPublish: true,
+  },
+})
+```
+
+You can also keep Ed25519 enabled on the same endpoint:
+
+```ts
+payloadMarkdownDocs({
+  auth: {
+    ed25519: {
+      keys: [
+        {
+          id: 'non-github-ci',
+          publicKey: process.env.DOCS_SYNC_PUBLIC_KEY!,
+        },
+      ],
+    },
+    githubOidc: {
+      audience: 'payload-markdown-docs',
+      allowedRepositories: ['valkyrianlabs/payload-markdown-docs'],
+    },
   },
 })
 ```

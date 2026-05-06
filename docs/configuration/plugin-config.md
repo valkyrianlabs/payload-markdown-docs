@@ -32,13 +32,19 @@ payloadMarkdownDocs({
   enabled: true,
 
   auth: {
-    mode: 'ed25519',
-    keys: [
-      {
-        id: 'github-actions-main',
-        publicKey: process.env.DOCS_SYNC_PUBLIC_KEY!,
-      },
-    ],
+    ed25519: {
+      keys: [
+        {
+          id: 'github-actions-main',
+          publicKey: process.env.DOCS_SYNC_PUBLIC_KEY!,
+        },
+      ],
+    },
+    githubOidc: {
+      audience: 'payload-markdown-docs',
+      allowedRepositories: ['valkyrianlabs/payload-markdown-docs'],
+      allowedWorkflows: ['Release'],
+    },
   },
 
   target: {
@@ -66,7 +72,8 @@ payloadMarkdownDocs({
 
 ## Main Sections
 
-- `auth` configures signed request verification.
+- `auth` configures sync request verification. Use `ed25519`, `githubOidc`, or
+  both on the same endpoint.
 - `target` configures the dedicated generated docs collection.
 - `sources` is a fallback source allow-list when a docs set is not found.
 - `sync` controls write, publish, and delete authority.

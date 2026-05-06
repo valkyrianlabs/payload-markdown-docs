@@ -21,7 +21,11 @@ import type {
   PlannedDocChange,
   ValidatedDocsManifest,
 } from '../sync/index.js'
-import type { PayloadMarkdownDocsAuthConfig } from '../types.js'
+import type {
+  PayloadMarkdownDocsAuthConfig,
+  PayloadMarkdownDocsEd25519AuthConfig,
+  PayloadMarkdownDocsGitHubOidcAuthConfig,
+} from '../types.js'
 
 import {
   DEFAULT_DOCS_ROUTE_BASE,
@@ -581,6 +585,50 @@ const getBearerToken = (headers: Headers): string | undefined => {
   return token
 }
 
+const hasEd25519AuthHeaders = (headers: Headers): boolean =>
+  getRequiredHeader(headers, 'x-vl-md-docs-key-id') !== undefined ||
+  getRequiredHeader(headers, 'x-vl-md-docs-signature') !== undefined ||
+  getRequiredHeader(headers, 'x-vl-md-docs-timestamp') !== undefined ||
+  getRequiredHeader(headers, 'x-vl-md-docs-nonce') !== undefined
+
+const getEd25519AuthConfig = (
+  auth: PayloadMarkdownDocsAuthConfig | undefined,
+): PayloadMarkdownDocsEd25519AuthConfig | undefined => {
+  if (!auth || auth.mode === 'disabled' || auth.mode === 'github-oidc') {
+    return undefined
+  }
+
+  if (auth.mode === 'ed25519') {
+    return auth
+  }
+
+  return auth.ed25519
+    ? {
+        ...auth.ed25519,
+        mode: 'ed25519',
+      }
+    : undefined
+}
+
+const getGitHubOidcAuthConfig = (
+  auth: PayloadMarkdownDocsAuthConfig | undefined,
+): PayloadMarkdownDocsGitHubOidcAuthConfig | undefined => {
+  if (!auth || auth.mode === 'disabled' || auth.mode === 'ed25519') {
+    return undefined
+  }
+
+  if (auth.mode === 'github-oidc') {
+    return auth
+  }
+
+  return auth.githubOidc
+    ? {
+        ...auth.githubOidc,
+        mode: 'github-oidc',
+      }
+    : undefined
+}
+
 const assertReplayProtectionAvailable = (
   options: CreateSyncEndpointOptions,
 ): Response | undefined =>
@@ -593,11 +641,13 @@ const assertReplayProtectionAvailable = (
       )
 
 const authenticateEd25519Request = async ({
+  auth,
   now,
   options,
   rawBody,
   req,
 }: {
+  auth: PayloadMarkdownDocsEd25519AuthConfig
   now: Date
   options: CreateSyncEndpointOptions
   rawBody: string
@@ -612,16 +662,6 @@ const authenticateEd25519Request = async ({
       response: Response
     }
 > => {
-  if (!options.auth || options.auth.mode !== 'ed25519') {
-    return {
-      response: errorResponse(
-        'auth_disabled',
-        'Signed sync authentication is not configured for this endpoint.',
-        401,
-      ),
-    }
-  }
-
   const headersResult = extractSyncRequestHeaders(req.headers)
 
   if (!headersResult.ok) {
@@ -634,7 +674,7 @@ const authenticateEd25519Request = async ({
     }
   }
 
-  const keyConfig = options.auth.keys.find(
+  const keyConfig = auth.keys.find(
     (key) => key.id === headersResult.headers.keyId,
   )
 
@@ -661,7 +701,7 @@ const authenticateEd25519Request = async ({
 
   const timestampValidation = validateTimestampSkew({
     maxSkewSeconds:
-      options.auth.maxSkewSeconds ??
+      auth.maxSkewSeconds ??
       options.maxSkewSeconds ??
       DEFAULT_MAX_SKEW_SECONDS,
     now,
@@ -733,7 +773,7 @@ const authenticateEd25519Request = async ({
   }
 
   const nonceTtlSeconds =
-    options.auth.nonceTtlSeconds ??
+    auth.nonceTtlSeconds ??
     options.nonceTtlSeconds ??
     DEFAULT_NONCE_TTL_SECONDS
 
@@ -748,11 +788,13 @@ const authenticateEd25519Request = async ({
 }
 
 const authenticateGitHubOidcRequest = async ({
+  auth,
   now,
   options,
   rawBody,
   req,
 }: {
+  auth: PayloadMarkdownDocsGitHubOidcAuthConfig
   now: Date
   options: CreateSyncEndpointOptions
   rawBody: string
@@ -767,16 +809,6 @@ const authenticateGitHubOidcRequest = async ({
       response: Response
     }
 > => {
-  if (!options.auth || options.auth.mode !== 'github-oidc') {
-    return {
-      response: errorResponse(
-        'auth_disabled',
-        'GitHub OIDC sync authentication is not configured for this endpoint.',
-        401,
-      ),
-    }
-  }
-
   const token = getBearerToken(req.headers)
 
   if (token === undefined) {
@@ -830,7 +862,7 @@ const authenticateGitHubOidcRequest = async ({
   }
 
   const verified = await verifyGitHubOidcToken({
-    config: options.auth,
+    config: auth,
     fetchJson: options.oidcFetchJson,
     now,
     token,
@@ -906,7 +938,10 @@ const authenticateSyncRequest = async ({
       response: Response
     }
 > => {
-  if (!options.auth || options.auth.mode === 'disabled') {
+  const ed25519Auth = getEd25519AuthConfig(options.auth)
+  const githubOidcAuth = getGitHubOidcAuthConfig(options.auth)
+
+  if (!ed25519Auth && !githubOidcAuth) {
     return {
       response: errorResponse(
         'auth_disabled',
@@ -916,8 +951,21 @@ const authenticateSyncRequest = async ({
     }
   }
 
-  if (options.auth.mode === 'github-oidc') {
+  const bearerToken = getBearerToken(req.headers)
+
+  if (bearerToken !== undefined) {
+    if (!githubOidcAuth) {
+      return {
+        response: errorResponse(
+          'auth_disabled',
+          'GitHub OIDC sync authentication is not configured for this endpoint.',
+          401,
+        ),
+      }
+    }
+
     return authenticateGitHubOidcRequest({
+      auth: githubOidcAuth,
       now,
       options,
       rawBody,
@@ -925,7 +973,28 @@ const authenticateSyncRequest = async ({
     })
   }
 
-  return authenticateEd25519Request({
+  if (hasEd25519AuthHeaders(req.headers) || !githubOidcAuth) {
+    if (!ed25519Auth) {
+      return {
+        response: errorResponse(
+          'auth_disabled',
+          'Signed sync authentication is not configured for this endpoint.',
+          401,
+        ),
+      }
+    }
+
+    return authenticateEd25519Request({
+      auth: ed25519Auth,
+      now,
+      options,
+      rawBody,
+      req,
+    })
+  }
+
+  return authenticateGitHubOidcRequest({
+    auth: githubOidcAuth,
     now,
     options,
     rawBody,

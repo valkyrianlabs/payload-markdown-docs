@@ -390,6 +390,55 @@ const createOidcEndpointForTests = ({
     syncRunsEnabled: true,
   })
 
+const createMultiAuthEndpointForTests = ({
+  fetchJson,
+  publicKey,
+}: {
+  fetchJson: NonNullable<Parameters<typeof createSyncEndpoint>[0]['oidcFetchJson']>
+  publicKey: string
+}) =>
+  createSyncEndpoint({
+    auth: {
+      ed25519: {
+        keys: [
+          {
+            id: 'test-key',
+            publicKey,
+          },
+        ],
+        maxSkewSeconds: 300,
+        nonceTtlSeconds: 600,
+      },
+      githubOidc: {
+        allowedRefs: ['refs/heads/main'],
+        allowedRepositories: ['valkyrianlabs/payload-markdown-docs'],
+        audience: 'payload-markdown-docs',
+        jwksUrl: `https://example.test/${randomUUID()}/jwks`,
+      },
+    },
+    docsCollectionSlug: 'docs',
+    docsEnabled: true,
+    docsEnableDrafts: true,
+    docsSetsCollectionSlug: DEFAULT_DOCS_SETS_COLLECTION_SLUG,
+    docsSetsEnabled: false,
+    endpointPath: DEFAULT_DOCS_SYNC_ENDPOINT_PATH,
+    getNow: () => now,
+    markdownFieldName: 'content',
+    noncesCollectionSlug: 'docs-sync-nonces',
+    noncesEnabled: true,
+    oidcFetchJson: fetchJson,
+    routeBase: '/docs',
+    sources: [
+      {
+        id: 'main-docs',
+        root: 'docs',
+        routeBase: '/docs',
+      },
+    ],
+    syncRunsCollectionSlug: 'docs-sync-runs',
+    syncRunsEnabled: true,
+  })
+
 const callOidcEndpoint = async ({
   body = JSON.stringify(createManifest()),
   endpointOptions = {},
@@ -747,6 +796,51 @@ describe('sync endpoint dry-run handling', () => {
         }),
       }),
     )
+  })
+
+  it('accepts Ed25519 and GitHub OIDC requests on one endpoint', async () => {
+    const { privateKey, publicKey } = keyPair()
+    const tokenFixture = createOidcTokenFixture()
+    const endpoint = createMultiAuthEndpointForTests({
+      fetchJson: tokenFixture.fetchJson,
+      publicKey: publicKey.toString(),
+    })
+    const body = JSON.stringify(createManifest())
+
+    const signedResponse = await endpoint.handler(
+      createRequest({
+        body,
+        headers: signBody({
+          body,
+          nonce: 'ed25519-nonce',
+          privateKey,
+        }),
+      }),
+    )
+    const signedBody = (await signedResponse.json()) as Record<string, unknown>
+
+    expect(signedResponse.status).toBe(200)
+    expect(signedBody).toMatchObject({
+      ok: true,
+      syncRunId: 'docs-sync-runs-id',
+    })
+
+    const oidcResponse = await endpoint.handler(
+      createRequest({
+        body,
+        headers: oidcHeaders({
+          body,
+          token: tokenFixture.token,
+        }),
+      }),
+    )
+    const oidcBody = (await oidcResponse.json()) as Record<string, unknown>
+
+    expect(oidcResponse.status).toBe(200)
+    expect(oidcBody).toMatchObject({
+      ok: true,
+      syncRunId: 'docs-sync-runs-id',
+    })
   })
 
   it('rejects repeated GitHub OIDC jti values as replay', async () => {

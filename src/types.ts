@@ -16,32 +16,51 @@ export type PayloadMarkdownDocsEndpointConfig = {
 
 export type PayloadMarkdownDocsAuthConfig =
   | {
-      allowedEnvironments?: string[]
-      allowedRefs?: string[]
-      allowedRepositories?: string[]
-      allowedRepositoryOwners?: string[]
-      allowedWorkflowRefs?: string[]
-      allowedWorkflows?: string[]
-      allowPullRequests?: boolean
-      audience: string
-      issuer?: string
-      jwksUrl?: string
-      maxSkewSeconds?: number
-      mode: 'github-oidc'
-    }
-  | {
-      keys: PayloadMarkdownDocsEd25519Key[]
-      maxSkewSeconds?: number
-      mode: 'ed25519'
-      nonceTtlSeconds?: number
-    }
-  | {
       mode: 'disabled'
     }
+  | PayloadMarkdownDocsCombinedAuthConfig
+  | PayloadMarkdownDocsEd25519AuthConfig
+  | PayloadMarkdownDocsGitHubOidcAuthConfig
+
+export type PayloadMarkdownDocsCombinedAuthConfig = {
+  ed25519?: PayloadMarkdownDocsEd25519AuthOptions
+  githubOidc?: PayloadMarkdownDocsGitHubOidcAuthOptions
+  mode?: 'multi'
+}
+
+export type PayloadMarkdownDocsEd25519AuthConfig =
+  {
+    mode: 'ed25519'
+  } & PayloadMarkdownDocsEd25519AuthOptions
+
+export type PayloadMarkdownDocsEd25519AuthOptions = {
+  keys: PayloadMarkdownDocsEd25519Key[]
+  maxSkewSeconds?: number
+  nonceTtlSeconds?: number
+}
 
 export type PayloadMarkdownDocsEd25519Key = {
   id: string
   publicKey: string
+}
+
+export type PayloadMarkdownDocsGitHubOidcAuthConfig =
+  {
+    mode: 'github-oidc'
+  } & PayloadMarkdownDocsGitHubOidcAuthOptions
+
+export type PayloadMarkdownDocsGitHubOidcAuthOptions = {
+  allowedEnvironments?: string[]
+  allowedRefs?: string[]
+  allowedRepositories?: string[]
+  allowedRepositoryOwners?: string[]
+  allowedWorkflowRefs?: string[]
+  allowedWorkflows?: string[]
+  allowPullRequests?: boolean
+  audience: string
+  issuer?: string
+  jwksUrl?: string
+  maxSkewSeconds?: number
 }
 
 export type PayloadMarkdownDocsCollectionConfig = {

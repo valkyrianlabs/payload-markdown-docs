@@ -50,11 +50,20 @@ export default buildConfig({
       enabled: true,
 
       auth: {
-        mode: 'github-oidc',
-        audience: 'payload-markdown-docs',
-        allowedRepositories: ['valkyrianlabs/payload-markdown-docs'],
-        allowedWorkflows: ['Release'],
-        allowedEnvironments: ['Production'],
+        ed25519: {
+          keys: [
+            {
+              id: 'local-or-non-github-ci',
+              publicKey: process.env.DOCS_SYNC_PUBLIC_KEY!,
+            },
+          ],
+        },
+        githubOidc: {
+          audience: 'payload-markdown-docs',
+          allowedRepositories: ['valkyrianlabs/payload-markdown-docs'],
+          allowedWorkflows: ['Release'],
+          allowedEnvironments: ['Production'],
+        },
       },
 
       target: {
@@ -87,6 +96,9 @@ What this does:
 - Adds docs groups, docs sets, generated docs, sync run, and nonce collections.
 - Registers the default Payload custom endpoint at
   `/api/payload-markdown-docs/sync`.
+- Accepts either Ed25519 signed requests or GitHub OIDC bearer requests on the
+  same endpoint. Omit either `ed25519` or `githubOidc` if you only want one auth
+  method.
 - Allows only the configured GitHub repository, workflow, and environment to
   authenticate with OIDC.
 - Allows sync writes and publish requests, while archiving removed docs instead
