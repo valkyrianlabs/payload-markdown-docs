@@ -324,6 +324,7 @@ describe('payloadMarkdownDocs collection wiring', () => {
       DEFAULT_DOCS_SETS_COLLECTION_SLUG,
     )
     const defaultsField = getGroupField(docsSetsCollection, 'defaults')
+    const authField = getGroupField(docsSetsCollection, 'auth')
     const syncField = getGroupField(docsSetsCollection, 'sync')
 
     expect(getField(docsSetsCollection, 'title')?.type).toBe('text')
@@ -336,6 +337,10 @@ describe('payloadMarkdownDocs collection wiring', () => {
     expect(getField(docsSetsCollection, 'routeBase')?.type).toBe('text')
     expect(getField(docsSetsCollection, 'aiExport')?.type).toBe('json')
     expect(docsSetsCollection?.admin?.group).toBe('Docs')
+    expect(authField?.fields?.map((field) => field.name)).toEqual([
+      'ed25519',
+      'githubOidc',
+    ])
     expect(defaultsField?.fields?.map((field) => field.name)).toEqual([
       'theme',
       'heroEyebrow',

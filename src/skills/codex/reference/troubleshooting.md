@@ -10,7 +10,8 @@ Check that the workflow uses `--github-oidc`, grants `id-token: write`, and requ
 
 ## OIDC repository or ref not allowed
 
-Check server OIDC allowlists. The request may ask; the server decides which repository and ref are trusted.
+Check the docs set OIDC allowlists. The request may ask; the CMS decides which
+repository and ref are trusted.
 
 ## OIDC replay
 
@@ -26,7 +27,7 @@ Generate a fresh request. Do not reuse signed headers.
 
 ## Source not allowed
 
-Create or update a docs set with the expected `sourceId`, or update server fallback sources.
+Create or update a docs set with the expected `sourceId`.
 
 ## Publish disabled
 

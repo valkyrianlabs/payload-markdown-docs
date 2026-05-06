@@ -188,6 +188,63 @@ export interface DocsSet {
   description?: string | null;
   navTitle?: string | null;
   order?: number | null;
+  auth?: {
+    ed25519?: {
+      keys?:
+        | {
+            keyId: string;
+            publicKey: string;
+            id?: string | null;
+          }[]
+        | null;
+      maxSkewSeconds?: number | null;
+      nonceTtlSeconds?: number | null;
+    };
+    githubOidc?: {
+      enabled?: boolean | null;
+      audience?: string | null;
+      allowedRepositories?:
+        | {
+            value: string;
+            id?: string | null;
+          }[]
+        | null;
+      allowedRepositoryOwners?:
+        | {
+            value: string;
+            id?: string | null;
+          }[]
+        | null;
+      allowedRefs?:
+        | {
+            value: string;
+            id?: string | null;
+          }[]
+        | null;
+      allowedWorkflows?:
+        | {
+            value: string;
+            id?: string | null;
+          }[]
+        | null;
+      allowedWorkflowRefs?:
+        | {
+            value: string;
+            id?: string | null;
+          }[]
+        | null;
+      allowedEnvironments?:
+        | {
+            value: string;
+            id?: string | null;
+          }[]
+        | null;
+      allowPullRequests?: boolean | null;
+      issuer?: string | null;
+      jwksUrl?: string | null;
+      maxSkewSeconds?: number | null;
+    };
+  };
   defaults?: {
     theme?: string | null;
     heroEyebrow?: string | null;
@@ -487,6 +544,69 @@ export interface DocsSetsSelect<T extends boolean = true> {
   description?: T;
   navTitle?: T;
   order?: T;
+  auth?:
+    | T
+    | {
+        ed25519?:
+          | T
+          | {
+              keys?:
+                | T
+                | {
+                    keyId?: T;
+                    publicKey?: T;
+                    id?: T;
+                  };
+              maxSkewSeconds?: T;
+              nonceTtlSeconds?: T;
+            };
+        githubOidc?:
+          | T
+          | {
+              enabled?: T;
+              audience?: T;
+              allowedRepositories?:
+                | T
+                | {
+                    value?: T;
+                    id?: T;
+                  };
+              allowedRepositoryOwners?:
+                | T
+                | {
+                    value?: T;
+                    id?: T;
+                  };
+              allowedRefs?:
+                | T
+                | {
+                    value?: T;
+                    id?: T;
+                  };
+              allowedWorkflows?:
+                | T
+                | {
+                    value?: T;
+                    id?: T;
+                  };
+              allowedWorkflowRefs?:
+                | T
+                | {
+                    value?: T;
+                    id?: T;
+                  };
+              allowedEnvironments?:
+                | T
+                | {
+                    value?: T;
+                    id?: T;
+                  };
+              allowPullRequests?: T;
+              issuer?: T;
+              jwksUrl?: T;
+              maxSkewSeconds?: T;
+            };
+      };
   defaults?:
     | T
     | {

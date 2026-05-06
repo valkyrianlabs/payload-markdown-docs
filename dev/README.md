@@ -25,9 +25,12 @@ The dev Payload config and dev Payload scripts load `dev/.env` directly. Keep th
 pnpm dev:docs:keygen
 ```
 
-This writes `dev/.docs-sync/docs-sync-public.pem` and `dev/.docs-sync/docs-sync-private.pem`. The directory is ignored. Do not commit private keys.
+This writes `dev/.docs-sync/docs-sync-public.pem` and
+`dev/.docs-sync/docs-sync-private.pem`. The directory is ignored. Do not commit
+private keys.
 
-The dev Payload config reads the public key in this order:
+The docs seed script reads the public key in this order and stores it on the
+seeded docs set:
 
 - `DOCS_SYNC_PUBLIC_KEY`
 - `DOCS_SYNC_PUBLIC_KEY_FILE`
@@ -53,6 +56,7 @@ Seeded docs set:
 - sourceId: `payload-markdown-docs`
 - sourceRoot: `docs`
 - routeBase: `/plugins/payload-markdown-docs`
+- auth: Ed25519 key id `dev-local` unless `DOCS_SYNC_KEY_ID` is set
 
 4. Start the dev server:
 
@@ -60,7 +64,8 @@ Seeded docs set:
 pnpm dev
 ```
 
-If the server was already running when keys were generated, restart it so the config can read the public key.
+If the server was already running when keys were generated, rerun
+`pnpm dev:docs:seed` so the docs set stores the public key.
 
 ## Local Commands
 

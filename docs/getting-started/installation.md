@@ -48,27 +48,15 @@ payloadMarkdownDocs({
   enabled: true,
 
   auth: {
-    mode: 'ed25519',
-    keys: [
-      {
-        id: 'github-actions-main',
-        publicKey: process.env.DOCS_SYNC_PUBLIC_KEY!,
-      },
-    ],
+    githubOidc: {
+      audience: 'payload-markdown-docs',
+    },
   },
 
   target: {
     type: 'docsCollection',
     enableDrafts: true,
   },
-
-  sources: [
-    {
-      id: 'main-docs',
-      root: 'docs',
-      routeBase: '/docs',
-    },
-  ],
 
   sync: {
     allowWrites: true,
@@ -79,6 +67,10 @@ payloadMarkdownDocs({
   },
 })
 ```
+
+Create a docs set in Payload Admin for each docs package. The docs set owns
+`sourceId`, `sourceRoot`, `routeBase`, and source-specific auth policy such as
+GitHub repository allowlists or Ed25519 public keys.
 
 :::callout {variant="warning" title="Writes are opt-in"}
 `mode: "sync"` requests are rejected unless the server has `sync.allowWrites: true`. Publish requests are rejected unless `sync.allowPublish: true` and drafts are enabled for the dedicated docs collection.

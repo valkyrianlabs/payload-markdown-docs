@@ -89,6 +89,7 @@ describe('dev harness docs and scripts', () => {
     expect(readme).toContain('node --import @swc-node/register/esm-register ./src/cli/index.ts push')
     expect(readme).toContain('push ./dev/docs-fixtures/publishing')
     expect(readme).toContain('load `dev/.env` directly')
+    expect(readme).toContain('stores it on the')
     expect(readme).not.toContain('pnpm exec payload-markdown-docs push')
     expect(readme).not.toContain('cp dev/.env.example .env')
     expect(readme).not.toMatch(/\bmv\s+dev\/\.env/i)
@@ -121,12 +122,15 @@ describe('dev harness docs and scripts', () => {
     const seedScript = await readFile('dev/scripts/seed-docs.ts', 'utf8')
 
     expect(helper).toContain('group: groupId')
+    expect(helper).toContain('auth:')
+    expect(helper).toContain('publicKey,')
     expect(helper).toContain('sourceId: devDocsSourceId')
     expect(helper).toContain(`routeBase: '${routeBase}'`)
     expect(helper).toContain("sourceRoot: 'docs'")
     expect(helper).not.toContain('String(groupId)')
     expect(seedScript).toContain('buildDevDocsSetSeedData({')
     expect(seedScript).toContain('groupId,')
+    expect(seedScript).toContain('publicKey: docsSyncPublicKey,')
   })
 
   it('mounts the dev frontend route adapter catch-all', async () => {
@@ -149,7 +153,7 @@ describe('dev harness docs and scripts', () => {
 
   it('loads Tailwind sources and theme tokens for markdown rendering', async () => {
     const globals = await readFile('dev/app/globals.css', 'utf8')
-    const layout = await readFile('dev/app/layout.tsx', 'utf8')
+    const layout = await readFile('dev/app/(frontend)/layout.tsx', 'utf8')
 
     expect(globals).toContain('@import "tailwindcss"')
     expect(globals).toContain('@plugin "@tailwindcss/typography"')

@@ -23,6 +23,7 @@ import type {
 } from '../sync/index.js'
 import type {
   PayloadMarkdownDocsAuthConfig,
+  PayloadMarkdownDocsDocsSetAuthConfig,
   PayloadMarkdownDocsEd25519AuthConfig,
   PayloadMarkdownDocsGitHubOidcAuthConfig,
 } from '../types.js'
@@ -262,6 +263,7 @@ const getAllowedSourceIds = (
 
 type ResolvedSyncSource = {
   allowedSourceIds?: string[]
+  auth?: PayloadMarkdownDocsDocsSetAuthConfig
   docsSet?: ResolvedDocsSet
   routeBase: string
   sourceRoot?: string
@@ -323,6 +325,7 @@ const resolveSyncSource = async ({
     return {
       source: {
         allowedSourceIds: [sourceId],
+        auth: docsSet.auth,
         docsSet,
         routeBase: docsSet.routeBase,
         sourceRoot: docsSet.sourceRoot,
@@ -332,11 +335,16 @@ const resolveSyncSource = async ({
 
   const sourceConfig = findSourceConfig(sourceId, options.sources)
 
-  if (options.sources && options.sources.length > 0 && !sourceConfig) {
+  if (
+    (options.docsSetsEnabled || (options.sources && options.sources.length > 0)) &&
+    !sourceConfig
+  ) {
     return {
       response: errorResponse(
         'source_not_allowed',
-        `Manifest source.id "${sourceId}" is not configured for this endpoint.`,
+        options.docsSetsEnabled
+          ? `No docs set exists for manifest source.id "${sourceId}". Create a docs set in Payload Admin before syncing this source.`
+          : `Manifest source.id "${sourceId}" is not configured for this endpoint.`,
         400,
       ),
     }
@@ -591,7 +599,7 @@ const hasEd25519AuthHeaders = (headers: Headers): boolean =>
   getRequiredHeader(headers, 'x-vl-md-docs-timestamp') !== undefined ||
   getRequiredHeader(headers, 'x-vl-md-docs-nonce') !== undefined
 
-const getEd25519AuthConfig = (
+const getGlobalEd25519AuthConfig = (
   auth: PayloadMarkdownDocsAuthConfig | undefined,
 ): PayloadMarkdownDocsEd25519AuthConfig | undefined => {
   if (!auth || auth.mode === 'disabled' || auth.mode === 'github-oidc') {
@@ -610,7 +618,28 @@ const getEd25519AuthConfig = (
     : undefined
 }
 
-const getGitHubOidcAuthConfig = (
+const getEd25519AuthConfig = ({
+  auth,
+  sourceAuth,
+}: {
+  auth: PayloadMarkdownDocsAuthConfig | undefined
+  sourceAuth?: PayloadMarkdownDocsDocsSetAuthConfig
+}): PayloadMarkdownDocsEd25519AuthConfig | undefined => {
+  const globalAuth = getGlobalEd25519AuthConfig(auth)
+
+  if (sourceAuth?.ed25519?.keys.length) {
+    return {
+      ...globalAuth,
+      ...sourceAuth.ed25519,
+      keys: sourceAuth.ed25519.keys,
+      mode: 'ed25519',
+    }
+  }
+
+  return globalAuth
+}
+
+const getGlobalGitHubOidcAuthConfig = (
   auth: PayloadMarkdownDocsAuthConfig | undefined,
 ): PayloadMarkdownDocsGitHubOidcAuthConfig | undefined => {
   if (!auth || auth.mode === 'disabled' || auth.mode === 'ed25519') {
@@ -627,6 +656,39 @@ const getGitHubOidcAuthConfig = (
         mode: 'github-oidc',
       }
     : undefined
+}
+
+const getGitHubOidcAuthConfig = ({
+  auth,
+  sourceAuth,
+}: {
+  auth: PayloadMarkdownDocsAuthConfig | undefined
+  sourceAuth?: PayloadMarkdownDocsDocsSetAuthConfig
+}): PayloadMarkdownDocsGitHubOidcAuthConfig | undefined => {
+  const globalAuth = getGlobalGitHubOidcAuthConfig(auth)
+  const sourceOidc = sourceAuth?.githubOidc
+
+  if (!sourceOidc) {
+    return globalAuth
+  }
+
+  if (sourceOidc.enabled === false) {
+    return globalAuth
+  }
+
+  const { enabled: _enabled, ...sourceOptions } = sourceOidc
+  const audience = sourceOptions.audience ?? globalAuth?.audience
+
+  if (!audience) {
+    return globalAuth
+  }
+
+  return {
+    ...globalAuth,
+    ...sourceOptions,
+    audience,
+    mode: 'github-oidc',
+  }
 }
 
 const assertReplayProtectionAvailable = (
@@ -923,11 +985,13 @@ const authenticateSyncRequest = async ({
   options,
   rawBody,
   req,
+  sourceAuth,
 }: {
   now: Date
   options: CreateSyncEndpointOptions
   rawBody: string
   req: PayloadRequest
+  sourceAuth?: PayloadMarkdownDocsDocsSetAuthConfig
 }): Promise<
   | {
       identity: AuthenticatedSyncRequest
@@ -938,8 +1002,14 @@ const authenticateSyncRequest = async ({
       response: Response
     }
 > => {
-  const ed25519Auth = getEd25519AuthConfig(options.auth)
-  const githubOidcAuth = getGitHubOidcAuthConfig(options.auth)
+  const ed25519Auth = getEd25519AuthConfig({
+    auth: options.auth,
+    sourceAuth,
+  })
+  const githubOidcAuth = getGitHubOidcAuthConfig({
+    auth: options.auth,
+    sourceAuth,
+  })
 
   if (!ed25519Auth && !githubOidcAuth) {
     return {
@@ -1026,17 +1096,6 @@ const createSyncEndpointHandler =
       return errorResponse('invalid_body', 'Sync request body is too large.', 413)
     }
 
-    const authentication = await authenticateSyncRequest({
-      now: startedAt,
-      options,
-      rawBody,
-      req,
-    })
-
-    if (authentication.response) {
-      return authentication.response
-    }
-
     const manifest = parseManifestBody(rawBody)
 
     if (!manifest) {
@@ -1051,6 +1110,18 @@ const createSyncEndpointHandler =
 
     if (sourceResolution.response) {
       return sourceResolution.response
+    }
+
+    const authentication = await authenticateSyncRequest({
+      now: startedAt,
+      options,
+      rawBody,
+      req,
+      sourceAuth: sourceResolution.source.auth,
+    })
+
+    if (authentication.response) {
+      return authentication.response
     }
 
     const validation = validateDocsManifest(manifest, {

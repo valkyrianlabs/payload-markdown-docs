@@ -439,6 +439,39 @@ const createMultiAuthEndpointForTests = ({
     syncRunsEnabled: true,
   })
 
+const createCmsManagedEndpointForTests = ({
+  allowPublish = false,
+  allowWrites = false,
+  auth,
+  fetchJson,
+  syncRunsEnabled = true,
+}: {
+  allowPublish?: boolean
+  allowWrites?: boolean
+  auth?: Parameters<typeof createSyncEndpoint>[0]['auth']
+  fetchJson?: NonNullable<Parameters<typeof createSyncEndpoint>[0]['oidcFetchJson']>
+  syncRunsEnabled?: boolean
+} = {}) =>
+  createSyncEndpoint({
+    allowPublish,
+    allowWrites,
+    auth,
+    docsCollectionSlug: 'docs',
+    docsEnabled: true,
+    docsEnableDrafts: true,
+    docsSetsCollectionSlug: DEFAULT_DOCS_SETS_COLLECTION_SLUG,
+    docsSetsEnabled: true,
+    endpointPath: DEFAULT_DOCS_SYNC_ENDPOINT_PATH,
+    getNow: () => now,
+    markdownFieldName: 'content',
+    noncesCollectionSlug: 'docs-sync-nonces',
+    noncesEnabled: true,
+    oidcFetchJson: fetchJson,
+    routeBase: '/docs',
+    syncRunsCollectionSlug: 'docs-sync-runs',
+    syncRunsEnabled,
+  })
+
 const callOidcEndpoint = async ({
   body = JSON.stringify(createManifest()),
   endpointOptions = {},
@@ -840,6 +873,147 @@ describe('sync endpoint dry-run handling', () => {
     expect(oidcBody).toMatchObject({
       ok: true,
       syncRunId: 'docs-sync-runs-id',
+    })
+  })
+
+  it('accepts signed requests using docs set Ed25519 keys without configured sources', async () => {
+    const { privateKey, publicKey } = keyPair()
+    const endpoint = createCmsManagedEndpointForTests({
+      allowWrites: true,
+    })
+    const body = JSON.stringify(createManifest({ mode: 'sync' }))
+    const payload = createMockPayload({
+      docsSets: [
+        {
+          id: 'docs-set-1',
+          auth: {
+            ed25519: {
+              keys: [
+                {
+                  keyId: 'test-key',
+                  publicKey: publicKey.toString(),
+                },
+              ],
+            },
+          },
+          routeBase: '/plugins/payload-markdown-docs',
+          sourceId: 'main-docs',
+          sourceRoot: 'docs',
+        },
+      ],
+    })
+    const response = await endpoint.handler(
+      createRequest({
+        body,
+        headers: signBody({
+          body,
+          privateKey,
+        }),
+        payload,
+      }),
+    )
+    const json = (await response.json()) as Record<string, unknown>
+
+    expect(response.status).toBe(200)
+    expect(json).toMatchObject({
+      ok: true,
+      summary: {
+        create: 1,
+      },
+    })
+    expect(payload.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: 'docs',
+        data: expect.objectContaining({
+          docsSet: 'docs-set-1',
+          route: '/plugins/payload-markdown-docs',
+        }),
+      }),
+    )
+  })
+
+  it('accepts GitHub OIDC using docs set policy without configured sources', async () => {
+    const tokenFixture = createOidcTokenFixture()
+    const endpoint = createCmsManagedEndpointForTests({
+      fetchJson: tokenFixture.fetchJson,
+    })
+    const body = JSON.stringify(createManifest())
+    const payload = createMockPayload({
+      docsSets: [
+        {
+          id: 'docs-set-1',
+          auth: {
+            githubOidc: {
+              allowedRefs: [
+                {
+                  value: 'refs/heads/main',
+                },
+              ],
+              allowedRepositories: [
+                {
+                  value: 'valkyrianlabs/payload-markdown-docs',
+                },
+              ],
+              audience: 'payload-markdown-docs',
+              enabled: true,
+              jwksUrl: `https://example.test/${randomUUID()}/jwks`,
+            },
+          },
+          routeBase: '/plugins/payload-markdown-docs',
+          sourceId: 'main-docs',
+          sourceRoot: 'docs',
+        },
+      ],
+    })
+    const response = await endpoint.handler(
+      createRequest({
+        body,
+        headers: oidcHeaders({
+          body,
+          token: tokenFixture.token,
+        }),
+        payload,
+      }),
+    )
+    const json = (await response.json()) as Record<string, unknown>
+
+    expect(response.status).toBe(200)
+    expect(json).toMatchObject({
+      ok: true,
+      summary: {
+        create: 1,
+      },
+    })
+    expect(payload.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: 'docs-sync-runs',
+        data: expect.objectContaining({
+          repository: 'valkyrianlabs/payload-markdown-docs',
+          sourceId: 'main-docs',
+        }),
+      }),
+    )
+  })
+
+  it('rejects unknown docs set sources before auth when no fallback source is configured', async () => {
+    const endpoint = createCmsManagedEndpointForTests()
+    const body = JSON.stringify(createManifest())
+    const response = await endpoint.handler(
+      createRequest({
+        body,
+        payload: createMockPayload(),
+      }),
+    )
+    const json = (await response.json()) as Record<string, unknown>
+
+    expect(response.status).toBe(400)
+    expect(json).toMatchObject({
+      error: {
+        code: 'source_not_allowed',
+        message:
+          'No docs set exists for manifest source.id "main-docs". Create a docs set in Payload Admin before syncing this source.',
+      },
+      ok: false,
     })
   })
 

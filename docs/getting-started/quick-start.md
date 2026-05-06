@@ -23,8 +23,12 @@ In Payload Admin, create a docs set with:
 - `sourceId`: `main-docs`
 - `sourceRoot`: `docs`
 - `routeBase`: `/plugins/payload-markdown-docs`
+- `auth.ed25519.keys`: add `keyId: github-actions-main` and the public key, or
+  use `auth.githubOidc` for GitHub Actions
 
-The endpoint resolves incoming manifests by `source.id`. When a docs set with that `sourceId` exists, the docs set route base owns generated routes.
+The endpoint resolves incoming manifests by `source.id`. When a docs set with
+that `sourceId` exists, the docs set route base owns generated routes and the
+docs set auth policy decides which credentials may update it.
 
 ## Validate Local Docs
 

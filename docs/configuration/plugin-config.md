@@ -32,18 +32,8 @@ payloadMarkdownDocs({
   enabled: true,
 
   auth: {
-    ed25519: {
-      keys: [
-        {
-          id: 'github-actions-main',
-          publicKey: process.env.DOCS_SYNC_PUBLIC_KEY!,
-        },
-      ],
-    },
     githubOidc: {
       audience: 'payload-markdown-docs',
-      allowedRepositories: ['valkyrianlabs/payload-markdown-docs'],
-      allowedWorkflows: ['Release'],
     },
   },
 
@@ -51,14 +41,6 @@ payloadMarkdownDocs({
     type: 'docsCollection',
     enableDrafts: true,
   },
-
-  sources: [
-    {
-      id: 'main-docs',
-      root: 'docs',
-      routeBase: '/docs',
-    },
-  ],
 
   sync: {
     allowWrites: true,
@@ -73,9 +55,11 @@ payloadMarkdownDocs({
 ## Main Sections
 
 - `auth` configures sync request verification. Use `ed25519`, `githubOidc`, or
-  both on the same endpoint.
+  both on the same endpoint. Source-specific keys and OIDC allowlists should
+  live on docs sets in Payload Admin.
 - `target` configures the dedicated generated docs collection.
-- `sources` is a fallback source allow-list when a docs set is not found.
+- `sources` is a legacy fallback source allow-list when a docs set is not
+  found. Prefer docs sets for normal CMS-managed deployments.
 - `sync` controls write, publish, and delete authority.
 - `routing` configures route collision checks.
 - `collections` customizes infrastructure collection slugs.

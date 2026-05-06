@@ -26,9 +26,27 @@ export const buildDevDocsGroupSeedData = () => ({
 
 export const buildDevDocsSetSeedData = ({
   groupId,
+  keyId = 'dev-local',
+  publicKey,
 }: {
   groupId?: PayloadRecordId
+  keyId?: string
+  publicKey?: string
 } = {}) => ({
+  ...(publicKey
+    ? {
+        auth: {
+          ed25519: {
+            keys: [
+              {
+                keyId,
+                publicKey,
+              },
+            ],
+          },
+        },
+      }
+    : {}),
   defaults: {
     heroDescription: 'Local dev harness for the dedicated docs workflow.',
     heroTitle: 'Payload Markdown Docs',

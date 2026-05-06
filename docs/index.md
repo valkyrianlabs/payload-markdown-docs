@@ -12,8 +12,10 @@ tags:
 
 `@valkyrianlabs/payload-markdown-docs` publishes Git-backed Markdown documentation into Payload CMS. Developers and agents edit files in a repo-local `docs/` folder, CI validates and authenticates a manifest, and the Payload plugin decides what can be synced.
 
-:::callout {variant="info" title="Server-owned authority"}
-The client sends docs content. The Payload plugin decides where it may go, which source ids are allowed, whether writes are enabled, and whether publishing or hard delete is permitted.
+:::callout {variant="info" title="CMS-owned authority"}
+The client sends docs content. Payload docs sets decide where it may go and
+which source credentials are trusted; plugin config decides whether writes,
+publishing, or hard delete are permitted.
 :::
 
 The package is built around `@valkyrianlabs/payload-markdown`. That package owns Markdown fields, directive rendering, themes, and authoring UX. This package owns docs ingestion, signed sync, audit records, docs sets, route helpers, and CI/local tooling.
@@ -42,7 +44,7 @@ Install local agent guidance for writing docs that validate and sync.
 
 - dedicated docs, docs groups, docs sets, sync runs, and nonce collections
 - signed Ed25519 sync endpoint with nonce replay protection
-- GitHub Actions OIDC auth mode with repository/ref allowlists
+- GitHub Actions OIDC auth mode with docs-set repository/ref allowlists
 - CLI commands for `validate`, `manifest`, `plan`, `keygen`, and signed `push`
 - server-gated sync writes, publishing, draft behavior, archive behavior, and hard delete
 - route reservations and opt-in Pages collision checks
@@ -66,7 +68,8 @@ Add `@valkyrianlabs/payload-markdown-docs` and `@valkyrianlabs/payload-markdown`
 
 ### Configure Payload
 
-Register `payloadMarkdownDocs()` with a docs set source, Ed25519 public key, and explicit write gates.
+Register `payloadMarkdownDocs()` with explicit write gates, then create a docs
+set in Payload Admin with `sourceId`, `routeBase`, and auth policy.
 
 ### Validate locally
 

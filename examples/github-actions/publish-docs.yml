@@ -36,7 +36,8 @@ jobs:
 
       - name: Dry-run docs sync
         if: github.event_name == 'pull_request'
-        # Requires auth.mode: github-oidc and matching repository/ref allowlists.
+        # Requires the matching docs set to enable GitHub OIDC and allow this
+        # repository/ref/workflow.
         run: |
           pnpm exec payload-markdown-docs push ./docs \
             --endpoint "$DOCS_SYNC_ENDPOINT" \

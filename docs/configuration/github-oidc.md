@@ -19,6 +19,9 @@ GitHub OIDC lets GitHub Actions authenticate to the sync endpoint without storin
 
 ## Server Config
 
+Configure the plugin with the shared OIDC audience and keep repository/workflow
+allowlists on each docs set.
+
 ```ts
 payloadMarkdownDocs({
   enabled: true,
@@ -26,8 +29,6 @@ payloadMarkdownDocs({
   auth: {
     githubOidc: {
       audience: 'payload-markdown-docs',
-      allowedRepositories: ['valkyrianlabs/payload-markdown-docs'],
-      allowedRefs: ['refs/heads/main'],
     },
   },
 
@@ -43,29 +44,27 @@ payloadMarkdownDocs({
 })
 ```
 
-You can also keep Ed25519 enabled on the same endpoint:
+Then create or update the matching docs set in Payload Admin:
 
-```ts
-payloadMarkdownDocs({
-  auth: {
-    ed25519: {
-      keys: [
-        {
-          id: 'non-github-ci',
-          publicKey: process.env.DOCS_SYNC_PUBLIC_KEY!,
-        },
-      ],
-    },
-    githubOidc: {
-      audience: 'payload-markdown-docs',
-      allowedRepositories: ['valkyrianlabs/payload-markdown-docs'],
-    },
-  },
-})
+```text
+sourceId: main-docs
+sourceRoot: docs
+routeBase: /plugins/payload-markdown-docs
+auth.githubOidc.enabled: true
+auth.githubOidc.allowedRepositories:
+  - valkyrianlabs/payload-markdown-docs
+auth.githubOidc.allowedRefs:
+  - refs/heads/main
 ```
 
+You can also add `auth.ed25519.keys` on the same docs set. The sync endpoint
+will accept either Ed25519 signed requests or GitHub OIDC bearer requests for
+that source.
+
 :::callout {variant="warning" title="Keep the allowlist narrow"}
-Do not configure OIDC for every repository or ref. The endpoint verifies the GitHub token, but your server config decides which repositories, refs, workflows, and environments are trusted.
+Do not configure OIDC for every repository or ref. The endpoint verifies the
+GitHub token, but your docs set policy decides which repositories, refs,
+workflows, and environments are trusted.
 :::
 
 ## Workflow Permissions

@@ -32,16 +32,18 @@ Required secret or environment value:
 
 - `DOCS_SYNC_ENDPOINT`
 
-The server must be configured with `auth.githubOidc`, the expected audience,
-and a repository/ref allowlist. It may also keep `auth.ed25519` enabled for
-local machines or non-GitHub CI on the same endpoint.
+The server may define a plugin-level `auth.githubOidc.audience`, but the
+repository/ref/workflow allowlist belongs on the matching docs set in Payload
+Admin. The same docs set can also keep `auth.ed25519.keys` for local machines
+or non-GitHub CI on the same endpoint.
 
 ## Ed25519 Secrets
 
 - `DOCS_SYNC_ENDPOINT`
 - `DOCS_SYNC_PRIVATE_KEY`
 
-Use these only for the Ed25519 workflow. The server must have the matching public key configured under the same key id.
+Use these only for the Ed25519 workflow. The matching docs set must have the
+public key configured under the same key id.
 
 ## Workflow Example
 
@@ -76,4 +78,5 @@ pnpm exec payload-markdown-docs push ./docs \
 The publish job succeeds only when the server has `sync.allowWrites: true`, `sync.allowPublish: true`, and `target.enableDrafts: true`.
 :::
 
-See [GitHub OIDC](/configuration/github-oidc) for server config and claim validation details. See [signed push](/workflow/signed-push) for the Ed25519 alternative.
+See [GitHub OIDC](/configuration/github-oidc) for docs set claim validation
+details. See [signed push](/workflow/signed-push) for the Ed25519 alternative.

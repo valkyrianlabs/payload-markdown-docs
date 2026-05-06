@@ -31,6 +31,7 @@ The docs set is the user-facing management unit. Generated docs records belong t
 - `description`
 - `navTitle`
 - `order`
+- `auth`
 - `defaults`
 - `sync`
 
@@ -41,10 +42,13 @@ The signed manifest includes `source.id`. The endpoint resolves that id to a doc
 If a docs set is found:
 
 - the docs set route base is used for route generation
+- the docs set auth policy is used for Ed25519 keys and GitHub OIDC allowlists
 - generated docs records are linked to the docs set
 - existing docs lookup is scoped to that docs set where possible
 
-If no docs set is found, the endpoint can fall back to configured `sources` for backward compatibility.
+If no docs set is found, the endpoint can fall back to configured `sources` for
+backward compatibility. New sources should normally be added in Payload Admin by
+creating docs sets, not by redeploying server config.
 
 ## Route Base
 

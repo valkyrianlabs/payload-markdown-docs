@@ -28,6 +28,16 @@ export type PayloadMarkdownDocsCombinedAuthConfig = {
   mode?: 'multi'
 }
 
+export type PayloadMarkdownDocsDocsSetAuthConfig = {
+  ed25519?: PayloadMarkdownDocsEd25519AuthOptions
+  githubOidc?: PayloadMarkdownDocsDocsSetGitHubOidcAuthOptions
+}
+
+export type PayloadMarkdownDocsDocsSetGitHubOidcAuthOptions =
+  {
+    enabled?: boolean
+  } & Partial<PayloadMarkdownDocsGitHubOidcAuthOptions>
+
 export type PayloadMarkdownDocsEd25519AuthConfig =
   {
     mode: 'ed25519'

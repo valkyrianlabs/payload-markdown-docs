@@ -10,6 +10,10 @@ import {
   devDocsSourceId,
   getPayloadRecordId,
 } from '../helpers/docsSeedData.js'
+import {
+  docsSyncKeyId,
+  readDocsSyncPublicKey,
+} from '../helpers/docsSyncKeys.js'
 import config from '../payload.config.js'
 
 const findFirst = async ({
@@ -68,6 +72,7 @@ const upsert = async ({
 
 const run = async () => {
   const payload = await getPayload({ config })
+  const docsSyncPublicKey = readDocsSyncPublicKey()
 
   try {
     const group = await upsert({
@@ -86,6 +91,8 @@ const run = async () => {
       collection: devDocsSetSlug,
       data: buildDevDocsSetSeedData({
         groupId,
+        keyId: docsSyncKeyId,
+        publicKey: docsSyncPublicKey,
       }),
       payload,
       where: {
@@ -97,6 +104,9 @@ const run = async () => {
 
     process.stdout.write(`Seeded docs group: ${groupId ?? 'created'}\n`)
     process.stdout.write(`Seeded docs set: ${getPayloadRecordId(docsSet) ?? 'created'}\n`)
+    if (!docsSyncPublicKey) {
+      process.stdout.write('Docs sync public key not found; docs set auth was not updated.\n')
+    }
   } finally {
     await payload.destroy()
   }

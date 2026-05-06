@@ -57,7 +57,9 @@ X-VL-MD-DOCS-Signature
 Content-Type: application/json
 ```
 
-The endpoint verifies the request before it validates or applies the manifest.
+The endpoint reads the manifest source id, resolves the matching docs set, and
+then verifies the request against that docs set's Ed25519 keys before it applies
+the manifest.
 
 ## GitHub OIDC
 
@@ -78,6 +80,9 @@ X-VL-MD-DOCS-Body-SHA256
 Content-Type: application/json
 ```
 
-OIDC is bearer authentication, not a body signature. The server verifies the JWT against GitHub's JWKS, checks configured claims, checks the body hash, and uses the token `jti` for replay protection.
+OIDC is bearer authentication, not a body signature. The server resolves the
+docs set, verifies the JWT against GitHub's JWKS, checks docs-set claim
+allowlists, checks the body hash, and uses the token `jti` for replay
+protection.
 
 See the [security model](/concepts/security-model).

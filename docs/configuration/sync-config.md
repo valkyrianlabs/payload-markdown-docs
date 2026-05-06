@@ -33,8 +33,9 @@ Without `allowWrites: true`, `mode: "sync"` is rejected.
 
 Supported auth modes:
 
-- `ed25519` for signed requests with configured public keys.
-- `github-oidc` for GitHub Actions workflows with repository/ref allowlists.
+- `ed25519` for signed requests with docs-set public keys.
+- `github-oidc` for GitHub Actions workflows with docs-set repository/ref
+  allowlists.
 
 See [GitHub OIDC](/configuration/github-oidc) and [signed push](/workflow/signed-push).
 

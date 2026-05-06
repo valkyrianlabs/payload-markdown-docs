@@ -71,6 +71,160 @@ export const createDocsSetsCollection = ({
       defaultValue: 0,
     },
     {
+      name: 'auth',
+      type: 'group',
+      admin: {
+        description:
+          'Source-specific sync authentication policy. Use this instead of hardcoding docs sources in payload.config.ts.',
+      },
+      fields: [
+        {
+          name: 'ed25519',
+          type: 'group',
+          fields: [
+            {
+              name: 'keys',
+              type: 'array',
+              admin: {
+                description:
+                  'Public keys allowed to sync this docs set from local machines or non-GitHub CI.',
+              },
+              fields: [
+                {
+                  name: 'keyId',
+                  type: 'text',
+                  required: true,
+                },
+                {
+                  name: 'publicKey',
+                  type: 'textarea',
+                  required: true,
+                },
+              ],
+            },
+            {
+              name: 'maxSkewSeconds',
+              type: 'number',
+            },
+            {
+              name: 'nonceTtlSeconds',
+              type: 'number',
+            },
+          ],
+        },
+        {
+          name: 'githubOidc',
+          type: 'group',
+          fields: [
+            {
+              name: 'enabled',
+              type: 'checkbox',
+              defaultValue: false,
+            },
+            {
+              name: 'audience',
+              type: 'text',
+              admin: {
+                description:
+                  'Optional override. Defaults to the plugin-level GitHub OIDC audience.',
+              },
+            },
+            {
+              name: 'allowedRepositories',
+              type: 'array',
+              admin: {
+                description:
+                  'GitHub repositories allowed to sync this docs set, for example valkyrianlabs/payload-markdown-docs.',
+              },
+              fields: [
+                {
+                  name: 'value',
+                  type: 'text',
+                  required: true,
+                },
+              ],
+            },
+            {
+              name: 'allowedRepositoryOwners',
+              type: 'array',
+              fields: [
+                {
+                  name: 'value',
+                  type: 'text',
+                  required: true,
+                },
+              ],
+            },
+            {
+              name: 'allowedRefs',
+              type: 'array',
+              admin: {
+                description:
+                  'Exact Git refs such as refs/heads/main or refs/tags/v0.2.1.',
+              },
+              fields: [
+                {
+                  name: 'value',
+                  type: 'text',
+                  required: true,
+                },
+              ],
+            },
+            {
+              name: 'allowedWorkflows',
+              type: 'array',
+              fields: [
+                {
+                  name: 'value',
+                  type: 'text',
+                  required: true,
+                },
+              ],
+            },
+            {
+              name: 'allowedWorkflowRefs',
+              type: 'array',
+              fields: [
+                {
+                  name: 'value',
+                  type: 'text',
+                  required: true,
+                },
+              ],
+            },
+            {
+              name: 'allowedEnvironments',
+              type: 'array',
+              fields: [
+                {
+                  name: 'value',
+                  type: 'text',
+                  required: true,
+                },
+              ],
+            },
+            {
+              name: 'allowPullRequests',
+              type: 'checkbox',
+              defaultValue: false,
+            },
+            {
+              name: 'issuer',
+              type: 'text',
+            },
+            {
+              name: 'jwksUrl',
+              type: 'text',
+            },
+            {
+              name: 'maxSkewSeconds',
+              type: 'number',
+            },
+          ],
+        },
+      ],
+    },
+    {
       name: 'defaults',
       type: 'group',
       fields: [

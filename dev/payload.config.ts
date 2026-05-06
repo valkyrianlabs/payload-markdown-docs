@@ -1,6 +1,5 @@
 import { postgresAdapter } from '@payloadcms/db-postgres'
 import { lexicalEditor } from '@payloadcms/richtext-lexical'
-import fs from 'fs'
 import path from 'path'
 import { buildConfig } from 'payload'
 import sharp from 'sharp'
@@ -17,25 +16,6 @@ const dirname = path.dirname(filename)
 if (!process.env.ROOT_DIR) {
   process.env.ROOT_DIR = dirname
 }
-
-const readDocsSyncPublicKey = (): string | undefined => {
-  if (process.env.DOCS_SYNC_PUBLIC_KEY) {
-    return process.env.DOCS_SYNC_PUBLIC_KEY
-  }
-
-  const publicKeyFile = process.env.DOCS_SYNC_PUBLIC_KEY_FILE
-    ? path.resolve(process.env.DOCS_SYNC_PUBLIC_KEY_FILE)
-    : path.resolve(dirname, '.docs-sync/docs-sync-public.pem')
-
-  try {
-    return fs.readFileSync(publicKeyFile, 'utf8')
-  } catch {
-    return undefined
-  }
-}
-
-const docsSyncPublicKey = readDocsSyncPublicKey()
-const docsSyncKeyId = process.env.DOCS_SYNC_KEY_ID || 'dev-local'
 
 export default buildConfig({
   admin: {
@@ -68,27 +48,7 @@ export default buildConfig({
   },
   plugins: [
     payloadMarkdownDocs({
-      auth: docsSyncPublicKey
-        ? {
-            keys: [
-              {
-                id: docsSyncKeyId,
-                publicKey: docsSyncPublicKey,
-              },
-            ],
-            mode: 'ed25519',
-          }
-        : {
-            mode: 'disabled',
-          },
       enabled: true,
-      sources: [
-        {
-          id: 'payload-markdown-docs',
-          root: 'docs',
-          routeBase: '/plugins/payload-markdown-docs',
-        },
-      ],
       sync: {
         allowHardDelete: false,
         allowPublish: true,

@@ -14,7 +14,11 @@ The docs source lives in `{{docsRoot}}` unless the user says otherwise. Edit Mar
 - Do not invent directives, frontmatter fields, CLI flags, sync modes, or runtime features.
 - Do not describe unsupported features as implemented.
 - Run validation before finishing docs edits.
-- Treat sync and publishing as server-owned. The request may ask; the Payload plugin decides.
+- Treat sync and publishing as CMS/server-owned. The request may ask; Payload
+  docs sets and plugin config decide.
+- Do not hardcode new docs sources into plugin config. A docs source should map
+  to a Payload Admin docs set with `sourceId`, `sourceRoot`, `routeBase`, and
+  source-specific auth policy.
 
 ## AI Markdown Export Manifest
 

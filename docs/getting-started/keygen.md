@@ -23,23 +23,17 @@ This writes:
 - `.docs-sync/docs-sync-public.pem`
 
 :::callout {variant="warning" title="Do not commit the private key"}
-The public key belongs in Payload config or an environment variable. The private key belongs in local secret storage or a CI secret such as `DOCS_SYNC_PRIVATE_KEY`.
+The public key belongs on the docs set in Payload Admin. The private key belongs
+in local secret storage or a CI secret such as `DOCS_SYNC_PRIVATE_KEY`.
 :::
 
 ## Configure The Public Key
 
-```ts
-payloadMarkdownDocs({
-  auth: {
-    mode: 'ed25519',
-    keys: [
-      {
-        id: 'github-actions-main',
-        publicKey: process.env.DOCS_SYNC_PUBLIC_KEY!,
-      },
-    ],
-  },
-})
+```text
+Docs Set -> Auth -> Ed25519 -> Keys
+
+keyId: github-actions-main
+publicKey: contents of .docs-sync/docs-sync-public.pem
 ```
 
 ## Use The Private Key
@@ -56,7 +50,7 @@ Store the PEM as `DOCS_SYNC_PRIVATE_KEY` and use `--private-key-env DOCS_SYNC_PR
 
 ### Rotate keys
 
-Add the new public key to the server config, deploy it, then switch CI to the new private key.
+Add the new public key to the docs set, then switch CI to the new private key.
 
 :::
 

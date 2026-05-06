@@ -36,9 +36,9 @@ Install the same package in any repo whose CI will run the
 
 ## 1. Configure The Payload Server
 
-Add the plugin to `payload.config.ts`. This example lets GitHub Actions from
-`valkyrianlabs/payload-markdown-docs` publish docs for the
-`/plugins/payload-markdown-docs` docs set.
+Add the plugin to `payload.config.ts`. Keep source authorization in Payload
+Admin docs sets; the plugin config should define the endpoint, collections, and
+sync lifecycle behavior.
 
 ```ts
 import { payloadMarkdownDocs } from '@valkyrianlabs/payload-markdown-docs'
@@ -49,20 +49,11 @@ export default buildConfig({
     payloadMarkdownDocs({
       enabled: true,
 
+      // Optional default OIDC audience. Repository/workflow/environment
+      // allowlists belong on the docs set in Payload Admin.
       auth: {
-        ed25519: {
-          keys: [
-            {
-              id: 'local-or-non-github-ci',
-              publicKey: process.env.DOCS_SYNC_PUBLIC_KEY!,
-            },
-          ],
-        },
         githubOidc: {
           audience: 'payload-markdown-docs',
-          allowedRepositories: ['valkyrianlabs/payload-markdown-docs'],
-          allowedWorkflows: ['Release'],
-          allowedEnvironments: ['Production'],
         },
       },
 
@@ -70,14 +61,6 @@ export default buildConfig({
         type: 'docsCollection',
         enableDrafts: true,
       },
-
-      sources: [
-        {
-          id: 'payload-markdown-docs',
-          root: 'docs',
-          routeBase: '/plugins/payload-markdown-docs',
-        },
-      ],
 
       sync: {
         allowWrites: true,
@@ -96,18 +79,17 @@ What this does:
 - Adds docs groups, docs sets, generated docs, sync run, and nonce collections.
 - Registers the default Payload custom endpoint at
   `/api/payload-markdown-docs/sync`.
-- Accepts either Ed25519 signed requests or GitHub OIDC bearer requests on the
-  same endpoint. Omit either `ed25519` or `githubOidc` if you only want one auth
-  method.
-- Allows only the configured GitHub repository, workflow, and environment to
-  authenticate with OIDC.
+- Accepts Ed25519 signed requests or GitHub OIDC bearer requests on the same
+  endpoint when the matched docs set has those auth policies.
+- Uses docs sets in Payload Admin as the source allow-list. `sources` still
+  exists as a legacy fallback, but it is not the recommended path.
 - Allows sync writes and publish requests, while archiving removed docs instead
   of hard-deleting them.
 
-If you configure `allowedRefs`, remember release workflows run on tag refs like
-`refs/tags/v0.1.0-canary.1`. The first pass uses exact string matches, not glob
-patterns. For release publishing, constrain by repository and workflow unless you
-want to list exact tag refs.
+If you configure `allowedRefs` on a docs set, remember release workflows run on
+tag refs like `refs/tags/v0.1.0-canary.1`. The first pass uses exact string
+matches, not glob patterns. For release publishing, constrain by repository and
+workflow unless you want to list exact tag refs.
 
 ## 2. Create The Docs Set
 
@@ -118,9 +100,17 @@ config:
 - `sourceRoot`: `docs`
 - `routeBase`: `/plugins/payload-markdown-docs`
 - `title`: Payload Markdown Docs
+- `auth.githubOidc.enabled`: checked
+- `auth.githubOidc.allowedRepositories`: `valkyrianlabs/payload-markdown-docs`
+- optionally restrict `auth.githubOidc.allowedWorkflows`,
+  `auth.githubOidc.allowedEnvironments`, or exact `auth.githubOidc.allowedRefs`
+- optionally add `auth.ed25519.keys` with `keyId` and `publicKey` for local
+  machines or non-GitHub CI
 
 The CLI sends `source.id`. The server uses that id to find the docs set and
-decide where generated routes live.
+decide where generated routes live and which credentials may update it. You can
+add a new docs source by creating a new docs set in Payload Admin; you should
+not need to redeploy the Payload app just to add another docs package.
 
 ## 3. Render Docs In Next
 
@@ -278,7 +268,7 @@ using:
 
 - source id: `payload-markdown-docs`
 - route base: `/plugins/payload-markdown-docs`
-- auth: GitHub OIDC
+- auth: GitHub OIDC configured on the matching docs set
 - mode: sync and publish
 
 ## More Docs

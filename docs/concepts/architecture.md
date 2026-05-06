@@ -23,11 +23,13 @@ Builds manifests, validates docs, signs requests, and pushes dry-run or sync req
 :::
 
 :::card {title="Sync endpoint" href="/workflow/signed-push"}
-Verifies Ed25519 signatures, timestamps, nonces, body hashes, and manifests.
+Resolves docs sets, then verifies Ed25519 signatures or GitHub OIDC bearer
+tokens, body hashes, nonces, and manifests.
 :::
 
 :::card {title="Docs sets" href="/concepts/docs-sets"}
-Own source ids, route bases, generated docs records, and future rendering defaults.
+Own source ids, route bases, source auth policy, generated docs records, and
+future rendering defaults.
 :::
 
 :::
@@ -40,13 +42,15 @@ Own source ids, route bases, generated docs records, and future rendering defaul
 
 The CLI walks local Markdown files and computes SHA-256 hashes.
 
-### Sign the request
+### Authenticate the request
 
-The CLI signs a canonical request string with the configured private key.
+The CLI signs a canonical request string with an Ed25519 private key or requests
+a GitHub Actions OIDC token.
 
 ### Verify on the server
 
-Payload verifies headers, body hash, timestamp skew, nonce replay, signature, and manifest validity.
+Payload resolves the docs set, verifies body hash, replay protection, auth
+claims or signature, and manifest validity.
 
 ### Plan and apply
 

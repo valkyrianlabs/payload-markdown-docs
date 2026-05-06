@@ -16,6 +16,9 @@ The sync endpoint is designed to be strict by default.
 Production sync should use Ed25519 signed requests. Basic auth is not the default serious production model.
 :::
 
+GitHub Actions OIDC is also supported and avoids long-lived private keys in
+GitHub workflows.
+
 ## Signed Headers
 
 The endpoint expects:
@@ -53,8 +56,11 @@ The manifest cannot choose:
 - publish authority
 - hard delete authority
 - allowed source ids
+- source-specific auth allowlists
 
-The server config owns those decisions.
+Payload Admin docs sets own source ids, route bases, and source-specific auth
+allowlists. Plugin config owns collection setup and lifecycle gates such as
+write, publish, and hard-delete authority.
 
 ## Replay Protection
 
