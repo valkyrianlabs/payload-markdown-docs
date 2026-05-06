@@ -1,9 +1,13 @@
 {
   "name": "@valkyrianlabs/payload-markdown-docs",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Git-backed Markdown documentation sync for Payload CMS, powered by payload-markdown.",
   "bin": {
     "payload-markdown-docs": "./dist/cli/index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/valkyrianlabs/payload-markdown-docs"
   },
   "keywords": [
     "payload",
