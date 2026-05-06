@@ -337,18 +337,26 @@ describe('docs set manager data helpers', () => {
       readFileSync(new URL('../../package.json', import.meta.url), 'utf8'),
     ) as {
       exports: Record<string, unknown>
-      publishConfig: {
-        exports: Record<string, unknown>
-      }
+      files: string[]
+      main: string
+      types: string
     }
 
-    expect(packageJson.exports['./admin']).toMatchObject({
-      import: './src/admin/index.ts',
-      types: './src/admin/index.ts',
+    expect(packageJson.main).toBe('./dist/index.js')
+    expect(packageJson.types).toBe('./dist/index.d.ts')
+    expect(packageJson.files).toEqual(['dist'])
+    expect(packageJson.exports['.']).toMatchObject({
+      import: './dist/index.js',
+      types: './dist/index.d.ts',
     })
-    expect(packageJson.publishConfig.exports['./admin']).toMatchObject({
+    expect(packageJson.exports['./admin']).toMatchObject({
       import: './dist/admin/index.js',
       types: './dist/admin/index.d.ts',
     })
+    expect(packageJson.exports['./next']).toMatchObject({
+      import: './dist/next/index.js',
+      types: './dist/next/index.d.ts',
+    })
+    expect(JSON.stringify(packageJson.exports)).not.toContain('./src/')
   })
 })

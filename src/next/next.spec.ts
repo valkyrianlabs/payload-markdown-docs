@@ -920,22 +920,18 @@ describe('Payload Markdown Docs metadata helpers', () => {
 })
 
 describe('Payload Markdown Docs /next package export', () => {
-  it('is declared in package exports without changing root exports', () => {
+  it('is declared in package exports with published files', () => {
     const packageJson = JSON.parse(
       readFileSync(new URL('../../package.json', import.meta.url), 'utf8'),
     ) as {
       exports: Record<string, unknown>
-      publishConfig: {
-        exports: Record<string, unknown>
-      }
     }
 
-    expect(packageJson.exports['.']).toBeDefined()
-    expect(packageJson.exports['./next']).toMatchObject({
-      import: './src/next/index.ts',
-      types: './src/next/index.ts',
+    expect(packageJson.exports['.']).toMatchObject({
+      import: './dist/index.js',
+      types: './dist/index.d.ts',
     })
-    expect(packageJson.publishConfig.exports['./next']).toMatchObject({
+    expect(packageJson.exports['./next']).toMatchObject({
       import: './dist/next/index.js',
       types: './dist/next/index.d.ts',
     })

@@ -1,6 +1,6 @@
 {
   "name": "@valkyrianlabs/payload-markdown-docs",
-  "version": "0.1.0-canary.0",
+  "version": "0.1.1-canary.0",
   "description": "Git-backed Markdown documentation sync for Payload CMS, powered by payload-markdown.",
   "bin": {
     "payload-markdown-docs": "./dist/cli/index.js"
@@ -16,23 +16,23 @@
   "type": "module",
   "exports": {
     ".": {
-      "import": "./src/index.ts",
-      "types": "./src/index.ts",
-      "default": "./src/index.ts"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
     },
     "./admin": {
-      "import": "./src/admin/index.ts",
-      "types": "./src/admin/index.ts",
-      "default": "./src/admin/index.ts"
+      "types": "./dist/admin/index.d.ts",
+      "import": "./dist/admin/index.js",
+      "default": "./dist/admin/index.js"
     },
     "./next": {
-      "import": "./src/next/index.ts",
-      "types": "./src/next/index.ts",
-      "default": "./src/next/index.ts"
+      "types": "./dist/next/index.d.ts",
+      "import": "./dist/next/index.js",
+      "default": "./dist/next/index.js"
     }
   },
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "files": [
     "dist"
   ],
@@ -107,25 +107,7 @@
     "pnpm": "^9 || ^10"
   },
   "publishConfig": {
-    "exports": {
-      ".": {
-        "import": "./dist/index.js",
-        "types": "./dist/index.d.ts",
-        "default": "./dist/index.js"
-      },
-      "./admin": {
-        "import": "./dist/admin/index.js",
-        "types": "./dist/admin/index.d.ts",
-        "default": "./dist/admin/index.js"
-      },
-      "./next": {
-        "import": "./dist/next/index.js",
-        "types": "./dist/next/index.d.ts",
-        "default": "./dist/next/index.js"
-      }
-    },
-    "main": "./dist/index.js",
-    "types": "./dist/index.d.ts"
+    "access": "public"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

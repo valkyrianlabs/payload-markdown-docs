@@ -1,7 +1,11 @@
-import type { PayloadMarkdownDocsConfig } from '@valkyrianlabs/payload-markdown-docs'
 import type { CollectionConfig, Config, Payload } from 'payload'
 
 import config from '@payload-config'
+import { getPayload } from 'payload'
+import { afterAll, beforeAll, describe, expect, test } from 'vitest'
+
+import type { PayloadMarkdownDocsConfig } from '../src/index.js'
+
 import {
   DEFAULT_DOCS_COLLECTION_SLUG,
   DEFAULT_DOCS_GROUPS_COLLECTION_SLUG,
@@ -11,9 +15,7 @@ import {
   DEFAULT_MARKDOWN_FIELD_NAME,
   DOCS_SET_MANAGER_COMPONENT,
   payloadMarkdownDocs,
-} from '@valkyrianlabs/payload-markdown-docs'
-import { getPayload } from 'payload'
-import { afterAll, beforeAll, describe, expect, test } from 'vitest'
+} from '../src/index.js'
 
 type NamedField = {
   admin?: {

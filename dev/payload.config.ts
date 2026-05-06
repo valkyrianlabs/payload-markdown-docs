@@ -1,12 +1,12 @@
 import { postgresAdapter } from '@payloadcms/db-postgres'
 import { lexicalEditor } from '@payloadcms/richtext-lexical'
-import { payloadMarkdownDocs } from '@valkyrianlabs/payload-markdown-docs'
 import fs from 'fs'
 import path from 'path'
 import { buildConfig } from 'payload'
 import sharp from 'sharp'
 import { fileURLToPath } from 'url'
 
+import { payloadMarkdownDocs } from '../src/index.js'
 import { testEmailAdapter } from './helpers/testEmailAdapter.js'
 import { seed } from './seed.js'
 import './helpers/loadDevEnv.js'
