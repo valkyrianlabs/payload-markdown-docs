@@ -1,41 +1,44 @@
 # @valkyrianlabs/payload-markdown-docs
 
-Git-backed Markdown documentation sync for Payload CMS, powered by `@valkyrianlabs/payload-markdown`.
+Git-backed Markdown documentation sync for Payload CMS, powered by
+`@valkyrianlabs/payload-markdown`.
 
-`payload-markdown-docs` lets developers and agents maintain Markdown in a repo-local `docs/` folder, validate it in CI, sign a manifest, and publish it into server-owned Payload docs sets.
+This package has two sides:
 
-The client sends docs content. The Payload plugin decides where it may go.
+- The docs repo keeps Markdown files in source control and uses the CLI to
+  validate, plan, and push them.
+- The Payload server installs the plugin, verifies signed or GitHub OIDC
+  requests, and writes generated docs records into Payload-owned collections.
 
-## Current Status
+The sync endpoint is not the human docs route. If your Payload site is deployed
+at `https://docs.valkyrianlabs.com`, the default sync endpoint is:
 
-Implemented:
+```text
+https://docs.valkyrianlabs.com/api/payload-markdown-docs/sync
+```
 
-- docs groups and docs sets as the user-facing model
-- generated/internal docs records linked to docs sets
-- route reservations and optional docs-side Pages collision checks
-- signed sync endpoint with nonce replay protection
-- CLI commands for `validate`, `manifest`, `plan`, `keygen`, and signed `push`
-- dedicated docs create/update/archive/draft/delete lifecycle behind server gates
-- publishing controls for draft-enabled dedicated docs collections
-- read-only `/next` route adapter, sidebar helper, metadata helper, and page component
-- read-only Docs Set Admin Manager
-- local agent skill installer
-- GitHub Actions OIDC auth mode
-- real `/docs` dogfood documentation set
+The human docs route is whatever docs set route base you configure, for example:
 
-Not implemented yet:
-
-- existing collection targets
-- block targets
-- inline override editing from the docs set manager
+```text
+https://docs.valkyrianlabs.com/plugins/payload-markdown-docs
+```
 
 ## Install
+
+Install this package in the Payload app that will receive and render docs:
 
 ```bash
 pnpm add @valkyrianlabs/payload-markdown-docs @valkyrianlabs/payload-markdown
 ```
 
-## Minimal Config
+Install the same package in any repo whose CI will run the
+`payload-markdown-docs` CLI.
+
+## 1. Configure The Payload Server
+
+Add the plugin to `payload.config.ts`. This example lets GitHub Actions from
+`valkyrianlabs/payload-markdown-docs` publish docs for the
+`/plugins/payload-markdown-docs` docs set.
 
 ```ts
 import { payloadMarkdownDocs } from '@valkyrianlabs/payload-markdown-docs'
@@ -45,151 +48,233 @@ export default buildConfig({
   plugins: [
     payloadMarkdownDocs({
       enabled: true,
+
+      auth: {
+        mode: 'github-oidc',
+        audience: 'payload-markdown-docs',
+        allowedRepositories: ['valkyrianlabs/payload-markdown-docs'],
+        allowedWorkflows: ['Release'],
+        allowedEnvironments: ['Production'],
+      },
+
+      target: {
+        type: 'docsCollection',
+        enableDrafts: true,
+      },
+
+      sources: [
+        {
+          id: 'payload-markdown-docs',
+          root: 'docs',
+          routeBase: '/plugins/payload-markdown-docs',
+        },
+      ],
+
+      sync: {
+        allowWrites: true,
+        allowPublish: true,
+        allowHardDelete: false,
+        defaultPublishMode: 'draft',
+        deleteBehavior: 'archive',
+      },
     }),
   ],
 })
 ```
 
-## Dedicated Docs Config
+What this does:
 
-```ts
-payloadMarkdownDocs({
-  enabled: true,
+- Adds docs groups, docs sets, generated docs, sync run, and nonce collections.
+- Registers the default Payload custom endpoint at
+  `/api/payload-markdown-docs/sync`.
+- Allows only the configured GitHub repository, workflow, and environment to
+  authenticate with OIDC.
+- Allows sync writes and publish requests, while archiving removed docs instead
+  of hard-deleting them.
 
-  auth: {
-    mode: 'ed25519',
-    keys: [
-      {
-        id: 'github-actions-main',
-        publicKey: process.env.DOCS_SYNC_PUBLIC_KEY!,
-      },
-    ],
-  },
+If you configure `allowedRefs`, remember release workflows run on tag refs like
+`refs/tags/v0.1.0-canary.1`. The first pass uses exact string matches, not glob
+patterns. For release publishing, constrain by repository and workflow unless you
+want to list exact tag refs.
 
-  target: {
-    type: 'docsCollection',
-    enableDrafts: true,
-  },
+## 2. Create The Docs Set
 
-  sources: [
-    {
-      id: 'main-docs',
-      root: 'docs',
-      routeBase: '/docs',
-    },
-  ],
+In Payload Admin, create a docs set with values that match the CLI and server
+config:
 
-  sync: {
-    allowWrites: true,
-    allowPublish: true,
-    allowHardDelete: false,
-    defaultPublishMode: 'draft',
-    deleteBehavior: 'archive',
-  },
-})
+- `sourceId`: `payload-markdown-docs`
+- `sourceRoot`: `docs`
+- `routeBase`: `/plugins/payload-markdown-docs`
+- `title`: Payload Markdown Docs
+
+The CLI sends `source.id`. The server uses that id to find the docs set and
+decide where generated routes live.
+
+## 3. Render Docs In Next
+
+The plugin writes docs records. Your Next route renders them.
+
+```tsx
+import config from '@payload-config'
+import {
+  PayloadMarkdownDocsPage,
+  resolvePayloadMarkdownDocsRoute,
+} from '@valkyrianlabs/payload-markdown-docs/next'
+import { notFound } from 'next/navigation'
+import { getPayload } from 'payload'
+
+export default async function Page({
+  params,
+}: {
+  params: Promise<{ slug?: string[] }>
+}) {
+  const { slug } = await params
+  const payload = await getPayload({ config })
+  const resolved = await resolvePayloadMarkdownDocsRoute({ payload, slug })
+
+  if (resolved) {
+    return <PayloadMarkdownDocsPage resolved={resolved} />
+  }
+
+  notFound()
+}
 ```
 
-GitHub Actions can use OIDC instead of a long-lived private key:
+In a real app, fall back to your normal Pages lookup instead of calling
+`notFound()` immediately.
 
-```ts
-payloadMarkdownDocs({
-  enabled: true,
+## 4. Add Docs Source Files
 
-  auth: {
-    mode: 'github-oidc',
-    audience: 'payload-markdown-docs',
-    allowedRepositories: ['valkyrianlabs/payload-markdown-docs'],
-    allowedRefs: ['refs/heads/main'],
-  },
+Keep docs in `docs/` and commit the AI Markdown Export manifest next to them.
+The manifest controls the generated raw Markdown export; it is not a human docs
+page and should not appear in human navigation.
 
-  target: {
-    type: 'docsCollection',
-    enableDrafts: true,
-  },
-
-  sync: {
-    allowWrites: true,
-    allowPublish: true,
-  },
-})
+```text
+docs/
+  index.md
+  install.md
+  usage.md
+  index.ai.yml
 ```
 
-## Quick Commands
+Example `docs/index.ai.yml`:
+
+```yaml
+version: 1
+
+title: Payload Markdown Docs
+canonical: /plugins/payload-markdown-docs
+output: /plugins/payload-markdown-docs.md
+
+description: >
+  Consolidated AI-facing documentation export for Payload Markdown Docs.
+
+preamble: |
+  This file is intended for AI agents, editor tooling, Codex, ChatGPT,
+  and offline reference.
+
+order:
+  - ./index.md
+  - ./install.md
+  - ./usage.md
+
+exclude:
+  - ./drafts/**
+
+orphans: append
+headingMode: normalize
+```
+
+## 5. Validate Locally
+
+Validation does not contact the server:
 
 ```bash
-pnpm exec payload-markdown-docs keygen --out .docs-sync
-pnpm exec payload-markdown-docs validate ./docs --source main-docs
-pnpm exec payload-markdown-docs manifest ./docs --source main-docs --pretty
-pnpm exec payload-markdown-docs plan ./docs --source main-docs
-pnpm exec payload-markdown-docs install skill --codex
+pnpm exec payload-markdown-docs validate ./docs \
+  --source payload-markdown-docs \
+  --route-base /plugins/payload-markdown-docs
 ```
 
-Signed dry-run:
+Preview the manifest or plan:
+
+```bash
+pnpm exec payload-markdown-docs manifest ./docs \
+  --source payload-markdown-docs \
+  --route-base /plugins/payload-markdown-docs \
+  --pretty
+```
+
+```bash
+pnpm exec payload-markdown-docs plan ./docs \
+  --source payload-markdown-docs \
+  --route-base /plugins/payload-markdown-docs
+```
+
+## 6. Publish From GitHub Actions
+
+GitHub OIDC only works inside GitHub Actions. The workflow needs:
+
+```yaml
+permissions:
+  contents: read
+  id-token: write
+```
+
+Then push docs to the Payload sync endpoint:
 
 ```bash
 pnpm exec payload-markdown-docs push ./docs \
-  --endpoint "$DOCS_SYNC_ENDPOINT" \
-  --source main-docs \
-  --key-id github-actions-main \
-  --private-key-file .docs-sync/docs-sync-private.pem \
-  --dry-run
-```
-
-Signed sync and publish:
-
-```bash
-pnpm exec payload-markdown-docs push ./docs \
-  --endpoint "$DOCS_SYNC_ENDPOINT" \
-  --source main-docs \
-  --key-id github-actions-main \
-  --private-key-env DOCS_SYNC_PRIVATE_KEY \
-  --sync \
-  --publish
-```
-
-GitHub OIDC sync from Actions:
-
-```bash
-pnpm exec payload-markdown-docs push ./docs \
-  --endpoint "$DOCS_SYNC_ENDPOINT" \
-  --source main-docs \
+  --endpoint "https://docs.valkyrianlabs.com/api/payload-markdown-docs/sync" \
+  --source payload-markdown-docs \
+  --route-base /plugins/payload-markdown-docs \
+  --repository "$GITHUB_REPOSITORY" \
+  --branch "$GITHUB_REF_NAME" \
+  --commit "$GITHUB_SHA" \
   --github-oidc \
   --oidc-audience payload-markdown-docs \
   --sync \
   --publish
 ```
 
-`--sync` requires `sync.allowWrites: true`. `--publish` requires `sync.allowPublish: true` and `target.enableDrafts: true`. Hard delete requires `sync.allowHardDelete: true`.
+`--sync` only works when the server has `sync.allowWrites: true`.
+`--publish` also requires `sync.allowPublish: true` and
+`target.enableDrafts: true`.
 
-## Documentation
+For non-GitHub CI, use Ed25519 keys instead of OIDC:
 
-The real plugin docs now live in [`docs/`](docs/index.md). Start with:
+```bash
+pnpm exec payload-markdown-docs keygen --out .docs-sync
+pnpm exec payload-markdown-docs push ./docs \
+  --endpoint "$DOCS_SYNC_ENDPOINT" \
+  --source payload-markdown-docs \
+  --key-id github-actions-main \
+  --private-key-env DOCS_SYNC_PRIVATE_KEY \
+  --sync \
+  --publish
+```
 
-- [Overview](docs/index.md)
+## This Repo
+
+This repo's release workflow publishes the npm package first, then pushes
+`./docs` to:
+
+```text
+https://docs.valkyrianlabs.com/api/payload-markdown-docs/sync
+```
+
+using:
+
+- source id: `payload-markdown-docs`
+- route base: `/plugins/payload-markdown-docs`
+- auth: GitHub OIDC
+- mode: sync and publish
+
+## More Docs
+
 - [Installation](docs/getting-started/installation.md)
 - [Quick Start](docs/getting-started/quick-start.md)
-- [Architecture](docs/concepts/architecture.md)
+- [Plugin Config](docs/configuration/plugin-config.md)
 - [GitHub OIDC](docs/configuration/github-oidc.md)
 - [GitHub Actions](docs/workflow/ci-github-actions.md)
-- [Agent Skill Installer](docs/workflow/agent-skill-installer.md)
 - [Route Adapter](docs/frontend/route-adapter.md)
-- [Docs Set Admin Manager](docs/admin/docs-set-manager.md)
 - [Troubleshooting](docs/reference/troubleshooting.md)
-
-The `/docs` tree is also dogfood material for the plugin: it uses supported frontmatter, root-relative internal links, and `payload-markdown` directives.
-
-## Examples
-
-- `examples/docs/` is a small fixture docs tree.
-- `examples/github-actions/publish-docs.yml` shows PR dry-run and main-branch sync/publish.
-- `examples/next/app-docs-route.md` shows the native route adapter pattern.
-- `dev/README.md` documents the local end-to-end dev harness for fixtures, seed scripts, signed push, and route adapter checks.
-
-## Roadmap
-
-Next major work:
-
-- existing collection or block bridges only if still needed
-- skill update/verify and drift-check workflow polish
-
-See [`.codex/scratch/roadmap.md`](.codex/scratch/roadmap.md) for the working implementation roadmap.
