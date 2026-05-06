@@ -121,5 +121,6 @@
   "registry": "https://registry.npmjs.org/",
   "dependencies": {
     "@valkyrianlabs/payload-markdown": "latest"
-  }
+  },
+  "packageManager": "pnpm@10.33.0"
 }
