@@ -1,4 +1,10 @@
-import type { PayloadMarkdownDocsDocsSetAuthConfig } from '../types.js'
+import type { PayloadMarkdownDocsAuthToggle } from '../types.js'
+
+import {
+  deriveDocsSetRouteBase,
+  joinRouteSegments,
+  normalizeRoutePath,
+} from '../routing/index.js'
 
 export type DocsSetPayloadOperations = {
   find: (args: {
@@ -20,13 +26,96 @@ export type DocsSetPayloadOperations = {
 
 export type PayloadRecordId = number | string
 
+export type ResolvedDocsGroup = {
+  id: PayloadRecordId
+  parentId?: string
+  routePath: string
+  slug: string
+}
+
 export type ResolvedDocsSet = {
-  auth?: PayloadMarkdownDocsDocsSetAuthConfig
+  advancedSecurity?: {
+    allowedWorkflowRefs: string[]
+    enabled: boolean
+  }
+  allowPullRequests: boolean
+  branch: string
+  groupId?: string
   id: PayloadRecordId
   routeBase: string
-  sourceId: string
-  sourceRoot?: string
+  slug: string
 }
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
+
+const getRecordId = (doc: Record<string, unknown>): PayloadRecordId | undefined => {
+  if (typeof doc.id === 'string' || typeof doc.id === 'number') {
+    return doc.id
+  }
+
+  return undefined
+}
+
+const getRelationshipId = (value: unknown): string | undefined => {
+  if (typeof value === 'string' || typeof value === 'number') {
+    return String(value)
+  }
+
+  if (isRecord(value)) {
+    const id = getRecordId(value)
+
+    return id === undefined ? undefined : String(id)
+  }
+
+  return undefined
+}
+
+const getString = (value: unknown): string | undefined =>
+  typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined
+
+const getStringArray = (value: unknown): string[] => {
+  if (!Array.isArray(value)) {
+    return []
+  }
+
+  return value.flatMap((item) => {
+    if (typeof item === 'string' && item.trim() !== '') {
+      return [item.trim()]
+    }
+
+    if (isRecord(item)) {
+      const nestedValue = getString(item.value)
+
+      return nestedValue ? [nestedValue] : []
+    }
+
+    return []
+  })
+}
+
+const authToggleEnabled = (
+  toggle: boolean | PayloadMarkdownDocsAuthToggle | undefined,
+  defaultValue: boolean,
+): boolean => {
+  if (toggle === undefined) {
+    return defaultValue
+  }
+
+  if (typeof toggle === 'boolean') {
+    return toggle
+  }
+
+  return toggle.enabled !== false
+}
+
+export const isGitHubOidcAuthEnabled = (
+  auth: { githubOidc?: boolean | PayloadMarkdownDocsAuthToggle; mode?: 'disabled' } | undefined,
+): boolean => auth?.mode !== 'disabled' && authToggleEnabled(auth?.githubOidc, false)
+
+export const isEd25519AuthEnabled = (
+  auth: { ed25519?: boolean | PayloadMarkdownDocsAuthToggle; mode?: 'disabled' } | undefined,
+): boolean => auth?.mode !== 'disabled' && authToggleEnabled(auth?.ed25519, false)
 
 export const updateDocsSetAfterSync = async ({
   aiExport,
@@ -65,173 +154,187 @@ export const updateDocsSetAfterSync = async ({
   })
 }
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value)
-
-const getRecordId = (doc: Record<string, unknown>): PayloadRecordId | undefined => {
-  if (typeof doc.id === 'string' || typeof doc.id === 'number') {
-    return doc.id
-  }
-
-  return undefined
-}
-
-const getString = (value: unknown): string | undefined =>
-  typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined
-
-const getNumber = (value: unknown): number | undefined =>
-  typeof value === 'number' && Number.isFinite(value) ? value : undefined
-
-const getStringArray = (value: unknown): string[] | undefined => {
-  if (!Array.isArray(value)) {
-    return undefined
-  }
-
-  const values = value.flatMap((item) => {
-    if (typeof item === 'string' && item.trim() !== '') {
-      return [item.trim()]
-    }
-
-    if (isRecord(item)) {
-      const nestedValue = getString(item.value)
-
-      return nestedValue ? [nestedValue] : []
-    }
-
-    return []
-  })
-
-  return values.length > 0 ? values : undefined
-}
-
-const getRecord = (value: unknown): Record<string, unknown> | undefined =>
-  isRecord(value) ? value : undefined
-
-const toResolvedDocsSetAuth = (
-  value: unknown,
-): PayloadMarkdownDocsDocsSetAuthConfig | undefined => {
-  const auth = getRecord(value)
-
-  if (!auth) {
-    return undefined
-  }
-
-  const ed25519 = getRecord(auth.ed25519)
-  const keys = Array.isArray(ed25519?.keys)
-    ? ed25519.keys.flatMap((key) => {
-        if (!isRecord(key)) {
-          return []
-        }
-
-        const id = getString(key.keyId) ?? getString(key.id)
-        const publicKey = getString(key.publicKey)
-
-        return id && publicKey
-          ? [
-              {
-                id,
-                publicKey,
-              },
-            ]
-          : []
-      })
-    : []
-  const githubOidc = getRecord(auth.githubOidc)
-  const resolvedGithubOidc =
-    githubOidc && githubOidc.enabled !== false
-      ? {
-          allowedEnvironments: getStringArray(githubOidc.allowedEnvironments),
-          allowedRefs: getStringArray(githubOidc.allowedRefs),
-          allowedRepositories: getStringArray(githubOidc.allowedRepositories),
-          allowedRepositoryOwners: getStringArray(githubOidc.allowedRepositoryOwners),
-          allowedWorkflowRefs: getStringArray(githubOidc.allowedWorkflowRefs),
-          allowedWorkflows: getStringArray(githubOidc.allowedWorkflows),
-          allowPullRequests:
-            typeof githubOidc.allowPullRequests === 'boolean'
-              ? githubOidc.allowPullRequests
-              : undefined,
-          audience: getString(githubOidc.audience),
-          enabled: githubOidc.enabled === true,
-          issuer: getString(githubOidc.issuer),
-          jwksUrl: getString(githubOidc.jwksUrl),
-          maxSkewSeconds: getNumber(githubOidc.maxSkewSeconds),
-        }
-      : undefined
-  const hasGithubOidcPolicy = Boolean(
-    resolvedGithubOidc &&
-    (resolvedGithubOidc.enabled ||
-      resolvedGithubOidc.audience ||
-      resolvedGithubOidc.allowedEnvironments ||
-      resolvedGithubOidc.allowedRefs ||
-      resolvedGithubOidc.allowedRepositories ||
-      resolvedGithubOidc.allowedRepositoryOwners ||
-      resolvedGithubOidc.allowedWorkflowRefs ||
-      resolvedGithubOidc.allowedWorkflows ||
-      resolvedGithubOidc.allowPullRequests !== undefined ||
-      resolvedGithubOidc.issuer ||
-      resolvedGithubOidc.jwksUrl ||
-      resolvedGithubOidc.maxSkewSeconds !== undefined),
-  )
-  const resolvedAuth: PayloadMarkdownDocsDocsSetAuthConfig = {
-    ...(keys.length > 0
-      ? {
-          ed25519: {
-            keys,
-            maxSkewSeconds: getNumber(ed25519?.maxSkewSeconds),
-            nonceTtlSeconds: getNumber(ed25519?.nonceTtlSeconds),
-          },
-        }
-      : {}),
-    ...(hasGithubOidcPolicy && resolvedGithubOidc
-      ? {
-          githubOidc: resolvedGithubOidc,
-        }
-      : {}),
-  }
-
-  return resolvedAuth.ed25519 || resolvedAuth.githubOidc ? resolvedAuth : undefined
-}
-
-const toResolvedDocsSet = (doc: unknown): ResolvedDocsSet | undefined => {
+const toResolvedGroup = (
+  doc: unknown,
+  groupsById: Map<string, unknown>,
+  seen = new Set<string>(),
+): ResolvedDocsGroup | undefined => {
   if (!isRecord(doc)) {
     return undefined
   }
 
   const id = getRecordId(doc)
+  const slug = getString(doc.slug)
 
-  if (!id || typeof doc.sourceId !== 'string' || typeof doc.routeBase !== 'string') {
+  if (!id || !slug) {
     return undefined
   }
 
+  const stringId = String(id)
+
+  if (seen.has(stringId)) {
+    return {
+      id,
+      slug,
+      routePath: joinRouteSegments(slug),
+    }
+  }
+
+  const parentId = getRelationshipId(doc.parent)
+  const parentDoc = parentId ? groupsById.get(parentId) : undefined
+  const parentGroup = parentDoc
+    ? toResolvedGroup(parentDoc, groupsById, new Set([stringId, ...seen]))
+    : undefined
+
   return {
     id,
-    auth: toResolvedDocsSetAuth(doc.auth),
-    routeBase: doc.routeBase,
-    sourceId: doc.sourceId,
-    sourceRoot: typeof doc.sourceRoot === 'string' ? doc.sourceRoot : undefined,
+    slug,
+    parentId,
+    routePath: joinRouteSegments(parentGroup?.routePath, slug),
   }
 }
 
-export const findDocsSetBySourceId = async ({
+const toResolvedDocsSet = ({
+  doc,
+  groupsById,
+}: {
+  doc: unknown
+  groupsById: Map<string, unknown>
+}): ResolvedDocsSet | undefined => {
+  if (!isRecord(doc)) {
+    return undefined
+  }
+
+  const id = getRecordId(doc)
+  const slug = getString(doc.slug)
+
+  if (!id || !slug) {
+    return undefined
+  }
+
+  const groupId = getRelationshipId(doc.group)
+  const group = groupId ? toResolvedGroup(groupsById.get(groupId), groupsById) : undefined
+  const advancedSecurity = isRecord(doc.advancedSecurity)
+    ? doc.advancedSecurity
+    : undefined
+  const advancedSecurityEnabled = advancedSecurity?.enabled === true
+
+  return {
+    id,
+    ...(advancedSecurityEnabled
+      ? {
+          advancedSecurity: {
+            allowedWorkflowRefs: getStringArray(advancedSecurity.allowedWorkflowRefs),
+            enabled: true,
+          },
+        }
+      : {}),
+    slug,
+    allowPullRequests: doc.allowPullRequests === true,
+    branch: getString(doc.branch) ?? 'main',
+    groupId,
+    routeBase: normalizeRoutePath(
+      deriveDocsSetRouteBase({
+        docsSetSlug: slug,
+        groupRoutePath: group?.routePath,
+      }),
+    ),
+  }
+}
+
+const getGroupsById = async ({
   collectionSlug,
   payload,
-  sourceId,
 }: {
   collectionSlug: string
   payload: DocsSetPayloadOperations
-  sourceId: string
-}): Promise<ResolvedDocsSet | undefined> => {
+}): Promise<Map<string, unknown>> => {
   const result = await payload.find({
     collection: collectionSlug,
     depth: 0,
-    limit: 1,
+    limit: 1000,
     overrideAccess: true,
-    where: {
-      sourceId: {
-        equals: sourceId,
-      },
-    },
   })
 
-  return toResolvedDocsSet(result.docs[0])
+  return new Map(
+    result.docs.flatMap((doc) => {
+      if (!isRecord(doc)) {
+        return []
+      }
+
+      const id = getRecordId(doc)
+
+      return id === undefined ? [] : [[String(id), doc]]
+    }),
+  )
+}
+
+export const findDocsSetBySlug = async ({
+  slug,
+  collectionSlug,
+  docsGroupsCollectionSlug,
+  payload,
+}: {
+  collectionSlug: string
+  docsGroupsCollectionSlug: string
+  payload: DocsSetPayloadOperations
+  slug: string
+}): Promise<ResolvedDocsSet | undefined> => {
+  const [result, groupsById] = await Promise.all([
+    payload.find({
+      collection: collectionSlug,
+      depth: 0,
+      limit: 1,
+      overrideAccess: true,
+      where: {
+        slug: {
+          equals: slug,
+        },
+      },
+    }),
+    getGroupsById({
+      collectionSlug: docsGroupsCollectionSlug,
+      payload,
+    }),
+  ])
+
+  return toResolvedDocsSet({
+    doc: result.docs[0],
+    groupsById,
+  })
+}
+
+export const findDocsSetByRouteBase = async ({
+  collectionSlug,
+  docsGroupsCollectionSlug,
+  payload,
+  routeBase,
+}: {
+  collectionSlug: string
+  docsGroupsCollectionSlug: string
+  payload: DocsSetPayloadOperations
+  routeBase: string
+}): Promise<ResolvedDocsSet | undefined> => {
+  const [result, groupsById] = await Promise.all([
+    payload.find({
+      collection: collectionSlug,
+      depth: 0,
+      limit: 1000,
+      overrideAccess: true,
+    }),
+    getGroupsById({
+      collectionSlug: docsGroupsCollectionSlug,
+      payload,
+    }),
+  ])
+  const normalizedRouteBase = normalizeRoutePath(routeBase)
+
+  return result.docs
+    .map((doc) =>
+      toResolvedDocsSet({
+        doc,
+        groupsById,
+      }),
+    )
+    .find((docsSet) => docsSet?.routeBase === normalizedRouteBase)
 }

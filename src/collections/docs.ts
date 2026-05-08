@@ -99,30 +99,6 @@ export const createDocsCollection = ({
           type: 'checkbox',
           defaultValue: false,
         },
-        {
-          name: 'theme',
-          type: 'text',
-        },
-        {
-          name: 'heroEyebrow',
-          type: 'text',
-        },
-        {
-          name: 'heroTitle',
-          type: 'text',
-        },
-        {
-          name: 'heroDescription',
-          type: 'textarea',
-        },
-        {
-          name: 'seoTitle',
-          type: 'text',
-        },
-        {
-          name: 'seoDescription',
-          type: 'textarea',
-        },
       ],
     },
     {

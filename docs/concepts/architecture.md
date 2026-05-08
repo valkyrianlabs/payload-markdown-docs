@@ -28,8 +28,8 @@ tokens, body hashes, nonces, and manifests.
 :::
 
 :::card {title="Docs sets" href="/concepts/docs-sets"}
-Own source ids, route bases, source auth policy, generated docs records, and
-future rendering defaults.
+Own docs package slugs, branch policy, generated docs records, and sync
+metadata. Routes are derived from groups and slugs.
 :::
 
 :::

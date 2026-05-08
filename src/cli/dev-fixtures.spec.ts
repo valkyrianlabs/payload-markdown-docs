@@ -6,15 +6,10 @@ import { runCli } from './index.js'
 import { parseCliArgs } from './parseArgs.js'
 
 const sourceId = 'payload-markdown-docs'
-const routeBase = '/plugins/payload-markdown-docs'
 
 const docsFlags = [
   '--source',
   sourceId,
-  '--root',
-  'docs',
-  '--route-base',
-  routeBase,
 ]
 
 describe('dev docs fixtures', () => {
@@ -71,8 +66,6 @@ describe('dev harness docs and scripts', () => {
       'http://localhost:3000/api/payload-markdown-docs/sync',
       '--source',
       sourceId,
-      '--root',
-      'docs',
       '--key-id',
       'dev-local',
       '--private-key-file',
@@ -83,13 +76,15 @@ describe('dev harness docs and scripts', () => {
 
     expect(parsedPush.ok).toBe(true)
     expect(readme).toContain(`--source ${sourceId}`)
-    expect(readme).toContain('--root docs')
-    expect(readme).toContain(`--endpoint "http://localhost:3000/api/${sourceId}/sync"`)
+    expect(readme).not.toContain('--root docs')
+    expect(readme).toContain(
+      '--endpoint "http://localhost:3000/api/payload-markdown-docs/sync"',
+    )
     expect(readme).toContain('--private-key-file dev/.docs-sync/docs-sync-private.pem')
     expect(readme).toContain('node --import @swc-node/register/esm-register ./src/cli/index.ts push')
     expect(readme).toContain('push ./dev/docs-fixtures/publishing')
     expect(readme).toContain('load `dev/.env` directly')
-    expect(readme).toContain('stores it on the')
+    expect(readme).toContain('stores it in')
     expect(readme).not.toContain('pnpm exec payload-markdown-docs push')
     expect(readme).not.toContain('cp dev/.env.example .env')
     expect(readme).not.toMatch(/\bmv\s+dev\/\.env/i)
@@ -107,7 +102,7 @@ describe('dev harness docs and scripts', () => {
     expect(scripts['dev:docs:validate']).toContain('dev/docs-fixtures/basic')
     expect(scripts['dev:docs:validate']).toContain(`--source ${sourceId}`)
     expect(scripts['dev:docs:manifest']).toContain('--pretty')
-    expect(scripts['dev:docs:plan']).toContain(`--route-base ${routeBase}`)
+    expect(scripts['dev:docs:plan']).not.toContain('--route-base')
     expect(scripts['dev:docs:keygen']).toContain('dev/scripts/create-docs-keypair.ts')
     expect(scripts['dev:docs:seed']).toContain('dev/scripts/seed-docs.ts')
     expect(scripts['dev:docs:reset']).toContain('dev/scripts/reset-docs.ts')
@@ -122,15 +117,14 @@ describe('dev harness docs and scripts', () => {
     const seedScript = await readFile('dev/scripts/seed-docs.ts', 'utf8')
 
     expect(helper).toContain('group: groupId')
-    expect(helper).toContain('auth:')
-    expect(helper).toContain('publicKey,')
-    expect(helper).toContain('sourceId: devDocsSourceId')
-    expect(helper).toContain(`routeBase: '${routeBase}'`)
-    expect(helper).toContain("sourceRoot: 'docs'")
+    expect(helper).not.toContain('auth:')
+    expect(helper).not.toContain('sourceId: devDocsSourceId')
+    expect(helper).not.toContain('routeBase:')
+    expect(helper).not.toContain("sourceRoot: 'docs'")
     expect(helper).not.toContain('String(groupId)')
     expect(seedScript).toContain('buildDevDocsSetSeedData({')
     expect(seedScript).toContain('groupId,')
-    expect(seedScript).toContain('publicKey: docsSyncPublicKey,')
+    expect(seedScript).toContain('buildDevDocsKeySeedData({')
   })
 
   it('mounts the dev frontend route adapter catch-all', async () => {

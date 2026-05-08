@@ -89,23 +89,12 @@ const DocsHeader = ({
   docsSet: ResolvedPayloadMarkdownDocsSet
 }) => {
   const description =
-    doc?.overrides?.heroDescription ??
     doc?.description ??
-    docsSet.defaults?.heroDescription ??
     docsSet.description
-  const title =
-    doc?.overrides?.heroTitle ??
-    doc?.title ??
-    docsSet.defaults?.heroTitle ??
-    docsSet.title
+  const title = doc?.title ?? docsSet.title
 
   return (
     <header className="mb-10 border-b border-border pb-8">
-      {docsSet.defaults?.heroEyebrow ? (
-        <p className="mb-3 text-sm font-medium uppercase tracking-wide text-cyan-300">
-          {docsSet.defaults.heroEyebrow}
-        </p>
-      ) : null}
       <h1 className="text-4xl font-semibold tracking-tight text-foreground md:text-5xl">
         {title}
       </h1>

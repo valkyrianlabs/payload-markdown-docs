@@ -20,48 +20,39 @@ payloadMarkdownDocs({
 })
 ```
 
-An enabled plugin injects the default docs infrastructure and registers the sync endpoint. A disabled plugin is an exact no-op.
+An enabled plugin injects the default docs infrastructure and registers the sync
+endpoint. A disabled plugin is an exact no-op.
 
 :::toc {title="On this page" depth="3" theme="compact"}
 :::
 
-## Complete Dedicated Docs Config
+## Recommended Config
 
 ```ts
 payloadMarkdownDocs({
-  enabled: true,
-
   auth: {
-    githubOidc: {
-      audience: 'payload-markdown-docs',
-    },
+    githubOidc: true,
   },
-
   target: {
-    type: 'docsCollection',
     enableDrafts: true,
   },
-
   sync: {
     allowWrites: true,
     allowPublish: true,
-    allowHardDelete: false,
-    defaultPublishMode: 'draft',
-    deleteBehavior: 'archive',
   },
 })
 ```
 
 ## Main Sections
 
-- `auth` configures sync request verification. Use `ed25519`, `githubOidc`, or
-  both on the same endpoint. Source-specific keys and OIDC allowlists should
-  live on docs sets in Payload Admin.
+- `auth` enables sync request verification modes. Use `githubOidc`, `ed25519`,
+  or both on the same endpoint.
 - `target` configures the dedicated generated docs collection.
-- `sources` is a legacy fallback source allow-list when a docs set is not
-  found. Prefer docs sets for normal CMS-managed deployments.
 - `sync` controls write, publish, and delete authority.
 - `routing` configures route collision checks.
 - `collections` customizes infrastructure collection slugs.
+
+GitHub trust belongs in `Docs Globals > Trusted`. Ed25519 public keys belong in
+`Docs Globals > Keys`. Docs packages belong in `Docs Globals > Sets`.
 
 See [sync config](/configuration/sync-config) and [routing config](/configuration/routing-config) for the safety gates.

@@ -1,6 +1,9 @@
 import type { CollectionConfig } from 'payload'
 
-import { DOCS_SET_MANAGER_COMPONENT } from '../constants.js'
+import {
+  DOCS_GLOBALS_ADMIN_GROUP,
+  DOCS_SET_MANAGER_COMPONENT,
+} from '../constants.js'
 
 export type CreateDocsSetsCollectionOptions = {
   docsCollectionSlug?: string
@@ -17,8 +20,8 @@ export const createDocsSetsCollection = ({
 }: CreateDocsSetsCollectionOptions): CollectionConfig => ({
   slug,
   admin: {
-    defaultColumns: ['title', 'sourceId', 'routeBase', 'updatedAt'],
-    group: 'Docs',
+    defaultColumns: ['title', 'slug', 'branch', 'updatedAt'],
+    group: DOCS_GLOBALS_ADMIN_GROUP,
     useAsTitle: 'title',
   },
   fields: [
@@ -32,18 +35,7 @@ export const createDocsSetsCollection = ({
       type: 'text',
       index: true,
       required: true,
-    },
-    {
-      name: 'sourceId',
-      type: 'text',
-      index: true,
-      required: true,
       unique: true,
-    },
-    {
-      name: 'sourceRoot',
-      type: 'text',
-      defaultValue: 'docs',
     },
     {
       name: 'group',
@@ -51,211 +43,74 @@ export const createDocsSetsCollection = ({
       relationTo: docsGroupsCollectionSlug,
     },
     {
-      name: 'routeBase',
+      name: 'branch',
       type: 'text',
-      index: true,
-      required: true,
-      unique: true,
+      admin: {
+        description:
+          'Git branch allowed to publish this docs set. The full Git ref is handled internally.',
+      },
+      defaultValue: 'main',
+    },
+    {
+      name: 'allowPullRequests',
+      type: 'checkbox',
+      admin: {
+        description:
+          'Allow GitHub pull request events to dry-run or publish this docs set.',
+      },
+      defaultValue: false,
     },
     {
       name: 'description',
       type: 'textarea',
     },
     {
-      name: 'navTitle',
-      type: 'text',
-    },
-    {
-      name: 'order',
-      type: 'number',
-      defaultValue: 0,
-    },
-    {
-      name: 'auth',
+      name: 'advancedSecurity',
       type: 'group',
       admin: {
         description:
-          'Source-specific sync authentication policy. Use this instead of hardcoding docs sources in payload.config.ts.',
+          'Optional workflow lock-down. Leave disabled to allow any workflow from a trusted GitHub owner/repository and branch.',
       },
       fields: [
         {
-          name: 'ed25519',
-          type: 'group',
+          name: 'enabled',
+          type: 'checkbox',
+          admin: {
+            description:
+              'When enabled, only the workflow refs listed below can publish this docs set.',
+          },
+          defaultValue: false,
+        },
+        {
+          name: 'allowedWorkflowRefs',
+          type: 'array',
+          admin: {
+            condition: (_data, siblingData) => siblingData?.enabled === true,
+            description:
+              'Exact GitHub workflow refs, for example owner/repo/.github/workflows/publish-docs.yml@refs/heads/main.',
+          },
           fields: [
             {
-              name: 'keys',
-              type: 'array',
-              admin: {
-                description:
-                  'Public keys allowed to sync this docs set from local machines or non-GitHub CI.',
-              },
-              fields: [
-                {
-                  name: 'keyId',
-                  type: 'text',
-                  required: true,
-                },
-                {
-                  name: 'publicKey',
-                  type: 'textarea',
-                  required: true,
-                },
-              ],
-            },
-            {
-              name: 'maxSkewSeconds',
-              type: 'number',
-            },
-            {
-              name: 'nonceTtlSeconds',
-              type: 'number',
+              name: 'value',
+              type: 'text',
+              required: true,
             },
           ],
-        },
-        {
-          name: 'githubOidc',
-          type: 'group',
-          fields: [
-            {
-              name: 'enabled',
-              type: 'checkbox',
-              defaultValue: false,
-            },
-            {
-              name: 'audience',
-              type: 'text',
-              admin: {
-                description:
-                  'Optional override. Defaults to the plugin-level GitHub OIDC audience.',
-              },
-            },
-            {
-              name: 'allowedRepositories',
-              type: 'array',
-              admin: {
-                description:
-                  'GitHub repositories allowed to sync this docs set, for example valkyrianlabs/payload-markdown-docs.',
-              },
-              fields: [
-                {
-                  name: 'value',
-                  type: 'text',
-                  required: true,
-                },
-              ],
-            },
-            {
-              name: 'allowedRepositoryOwners',
-              type: 'array',
-              fields: [
-                {
-                  name: 'value',
-                  type: 'text',
-                  required: true,
-                },
-              ],
-            },
-            {
-              name: 'allowedRefs',
-              type: 'array',
-              admin: {
-                description:
-                  'Exact Git refs such as refs/heads/main or refs/tags/v0.2.1.',
-              },
-              fields: [
-                {
-                  name: 'value',
-                  type: 'text',
-                  required: true,
-                },
-              ],
-            },
-            {
-              name: 'allowedWorkflows',
-              type: 'array',
-              fields: [
-                {
-                  name: 'value',
-                  type: 'text',
-                  required: true,
-                },
-              ],
-            },
-            {
-              name: 'allowedWorkflowRefs',
-              type: 'array',
-              fields: [
-                {
-                  name: 'value',
-                  type: 'text',
-                  required: true,
-                },
-              ],
-            },
-            {
-              name: 'allowedEnvironments',
-              type: 'array',
-              fields: [
-                {
-                  name: 'value',
-                  type: 'text',
-                  required: true,
-                },
-              ],
-            },
-            {
-              name: 'allowPullRequests',
-              type: 'checkbox',
-              defaultValue: false,
-            },
-            {
-              name: 'issuer',
-              type: 'text',
-            },
-            {
-              name: 'jwksUrl',
-              type: 'text',
-            },
-            {
-              name: 'maxSkewSeconds',
-              type: 'number',
-            },
-          ],
-        },
-      ],
-    },
-    {
-      name: 'defaults',
-      type: 'group',
-      fields: [
-        {
-          name: 'theme',
-          type: 'text',
-        },
-        {
-          name: 'heroEyebrow',
-          type: 'text',
-        },
-        {
-          name: 'heroTitle',
-          type: 'text',
-        },
-        {
-          name: 'heroDescription',
-          type: 'textarea',
-        },
-        {
-          name: 'seoTitle',
-          type: 'text',
-        },
-        {
-          name: 'seoDescription',
-          type: 'textarea',
-        },
-        {
-          name: 'sidebarMode',
-          type: 'select',
-          options: ['auto', 'manual', 'hidden'],
+          validate: (value, { siblingData }) => {
+            const advancedSecurityData =
+              typeof siblingData === 'object' && siblingData !== null
+                ? (siblingData as { enabled?: unknown })
+                : undefined
+
+            if (
+              advancedSecurityData?.enabled === true &&
+              (!Array.isArray(value) || value.length === 0)
+            ) {
+              return 'Add at least one workflow ref or disable advanced security.'
+            }
+
+            return true
+          },
         },
       ],
     },
@@ -307,6 +162,7 @@ export const createDocsSetsCollection = ({
               },
               custom: {
                 docsCollectionSlug,
+                docsGroupsCollectionSlug,
                 docsSetsCollectionSlug: slug,
               },
             },
@@ -314,4 +170,8 @@ export const createDocsSetsCollection = ({
         ]
       : []),
   ],
+  labels: {
+    plural: 'Sets',
+    singular: 'Set',
+  },
 })

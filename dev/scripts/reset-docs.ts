@@ -72,7 +72,7 @@ const run = async () => {
       collection: devDocsSetSlug,
       payload,
       where: {
-        sourceId: {
+        slug: {
           equals: devDocsSourceId,
         },
       },

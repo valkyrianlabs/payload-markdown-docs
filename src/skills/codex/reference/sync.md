@@ -5,7 +5,8 @@ The sync workflow is authenticated and server-owned.
 Important concepts:
 
 - `source.id` maps to a Payload Admin docs set.
-- The docs set owns the route base and source-specific auth policy.
+- The docs set slug and optional group determine the route base.
+- Global Keys and Trusted records own reusable authentication trust.
 - The manifest does not choose target collections or fields.
 - `sync.allowWrites: true` is required for `mode: "sync"`.
 - `sync.allowPublish: true` and `target.enableDrafts: true` are required for publishing.
@@ -25,12 +26,13 @@ Ed25519 signed pushes verify:
 GitHub OIDC pushes verify:
 
 - bearer JWT signature through GitHub JWKS
-- issuer and audience
-- repository, owner, ref, workflow, and environment allowlists from the docs set
+- docs set slug as audience
+- trusted owner/repository and docs set branch
+- advanced workflow refs only when explicitly enabled on the docs set
 - pull request policy
 - JWT `jti` replay protection
 - body SHA-256
 - manifest validity
 
-Do not bypass failed auth or body verification. Fix the key, endpoint, docs set,
-source id, body, or server config.
+Do not bypass failed auth or body verification. Fix the key, endpoint, docs set
+slug, body, or server config.

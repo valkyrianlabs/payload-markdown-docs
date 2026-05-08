@@ -11,7 +11,6 @@ import type {
   PushCommandOptions,
 } from '../types.js'
 
-import { DEFAULT_GITHUB_OIDC_AUDIENCE } from '../../constants.js'
 import { signDocsSyncRequest } from '../../security/index.js'
 import {
   buildDocsManifest,
@@ -284,8 +283,6 @@ const getPushCommandOptions = async (
     return {
       ...baseOptions,
       authMode: 'github-oidc',
-      oidcAudience:
-        getFlagString(args, 'oidc-audience') ?? DEFAULT_GITHUB_OIDC_AUDIENCE,
       oidcTokenEnv: getFlagString(args, 'oidc-token-env'),
     }
   }
@@ -361,14 +358,13 @@ export const runPushCommand = async (
     mode: options.mode,
     publish: options.publish,
     repository: options.repository,
-    root: options.sourceRoot,
     sourceId: options.sourceId,
   })
   const validation = validateDocsManifest(manifest, {
     maxFileBytes: options.maxFileBytes,
     maxFiles: options.maxFiles,
     maxTotalBytes: options.maxTotalBytes,
-    routeBase: options.routeBase,
+    routeBase: `/${options.sourceId}`,
   })
 
   if (!validation.ok) {
@@ -389,7 +385,7 @@ export const runPushCommand = async (
   if (options.authMode === 'github-oidc') {
     const oidcToken = await readGithubOidcToken({
       args,
-      audience: options.oidcAudience,
+      audience: options.sourceId,
       httpGet,
     })
 

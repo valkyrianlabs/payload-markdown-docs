@@ -43,9 +43,7 @@ export type DocsCommandOptions = {
   maxFiles?: number
   maxTotalBytes?: number
   repository?: string
-  routeBase?: string
   sourceId: string
-  sourceRoot?: string
 }
 
 export type PlanCommandOptions = {
@@ -66,7 +64,6 @@ export type PushCommandOptions = {
     }
   | {
       authMode: 'github-oidc'
-      oidcAudience: string
       oidcTokenEnv?: string
     }
 ) &

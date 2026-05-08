@@ -13,7 +13,8 @@ tags:
 The sync endpoint is designed to be strict by default.
 
 :::callout {variant="warning" title="No unauthenticated sync"}
-Production sync should use Ed25519 signed requests. Basic auth is not the default serious production model.
+Production sync should use GitHub OIDC or Ed25519 signed requests. Basic auth is
+not a production sync model.
 :::
 
 GitHub Actions OIDC is also supported and avoids long-lived private keys in
@@ -55,12 +56,13 @@ The manifest cannot choose:
 - route base
 - publish authority
 - hard delete authority
-- allowed source ids
+- allowed docs set slugs
 - source-specific auth allowlists
 
-Payload Admin docs sets own source ids, route bases, and source-specific auth
-allowlists. Plugin config owns collection setup and lifecycle gates such as
-write, publish, and hard-delete authority.
+Payload Admin docs sets own slugs, branches, and advanced workflow refs. Global
+Keys and Trusted records own reusable authentication trust. Plugin config owns
+collection setup and lifecycle gates such as write, publish, and hard-delete
+authority.
 
 ## Replay Protection
 

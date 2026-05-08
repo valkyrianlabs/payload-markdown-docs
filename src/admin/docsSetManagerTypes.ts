@@ -1,13 +1,19 @@
 export type RawDocsSetRecord = {
+  group?: { id?: number | string } | null | number | string
   id?: number | string
-  routeBase?: string
-  sourceId?: string
+  slug?: string
   sync?: {
     docsCount?: null | number
     lastStatus?: 'failed' | 'pending' | 'success' | null
     lastSyncedAt?: null | string
   }
   title?: string
+}
+
+export type RawDocsGroupRecord = {
+  id?: number | string
+  parent?: { id?: number | string } | null | number | string
+  slug?: string
 }
 
 export type RawDocsRecord = {
@@ -18,14 +24,8 @@ export type RawDocsRecord = {
   navTitle?: null | string
   order?: null | number
   overrides?: {
-    heroDescription?: null | string
-    heroEyebrow?: null | string
-    heroTitle?: null | string
     hideFromNav?: boolean | null
     navTitle?: null | string
-    seoDescription?: null | string
-    seoTitle?: null | string
-    theme?: null | string
   }
   route?: null | string
   sourcePath?: null | string
@@ -72,7 +72,7 @@ export type DocsSetManagerData = {
   docsSet: {
     id: string
     routeBase: string
-    sourceId: string
+    slug: string
     title: string
   }
   summary: {

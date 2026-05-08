@@ -10,6 +10,6 @@ tags:
 
 # Sync Configuration
 
-The server owns source ids, route bases, target collection settings, publish behavior, and delete behavior.
+The server owns docs set slugs, derived routes, target collection settings, publish behavior, and delete behavior.
 
 The client sends signed Markdown content. The Payload plugin decides where that content may go.

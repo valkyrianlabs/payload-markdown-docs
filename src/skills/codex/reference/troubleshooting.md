@@ -6,12 +6,11 @@ Check key id, private key, endpoint pathname, timestamp, nonce, and exact body s
 
 ## OIDC invalid token
 
-Check that the workflow uses `--github-oidc`, grants `id-token: write`, and requests the configured audience.
+Check that the workflow uses `--github-oidc`, grants `id-token: write`, and uses a source matching the docs set slug.
 
 ## OIDC repository or ref not allowed
 
-Check the docs set OIDC allowlists. The request may ask; the CMS decides which
-repository and ref are trusted.
+Check `Docs Globals > Trusted` for owner/repository trust and the docs set branch for ref trust.
 
 ## OIDC replay
 
@@ -27,7 +26,7 @@ Generate a fresh request. Do not reuse signed headers.
 
 ## Source not allowed
 
-Create or update a docs set with the expected `sourceId`.
+Create or update a docs set with the expected slug.
 
 ## Publish disabled
 

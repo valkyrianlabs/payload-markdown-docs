@@ -121,14 +121,13 @@ export const runPlanCommand = async (args: ParsedCliArgs): Promise<CliResult> =>
     deleteBehavior,
     files,
     repository: options.repository,
-    root: options.sourceRoot,
     sourceId: options.sourceId,
   })
   const validation = validateDocsManifest(manifest, {
     maxFileBytes: options.maxFileBytes,
     maxFiles: options.maxFiles,
     maxTotalBytes: options.maxTotalBytes,
-    routeBase: options.routeBase,
+    routeBase: `/${options.sourceId}`,
   })
 
   if (!validation.ok) {

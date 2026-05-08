@@ -9,12 +9,14 @@ import type {
 
 import {
   DEFAULT_DOCS_COLLECTION_SLUG,
+  DEFAULT_DOCS_GROUPS_COLLECTION_SLUG,
   DEFAULT_DOCS_SETS_COLLECTION_SLUG,
 } from '../constants.js'
 import { getDocsSetManagerData } from './docsSetManagerData.js'
 
 type DocsSetManagerFieldCustom = {
   docsCollectionSlug?: string
+  docsGroupsCollectionSlug?: string
   docsSetsCollectionSlug?: string
 }
 
@@ -155,6 +157,8 @@ export const DocsSetManager = async ({
 }: UIFieldServerProps) => {
   const custom = getFieldCustom(field)
   const docsCollectionSlug = custom.docsCollectionSlug ?? DEFAULT_DOCS_COLLECTION_SLUG
+  const docsGroupsCollectionSlug =
+    custom.docsGroupsCollectionSlug ?? DEFAULT_DOCS_GROUPS_COLLECTION_SLUG
   const docsSetsCollectionSlug =
     custom.docsSetsCollectionSlug ?? DEFAULT_DOCS_SETS_COLLECTION_SLUG
 
@@ -170,6 +174,7 @@ export const DocsSetManager = async ({
   const data = await getDocsSetManagerData({
     adminRoute: req.payload.config.routes.admin,
     docsCollectionSlug,
+    docsGroupsCollectionSlug,
     docsSetId: String(id),
     docsSetsCollectionSlug,
     payload: payload as DocsSetManagerPayloadOperations,
@@ -186,8 +191,8 @@ export const DocsSetManager = async ({
       </header>
 
       <section>
-        <h3>Route Base</h3>
-        <p>{data.docsSet.routeBase || 'No route base configured'}</p>
+        <h3>Effective Route</h3>
+        <p>{data.docsSet.routeBase || 'No route available yet'}</p>
       </section>
 
       <section>

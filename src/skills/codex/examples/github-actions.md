@@ -44,7 +44,6 @@ jobs:
             --endpoint "$DOCS_SYNC_ENDPOINT" \
             --source main-docs \
             --github-oidc \
-            --oidc-audience payload-markdown-docs \
             --dry-run
         env:
           DOCS_SYNC_ENDPOINT: ${{ secrets.DOCS_SYNC_ENDPOINT }}
@@ -56,7 +55,6 @@ jobs:
             --endpoint "$DOCS_SYNC_ENDPOINT" \
             --source main-docs \
             --github-oidc \
-            --oidc-audience payload-markdown-docs \
             --sync \
             --publish
         env:

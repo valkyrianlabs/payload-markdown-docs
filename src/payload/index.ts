@@ -21,14 +21,24 @@ export type {
   DocsDraftStatus,
   DocsPublishMode,
 } from './docsData.js'
+export { findDocsKeyById } from './docsKeys.js'
+export type {
+  DocsKeyPayloadOperations,
+  ResolvedDocsKey,
+} from './docsKeys.js'
 export {
-  findDocsSetBySourceId,
+  findDocsSetByRouteBase,
+  findDocsSetBySlug,
+  isEd25519AuthEnabled,
+  isGitHubOidcAuthEnabled,
   updateDocsSetAfterSync,
 } from './docsSets.js'
 export type {
   DocsSetPayloadOperations,
   ResolvedDocsSet,
 } from './docsSets.js'
+export { findTrustedGitHubSources } from './docsTrusted.js'
+export type { DocsTrustedPayloadOperations } from './docsTrusted.js'
 export { findExistingDocsRecords } from './existingDocs.js'
 export {
   findExistingPayloadDocsRecords,

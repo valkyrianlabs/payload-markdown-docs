@@ -13,9 +13,10 @@ tags:
 
 This guide covers the default workflow for syncing a Git-backed `docs/` folder into Payload-managed docs sets and generated docs records.
 
-The client sends docs content. Payload docs sets decide which sources and
-credentials are allowed; plugin config decides collections, fields, lifecycle
-behavior, and publishing modes.
+The client sends docs content. Payload docs sets decide the source slug and
+branch; global Keys and Trusted records decide which credentials are allowed.
+Plugin config decides collections, fields, lifecycle behavior, and publishing
+modes.
 
 ## Install
 
@@ -26,17 +27,17 @@ pnpm add @valkyrianlabs/payload-markdown-docs @valkyrianlabs/payload-markdown
 ## Server Configuration
 
 Configure the plugin in `payload.config.ts` with a draft-enabled dedicated docs
-collection and explicit sync permissions. Add source ids, route bases, and
-source auth policy in Payload Admin docs sets.
+collection and explicit sync permissions. Add docs packages and trust records in
+Payload Admin.
 
 ```ts
 import { payloadMarkdownDocs } from '@valkyrianlabs/payload-markdown-docs'
 
 payloadMarkdownDocs({
-  enabled: true,
-
+  auth: {
+    githubOidc: true,
+  },
   target: {
-    type: 'docsCollection',
     enableDrafts: true,
   },
 
@@ -56,17 +57,16 @@ The default endpoint is exposed at:
 /api/payload-markdown-docs/sync
 ```
 
-By default, the plugin also adds `docs-groups` and `docs-sets`. Docs sets are
-the user-facing unit for source ids, route bases, and source-specific auth.
-Generated docs records are linked to docs sets and remain the internal records
-used for routing, search, and sync correctness.
+By default, the plugin adds Sets, Groups, Keys, and Trusted collections under
+`Docs Globals`. Generated docs records are linked to docs sets and remain the
+internal records used for routing, search, and sync correctness.
 
 Create a docs set in Payload Admin before the first push:
 
 ```text
-sourceId: main-docs
-sourceRoot: docs
-routeBase: /docs
+title: Main Docs
+slug: main-docs
+branch: main
 ```
 
 The native route adapter can resolve and render generated docs routes from a Next/Payload catch-all route without creating one Page per Markdown file. It is read-only and does not mutate Pages.
@@ -86,7 +86,8 @@ docs/
     sync.md
 ```
 
-Supported files are `.md` only. Paths must be relative, must not contain traversal, and must remain inside the configured source root.
+Supported files are `.md` only. Paths must be relative, must not contain
+traversal, and must remain inside the docs root passed to the CLI.
 
 ## Key Generation
 
@@ -98,8 +99,7 @@ pnpm exec payload-markdown-docs keygen --out .docs-sync
 
 Use the generated keys this way:
 
-- `docs-sync-public.pem` goes into the docs set `auth.ed25519.keys` list in
-  Payload Admin.
+- `docs-sync-public.pem` goes into `Docs Globals > Keys` in Payload Admin.
 - `docs-sync-private.pem` goes into a CI secret such as `DOCS_SYNC_PRIVATE_KEY`.
 - Do not commit the private key.
 
@@ -128,7 +128,9 @@ pnpm exec payload-markdown-docs push ./docs \
   --dry-run
 ```
 
-The endpoint verifies the request signature, timestamp, nonce, body hash, manifest, source id, and server-side lifecycle policy. It returns a plan summary without changing docs records.
+The endpoint verifies the request signature, timestamp, nonce, body hash,
+manifest source, and server-side lifecycle policy. It returns a plan summary
+without changing docs records.
 
 ## Sync Upload
 
@@ -204,13 +206,13 @@ See `examples/github-actions/publish-docs.yml` for a CI workflow that:
 - dry-runs signed sync on pull requests
 - syncs and publishes on pushes to `main`
 
-Required secrets:
+Required secret:
 
 - `DOCS_SYNC_ENDPOINT`
-- `DOCS_SYNC_PRIVATE_KEY`
 
-The matching docs set must have the public key configured with
-`keyId: github-actions-main`.
+The matching docs set slug must match the CLI source. For GitHub OIDC, add a
+Trusted owner in Payload Admin. For Ed25519, add the public key in
+`Docs Globals > Keys`.
 
 ## Native Route Adapter
 

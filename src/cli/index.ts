@@ -62,9 +62,7 @@ Options:
   manifest: `payload-markdown-docs manifest <docs-root>
 
 Options:
-  --source <id>              Manifest source id. Defaults to local-docs.
-  --root <path>              Manifest source root label.
-  --route-base <route>       Route base for validation. Defaults to /docs.
+  --source <id>              Docs set slug. Defaults to the GitHub repository name in GitHub Actions, otherwise local-docs.
   --repository <repo>        Source repository metadata.
   --branch <branch>          Source branch metadata.
   --commit <sha>             Source commit metadata.
@@ -81,9 +79,7 @@ Options:
   --delete-behavior <value>  archive, delete, draft, or ignore.
   --json                     Print full plan JSON.
   --pretty                   Pretty-print JSON output.
-  --source <id>              Manifest source id. Defaults to local-docs.
-  --root <path>              Manifest source root label.
-  --route-base <route>       Route base for validation. Defaults to /docs.
+  --source <id>              Docs set slug. Defaults to the GitHub repository name in GitHub Actions, otherwise local-docs.
   --repository <repo>        Source repository metadata.
   --branch <branch>          Source branch metadata.
   --commit <sha>             Source commit metadata.
@@ -100,7 +96,6 @@ Options:
   --private-key-file <path>  PEM private key file from keygen.
   --private-key-env <name>   Environment variable containing the private key.
   --github-oidc              Use GitHub Actions OIDC bearer auth instead of Ed25519.
-  --oidc-audience <value>    GitHub OIDC audience. Defaults to payload-markdown-docs.
   --oidc-token-env <name>    Environment variable containing an already-fetched OIDC token.
   --dry-run                  Upload as dry-run mode. This is the default.
   --sync                     Upload as sync mode. Requires server sync.allowWrites.
@@ -108,9 +103,7 @@ Options:
   --delete-behavior <value>  archive, delete, draft, or ignore. Defaults to archive.
   --json                     Print structured JSON output.
   --pretty                   Pretty-print JSON output with --json.
-  --source <id>              Manifest source id. Defaults to local-docs.
-  --root <path>              Manifest source root label.
-  --route-base <route>       Route base for local validation. Defaults to /docs.
+  --source <id>              Docs set slug. Defaults to the GitHub repository name in GitHub Actions, otherwise local-docs.
   --repository <repo>        Source repository metadata.
   --branch <branch>          Source branch metadata.
   --commit <sha>             Source commit metadata.
@@ -124,7 +117,7 @@ Examples:
     payload-markdown-docs push ./docs --endpoint "$DOCS_SYNC_ENDPOINT" --source main-docs --key-id github-actions-main --private-key-env DOCS_SYNC_PRIVATE_KEY --sync
 
   GitHub OIDC:
-    payload-markdown-docs push ./docs --endpoint "$DOCS_SYNC_ENDPOINT" --source main-docs --github-oidc --oidc-audience payload-markdown-docs --sync
+    payload-markdown-docs push ./docs --endpoint "$DOCS_SYNC_ENDPOINT" --github-oidc --sync
 
 GitHub OIDC requires workflow permissions: id-token: write and contents: read.
 Hard delete requires explicit server sync.allowHardDelete. Existing collection and block targets are not supported yet.
@@ -134,9 +127,7 @@ Hard delete requires explicit server sync.allowHardDelete. Existing collection a
 Options:
   --json                     Print validation JSON.
   --pretty                   Pretty-print JSON output.
-  --source <id>              Manifest source id. Defaults to local-docs.
-  --root <path>              Manifest source root label.
-  --route-base <route>       Route base for validation. Defaults to /docs.
+  --source <id>              Docs set slug. Defaults to the GitHub repository name in GitHub Actions, otherwise local-docs.
   --repository <repo>        Source repository metadata.
   --branch <branch>          Source branch metadata.
   --commit <sha>             Source commit metadata.

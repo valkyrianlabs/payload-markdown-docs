@@ -6,7 +6,10 @@ import type {
   ResolvedPayloadMarkdownDocsSet,
 } from './types.js'
 
-import { normalizeRoutePath } from '../routing/index.js'
+import {
+  deriveDocsSetRouteBase,
+  normalizeRoutePath,
+} from '../routing/index.js'
 import {
   isAiMarkdownExportManifestPath,
   validateDocsAiExportManifest,
@@ -67,13 +70,7 @@ const toDefaults = (value: unknown): PayloadMarkdownDocsDefaults | undefined => 
       ? value.sidebarMode
       : undefined
   const defaults = cleanObject({
-    heroDescription: getOptionalString(value, 'heroDescription'),
-    heroEyebrow: getOptionalString(value, 'heroEyebrow'),
-    heroTitle: getOptionalString(value, 'heroTitle'),
-    seoDescription: getOptionalString(value, 'seoDescription'),
-    seoTitle: getOptionalString(value, 'seoTitle'),
     sidebarMode,
-    theme: getOptionalString(value, 'theme'),
   } satisfies PayloadMarkdownDocsDefaults)
 
   return Object.keys(defaults).length > 0
@@ -87,14 +84,8 @@ const toOverrides = (value: unknown): PayloadMarkdownDocsOverrides | undefined =
   }
 
   const overrides = cleanObject({
-    heroDescription: getOptionalString(value, 'heroDescription'),
-    heroEyebrow: getOptionalString(value, 'heroEyebrow'),
-    heroTitle: getOptionalString(value, 'heroTitle'),
     hideFromNav: getOptionalBoolean(value, 'hideFromNav'),
     navTitle: getOptionalString(value, 'navTitle'),
-    seoDescription: getOptionalString(value, 'seoDescription'),
-    seoTitle: getOptionalString(value, 'seoTitle'),
-    theme: getOptionalString(value, 'theme'),
   })
 
   return Object.keys(overrides).length > 0 ? overrides : undefined
@@ -110,8 +101,9 @@ export const toResolvedDocsSet = (
   const id = getRecordId(doc)
   const routeBase = getOptionalString(doc, 'routeBase')
   const title = getOptionalString(doc, 'title')
+  const slug = getOptionalString(doc, 'slug')
 
-  if (!id || !routeBase || !title) {
+  if (!id || !title || (!routeBase && !slug)) {
     return undefined
   }
 
@@ -123,14 +115,17 @@ export const toResolvedDocsSet = (
   return {
     ...(aiExportValidation?.ok ? { aiExport: aiExportValidation.manifest } : {}),
     id,
-    slug: getOptionalString(doc, 'slug'),
+    slug,
     defaults: toDefaults(doc.defaults),
     description: getOptionalString(doc, 'description'),
     navTitle: getOptionalString(doc, 'navTitle'),
     order: getOptionalNumber(doc, 'order') ?? 0,
-    routeBase: normalizeRoutePath(routeBase),
-    sourceId: getOptionalString(doc, 'sourceId'),
-    sourceRoot: getOptionalString(doc, 'sourceRoot'),
+    routeBase: normalizeRoutePath(
+      routeBase ??
+        deriveDocsSetRouteBase({
+          docsSetSlug: slug ?? id,
+        }),
+    ),
     title,
   }
 }
@@ -145,18 +140,19 @@ export const toResolvedDocsGroup = (
   const id = getRecordId(doc)
   const routePath = getOptionalString(doc, 'routePath')
   const title = getOptionalString(doc, 'title')
+  const slug = getOptionalString(doc, 'slug')
 
-  if (!id || !routePath || !title) {
+  if (!id || !title || (!routePath && !slug)) {
     return undefined
   }
 
   return {
     id,
-    slug: getOptionalString(doc, 'slug'),
+    slug,
     description: getOptionalString(doc, 'description'),
     navTitle: getOptionalString(doc, 'navTitle'),
     order: getOptionalNumber(doc, 'order') ?? 0,
-    routePath: normalizeRoutePath(routePath),
+    routePath: normalizeRoutePath(routePath ?? `/${slug}`),
     serveIndex: getOptionalBoolean(doc, 'serveIndex') ?? false,
     title,
   }

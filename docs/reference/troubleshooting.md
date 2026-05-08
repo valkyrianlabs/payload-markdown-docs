@@ -31,17 +31,18 @@ The GitHub OIDC JWT is malformed, uses an unsupported algorithm, has an invalid 
 
 ## `oidc_invalid_audience`
 
-The token audience does not match the plugin-level or docs-set OIDC audience.
-Pass the same value with `--oidc-audience`.
+The token audience does not match the docs set slug. Use a CLI source that
+matches the docs set slug, or omit `--source` in GitHub Actions when the
+repository name is the docs set slug.
 
 ## `oidc_repository_not_allowed`
 
-The token repository is not in the docs set allowlist. Check
-`auth.githubOidc.allowedRepositories` or `allowedRepositoryOwners`.
+The token repository is not trusted. Check `Docs Globals > Trusted`, especially
+the owner, `limitRepos`, and repository list.
 
 ## `oidc_ref_not_allowed`
 
-The token `ref` is not allowed by the docs set OIDC policy.
+The token `ref` does not match the docs set branch.
 
 ## `oidc_pull_request_not_allowed`
 
@@ -53,9 +54,8 @@ The token `jti` was already accepted. Rerun the workflow so GitHub issues a fres
 
 ## `source_not_allowed`
 
-The manifest source id did not resolve to a docs set and was not allowed by
-configured fallback sources. For normal CMS-managed use, create a docs set with
-the expected `sourceId`.
+The manifest source did not resolve to a docs set slug. Create a docs set
+with the expected slug or pass the correct `--source` value.
 
 ## `publish_disabled`
 

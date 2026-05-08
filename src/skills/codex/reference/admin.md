@@ -18,11 +18,5 @@ Per-doc overrides live on generated docs records:
 
 - `navTitle`
 - `hideFromNav`
-- `theme`
-- `heroEyebrow`
-- `heroTitle`
-- `heroDescription`
-- `seoTitle`
-- `seoDescription`
 
 Inline override editing from the manager is not implemented yet. Open the generated docs record to edit overrides.

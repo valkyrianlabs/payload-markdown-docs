@@ -1,5 +1,7 @@
 import { defineConfig, devices } from '@playwright/test'
 
+const port = process.env.PORT ?? '3000'
+
 /**
  * Read environment variables from file.
  * https://github.com/motdotla/dotenv
@@ -33,14 +35,14 @@ export default defineConfig({
   ],
   use: {
     /* Base URL to use in actions like `await page.goto('/')`. */
-    baseURL: 'http://localhost:3000',
+    baseURL: `http://localhost:${port}`,
 
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
     trace: 'on-first-retry',
   },
   webServer: {
-    command: 'pnpm dev',
+    command: `pnpm dev -- --port ${port}`,
     reuseExistingServer: true,
-    url: 'http://localhost:3000/admin',
+    url: `http://localhost:${port}/admin`,
   },
 })

@@ -9,10 +9,13 @@ import type { PayloadMarkdownDocsConfig } from '../src/index.js'
 import {
   DEFAULT_DOCS_COLLECTION_SLUG,
   DEFAULT_DOCS_GROUPS_COLLECTION_SLUG,
+  DEFAULT_DOCS_KEYS_COLLECTION_SLUG,
   DEFAULT_DOCS_SETS_COLLECTION_SLUG,
   DEFAULT_DOCS_SYNC_NONCES_COLLECTION_SLUG,
   DEFAULT_DOCS_SYNC_RUNS_COLLECTION_SLUG,
+  DEFAULT_DOCS_TRUSTED_COLLECTION_SLUG,
   DEFAULT_MARKDOWN_FIELD_NAME,
+  DOCS_GLOBALS_ADMIN_GROUP,
   DOCS_SET_MANAGER_COMPONENT,
   payloadMarkdownDocs,
 } from '../src/index.js'
@@ -45,6 +48,10 @@ const getGroupField = (collection: CollectionConfig | undefined, fieldName: stri
 }
 
 const hasValidPostgresUrl = (): boolean => {
+  if (process.env.PAYLOAD_MARKDOWN_DOCS_RUN_DB_TESTS !== '1') {
+    return false
+  }
+
   if (!process.env.DATABASE_URL) {
     return false
   }
@@ -122,6 +129,14 @@ describe('payloadMarkdownDocs collection wiring', () => {
       DEFAULT_DOCS_SETS_COLLECTION_SLUG,
     )
     const docsCollection = getCollection(transformedConfig, DEFAULT_DOCS_COLLECTION_SLUG)
+    const docsKeysCollection = getCollection(
+      transformedConfig,
+      DEFAULT_DOCS_KEYS_COLLECTION_SLUG,
+    )
+    const docsTrustedCollection = getCollection(
+      transformedConfig,
+      DEFAULT_DOCS_TRUSTED_COLLECTION_SLUG,
+    )
     const syncRunsCollection = getCollection(
       transformedConfig,
       DEFAULT_DOCS_SYNC_RUNS_COLLECTION_SLUG,
@@ -132,15 +147,23 @@ describe('payloadMarkdownDocs collection wiring', () => {
     )
 
     expect(docsSetsCollection?.admin).toMatchObject({
-      group: 'Docs',
+      group: DOCS_GLOBALS_ADMIN_GROUP,
       useAsTitle: 'title',
     })
     expect(docsSetsCollection?.admin?.hidden).not.toBe(true)
     expect(docsGroupsCollection?.admin).toMatchObject({
-      group: 'Docs',
+      group: DOCS_GLOBALS_ADMIN_GROUP,
       useAsTitle: 'title',
     })
     expect(docsGroupsCollection?.admin?.hidden).not.toBe(true)
+    expect(docsKeysCollection?.admin).toMatchObject({
+      group: DOCS_GLOBALS_ADMIN_GROUP,
+      useAsTitle: 'title',
+    })
+    expect(docsTrustedCollection?.admin).toMatchObject({
+      group: DOCS_GLOBALS_ADMIN_GROUP,
+      useAsTitle: 'title',
+    })
     expect(docsCollection?.admin).toMatchObject({
       hidden: true,
       useAsTitle: 'title',
@@ -196,10 +219,16 @@ describe('payloadMarkdownDocs collection wiring', () => {
 
     expect(getCollection(transformedConfig, 'kb-docs-groups')).toBeDefined()
     expect(getCollection(transformedConfig, 'kb-docs-sets')).toBeDefined()
+    expect(getCollection(transformedConfig, DEFAULT_DOCS_KEYS_COLLECTION_SLUG)).toBeDefined()
+    expect(getCollection(transformedConfig, DEFAULT_DOCS_TRUSTED_COLLECTION_SLUG)).toBeDefined()
     expect(getCollection(transformedConfig, 'kb-sync-runs')).toBeDefined()
     expect(getCollection(transformedConfig, 'kb-sync-nonces')).toBeDefined()
-    expect(getCollection(transformedConfig, 'kb-docs-groups')?.admin?.group).toBe('Docs')
-    expect(getCollection(transformedConfig, 'kb-docs-sets')?.admin?.group).toBe('Docs')
+    expect(getCollection(transformedConfig, 'kb-docs-groups')?.admin?.group).toBe(
+      DOCS_GLOBALS_ADMIN_GROUP,
+    )
+    expect(getCollection(transformedConfig, 'kb-docs-sets')?.admin?.group).toBe(
+      DOCS_GLOBALS_ADMIN_GROUP,
+    )
     expect(getCollection(transformedConfig, 'kb-sync-runs')?.admin?.hidden).toBe(true)
     expect(getCollection(transformedConfig, 'kb-sync-nonces')?.admin?.hidden).toBe(true)
   })
@@ -310,9 +339,9 @@ describe('payloadMarkdownDocs collection wiring', () => {
     expect(getField(docsGroupsCollection, 'parent')?.relationTo).toBe(
       DEFAULT_DOCS_GROUPS_COLLECTION_SLUG,
     )
-    expect(getField(docsGroupsCollection, 'routePath')?.type).toBe('text')
+    expect(getField(docsGroupsCollection, 'routePath')).toBeUndefined()
     expect(getField(docsGroupsCollection, 'serveIndex')?.type).toBe('checkbox')
-    expect(docsGroupsCollection?.admin?.group).toBe('Docs')
+    expect(docsGroupsCollection?.admin?.group).toBe(DOCS_GLOBALS_ADMIN_GROUP)
   })
 
   test('docs sets collection contains expected fields', () => {
@@ -323,32 +352,26 @@ describe('payloadMarkdownDocs collection wiring', () => {
       transformedConfig,
       DEFAULT_DOCS_SETS_COLLECTION_SLUG,
     )
-    const defaultsField = getGroupField(docsSetsCollection, 'defaults')
-    const authField = getGroupField(docsSetsCollection, 'auth')
+    const advancedSecurityField = getGroupField(docsSetsCollection, 'advancedSecurity')
     const syncField = getGroupField(docsSetsCollection, 'sync')
 
     expect(getField(docsSetsCollection, 'title')?.type).toBe('text')
     expect(getField(docsSetsCollection, 'slug')?.type).toBe('text')
-    expect(getField(docsSetsCollection, 'sourceId')?.type).toBe('text')
-    expect(getField(docsSetsCollection, 'sourceRoot')?.type).toBe('text')
+    expect(getField(docsSetsCollection, 'sourceId')).toBeUndefined()
+    expect(getField(docsSetsCollection, 'sourceRoot')).toBeUndefined()
     expect(getField(docsSetsCollection, 'group')?.relationTo).toBe(
       DEFAULT_DOCS_GROUPS_COLLECTION_SLUG,
     )
-    expect(getField(docsSetsCollection, 'routeBase')?.type).toBe('text')
+    expect(getField(docsSetsCollection, 'branch')?.type).toBe('text')
+    expect(getField(docsSetsCollection, 'allowPullRequests')?.type).toBe('checkbox')
+    expect(getField(docsSetsCollection, 'routeBase')).toBeUndefined()
     expect(getField(docsSetsCollection, 'aiExport')?.type).toBe('json')
-    expect(docsSetsCollection?.admin?.group).toBe('Docs')
-    expect(authField?.fields?.map((field) => field.name)).toEqual([
-      'ed25519',
-      'githubOidc',
-    ])
-    expect(defaultsField?.fields?.map((field) => field.name)).toEqual([
-      'theme',
-      'heroEyebrow',
-      'heroTitle',
-      'heroDescription',
-      'seoTitle',
-      'seoDescription',
-      'sidebarMode',
+    expect(docsSetsCollection?.admin?.group).toBe(DOCS_GLOBALS_ADMIN_GROUP)
+    expect(getGroupField(docsSetsCollection, 'auth')).toBeUndefined()
+    expect(getGroupField(docsSetsCollection, 'defaults')).toBeUndefined()
+    expect(advancedSecurityField?.fields?.map((field) => field.name)).toEqual([
+      'enabled',
+      'allowedWorkflowRefs',
     ])
     expect(syncField?.fields?.map((field) => field.name)).toEqual([
       'lastSyncedAt',

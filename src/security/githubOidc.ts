@@ -4,7 +4,6 @@ import {
   verify,
 } from 'node:crypto'
 
-import type { PayloadMarkdownDocsGitHubOidcAuthConfig } from '../types.js'
 import type { FetchJson } from './jwks.js'
 
 import {
@@ -19,7 +18,6 @@ import {
 import { decodeJwt } from './jwt.js'
 
 export type GitHubOidcErrorCode =
-  | 'oidc_environment_not_allowed'
   | 'oidc_expired'
   | 'oidc_invalid_audience'
   | 'oidc_invalid_issuer'
@@ -54,6 +52,24 @@ export type GitHubOidcClaims = {
   workflow_ref?: string
 }
 
+export type GitHubOidcTrustedSource = {
+  limitRepos?: boolean
+  owner: string
+  repositories?: string[]
+}
+
+export type GitHubOidcVerifyConfig = {
+  allowedRefs?: string[]
+  allowedWorkflowRefs?: string[]
+  allowPullRequests?: boolean
+  audience: string
+  enforceWorkflowRefs?: boolean
+  issuer?: string
+  jwksUrl?: string
+  maxSkewSeconds?: number
+  trustedSources: GitHubOidcTrustedSource[]
+}
+
 export type VerifiedGitHubOidcToken = {
   claims: GitHubOidcClaims
   expiresAt: Date
@@ -70,8 +86,6 @@ export type VerifyGitHubOidcTokenResult =
       ok: true
       token: VerifiedGitHubOidcToken
     }
-
-type GitHubOidcAuthConfig = PayloadMarkdownDocsGitHubOidcAuthConfig
 
 const isString = (value: unknown): value is string =>
   typeof value === 'string' && value.trim() !== ''
@@ -186,6 +200,59 @@ const audienceMatches = (
 ): boolean =>
   Array.isArray(audience) ? audience.includes(expected) : audience === expected
 
+const getRepositoryName = (repository: string): string => {
+  const [, name] = repository.split('/', 2)
+
+  return name ?? repository
+}
+
+const repositoryMatches = ({
+  allowed,
+  owner,
+  repository,
+}: {
+  allowed: string
+  owner: string
+  repository: string
+}): boolean => {
+  const normalized = allowed.trim()
+
+  if (!normalized) {
+    return false
+  }
+
+  return normalized.includes('/')
+    ? normalized.toLowerCase() === repository.toLowerCase()
+    : `${owner}/${normalized}`.toLowerCase() === repository.toLowerCase()
+}
+
+const findTrustedSource = ({
+  repository,
+  repositoryOwner,
+  trustedSources,
+}: {
+  repository: string
+  repositoryOwner: string
+  trustedSources: GitHubOidcTrustedSource[]
+}): GitHubOidcTrustedSource | undefined =>
+  trustedSources.find((source) => {
+    if (source.owner.toLowerCase() !== repositoryOwner.toLowerCase()) {
+      return false
+    }
+
+    if (source.limitRepos !== true) {
+      return true
+    }
+
+    return (source.repositories ?? []).some((allowedRepository) =>
+      repositoryMatches({
+        allowed: allowedRepository,
+        owner: source.owner,
+        repository,
+      }),
+    )
+  })
+
 const verifyJwtSignature = ({
   jwk,
   signature,
@@ -218,7 +285,7 @@ export const verifyGitHubOidcToken = async ({
   now = new Date(),
   token,
 }: {
-  config: GitHubOidcAuthConfig
+  config: GitHubOidcVerifyConfig
   fetchJson?: FetchJson
   now?: Date
   token: string
@@ -303,55 +370,68 @@ export const verifyGitHubOidcToken = async ({
     return issue('oidc_not_yet_valid', 'GitHub OIDC token was issued in the future.')
   }
 
-  const hasRepositoryAllowlist =
-    (config.allowedRepositories?.length ?? 0) > 0 ||
-    (config.allowedRepositoryOwners?.length ?? 0) > 0
+  const trustedSources = config.trustedSources ?? []
 
-  if (!hasRepositoryAllowlist) {
+  if (trustedSources.length === 0) {
     return issue(
       'oidc_repository_not_allowed',
-      'GitHub OIDC auth requires an allowed repository or repository owner.',
+      'GitHub OIDC auth requires a trusted GitHub owner.',
     )
   }
 
-  if (!includesIfConfigured(config.allowedRepositories, claims.repository)) {
-    return issue(
-      'oidc_repository_not_allowed',
-      'GitHub OIDC token repository is not allowed.',
-    )
-  }
+  const trustedSource = findTrustedSource({
+    repository: claims.repository,
+    repositoryOwner: claims.repository_owner,
+    trustedSources,
+  })
 
-  if (!includesIfConfigured(config.allowedRepositoryOwners, claims.repository_owner)) {
+  if (!trustedSource) {
+    const matchingOwner = trustedSources.find(
+      (source) =>
+        source.owner.toLowerCase() === claims.repository_owner.toLowerCase(),
+    )
+
+    if (matchingOwner) {
+      return issue(
+        'oidc_repository_not_allowed',
+        `GitHub OIDC token repository "${claims.repository}" is not trusted for owner "${claims.repository_owner}".`,
+      )
+    }
+
     return issue(
       'oidc_owner_not_allowed',
-      'GitHub OIDC token repository owner is not allowed.',
+      `GitHub OIDC token repository owner "${claims.repository_owner}" is not trusted.`,
     )
   }
 
-  if (!includesIfConfigured(config.allowedRefs, claims.ref)) {
-    return issue('oidc_ref_not_allowed', 'GitHub OIDC token ref is not allowed.')
-  }
+  const repositoryName = getRepositoryName(claims.repository)
 
-  if (!includesIfConfigured(config.allowedWorkflows, claims.workflow)) {
+  if (!includesIfConfigured(config.allowedRefs, claims.ref)) {
     return issue(
-      'oidc_workflow_not_allowed',
-      'GitHub OIDC token workflow is not allowed.',
+      'oidc_ref_not_allowed',
+      `GitHub OIDC token ref "${claims.ref}" is not allowed for "${repositoryName}".`,
     )
   }
 
   const workflowRef = claims.workflow_ref ?? claims.job_workflow_ref
 
-  if (!includesIfConfigured(config.allowedWorkflowRefs, workflowRef)) {
+  if (
+    config.enforceWorkflowRefs === true &&
+    (config.allowedWorkflowRefs?.length ?? 0) === 0
+  ) {
     return issue(
       'oidc_workflow_not_allowed',
-      'GitHub OIDC token workflow ref is not allowed.',
+      'Advanced workflow security is enabled but no workflow refs are trusted.',
     )
   }
 
-  if (!includesIfConfigured(config.allowedEnvironments, claims.environment)) {
+  if (
+    config.enforceWorkflowRefs === true &&
+    !includesIfConfigured(config.allowedWorkflowRefs, workflowRef)
+  ) {
     return issue(
-      'oidc_environment_not_allowed',
-      'GitHub OIDC token environment is not allowed.',
+      'oidc_workflow_not_allowed',
+      'GitHub OIDC token workflow ref is not allowed.',
     )
   }
 

@@ -7,6 +7,8 @@ export { verifyGitHubOidcToken } from './githubOidc.js'
 export type {
   GitHubOidcClaims,
   GitHubOidcErrorCode,
+  GitHubOidcTrustedSource,
+  GitHubOidcVerifyConfig,
   VerifiedGitHubOidcToken,
   VerifyGitHubOidcTokenResult,
 } from './githubOidc.js'

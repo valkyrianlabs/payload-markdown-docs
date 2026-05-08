@@ -2,8 +2,10 @@ import type { Endpoint, PayloadRequest } from 'payload'
 
 import type {
   ApplyDocsSyncPayloadOperations,
+  DocsKeyPayloadOperations,
   DocsPublishMode,
   DocsSetPayloadOperations,
+  DocsTrustedPayloadOperations,
   ExistingDocsPayloadOperations,
   ExistingPayloadDocsRecord,
   ResolvedDocsSet,
@@ -21,15 +23,9 @@ import type {
   PlannedDocChange,
   ValidatedDocsManifest,
 } from '../sync/index.js'
-import type {
-  PayloadMarkdownDocsAuthConfig,
-  PayloadMarkdownDocsDocsSetAuthConfig,
-  PayloadMarkdownDocsEd25519AuthConfig,
-  PayloadMarkdownDocsGitHubOidcAuthConfig,
-} from '../types.js'
+import type { PayloadMarkdownDocsAuthConfig } from '../types.js'
 
 import {
-  DEFAULT_DOCS_ROUTE_BASE,
   DEFAULT_MAX_BODY_BYTES,
   DEFAULT_MAX_SKEW_SECONDS,
   DEFAULT_NONCE_TTL_SECONDS,
@@ -39,12 +35,16 @@ import {
   assertApplyDeleteBehaviorSupported,
   createSyncRunAudit,
   findConfiguredPagesRouteCollisions,
-  findDocsSetBySourceId,
+  findDocsKeyById,
+  findDocsSetBySlug,
   findDocsSyncConflicts,
   findDuplicateDesiredRouteCollisions,
   findExistingDocsRouteCollisions,
   findExistingPayloadDocsRecords,
+  findTrustedGitHubSources,
   getRecordId,
+  isEd25519AuthEnabled,
+  isGitHubOidcAuthEnabled,
   toExistingDocsRecord,
   updateDocsSetAfterSync,
   updateSyncRunAudit,
@@ -81,7 +81,6 @@ export type DocsSyncEndpointErrorCode =
   | 'manual_edit_conflict'
   | 'missing_header'
   | 'nonce_replay'
-  | 'oidc_environment_not_allowed'
   | 'oidc_expired'
   | 'oidc_invalid_audience'
   | 'oidc_invalid_issuer'
@@ -116,8 +115,13 @@ export type CreateSyncEndpointOptions = {
   docsCollectionSlug: string
   docsEnabled: boolean
   docsEnableDrafts: boolean
+  docsGroupsCollectionSlug: string
+  docsKeysCollectionSlug: string
+  docsKeysEnabled: boolean
   docsSetsCollectionSlug: string
   docsSetsEnabled: boolean
+  docsTrustedCollectionSlug: string
+  docsTrustedEnabled: boolean
   endpointPath: string
   getNow?: () => Date
   markdownFieldName: string
@@ -128,7 +132,6 @@ export type CreateSyncEndpointOptions = {
   nonceTtlSeconds?: number
   oidcFetchJson?: FetchJson
   requireDryRunBeforeApply?: boolean
-  routeBase?: string
   routing?: {
     pages?: {
       allowBridgePages: boolean
@@ -138,11 +141,6 @@ export type CreateSyncEndpointOptions = {
       routeField: string
     }
   }
-  sources?: {
-    id: string
-    root?: string
-    routeBase: string
-  }[]
   syncRunsCollectionSlug: string
   syncRunsEnabled: boolean
 }
@@ -246,27 +244,10 @@ const parseManifestBody = (rawBody: string): DocsManifest | undefined => {
   }
 }
 
-const findSourceConfig = (
-  sourceId: string,
-  sources: CreateSyncEndpointOptions['sources'],
-) => sources?.find((source) => source.id === sourceId)
-
-const getAllowedSourceIds = (
-  sources: CreateSyncEndpointOptions['sources'],
-): string[] | undefined => {
-  if (!sources || sources.length === 0) {
-    return undefined
-  }
-
-  return sources.map((source) => source.id)
-}
-
 type ResolvedSyncSource = {
-  allowedSourceIds?: string[]
-  auth?: PayloadMarkdownDocsDocsSetAuthConfig
-  docsSet?: ResolvedDocsSet
+  docsSet: ResolvedDocsSet
   routeBase: string
-  sourceRoot?: string
+  sourceId: string
 }
 
 const resolveSyncSource = async ({
@@ -291,85 +272,40 @@ const resolveSyncSource = async ({
 
   if (!sourceId) {
     return {
-      source: {
-        allowedSourceIds: getAllowedSourceIds(options.sources),
-        routeBase: options.routeBase ?? DEFAULT_DOCS_ROUTE_BASE,
-      },
+      response: errorResponse(
+        'source_not_allowed',
+        'Manifest source.id is required and must match a docs set slug.',
+        400,
+      ),
     }
   }
 
   const docsSet =
     options.docsSetsEnabled
-      ? await findDocsSetBySourceId({
+      ? await findDocsSetBySlug({
+          slug: sourceId,
           collectionSlug: options.docsSetsCollectionSlug,
+          docsGroupsCollectionSlug: options.docsGroupsCollectionSlug,
           payload,
-          sourceId,
         })
       : undefined
 
   if (docsSet) {
-    if (
-      docsSet.sourceRoot &&
-      manifest.source.root &&
-      docsSet.sourceRoot !== manifest.source.root
-    ) {
-      return {
-        response: errorResponse(
-          'source_not_allowed',
-          `Manifest source.root "${manifest.source.root}" is not allowed for docs set source "${sourceId}".`,
-          400,
-        ),
-      }
-    }
-
     return {
       source: {
-        allowedSourceIds: [sourceId],
-        auth: docsSet.auth,
         docsSet,
         routeBase: docsSet.routeBase,
-        sourceRoot: docsSet.sourceRoot,
+        sourceId,
       },
     }
   }
 
-  const sourceConfig = findSourceConfig(sourceId, options.sources)
-
-  if (
-    (options.docsSetsEnabled || (options.sources && options.sources.length > 0)) &&
-    !sourceConfig
-  ) {
-    return {
-      response: errorResponse(
-        'source_not_allowed',
-        options.docsSetsEnabled
-          ? `No docs set exists for manifest source.id "${sourceId}". Create a docs set in Payload Admin before syncing this source.`
-          : `Manifest source.id "${sourceId}" is not configured for this endpoint.`,
-        400,
-      ),
-    }
-  }
-
-  if (
-    sourceConfig?.root &&
-    manifest.source.root &&
-    sourceConfig.root !== manifest.source.root
-  ) {
-    return {
-      response: errorResponse(
-        'source_not_allowed',
-        `Manifest source.root "${manifest.source.root}" is not allowed for source "${sourceId}".`,
-        400,
-      ),
-    }
-  }
-
   return {
-    source: {
-      allowedSourceIds: getAllowedSourceIds(options.sources),
-      routeBase: sourceConfig?.routeBase ?? options.routeBase ?? DEFAULT_DOCS_ROUTE_BASE,
-      sourceRoot: sourceConfig?.root,
-    },
+    response: errorResponse(
+      'source_not_allowed',
+      `No docs set exists for source "${sourceId}". Create a docs set with slug "${sourceId}" in Payload Admin before syncing this source.`,
+      400,
+    ),
   }
 }
 
@@ -599,98 +535,6 @@ const hasEd25519AuthHeaders = (headers: Headers): boolean =>
   getRequiredHeader(headers, 'x-vl-md-docs-timestamp') !== undefined ||
   getRequiredHeader(headers, 'x-vl-md-docs-nonce') !== undefined
 
-const getGlobalEd25519AuthConfig = (
-  auth: PayloadMarkdownDocsAuthConfig | undefined,
-): PayloadMarkdownDocsEd25519AuthConfig | undefined => {
-  if (!auth || auth.mode === 'disabled' || auth.mode === 'github-oidc') {
-    return undefined
-  }
-
-  if (auth.mode === 'ed25519') {
-    return auth
-  }
-
-  return auth.ed25519
-    ? {
-        ...auth.ed25519,
-        mode: 'ed25519',
-      }
-    : undefined
-}
-
-const getEd25519AuthConfig = ({
-  auth,
-  sourceAuth,
-}: {
-  auth: PayloadMarkdownDocsAuthConfig | undefined
-  sourceAuth?: PayloadMarkdownDocsDocsSetAuthConfig
-}): PayloadMarkdownDocsEd25519AuthConfig | undefined => {
-  const globalAuth = getGlobalEd25519AuthConfig(auth)
-
-  if (sourceAuth?.ed25519?.keys.length) {
-    return {
-      ...globalAuth,
-      ...sourceAuth.ed25519,
-      keys: sourceAuth.ed25519.keys,
-      mode: 'ed25519',
-    }
-  }
-
-  return globalAuth
-}
-
-const getGlobalGitHubOidcAuthConfig = (
-  auth: PayloadMarkdownDocsAuthConfig | undefined,
-): PayloadMarkdownDocsGitHubOidcAuthConfig | undefined => {
-  if (!auth || auth.mode === 'disabled' || auth.mode === 'ed25519') {
-    return undefined
-  }
-
-  if (auth.mode === 'github-oidc') {
-    return auth
-  }
-
-  return auth.githubOidc
-    ? {
-        ...auth.githubOidc,
-        mode: 'github-oidc',
-      }
-    : undefined
-}
-
-const getGitHubOidcAuthConfig = ({
-  auth,
-  sourceAuth,
-}: {
-  auth: PayloadMarkdownDocsAuthConfig | undefined
-  sourceAuth?: PayloadMarkdownDocsDocsSetAuthConfig
-}): PayloadMarkdownDocsGitHubOidcAuthConfig | undefined => {
-  const globalAuth = getGlobalGitHubOidcAuthConfig(auth)
-  const sourceOidc = sourceAuth?.githubOidc
-
-  if (!sourceOidc) {
-    return globalAuth
-  }
-
-  if (sourceOidc.enabled === false) {
-    return globalAuth
-  }
-
-  const { enabled: _enabled, ...sourceOptions } = sourceOidc
-  const audience = sourceOptions.audience ?? globalAuth?.audience
-
-  if (!audience) {
-    return globalAuth
-  }
-
-  return {
-    ...globalAuth,
-    ...sourceOptions,
-    audience,
-    mode: 'github-oidc',
-  }
-}
-
 const assertReplayProtectionAvailable = (
   options: CreateSyncEndpointOptions,
 ): Response | undefined =>
@@ -703,13 +547,11 @@ const assertReplayProtectionAvailable = (
       )
 
 const authenticateEd25519Request = async ({
-  auth,
   now,
   options,
   rawBody,
   req,
 }: {
-  auth: PayloadMarkdownDocsEd25519AuthConfig
   now: Date
   options: CreateSyncEndpointOptions
   rawBody: string
@@ -736,9 +578,21 @@ const authenticateEd25519Request = async ({
     }
   }
 
-  const keyConfig = auth.keys.find(
-    (key) => key.id === headersResult.headers.keyId,
-  )
+  if (!options.docsKeysEnabled) {
+    return {
+      response: errorResponse(
+        'auth_disabled',
+        'Signed sync authentication requires the docs Keys collection.',
+        401,
+      ),
+    }
+  }
+
+  const keyConfig = await findDocsKeyById({
+    collectionSlug: options.docsKeysCollectionSlug,
+    keyId: headersResult.headers.keyId,
+    payload: req.payload as unknown as DocsKeyPayloadOperations,
+  })
 
   if (!keyConfig) {
     return {
@@ -763,7 +617,6 @@ const authenticateEd25519Request = async ({
 
   const timestampValidation = validateTimestampSkew({
     maxSkewSeconds:
-      auth.maxSkewSeconds ??
       options.maxSkewSeconds ??
       DEFAULT_MAX_SKEW_SECONDS,
     now,
@@ -834,10 +687,7 @@ const authenticateEd25519Request = async ({
     }
   }
 
-  const nonceTtlSeconds =
-    auth.nonceTtlSeconds ??
-    options.nonceTtlSeconds ??
-    DEFAULT_NONCE_TTL_SECONDS
+  const nonceTtlSeconds = options.nonceTtlSeconds ?? DEFAULT_NONCE_TTL_SECONDS
 
   return {
     identity: {
@@ -850,13 +700,13 @@ const authenticateEd25519Request = async ({
 }
 
 const authenticateGitHubOidcRequest = async ({
-  auth,
+  docsSet,
   now,
   options,
   rawBody,
   req,
 }: {
-  auth: PayloadMarkdownDocsGitHubOidcAuthConfig
+  docsSet: ResolvedDocsSet
   now: Date
   options: CreateSyncEndpointOptions
   rawBody: string
@@ -923,8 +773,33 @@ const authenticateGitHubOidcRequest = async ({
     }
   }
 
+  if (!options.docsTrustedEnabled) {
+    return {
+      response: errorResponse(
+        'auth_disabled',
+        'GitHub OIDC sync authentication requires the docs Trusted collection.',
+        401,
+      ),
+    }
+  }
+
+  const trustedSources = await findTrustedGitHubSources({
+    collectionSlug: options.docsTrustedCollectionSlug,
+    payload: req.payload as unknown as DocsTrustedPayloadOperations,
+  })
+  const allowedRef = docsSet.branch.startsWith('refs/')
+    ? docsSet.branch
+    : `refs/heads/${docsSet.branch}`
+
   const verified = await verifyGitHubOidcToken({
-    config: auth,
+    config: {
+      allowedRefs: [allowedRef],
+      allowedWorkflowRefs: docsSet.advancedSecurity?.allowedWorkflowRefs,
+      allowPullRequests: docsSet.allowPullRequests,
+      audience: docsSet.slug,
+      enforceWorkflowRefs: docsSet.advancedSecurity?.enabled === true,
+      trustedSources,
+    },
     fetchJson: options.oidcFetchJson,
     now,
     token,
@@ -981,17 +856,17 @@ const authenticateGitHubOidcRequest = async ({
 }
 
 const authenticateSyncRequest = async ({
+  docsSet,
   now,
   options,
   rawBody,
   req,
-  sourceAuth,
 }: {
+  docsSet: ResolvedDocsSet
   now: Date
   options: CreateSyncEndpointOptions
   rawBody: string
   req: PayloadRequest
-  sourceAuth?: PayloadMarkdownDocsDocsSetAuthConfig
 }): Promise<
   | {
       identity: AuthenticatedSyncRequest
@@ -1002,16 +877,10 @@ const authenticateSyncRequest = async ({
       response: Response
     }
 > => {
-  const ed25519Auth = getEd25519AuthConfig({
-    auth: options.auth,
-    sourceAuth,
-  })
-  const githubOidcAuth = getGitHubOidcAuthConfig({
-    auth: options.auth,
-    sourceAuth,
-  })
+  const ed25519Enabled = isEd25519AuthEnabled(options.auth)
+  const githubOidcEnabled = isGitHubOidcAuthEnabled(options.auth)
 
-  if (!ed25519Auth && !githubOidcAuth) {
+  if (!ed25519Enabled && !githubOidcEnabled) {
     return {
       response: errorResponse(
         'auth_disabled',
@@ -1024,7 +893,7 @@ const authenticateSyncRequest = async ({
   const bearerToken = getBearerToken(req.headers)
 
   if (bearerToken !== undefined) {
-    if (!githubOidcAuth) {
+    if (!githubOidcEnabled) {
       return {
         response: errorResponse(
           'auth_disabled',
@@ -1035,7 +904,7 @@ const authenticateSyncRequest = async ({
     }
 
     return authenticateGitHubOidcRequest({
-      auth: githubOidcAuth,
+      docsSet,
       now,
       options,
       rawBody,
@@ -1043,8 +912,8 @@ const authenticateSyncRequest = async ({
     })
   }
 
-  if (hasEd25519AuthHeaders(req.headers) || !githubOidcAuth) {
-    if (!ed25519Auth) {
+  if (hasEd25519AuthHeaders(req.headers) || !githubOidcEnabled) {
+    if (!ed25519Enabled) {
       return {
         response: errorResponse(
           'auth_disabled',
@@ -1055,7 +924,6 @@ const authenticateSyncRequest = async ({
     }
 
     return authenticateEd25519Request({
-      auth: ed25519Auth,
       now,
       options,
       rawBody,
@@ -1064,7 +932,7 @@ const authenticateSyncRequest = async ({
   }
 
   return authenticateGitHubOidcRequest({
-    auth: githubOidcAuth,
+    docsSet,
     now,
     options,
     rawBody,
@@ -1113,11 +981,11 @@ const createSyncEndpointHandler =
     }
 
     const authentication = await authenticateSyncRequest({
+      docsSet: sourceResolution.source.docsSet,
       now: startedAt,
       options,
       rawBody,
       req,
-      sourceAuth: sourceResolution.source.auth,
     })
 
     if (authentication.response) {
@@ -1125,7 +993,7 @@ const createSyncEndpointHandler =
     }
 
     const validation = validateDocsManifest(manifest, {
-      allowedSourceIds: sourceResolution.source.allowedSourceIds,
+      allowedSourceIds: [sourceResolution.source.sourceId],
       maxTotalBytes: maxBodyBytes,
       routeBase: sourceResolution.source.routeBase,
     })

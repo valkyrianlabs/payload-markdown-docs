@@ -16,12 +16,19 @@ import {
   DEFAULT_DOCS_SETS_COLLECTION_SLUG,
   DEFAULT_MARKDOWN_FIELD_NAME,
 } from '../constants.js'
-import { normalizeRoutePath } from '../routing/index.js'
+import {
+  deriveDocsSetRouteBase,
+  joinRouteSegments,
+  normalizeRoutePath,
+} from '../routing/index.js'
 import {
   isExcludedFromAiExport,
 } from '../sync/index.js'
 import {
+  getRelationshipId,
+  isRecord,
   isVisibleDocsRecord,
+  toResolvedDocsGroup,
   toResolvedDocsRecord,
   toResolvedDocsSet,
 } from './records.js'
@@ -75,6 +82,95 @@ const getRoutePath = ({
 const stripMarkdownRouteSuffix = (route: string): string | undefined =>
   route.toLowerCase().endsWith('.md') ? route.slice(0, -3) : undefined
 
+const getGroupsById = async ({
+  collections,
+  overrideAccess,
+  payload,
+}: {
+  collections: ResolvedCollectionSlugs
+  overrideAccess: boolean
+  payload: PayloadMarkdownDocsReadPayload
+}): Promise<Map<string, unknown>> => {
+  const result = await payload.find({
+    collection: collections.docsGroups,
+    depth: 0,
+    limit: 1000,
+    overrideAccess,
+  })
+
+  return new Map(
+    result.docs.flatMap((doc) => {
+      if (!isRecord(doc)) {
+        return []
+      }
+
+      const id = getRelationshipId(doc)
+
+      return id ? [[id, doc]] : []
+    }),
+  )
+}
+
+const getGroupRoutePath = ({
+  groupId,
+  groupsById,
+  seen = new Set<string>(),
+}: {
+  groupId?: string
+  groupsById: Map<string, unknown>
+  seen?: Set<string>
+}): string | undefined => {
+  if (!groupId || seen.has(groupId)) {
+    return undefined
+  }
+
+  const group = groupsById.get(groupId)
+  const resolvedGroup = toResolvedDocsGroup(group)
+
+  if (!resolvedGroup?.slug) {
+    return undefined
+  }
+
+  const parentRoutePath = isRecord(group)
+    ? getGroupRoutePath({
+        groupId: getRelationshipId(group.parent),
+        groupsById,
+        seen: new Set([groupId, ...seen]),
+      })
+    : undefined
+
+  return joinRouteSegments(parentRoutePath, resolvedGroup.slug)
+}
+
+const withComputedDocsSetRoute = ({
+  doc,
+  docsSet,
+  groupsById,
+}: {
+  doc: unknown
+  docsSet?: ResolvedPayloadMarkdownDocsSet
+  groupsById: Map<string, unknown>
+}): ResolvedPayloadMarkdownDocsSet | undefined => {
+  if (!docsSet?.slug) {
+    return docsSet
+  }
+
+  const groupRoutePath = isRecord(doc)
+    ? getGroupRoutePath({
+        groupId: getRelationshipId(doc.group),
+        groupsById,
+      })
+    : undefined
+
+  return {
+    ...docsSet,
+    routeBase: deriveDocsSetRouteBase({
+      docsSetSlug: docsSet.slug,
+      groupRoutePath,
+    }),
+  }
+}
+
 const findDocsSetByRouteBase = async ({
   collections,
   overrideAccess,
@@ -86,20 +182,28 @@ const findDocsSetByRouteBase = async ({
   payload: PayloadMarkdownDocsReadPayload
   routeBase: string
 }): Promise<ResolvedPayloadMarkdownDocsSet | undefined> => {
-  const result = await payload.find({
-    collection: collections.docsSets,
-    depth: 0,
-    limit: 1,
-    overrideAccess,
-    where: {
-      routeBase: {
-        equals: routeBase,
-      },
-    },
-  })
+  const [result, groupsById] = await Promise.all([
+    payload.find({
+      collection: collections.docsSets,
+      depth: 0,
+      limit: 1000,
+      overrideAccess,
+    }),
+    getGroupsById({
+      collections,
+      overrideAccess,
+      payload,
+    }),
+  ])
 
   return result.docs
-    .map(toResolvedDocsSet)
+    .map((doc) =>
+      withComputedDocsSetRoute({
+        doc,
+        docsSet: toResolvedDocsSet(doc),
+        groupsById,
+      }),
+    )
     .find((docsSet) => docsSet?.routeBase === routeBase)
 }
 
@@ -114,15 +218,28 @@ const findDocsSetByAiExportOutput = async ({
   overrideAccess: boolean
   payload: PayloadMarkdownDocsReadPayload
 }): Promise<ResolvedPayloadMarkdownDocsSet | undefined> => {
-  const result = await payload.find({
-    collection: collections.docsSets,
-    depth: 0,
-    limit: 1000,
-    overrideAccess,
-  })
+  const [result, groupsById] = await Promise.all([
+    payload.find({
+      collection: collections.docsSets,
+      depth: 0,
+      limit: 1000,
+      overrideAccess,
+    }),
+    getGroupsById({
+      collections,
+      overrideAccess,
+      payload,
+    }),
+  ])
 
   return result.docs
-    .map(toResolvedDocsSet)
+    .map((doc) =>
+      withComputedDocsSetRoute({
+        doc,
+        docsSet: toResolvedDocsSet(doc),
+        groupsById,
+      }),
+    )
     .find((docsSet) => docsSet?.aiExport?.output === output)
 }
 

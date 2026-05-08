@@ -12,7 +12,6 @@ export type DocsManifestSource = {
   commit?: string
   id: string
   repository?: string
-  root?: string
 }
 
 export type DocsManifestFile = {
@@ -64,7 +63,6 @@ export const buildDocsManifest = ({
   mode,
   publish,
   repository,
-  root,
   sourceId,
 }: {
   aiExport?: DocsAiExportManifest
@@ -75,7 +73,6 @@ export const buildDocsManifest = ({
   mode?: DocsSyncMode
   publish?: boolean
   repository?: string
-  root?: string
   sourceId: string
 }): DocsManifest => ({
   aiExport,
@@ -91,7 +88,6 @@ export const buildDocsManifest = ({
     branch,
     commit,
     repository,
-    root,
   },
   version: 1,
 })

@@ -1,7 +1,7 @@
 ---
 title: Docs Sets Configuration
 navTitle: Docs Sets
-description: Configure docs groups and docs sets for server-owned route bases.
+description: Configure docs packages without duplicating routing or security internals.
 order: 210
 status: published
 tags:
@@ -11,67 +11,46 @@ tags:
 
 # Docs Sets Configuration
 
-Docs sets are stored in the `docs-sets` collection by default. They map signed
-source ids to server-owned route bases and source-specific sync auth policy.
+Docs sets are stored in `Docs Globals > Sets`. A set represents one docs
+package.
 
-## Required Fields
+## Fields
 
 For a typical docs set, configure:
 
 - `title`
 - `slug`
-- `sourceId`
-- `routeBase`
+- `group`, optional
+- `branch`, default `main`
+- `allowPullRequests`, default off
+- `description`, optional
+
+The `slug` is also the manifest source and the GitHub OIDC audience. The
+route base is derived from the optional group route plus the set slug.
 
 Example:
 
 ```text
 title: Payload Markdown Docs
 slug: payload-markdown-docs
-sourceId: main-docs
-routeBase: /plugins/payload-markdown-docs
+group: plugins
+branch: main
 ```
 
-## Source Root
+This resolves to `/plugins/payload-markdown-docs`.
 
-`sourceRoot` describes the source folder, usually `docs`. The sync endpoint
-validates the manifest `source.root` against this value when both are present.
+## Advanced Security
 
-## Auth Policy
+You do not need this for normal docs publishing.
 
-Use the docs set `auth` group to decide which credentials may update that docs
-set.
-
-- `auth.ed25519.keys` stores `keyId` and `publicKey` pairs for local machines
-  or non-GitHub CI.
-- `auth.githubOidc.enabled` enables GitHub Actions OIDC for this docs set.
-- `auth.githubOidc.allowedRepositories` and
-  `auth.githubOidc.allowedRepositoryOwners` restrict where tokens can come from.
-- `auth.githubOidc.allowedRefs`, `allowedWorkflows`,
-  `allowedWorkflowRefs`, and `allowedEnvironments` add optional exact-match
-  constraints.
-- `auth.githubOidc.audience` overrides the plugin-level audience when needed.
-
-The plugin-level `sources` option remains available as a backward-compatible
-fallback, but new docs packages should be added by creating docs sets in Payload
-Admin.
-
-## Defaults
-
-The `defaults` group is schema runway for rendering defaults:
-
-- `theme`
-- `heroEyebrow`
-- `heroTitle`
-- `heroDescription`
-- `seoTitle`
-- `seoDescription`
-- `sidebarMode`
-
-The current route adapter exposes enough data for rendering, but it does not implement a full theme system.
+Leave advanced security disabled to allow any workflow from a trusted GitHub
+owner/repository on the configured branch. Enable it only when you want exact
+workflow refs. When enabled, an empty workflow list rejects all workflow
+publishing for that docs set.
 
 ## Sync Metadata
 
-The `sync` group stores last sync status and counts. The Docs Set Admin Manager uses this metadata for the generated docs overview.
+The `sync` group stores last sync status and counts. The Docs Set Admin Manager
+uses this metadata for the generated docs overview.
 
 See [Docs Set Admin Manager](/admin/docs-set-manager).
