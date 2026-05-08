@@ -1,4 +1,11 @@
 export {
+  getPayloadMarkdownDocsLinks,
+} from './links.js'
+export type {
+  GetPayloadMarkdownDocsLinksOptions,
+  PayloadMarkdownDocsLink,
+} from './links.js'
+export {
   createPayloadMarkdownDocsMarkdownResponse,
   resolvePayloadMarkdownDocsMarkdownRoute,
 } from './markdown.js'

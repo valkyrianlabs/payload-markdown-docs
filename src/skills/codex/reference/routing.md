@@ -8,7 +8,8 @@ Docs groups reserve namespaces such as `/plugins` or `/internal/tools`.
 
 ## Docs Sets
 
-Docs sets represent one documentation site. They map a `sourceId` to a server-owned `routeBase`, such as:
+Docs sets represent one documentation site. Their route base is derived from an
+optional group plus the docs set slug, such as:
 
 ```text
 /plugins/payload-markdown-docs

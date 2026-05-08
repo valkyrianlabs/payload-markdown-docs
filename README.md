@@ -3,42 +3,24 @@
 Git-backed Markdown documentation sync for Payload CMS, powered by
 `@valkyrianlabs/payload-markdown`.
 
-This package has two sides:
+The default workflow is intentionally small:
 
-- The docs repo keeps Markdown files in source control and uses the CLI to
-  validate, plan, and push them.
-- The Payload server installs the plugin, verifies signed or GitHub OIDC
-  requests, and writes generated docs records into Payload-owned collections.
-
-The sync endpoint is not the human docs route. If your Payload site is deployed
-at `https://docs.valkyrianlabs.com`, the default sync endpoint is:
-
-```text
-https://docs.valkyrianlabs.com/api/payload-markdown-docs/sync
-```
-
-The human docs route is whatever docs set route base you configure, for example:
-
-```text
-https://docs.valkyrianlabs.com/plugins/payload-markdown-docs
-```
+1. Install the plugin in your Payload app.
+2. Create a docs set with a title and slug.
+3. Add a trusted GitHub owner once.
+4. Push Markdown from GitHub Actions.
+5. Render generated docs in your Next route.
 
 ## Install
-
-Install this package in the Payload app that will receive and render docs:
 
 ```bash
 pnpm add @valkyrianlabs/payload-markdown-docs @valkyrianlabs/payload-markdown
 ```
 
-Install the same package in any repo whose CI will run the
+Install the same package in any repository that runs the
 `payload-markdown-docs` CLI.
 
-## 1. Configure The Payload Server
-
-Add the plugin to `payload.config.ts`. Keep source authorization in Payload
-Admin docs sets; the plugin config should define the endpoint, collections, and
-sync lifecycle behavior.
+## Configure Payload
 
 ```ts
 import { payloadMarkdownDocs } from '@valkyrianlabs/payload-markdown-docs'
@@ -47,74 +29,49 @@ import { buildConfig } from 'payload'
 export default buildConfig({
   plugins: [
     payloadMarkdownDocs({
-      enabled: true,
-
-      // Optional default OIDC audience. Repository/workflow/environment
-      // allowlists belong on the docs set in Payload Admin.
       auth: {
-        githubOidc: {
-          audience: 'payload-markdown-docs',
-        },
+        githubOidc: true,
       },
-
       target: {
-        type: 'docsCollection',
         enableDrafts: true,
       },
-
       sync: {
         allowWrites: true,
         allowPublish: true,
-        allowHardDelete: false,
-        defaultPublishMode: 'draft',
-        deleteBehavior: 'archive',
       },
     }),
   ],
 })
 ```
 
-What this does:
+This adds `Docs Globals` admin collections:
 
-- Adds docs groups, docs sets, generated docs, sync run, and nonce collections.
-- Registers the default Payload custom endpoint at
-  `/api/payload-markdown-docs/sync`.
-- Accepts Ed25519 signed requests or GitHub OIDC bearer requests on the same
-  endpoint when the matched docs set has those auth policies.
-- Uses docs sets in Payload Admin as the source allow-list. `sources` still
-  exists as a legacy fallback, but it is not the recommended path.
-- Allows sync writes and publish requests, while archiving removed docs instead
-  of hard-deleting them.
+- `Sets`: docs packages. The set `slug` is the sync source and OIDC audience.
+- `Groups`: optional route nesting. Routes are derived from group slugs.
+- `Keys`: global Ed25519 public keys for local or non-GitHub publishing.
+- `Trusted`: global GitHub owners trusted for OIDC publishing.
 
-If you configure `allowedRefs` on a docs set, remember release workflows run on
-tag refs like `refs/tags/v0.1.0-canary.1`. The first pass uses exact string
-matches, not glob patterns. For release publishing, constrain by repository and
-workflow unless you want to list exact tag refs.
+The sync endpoint is `/api/payload-markdown-docs/sync`.
 
-## 2. Create The Docs Set
+## Create Admin Records
 
-In Payload Admin, create a docs set with values that match the CLI and server
-config:
+Create a docs set:
 
-- `sourceId`: `payload-markdown-docs`
-- `sourceRoot`: `docs`
-- `routeBase`: `/plugins/payload-markdown-docs`
-- `title`: Payload Markdown Docs
-- `auth.githubOidc.enabled`: checked
-- `auth.githubOidc.allowedRepositories`: `valkyrianlabs/payload-markdown-docs`
-- optionally restrict `auth.githubOidc.allowedWorkflows`,
-  `auth.githubOidc.allowedEnvironments`, or exact `auth.githubOidc.allowedRefs`
-- optionally add `auth.ed25519.keys` with `keyId` and `publicKey` for local
-  machines or non-GitHub CI
+- title: `Payload Markdown Docs`
+- slug: `payload-markdown-docs`
+- branch: `main`
+- optional group: for example `plugins`, which makes the route
+  `/plugins/payload-markdown-docs`
 
-The CLI sends `source.id`. The server uses that id to find the docs set and
-decide where generated routes live and which credentials may update it. You can
-add a new docs source by creating a new docs set in Payload Admin; you should
-not need to redeploy the Payload app just to add another docs package.
+Create a trusted GitHub owner:
 
-## 3. Render Docs In Next
+- owner: `valkyrianlabs`
+- `limitRepos`: off, unless you want to list specific repositories
 
-The plugin writes docs records. Your Next route renders them.
+When `limitRepos` is off, any repository owned by that GitHub owner can publish
+to a matching docs set from the configured branch.
+
+## Render In Next
 
 ```tsx
 import config from '@payload-config'
@@ -142,141 +99,84 @@ export default async function Page({
 }
 ```
 
-In a real app, fall back to your normal Pages lookup instead of calling
-`notFound()` immediately.
+For header navigation, use the link helper:
 
-## 4. Add Docs Source Files
+```ts
+import { getPayloadMarkdownDocsLinks } from '@valkyrianlabs/payload-markdown-docs/next'
 
-Keep docs in `docs/` and commit the AI Markdown Export manifest next to them.
-The manifest controls the generated raw Markdown export; it is not a human docs
-page and should not appear in human navigation.
-
-```text
-docs/
-  index.md
-  install.md
-  usage.md
-  index.ai.yml
+const docsLinks = await getPayloadMarkdownDocsLinks({ payload })
+// [{ label: 'Payload Markdown Docs', url: '/plugins/payload-markdown-docs' }]
 ```
 
-Example `docs/index.ai.yml`:
-
-```yaml
-version: 1
-
-title: Payload Markdown Docs
-canonical: /plugins/payload-markdown-docs
-output: /plugins/payload-markdown-docs.md
-
-description: >
-  Consolidated AI-facing documentation export for Payload Markdown Docs.
-
-preamble: |
-  This file is intended for AI agents, editor tooling, Codex, ChatGPT,
-  and offline reference.
-
-order:
-  - ./index.md
-  - ./install.md
-  - ./usage.md
-
-exclude:
-  - ./drafts/**
-
-orphans: append
-headingMode: normalize
-```
-
-## 5. Validate Locally
-
-Validation does not contact the server:
+## Validate Locally
 
 ```bash
-pnpm exec payload-markdown-docs validate ./docs \
-  --source payload-markdown-docs \
-  --route-base /plugins/payload-markdown-docs
+pnpm exec payload-markdown-docs validate ./docs --source payload-markdown-docs
+pnpm exec payload-markdown-docs manifest ./docs --source payload-markdown-docs --pretty
+pnpm exec payload-markdown-docs plan ./docs --source payload-markdown-docs
 ```
 
-Preview the manifest or plan:
+In GitHub Actions, `--source` can be omitted when the docs set slug matches the
+repository name. The CLI infers it from `GITHUB_REPOSITORY`.
 
-```bash
-pnpm exec payload-markdown-docs manifest ./docs \
-  --source payload-markdown-docs \
-  --route-base /plugins/payload-markdown-docs \
-  --pretty
-```
-
-```bash
-pnpm exec payload-markdown-docs plan ./docs \
-  --source payload-markdown-docs \
-  --route-base /plugins/payload-markdown-docs
-```
-
-## 6. Publish From GitHub Actions
-
-GitHub OIDC only works inside GitHub Actions. The workflow needs:
+## Publish From GitHub Actions
 
 ```yaml
 permissions:
   contents: read
   id-token: write
+
+steps:
+  - uses: actions/checkout@v4
+  - uses: pnpm/action-setup@v4
+  - uses: actions/setup-node@v4
+    with:
+      node-version: 22
+      cache: pnpm
+  - run: pnpm install --frozen-lockfile
+  - run: pnpm exec payload-markdown-docs validate ./docs
+  - run: |
+      pnpm exec payload-markdown-docs push ./docs \
+        --endpoint "$DOCS_SYNC_ENDPOINT" \
+        --repository "$GITHUB_REPOSITORY" \
+        --branch "$GITHUB_REF_NAME" \
+        --commit "$GITHUB_SHA" \
+        --github-oidc \
+        --sync \
+        --publish
 ```
 
-Then push docs to the Payload sync endpoint:
+`--sync` requires `sync.allowWrites: true`. `--publish` also requires
+`sync.allowPublish: true` and a draft-enabled generated docs collection.
 
-```bash
-pnpm exec payload-markdown-docs push ./docs \
-  --endpoint "https://docs.valkyrianlabs.com/api/payload-markdown-docs/sync" \
-  --source payload-markdown-docs \
-  --route-base /plugins/payload-markdown-docs \
-  --repository "$GITHUB_REPOSITORY" \
-  --branch "$GITHUB_REF_NAME" \
-  --commit "$GITHUB_SHA" \
-  --github-oidc \
-  --oidc-audience payload-markdown-docs \
-  --sync \
-  --publish
-```
+## Local Ed25519 Push
 
-`--sync` only works when the server has `sync.allowWrites: true`.
-`--publish` also requires `sync.allowPublish: true` and
-`target.enableDrafts: true`.
-
-For non-GitHub CI, use Ed25519 keys instead of OIDC:
+Generate a keypair, add the public key to `Docs Globals > Keys`, then push with
+the private key:
 
 ```bash
 pnpm exec payload-markdown-docs keygen --out .docs-sync
 pnpm exec payload-markdown-docs push ./docs \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
   --source payload-markdown-docs \
-  --key-id github-actions-main \
-  --private-key-env DOCS_SYNC_PRIVATE_KEY \
-  --sync \
-  --publish
+  --key-id local-docs \
+  --private-key-file .docs-sync/docs-sync-private.pem \
+  --sync
 ```
 
-## This Repo
+## Advanced Security
 
-This repo's release workflow publishes the npm package first, then pushes
-`./docs` to:
+You do not need this for normal docs publishing.
 
-```text
-https://docs.valkyrianlabs.com/api/payload-markdown-docs/sync
-```
-
-using:
-
-- source id: `payload-markdown-docs`
-- route base: `/plugins/payload-markdown-docs`
-- auth: GitHub OIDC configured on the matching docs set
-- mode: sync and publish
+Each docs set has an advanced security section for exact GitHub workflow refs.
+Leave it disabled to allow any workflow from a trusted owner/repository on the
+configured branch. When enabled, add every allowed workflow ref explicitly; an
+empty list rejects all workflow publishing for that docs set.
 
 ## More Docs
 
-- [Installation](docs/getting-started/installation.md)
 - [Quick Start](docs/getting-started/quick-start.md)
 - [Plugin Config](docs/configuration/plugin-config.md)
-- [GitHub OIDC](docs/configuration/github-oidc.md)
 - [GitHub Actions](docs/workflow/ci-github-actions.md)
-- [Route Adapter](docs/frontend/route-adapter.md)
-- [Troubleshooting](docs/reference/troubleshooting.md)
+- [CLI](docs/reference/cli.md)
+- [Migration Notes](docs/reference/migration.md)

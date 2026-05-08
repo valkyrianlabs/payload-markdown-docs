@@ -16,9 +16,9 @@ The docs source lives in `{{docsRoot}}` unless the user says otherwise. Edit Mar
 - Run validation before finishing docs edits.
 - Treat sync and publishing as CMS/server-owned. The request may ask; Payload
   docs sets and plugin config decide.
-- Do not hardcode new docs sources into plugin config. A docs source should map
-  to a Payload Admin docs set with `sourceId`, `sourceRoot`, `routeBase`, and
-  source-specific auth policy.
+- Do not hardcode new docs packages into plugin config. A docs package should map
+  to a Payload Admin docs set slug. Routes are derived from groups and slugs;
+  trust belongs in global Keys and Trusted records.
 
 ## AI Markdown Export Manifest
 
@@ -135,7 +135,6 @@ Only push when the user asks for an upload and provides endpoint/auth context. P
   --endpoint "$DOCS_SYNC_ENDPOINT" \
   --source main-docs \
   --github-oidc \
-  --oidc-audience payload-markdown-docs \
   --dry-run
 ```
 

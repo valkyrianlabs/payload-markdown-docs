@@ -25,13 +25,8 @@ export const getPayloadMarkdownDocsMetadata = (
 
   if (resolved.type === 'docsSetIndex' && !resolved.doc) {
     return compactMetadata({
-      description:
-        resolved.docsSet.defaults?.seoDescription ?? resolved.docsSet.description,
-      title:
-        resolved.docsSet.defaults?.seoTitle ??
-        resolved.docsSet.defaults?.heroTitle ??
-        resolved.docsSet.navTitle ??
-        resolved.docsSet.title,
+      description: resolved.docsSet.description,
+      title: resolved.docsSet.navTitle ?? resolved.docsSet.title,
     })
   }
 
@@ -39,29 +34,14 @@ export const getPayloadMarkdownDocsMetadata = (
 
   if (!doc) {
     return compactMetadata({
-      description:
-        resolved.docsSet.defaults?.seoDescription ?? resolved.docsSet.description,
-      title:
-        resolved.docsSet.defaults?.seoTitle ??
-        resolved.docsSet.defaults?.heroTitle ??
-        resolved.docsSet.navTitle ??
-        resolved.docsSet.title,
+      description: resolved.docsSet.description,
+      title: resolved.docsSet.navTitle ?? resolved.docsSet.title,
     })
   }
 
   return compactMetadata({
-    description:
-      doc.overrides?.seoDescription ??
-      doc.overrides?.heroDescription ??
-      doc.description ??
-      resolved.docsSet.defaults?.seoDescription ??
-      resolved.docsSet.description,
-    title:
-      doc.overrides?.seoTitle ??
-      doc.overrides?.heroTitle ??
-      doc.title ??
-      resolved.docsSet.defaults?.seoTitle ??
-      resolved.docsSet.title,
+    description: doc.description ?? resolved.docsSet.description,
+    title: doc.title ?? resolved.docsSet.title,
   })
 }
 

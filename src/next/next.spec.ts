@@ -8,6 +8,7 @@ import type {
   ResolvedPayloadMarkdownDocsSet,
 } from './types.js'
 
+import { getPayloadMarkdownDocsLinks } from './links.js'
 import { resolvePayloadMarkdownDocsMarkdownRoute } from './markdown.js'
 import { getPayloadMarkdownDocsMetadata } from './metadata.js'
 import { PayloadMarkdownDocsPage } from './PayloadMarkdownDocsPage.js'
@@ -29,15 +30,8 @@ type TestPayloadData = {
 const docsSet = {
   id: 'set-1',
   slug: 'payload-markdown',
-  defaults: {
-    heroDescription: 'Default hero.',
-    seoDescription: 'Default SEO description.',
-    seoTitle: 'Default SEO title',
-  },
   description: 'Docs set description.',
   order: 10,
-  routeBase: '/plugins/payload-markdown',
-  sourceId: 'payload-markdown',
   title: 'Payload Markdown',
 }
 
@@ -46,7 +40,6 @@ const docsGroup = {
   slug: 'plugins',
   description: 'Plugin documentation.',
   order: 0,
-  routePath: '/plugins',
   serveIndex: true,
   title: 'Plugins',
 }
@@ -60,7 +53,7 @@ const createDoc = (
   description: 'Install docs.',
   docsSet,
   order: 10,
-  route: '/plugins/payload-markdown/getting-started/installation',
+  route: '/payload-markdown/getting-started/installation',
   sourceHash: 'hash-1',
   sourcePath: 'getting-started/installation.md',
   sync: {
@@ -161,7 +154,7 @@ const resolvedRecord = (
   description: 'Install docs.',
   docsSetId: 'set-1',
   order: 10,
-  route: '/plugins/payload-markdown/getting-started/installation',
+  route: '/payload-markdown/getting-started/installation',
   sourcePath: 'getting-started/installation.md',
   title: 'Installation',
   ...overrides,
@@ -169,14 +162,10 @@ const resolvedRecord = (
 
 const resolvedDocsSet: ResolvedPayloadMarkdownDocsSet = {
   id: 'set-1',
-  defaults: {
-    seoDescription: 'Default SEO description.',
-    seoTitle: 'Default SEO title',
-  },
+  slug: 'payload-markdown',
   description: 'Docs set description.',
   order: 0,
-  routeBase: '/plugins/payload-markdown',
-  sourceId: 'payload-markdown',
+  routeBase: '/payload-markdown',
   title: 'Payload Markdown',
 }
 
@@ -201,7 +190,7 @@ describe('Payload Markdown Docs route adapter', () => {
     })
 
     const resolved = await resolvePayloadMarkdownDocsRoute({
-      path: '/plugins/payload-markdown/getting-started/installation',
+      path: '/payload-markdown/getting-started/installation',
       payload,
     })
 
@@ -219,7 +208,7 @@ describe('Payload Markdown Docs route adapter', () => {
   })
 
   it('uses access override for server-side route adapter reads', async () => {
-    const route = '/plugins/payload-markdown/getting-started/installation'
+    const route = '/payload-markdown/getting-started/installation'
     const payload = createPayloadMock({
       docs: [createDoc()],
       docsSets: [docsSet],
@@ -234,11 +223,6 @@ describe('Payload Markdown Docs route adapter', () => {
       expect.objectContaining({
         collection: 'docs-sets',
         overrideAccess: true,
-        where: {
-          routeBase: {
-            equals: route,
-          },
-        },
       }),
     )
     expect(payload.find).toHaveBeenCalledWith(
@@ -270,7 +254,7 @@ describe('Payload Markdown Docs route adapter', () => {
       docs: [
         createDoc({
           id: 'doc-index',
-          route: '/plugins/payload-markdown',
+          route: '/payload-markdown',
           sourcePath: 'index.md',
           title: 'Overview',
         }),
@@ -279,7 +263,7 @@ describe('Payload Markdown Docs route adapter', () => {
     })
 
     const resolved = await resolvePayloadMarkdownDocsRoute({
-      slug: ['plugins', 'payload-markdown'],
+      slug: ['payload-markdown'],
       payload,
     })
 
@@ -289,7 +273,7 @@ describe('Payload Markdown Docs route adapter', () => {
         id: 'doc-index',
       },
       docsSet: {
-        routeBase: '/plugins/payload-markdown',
+        routeBase: '/payload-markdown',
       },
     })
   })
@@ -301,7 +285,7 @@ describe('Payload Markdown Docs route adapter', () => {
     })
 
     const resolved = await resolvePayloadMarkdownDocsRoute({
-      path: '/plugins/payload-markdown',
+      path: '/payload-markdown',
       payload,
     })
 
@@ -376,22 +360,12 @@ describe('Payload Markdown Docs route adapter', () => {
       expect.objectContaining({
         collection: 'docs-groups',
         overrideAccess: true,
-        where: {
-          routePath: {
-            equals: '/plugins',
-          },
-        },
       }),
     )
     expect(payload.find).toHaveBeenCalledWith(
       expect.objectContaining({
         collection: 'docs-sets',
         overrideAccess: true,
-        where: {
-          group: {
-            equals: docsGroup.id,
-          },
-        },
       }),
     )
   })
@@ -416,7 +390,7 @@ describe('Payload Markdown Docs route adapter', () => {
       docs: [
         createDoc({
           id: 'ai-manifest',
-          route: '/plugins/payload-markdown/index.ai.yml',
+          route: '/payload-markdown/index.ai.yml',
           sourcePath: 'index.ai.yml',
           title: 'AI Manifest',
         }),
@@ -426,7 +400,7 @@ describe('Payload Markdown Docs route adapter', () => {
 
     await expect(
       resolvePayloadMarkdownDocsRoute({
-        path: '/plugins/payload-markdown/index.ai.yml',
+        path: '/payload-markdown/index.ai.yml',
         payload,
       }),
     ).resolves.toBeNull()
@@ -446,7 +420,7 @@ describe('Payload Markdown Docs route adapter', () => {
 
     await expect(
       resolvePayloadMarkdownDocsRoute({
-        path: '/plugins/payload-markdown/getting-started/installation',
+        path: '/payload-markdown/getting-started/installation',
         payload: archivedPayload,
       }),
     ).resolves.toBeNull()
@@ -462,14 +436,14 @@ describe('Payload Markdown Docs route adapter', () => {
 
     await expect(
       resolvePayloadMarkdownDocsRoute({
-        path: '/plugins/payload-markdown/getting-started/installation',
+        path: '/payload-markdown/getting-started/installation',
         payload: draftPayload,
       }),
     ).resolves.toBeNull()
     await expect(
       resolvePayloadMarkdownDocsRoute({
         includeDrafts: true,
-        path: '/plugins/payload-markdown/getting-started/installation',
+        path: '/payload-markdown/getting-started/installation',
         payload: draftPayload,
       }),
     ).resolves.toMatchObject({
@@ -486,7 +460,7 @@ describe('Payload Markdown Docs raw Markdown export', () => {
           id: 'doc-index',
           content: '# Overview\n\nWelcome.\n',
           order: 0,
-          route: '/plugins/payload-markdown',
+          route: '/payload-markdown',
           sourcePath: 'index.md',
           title: 'Overview',
         }),
@@ -494,7 +468,7 @@ describe('Payload Markdown Docs raw Markdown export', () => {
           id: 'doc-usage',
           content: '# Usage\n\nUse it.\n',
           order: 30,
-          route: '/plugins/payload-markdown/usage',
+          route: '/payload-markdown/usage',
           sourcePath: 'usage.md',
           title: 'Usage',
         }),
@@ -502,7 +476,7 @@ describe('Payload Markdown Docs raw Markdown export', () => {
           id: 'doc-install',
           content: '# Install\n\nInstall it.\n',
           order: 20,
-          route: '/plugins/payload-markdown/install',
+          route: '/payload-markdown/install',
           sourcePath: 'install.md',
           title: 'Install',
         }),
@@ -510,7 +484,7 @@ describe('Payload Markdown Docs raw Markdown export', () => {
           id: 'doc-internal',
           content: '# Internal\n\nSecret.\n',
           order: 10,
-          route: '/plugins/payload-markdown/internal',
+          route: '/payload-markdown/internal',
           sourcePath: 'internal.md',
           title: 'Internal',
         }),
@@ -519,13 +493,13 @@ describe('Payload Markdown Docs raw Markdown export', () => {
         {
           ...docsSet,
           aiExport: {
-            canonical: '/plugins/payload-markdown',
+            canonical: '/payload-markdown',
             description: 'Consolidated AI docs.',
             exclude: ['./internal.md'],
             headingMode: 'normalize',
             order: ['./index.md', './install.md'],
             orphans: 'append',
-            output: '/plugins/payload-markdown.md',
+            output: '/payload-markdown.md',
             preamble: 'Read the documents in order.',
             sourcePath: 'index.ai.yml',
             title: 'Payload Markdown Documentation',
@@ -536,14 +510,14 @@ describe('Payload Markdown Docs raw Markdown export', () => {
     })
 
     const resolved = await resolvePayloadMarkdownDocsMarkdownRoute({
-      path: '/plugins/payload-markdown.md',
+      path: '/payload-markdown.md',
       payload,
     })
 
     expect(resolved).toMatchObject({
       type: 'markdown',
       contentType: 'text/markdown; charset=utf-8',
-      output: '/plugins/payload-markdown.md',
+      output: '/payload-markdown.md',
     })
     expect(resolved?.markdown.startsWith('# Payload Markdown Documentation')).toBe(
       true,
@@ -566,14 +540,14 @@ describe('Payload Markdown Docs raw Markdown export', () => {
         createDoc({
           id: 'doc-index',
           content: '# Overview\n',
-          route: '/plugins/payload-markdown',
+          route: '/payload-markdown',
           sourcePath: 'index.md',
           title: 'Overview',
         }),
         createDoc({
           id: 'doc-usage',
           content: '# Usage\n',
-          route: '/plugins/payload-markdown/usage',
+          route: '/payload-markdown/usage',
           sourcePath: 'usage.md',
           title: 'Usage',
         }),
@@ -594,7 +568,7 @@ describe('Payload Markdown Docs raw Markdown export', () => {
     })
 
     const resolved = await resolvePayloadMarkdownDocsMarkdownRoute({
-      path: '/plugins/payload-markdown.md',
+      path: '/payload-markdown.md',
       payload,
     })
 
@@ -608,7 +582,7 @@ describe('Payload Markdown Docs raw Markdown export', () => {
         createDoc({
           id: 'doc-index',
           content: '# Overview\n',
-          route: '/plugins/payload-markdown',
+          route: '/payload-markdown',
           sourcePath: 'index.md',
           title: 'Overview',
         }),
@@ -645,7 +619,7 @@ describe('Payload Markdown Docs raw Markdown export', () => {
           id: 'doc-b',
           content: '# Beta\n',
           order: 20,
-          route: '/plugins/payload-markdown/beta',
+          route: '/payload-markdown/beta',
           sourcePath: 'beta.md',
           title: 'Beta',
         }),
@@ -653,7 +627,7 @@ describe('Payload Markdown Docs raw Markdown export', () => {
           id: 'doc-a',
           content: '# Alpha\n',
           order: 10,
-          route: '/plugins/payload-markdown/alpha',
+          route: '/payload-markdown/alpha',
           sourcePath: 'alpha.md',
           title: 'Alpha',
         }),
@@ -662,7 +636,7 @@ describe('Payload Markdown Docs raw Markdown export', () => {
     })
 
     const resolved = await resolvePayloadMarkdownDocsMarkdownRoute({
-      path: '/plugins/payload-markdown.md',
+      path: '/payload-markdown.md',
       payload,
     })
 
@@ -716,13 +690,13 @@ describe('Payload Markdown Docs sidebar helpers', () => {
       [
         resolvedRecord({
           order: 20,
-          route: '/plugins/payload-markdown/configuration/sync',
+          route: '/payload-markdown/configuration/sync',
           sourcePath: 'configuration/sync.md',
           title: 'Sync',
         }),
         resolvedRecord({
           order: 0,
-          route: '/plugins/payload-markdown',
+          route: '/payload-markdown',
           sourcePath: 'index.md',
           title: 'Overview',
         }),
@@ -731,20 +705,20 @@ describe('Payload Markdown Docs sidebar helpers', () => {
           overrides: {
             navTitle: 'Install',
           },
-          route: '/plugins/payload-markdown/getting-started/installation',
+          route: '/payload-markdown/getting-started/installation',
           sourcePath: 'getting-started/installation.md',
           title: 'Installation',
         }),
         resolvedRecord({
           archived: true,
           order: 30,
-          route: '/plugins/payload-markdown/archived',
+          route: '/payload-markdown/archived',
           sourcePath: 'archived.md',
           title: 'Archived',
         }),
         resolvedRecord({
           order: 40,
-          route: '/plugins/payload-markdown/draft',
+          route: '/payload-markdown/draft',
           sourcePath: 'draft.md',
           status: 'draft',
           title: 'Draft',
@@ -753,7 +727,7 @@ describe('Payload Markdown Docs sidebar helpers', () => {
           overrides: {
             hideFromNav: true,
           },
-          route: '/plugins/payload-markdown/hidden',
+          route: '/payload-markdown/hidden',
           sourcePath: 'hidden.md',
           title: 'Hidden',
         }),
@@ -791,20 +765,20 @@ describe('Payload Markdown Docs sidebar helpers', () => {
       [
         resolvedRecord({
           order: 0,
-          route: '/plugins/payload-markdown',
+          route: '/payload-markdown',
           sourcePath: 'index.md',
           title: 'Overview',
         }),
         resolvedRecord({
           order: 10,
-          route: '/plugins/payload-markdown/draft',
+          route: '/payload-markdown/draft',
           sourcePath: 'draft.md',
           status: 'draft',
           title: 'Draft',
         }),
         resolvedRecord({
           archived: true,
-          route: '/plugins/payload-markdown/archived',
+          route: '/payload-markdown/archived',
           sourcePath: 'archived.md',
           title: 'Archived',
         }),
@@ -812,7 +786,7 @@ describe('Payload Markdown Docs sidebar helpers', () => {
           overrides: {
             hideFromNav: true,
           },
-          route: '/plugins/payload-markdown/hidden',
+          route: '/payload-markdown/hidden',
           sourcePath: 'hidden.md',
           title: 'Hidden',
         }),
@@ -834,6 +808,42 @@ describe('Payload Markdown Docs sidebar helpers', () => {
   })
 })
 
+describe('Payload Markdown Docs link helpers', () => {
+  it('returns Header/CMSLink-compatible docs set links with derived group routes', async () => {
+    const payload = createPayloadMock({
+      docsGroups: [docsGroup],
+      docsSets: [
+        {
+          ...docsSet,
+          group: docsGroup,
+          navTitle: 'Docs',
+        },
+        {
+          id: 'api-set',
+          slug: 'api',
+          order: 20,
+          title: 'API',
+        },
+      ],
+    })
+
+    await expect(
+      getPayloadMarkdownDocsLinks({
+        payload,
+      }),
+    ).resolves.toEqual([
+      {
+        label: 'Docs',
+        url: '/plugins/payload-markdown',
+      },
+      {
+        label: 'API',
+        url: '/api',
+      },
+    ])
+  })
+})
+
 describe('Payload Markdown Docs page component', () => {
   it('renders styled shell defaults for docs routes', async () => {
     const markup = renderToStaticMarkup(
@@ -841,13 +851,13 @@ describe('Payload Markdown Docs page component', () => {
         resolved: {
           type: 'docsSetIndex',
           docsSet: resolvedDocsSet,
-          route: '/plugins/payload-markdown',
+          route: '/payload-markdown',
           sidebar: [
             {
               depth: 0,
               label: 'Overview',
               order: 0,
-              route: '/plugins/payload-markdown',
+              route: '/payload-markdown',
               sourcePath: 'index.md',
             },
           ],
@@ -863,23 +873,18 @@ describe('Payload Markdown Docs page component', () => {
 })
 
 describe('Payload Markdown Docs metadata helpers', () => {
-  it('uses doc overrides before doc and docs set metadata', () => {
+  it('uses doc title and description before docs set metadata', () => {
     const metadata = getPayloadMarkdownDocsMetadata({
       type: 'doc',
-      doc: resolvedRecord({
-        overrides: {
-          seoDescription: 'Override description.',
-          seoTitle: 'Override title',
-        },
-      }),
+      doc: resolvedRecord(),
       docsSet: resolvedDocsSet,
-      route: '/plugins/payload-markdown/getting-started/installation',
+      route: '/payload-markdown/getting-started/installation',
       sidebar: [],
     })
 
     expect(metadata).toEqual({
-      description: 'Override description.',
-      title: 'Override title',
+      description: 'Install docs.',
+      title: 'Installation',
     })
   })
 
@@ -887,13 +892,13 @@ describe('Payload Markdown Docs metadata helpers', () => {
     const metadata = getPayloadMarkdownDocsMetadata({
       type: 'docsSetIndex',
       docsSet: resolvedDocsSet,
-      route: '/plugins/payload-markdown',
+      route: '/payload-markdown',
       sidebar: [],
     })
 
     expect(metadata).toEqual({
-      description: 'Default SEO description.',
-      title: 'Default SEO title',
+      description: 'Docs set description.',
+      title: 'Payload Markdown',
     })
   })
 

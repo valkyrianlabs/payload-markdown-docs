@@ -35,7 +35,7 @@ Run `payload-markdown-docs plan ./docs --source main-docs`.
 pnpm exec payload-markdown-docs validate ./docs --source main-docs
 ```
 
-Validation checks source paths, frontmatter, hashes, file limits, source id, and manifest shape.
+Validation checks source paths, frontmatter, hashes, file limits, docs set slug, and manifest shape.
 
 ## Manifest
 

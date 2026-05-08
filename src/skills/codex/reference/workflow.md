@@ -30,7 +30,6 @@ Dry-run upload with GitHub OIDC:
   --endpoint "$DOCS_SYNC_ENDPOINT" \
   --source main-docs \
   --github-oidc \
-  --oidc-audience payload-markdown-docs \
   --dry-run
 ```
 

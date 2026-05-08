@@ -4,8 +4,11 @@ import { generateKeyPairSync, randomUUID, sign } from 'node:crypto'
 import { describe, expect, it, vi } from 'vitest'
 
 import {
+  DEFAULT_DOCS_GROUPS_COLLECTION_SLUG,
+  DEFAULT_DOCS_KEYS_COLLECTION_SLUG,
   DEFAULT_DOCS_SETS_COLLECTION_SLUG,
   DEFAULT_DOCS_SYNC_ENDPOINT_PATH,
+  DEFAULT_DOCS_TRUSTED_COLLECTION_SLUG,
 } from '../constants.js'
 import { payloadMarkdownDocs } from '../plugin.js'
 import {
@@ -45,13 +48,71 @@ type MockPayload = {
   update: ReturnType<typeof vi.fn>
 }
 
+let currentPublicKey = ''
+
+const getEqualsConstraint = (
+  where: unknown,
+  field: string,
+): string | undefined => {
+  if (typeof where !== 'object' || where === null || Array.isArray(where)) {
+    return undefined
+  }
+
+  const fieldConstraint = (where as Record<string, unknown>)[field]
+
+  if (
+    typeof fieldConstraint !== 'object' ||
+    fieldConstraint === null ||
+    Array.isArray(fieldConstraint)
+  ) {
+    return undefined
+  }
+
+  const value = (fieldConstraint as Record<string, unknown>).equals
+
+  return typeof value === 'string' ? value : undefined
+}
+
+const filterDocsByEquals = (
+  docs: unknown[],
+  where: unknown,
+  field: string,
+): unknown[] => {
+  const expected = getEqualsConstraint(where, field)
+
+  if (!expected) {
+    return docs
+  }
+
+  return docs.filter((doc) => {
+    if (typeof doc !== 'object' || doc === null || Array.isArray(doc)) {
+      return false
+    }
+
+    return (doc as Record<string, unknown>)[field] === expected
+  })
+}
+
 const createMockPayload = ({
+  docsGroups = [],
+  docsKeys,
   docsSets = [],
+  docsTrusted = [
+    {
+      id: 'trusted-id',
+      limitRepos: false,
+      owner: 'valkyrianlabs',
+      title: 'Valkyrian Labs',
+    },
+  ],
   existingDocs = [],
   pages = [],
   replayNonce = false,
 }: {
+  docsGroups?: unknown[]
+  docsKeys?: unknown[]
   docsSets?: unknown[]
+  docsTrusted?: unknown[]
   existingDocs?: unknown[]
   pages?: unknown[]
   replayNonce?: boolean
@@ -66,7 +127,9 @@ const createMockPayload = ({
       id,
     }),
   ),
-  find: vi.fn(({ collection }) => {
+  find: vi.fn((args) => {
+    const { collection } = args
+
     if (collection === 'docs-sync-nonces') {
       return Promise.resolve({
         docs: replayNonce ? [{ id: 'nonce-id' }] : [],
@@ -79,9 +142,50 @@ const createMockPayload = ({
       })
     }
 
-    if (collection === DEFAULT_DOCS_SETS_COLLECTION_SLUG) {
+    if (collection === DEFAULT_DOCS_GROUPS_COLLECTION_SLUG) {
       return Promise.resolve({
-        docs: docsSets,
+        docs: docsGroups,
+      })
+    }
+
+    if (collection === DEFAULT_DOCS_SETS_COLLECTION_SLUG) {
+      const resolvedDocsSets =
+        docsSets.length > 0
+          ? docsSets
+          : [
+              {
+                id: 'docs-set-id',
+                slug: 'main-docs',
+                branch: 'main',
+                title: 'Main Docs',
+              },
+            ]
+
+      return Promise.resolve({
+        docs: filterDocsByEquals(resolvedDocsSets, args.where, 'slug'),
+      })
+    }
+
+    if (collection === DEFAULT_DOCS_KEYS_COLLECTION_SLUG) {
+      const resolvedDocsKeys =
+        docsKeys ??
+        [
+          {
+            id: 'key-id',
+            keyId: 'test-key',
+            publicKey: currentPublicKey,
+            title: 'Test Key',
+          },
+        ]
+
+      return Promise.resolve({
+        docs: filterDocsByEquals(resolvedDocsKeys, args.where, 'keyId'),
+      })
+    }
+
+    if (collection === DEFAULT_DOCS_TRUSTED_COLLECTION_SLUG) {
+      return Promise.resolve({
+        docs: docsTrusted,
       })
     }
 
@@ -112,7 +216,6 @@ const createManifest = (overrides: Record<string, unknown> = {}) => ({
       },
     ],
     repository: 'valkyrianlabs/payload-markdown',
-    root: 'docs',
     sourceId: 'main-docs',
   }),
   ...overrides,
@@ -166,7 +269,7 @@ const createOidcTokenFixture = (
   }
   const payload = {
     actor: 'octocat',
-    aud: 'payload-markdown-docs',
+    aud: 'main-docs',
     event_name: 'push',
     exp: Math.floor(now.getTime() / 1000) + 600,
     iat: Math.floor(now.getTime() / 1000),
@@ -192,11 +295,20 @@ const createOidcTokenFixture = (
     }),
     kid,
   } as Record<string, unknown>
+  const jwksUrl = `https://example.test/${kid}/jwks`
 
   return {
-    fetchJson: vi.fn(() => Promise.resolve({
-      keys: [jwk],
-    })),
+    fetchJson: vi.fn((url: string) =>
+      Promise.resolve(
+        url.endsWith('/.well-known/openid-configuration')
+          ? {
+              jwks_uri: jwksUrl,
+            }
+          : {
+              keys: [jwk],
+            },
+      ),
+    ),
     token: `${encodedHeader}.${encodedPayload}.${toBase64Url(signature)}`,
   }
 }
@@ -244,7 +356,7 @@ const createEndpointForTests = ({
   defaultPublishMode,
   deleteBehavior,
   docsEnableDrafts = false,
-  docsSetsEnabled = false,
+  docsSetsEnabled = true,
   publicKey,
   routingPagesEnabled = false,
   syncRunsEnabled = true,
@@ -259,29 +371,28 @@ const createEndpointForTests = ({
   publicKey: string
   routingPagesEnabled?: boolean
   syncRunsEnabled?: boolean
-}) =>
-  createSyncEndpoint({
+}) => {
+  currentPublicKey = publicKey
+
+  return createSyncEndpoint({
     allowHardDelete,
     allowPublish,
     allowWrites,
     auth: {
-      keys: [
-        {
-          id: 'test-key',
-          publicKey,
-        },
-      ],
-      maxSkewSeconds: 300,
-      mode: 'ed25519',
-      nonceTtlSeconds: 600,
+      ed25519: true,
     },
     defaultPublishMode,
     deleteBehavior,
     docsCollectionSlug: 'docs',
     docsEnabled: true,
     docsEnableDrafts,
+    docsGroupsCollectionSlug: DEFAULT_DOCS_GROUPS_COLLECTION_SLUG,
+    docsKeysCollectionSlug: DEFAULT_DOCS_KEYS_COLLECTION_SLUG,
+    docsKeysEnabled: true,
     docsSetsCollectionSlug: DEFAULT_DOCS_SETS_COLLECTION_SLUG,
     docsSetsEnabled,
+    docsTrustedCollectionSlug: DEFAULT_DOCS_TRUSTED_COLLECTION_SLUG,
+    docsTrustedEnabled: true,
     endpointPath: DEFAULT_DOCS_SYNC_ENDPOINT_PATH,
     getNow: () => now,
     markdownFieldName: 'content',
@@ -296,16 +407,10 @@ const createEndpointForTests = ({
         routeField: 'slug',
       },
     },
-    sources: [
-      {
-        id: 'main-docs',
-        root: 'docs',
-        routeBase: '/docs',
-      },
-    ],
     syncRunsCollectionSlug: 'docs-sync-runs',
     syncRunsEnabled,
   })
+}
 
 const callEndpoint = async ({
   body = JSON.stringify(createManifest()),
@@ -361,31 +466,24 @@ const createOidcEndpointForTests = ({
     allowPublish,
     allowWrites,
     auth: {
-      allowedRefs: ['refs/heads/main'],
-      allowedRepositories: ['valkyrianlabs/payload-markdown-docs'],
-      audience: 'payload-markdown-docs',
-      jwksUrl: `https://example.test/${randomUUID()}/jwks`,
-      mode: 'github-oidc',
+      githubOidc: true,
     },
     docsCollectionSlug: 'docs',
     docsEnabled: true,
     docsEnableDrafts: true,
+    docsGroupsCollectionSlug: DEFAULT_DOCS_GROUPS_COLLECTION_SLUG,
+    docsKeysCollectionSlug: DEFAULT_DOCS_KEYS_COLLECTION_SLUG,
+    docsKeysEnabled: true,
     docsSetsCollectionSlug: DEFAULT_DOCS_SETS_COLLECTION_SLUG,
-    docsSetsEnabled: false,
+    docsSetsEnabled: true,
+    docsTrustedCollectionSlug: DEFAULT_DOCS_TRUSTED_COLLECTION_SLUG,
+    docsTrustedEnabled: true,
     endpointPath: DEFAULT_DOCS_SYNC_ENDPOINT_PATH,
     getNow: () => now,
     markdownFieldName: 'content',
     noncesCollectionSlug: 'docs-sync-nonces',
     noncesEnabled: true,
     oidcFetchJson: fetchJson,
-    routeBase: '/docs',
-    sources: [
-      {
-        id: 'main-docs',
-        root: 'docs',
-        routeBase: '/docs',
-      },
-    ],
     syncRunsCollectionSlug: 'docs-sync-runs',
     syncRunsEnabled: true,
   })
@@ -396,48 +494,34 @@ const createMultiAuthEndpointForTests = ({
 }: {
   fetchJson: NonNullable<Parameters<typeof createSyncEndpoint>[0]['oidcFetchJson']>
   publicKey: string
-}) =>
-  createSyncEndpoint({
+}) => {
+  currentPublicKey = publicKey
+
+  return createSyncEndpoint({
     auth: {
-      ed25519: {
-        keys: [
-          {
-            id: 'test-key',
-            publicKey,
-          },
-        ],
-        maxSkewSeconds: 300,
-        nonceTtlSeconds: 600,
-      },
-      githubOidc: {
-        allowedRefs: ['refs/heads/main'],
-        allowedRepositories: ['valkyrianlabs/payload-markdown-docs'],
-        audience: 'payload-markdown-docs',
-        jwksUrl: `https://example.test/${randomUUID()}/jwks`,
-      },
+      ed25519: true,
+      githubOidc: true,
     },
     docsCollectionSlug: 'docs',
     docsEnabled: true,
     docsEnableDrafts: true,
+    docsGroupsCollectionSlug: DEFAULT_DOCS_GROUPS_COLLECTION_SLUG,
+    docsKeysCollectionSlug: DEFAULT_DOCS_KEYS_COLLECTION_SLUG,
+    docsKeysEnabled: true,
     docsSetsCollectionSlug: DEFAULT_DOCS_SETS_COLLECTION_SLUG,
-    docsSetsEnabled: false,
+    docsSetsEnabled: true,
+    docsTrustedCollectionSlug: DEFAULT_DOCS_TRUSTED_COLLECTION_SLUG,
+    docsTrustedEnabled: true,
     endpointPath: DEFAULT_DOCS_SYNC_ENDPOINT_PATH,
     getNow: () => now,
     markdownFieldName: 'content',
     noncesCollectionSlug: 'docs-sync-nonces',
     noncesEnabled: true,
     oidcFetchJson: fetchJson,
-    routeBase: '/docs',
-    sources: [
-      {
-        id: 'main-docs',
-        root: 'docs',
-        routeBase: '/docs',
-      },
-    ],
     syncRunsCollectionSlug: 'docs-sync-runs',
     syncRunsEnabled: true,
   })
+}
 
 const createCmsManagedEndpointForTests = ({
   allowPublish = false,
@@ -459,15 +543,19 @@ const createCmsManagedEndpointForTests = ({
     docsCollectionSlug: 'docs',
     docsEnabled: true,
     docsEnableDrafts: true,
+    docsGroupsCollectionSlug: DEFAULT_DOCS_GROUPS_COLLECTION_SLUG,
+    docsKeysCollectionSlug: DEFAULT_DOCS_KEYS_COLLECTION_SLUG,
+    docsKeysEnabled: true,
     docsSetsCollectionSlug: DEFAULT_DOCS_SETS_COLLECTION_SLUG,
     docsSetsEnabled: true,
+    docsTrustedCollectionSlug: DEFAULT_DOCS_TRUSTED_COLLECTION_SLUG,
+    docsTrustedEnabled: true,
     endpointPath: DEFAULT_DOCS_SYNC_ENDPOINT_PATH,
     getNow: () => now,
     markdownFieldName: 'content',
     noncesCollectionSlug: 'docs-sync-nonces',
     noncesEnabled: true,
     oidcFetchJson: fetchJson,
-    routeBase: '/docs',
     syncRunsCollectionSlug: 'docs-sync-runs',
     syncRunsEnabled,
   })
@@ -544,8 +632,13 @@ describe('sync endpoint dry-run handling', () => {
       docsCollectionSlug: 'docs',
       docsEnabled: true,
       docsEnableDrafts: false,
+      docsGroupsCollectionSlug: DEFAULT_DOCS_GROUPS_COLLECTION_SLUG,
+      docsKeysCollectionSlug: DEFAULT_DOCS_KEYS_COLLECTION_SLUG,
+      docsKeysEnabled: true,
       docsSetsCollectionSlug: DEFAULT_DOCS_SETS_COLLECTION_SLUG,
-      docsSetsEnabled: false,
+      docsSetsEnabled: true,
+      docsTrustedCollectionSlug: DEFAULT_DOCS_TRUSTED_COLLECTION_SLUG,
+      docsTrustedEnabled: true,
       endpointPath: DEFAULT_DOCS_SYNC_ENDPOINT_PATH,
       getNow: () => now,
       markdownFieldName: 'content',
@@ -554,7 +647,11 @@ describe('sync endpoint dry-run handling', () => {
       syncRunsCollectionSlug: 'docs-sync-runs',
       syncRunsEnabled: true,
     })
-    const response = await endpoint.handler(createRequest({ body: '{}' }))
+    const response = await endpoint.handler(
+      createRequest({
+        body: JSON.stringify(createManifest()),
+      }),
+    )
     const body = (await response.json()) as { error?: { code?: string } }
 
     expect(response.status).toBe(401)
@@ -876,43 +973,30 @@ describe('sync endpoint dry-run handling', () => {
     })
   })
 
-  it('accepts signed requests using docs set Ed25519 keys without configured sources', async () => {
+  it('accepts signed requests using global Ed25519 keys and docs set slugs', async () => {
     const { privateKey, publicKey } = keyPair()
-    const endpoint = createCmsManagedEndpointForTests({
-      allowWrites: true,
-    })
     const body = JSON.stringify(createManifest({ mode: 'sync' }))
     const payload = createMockPayload({
       docsSets: [
         {
           id: 'docs-set-1',
-          auth: {
-            ed25519: {
-              keys: [
-                {
-                  keyId: 'test-key',
-                  publicKey: publicKey.toString(),
-                },
-              ],
-            },
-          },
-          routeBase: '/plugins/payload-markdown-docs',
-          sourceId: 'main-docs',
-          sourceRoot: 'docs',
+          slug: 'main-docs',
+          branch: 'main',
         },
       ],
     })
-    const response = await endpoint.handler(
-      createRequest({
+    const { json, response } = await callEndpoint({
+      body,
+      endpointOptions: {
+        allowWrites: true,
+      },
+      headers: signBody({
         body,
-        headers: signBody({
-          body,
-          privateKey,
-        }),
-        payload,
+        privateKey,
       }),
-    )
-    const json = (await response.json()) as Record<string, unknown>
+      payload,
+      publicKey: publicKey.toString(),
+    })
 
     expect(response.status).toBe(200)
     expect(json).toMatchObject({
@@ -923,59 +1007,45 @@ describe('sync endpoint dry-run handling', () => {
     })
     expect(payload.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        collection: 'docs',
-        data: expect.objectContaining({
-          docsSet: 'docs-set-1',
-          route: '/plugins/payload-markdown-docs',
+          collection: 'docs',
+          data: expect.objectContaining({
+            docsSet: 'docs-set-1',
+            route: '/main-docs',
+          }),
         }),
-      }),
-    )
+      )
   })
 
-  it('accepts GitHub OIDC using docs set policy without configured sources', async () => {
+  it('accepts GitHub OIDC using global Trusted records with repo limiting', async () => {
     const tokenFixture = createOidcTokenFixture()
-    const endpoint = createCmsManagedEndpointForTests({
-      fetchJson: tokenFixture.fetchJson,
-    })
     const body = JSON.stringify(createManifest())
     const payload = createMockPayload({
       docsSets: [
         {
           id: 'docs-set-1',
-          auth: {
-            githubOidc: {
-              allowedRefs: [
-                {
-                  value: 'refs/heads/main',
-                },
-              ],
-              allowedRepositories: [
-                {
-                  value: 'valkyrianlabs/payload-markdown-docs',
-                },
-              ],
-              audience: 'payload-markdown-docs',
-              enabled: true,
-              jwksUrl: `https://example.test/${randomUUID()}/jwks`,
+          slug: 'main-docs',
+          branch: 'main',
+        },
+      ],
+      docsTrusted: [
+        {
+          id: 'trusted-id',
+          limitRepos: true,
+          owner: 'valkyrianlabs',
+          repositories: [
+            {
+              value: 'payload-markdown-docs',
             },
-          },
-          routeBase: '/plugins/payload-markdown-docs',
-          sourceId: 'main-docs',
-          sourceRoot: 'docs',
+          ],
+          title: 'Valkyrian Labs',
         },
       ],
     })
-    const response = await endpoint.handler(
-      createRequest({
-        body,
-        headers: oidcHeaders({
-          body,
-          token: tokenFixture.token,
-        }),
-        payload,
-      }),
-    )
-    const json = (await response.json()) as Record<string, unknown>
+    const { json, response } = await callOidcEndpoint({
+      body,
+      payload,
+      tokenFixture,
+    })
 
     expect(response.status).toBe(200)
     expect(json).toMatchObject({
@@ -996,8 +1066,18 @@ describe('sync endpoint dry-run handling', () => {
   })
 
   it('rejects unknown docs set sources before auth when no fallback source is configured', async () => {
-    const endpoint = createCmsManagedEndpointForTests()
-    const body = JSON.stringify(createManifest())
+    const endpoint = createCmsManagedEndpointForTests({
+      auth: {
+        ed25519: true,
+      },
+    })
+    const body = JSON.stringify(
+      createManifest({
+        source: {
+          id: 'unknown-docs',
+        },
+      }),
+    )
     const response = await endpoint.handler(
       createRequest({
         body,
@@ -1009,10 +1089,10 @@ describe('sync endpoint dry-run handling', () => {
     expect(response.status).toBe(400)
     expect(json).toMatchObject({
       error: {
-        code: 'source_not_allowed',
-        message:
-          'No docs set exists for manifest source.id "main-docs". Create a docs set in Payload Admin before syncing this source.',
-      },
+          code: 'source_not_allowed',
+          message:
+            'No docs set exists for source "unknown-docs". Create a docs set with slug "unknown-docs" in Payload Admin before syncing this source.',
+        },
       ok: false,
     })
   })
@@ -1339,16 +1419,15 @@ describe('sync endpoint dry-run handling', () => {
     expect(JSON.stringify(json)).not.toContain('# Home')
   })
 
-  it('resolves docs sets by source id and uses the docs set route base', async () => {
+  it('resolves docs sets by slug and derives the docs set route base', async () => {
     const { privateKey, publicKey } = keyPair()
     const body = JSON.stringify(createManifest({ mode: 'sync' }))
     const payload = createMockPayload({
       docsSets: [
         {
           id: 'docs-set-1',
-          routeBase: '/plugins/payload-markdown',
-          sourceId: 'main-docs',
-          sourceRoot: 'docs',
+          slug: 'main-docs',
+          branch: 'main',
         },
       ],
     })
@@ -1370,12 +1449,12 @@ describe('sync endpoint dry-run handling', () => {
     expect(json.summary).toMatchObject({ create: 1 })
     expect(payload.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        collection: 'docs',
-        data: expect.objectContaining({
-          docsSet: 'docs-set-1',
-          route: '/plugins/payload-markdown',
+          collection: 'docs',
+          data: expect.objectContaining({
+            docsSet: 'docs-set-1',
+            route: '/main-docs',
+          }),
         }),
-      }),
     )
     expect(payload.find).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -1419,9 +1498,8 @@ describe('sync endpoint dry-run handling', () => {
       docsSets: [
         {
           id: 'docs-set-1',
-          routeBase: '/plugins/payload-markdown',
-          sourceId: 'main-docs',
-          sourceRoot: 'docs',
+          slug: 'main-docs',
+          branch: 'main',
         },
       ],
     })
@@ -1463,15 +1541,15 @@ describe('sync endpoint dry-run handling', () => {
       docsSets: [
         {
           id: 'docs-set-1',
-          routeBase: '/plugins/payload-markdown',
-          sourceId: 'main-docs',
+          slug: 'main-docs',
+          branch: 'main',
         },
       ],
       existingDocs: [
         {
           id: 'doc-from-other-set',
           docsSet: 'other-docs-set',
-          route: '/plugins/payload-markdown',
+          route: '/main-docs',
           sourcePath: 'index.md',
           sync: {
             sourceId: 'other-docs',
@@ -1510,14 +1588,14 @@ describe('sync endpoint dry-run handling', () => {
       docsSets: [
         {
           id: 'docs-set-1',
-          routeBase: '/plugins/payload-markdown',
-          sourceId: 'main-docs',
+          slug: 'main-docs',
+          branch: 'main',
         },
       ],
       pages: [
         {
           id: 'page-1',
-          slug: '/plugins/payload-markdown/configuration',
+          slug: '/main-docs/configuration',
         },
       ],
     })

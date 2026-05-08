@@ -57,8 +57,8 @@ X-VL-MD-DOCS-Signature
 Content-Type: application/json
 ```
 
-The endpoint reads the manifest source id, resolves the matching docs set, and
-then verifies the request against that docs set's Ed25519 keys before it applies
+The endpoint reads the manifest source, resolves the matching docs set, and
+then verifies the request against the global Keys collection before it applies
 the manifest.
 
 ## GitHub OIDC
@@ -68,7 +68,6 @@ pnpm exec payload-markdown-docs push ./docs \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
   --source main-docs \
   --github-oidc \
-  --oidc-audience payload-markdown-docs \
   --sync
 ```
 
@@ -82,7 +81,7 @@ Content-Type: application/json
 
 OIDC is bearer authentication, not a body signature. The server resolves the
 docs set, verifies the JWT against GitHub's JWKS, checks docs-set claim
-allowlists, checks the body hash, and uses the token `jti` for replay
-protection.
+branch plus global Trusted owner/repository records, checks the body hash, and
+uses the token `jti` for replay protection.
 
 See the [security model](/concepts/security-model).

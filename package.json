@@ -1,6 +1,6 @@
 {
   "name": "@valkyrianlabs/payload-markdown-docs",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "Git-backed Markdown documentation sync for Payload CMS, powered by payload-markdown.",
   "bin": {
     "payload-markdown-docs": "./dist/cli/index.js"
@@ -48,11 +48,11 @@
     "copyfiles": "copyfiles -u 1 \"src/**/*.{html,css,scss,ttf,woff,woff2,eot,svg,jpg,png,json,md}\" dist/",
     "dev": "next dev dev --turbo",
     "dev:docs:keygen": "pnpm dev:payload run ./dev/scripts/create-docs-keypair.ts",
-    "dev:docs:manifest": "node --import @swc-node/register/esm-register ./src/cli/index.ts manifest ./dev/docs-fixtures/basic --source payload-markdown-docs --root docs --route-base /plugins/payload-markdown-docs --pretty",
-    "dev:docs:plan": "node --import @swc-node/register/esm-register ./src/cli/index.ts plan ./dev/docs-fixtures/basic --source payload-markdown-docs --root docs --route-base /plugins/payload-markdown-docs",
+    "dev:docs:manifest": "node --import @swc-node/register/esm-register ./src/cli/index.ts manifest ./dev/docs-fixtures/basic --source payload-markdown-docs --pretty",
+    "dev:docs:plan": "node --import @swc-node/register/esm-register ./src/cli/index.ts plan ./dev/docs-fixtures/basic --source payload-markdown-docs",
     "dev:docs:reset": "pnpm dev:payload run ./dev/scripts/reset-docs.ts",
     "dev:docs:seed": "pnpm dev:payload run ./dev/scripts/seed-docs.ts",
-    "dev:docs:validate": "node --import @swc-node/register/esm-register ./src/cli/index.ts validate ./dev/docs-fixtures/basic --source payload-markdown-docs --root docs --route-base /plugins/payload-markdown-docs",
+    "dev:docs:validate": "node --import @swc-node/register/esm-register ./src/cli/index.ts validate ./dev/docs-fixtures/basic --source payload-markdown-docs",
     "dev:generate-importmap": "pnpm dev:payload generate:importmap",
     "dev:generate-types": "pnpm dev:payload generate:types",
     "dev:payload": "cross-env PAYLOAD_CONFIG_PATH=./dev/payload.config.ts payload",

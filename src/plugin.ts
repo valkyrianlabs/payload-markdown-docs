@@ -5,18 +5,21 @@ import type { PayloadMarkdownDocsConfig } from './types.js'
 import {
   createDocsCollection,
   createDocsGroupsCollection,
+  createDocsKeysCollection,
   createDocsSetsCollection,
+  createDocsTrustedCollection,
   createNoncesCollection,
   createSyncRunsCollection,
 } from './collections/index.js'
 import {
   DEFAULT_DOCS_COLLECTION_SLUG,
   DEFAULT_DOCS_GROUPS_COLLECTION_SLUG,
-  DEFAULT_DOCS_ROUTE_BASE,
+  DEFAULT_DOCS_KEYS_COLLECTION_SLUG,
   DEFAULT_DOCS_SETS_COLLECTION_SLUG,
   DEFAULT_DOCS_SYNC_ENDPOINT_PATH,
   DEFAULT_DOCS_SYNC_NONCES_COLLECTION_SLUG,
   DEFAULT_DOCS_SYNC_RUNS_COLLECTION_SLUG,
+  DEFAULT_DOCS_TRUSTED_COLLECTION_SLUG,
   DEFAULT_MARKDOWN_FIELD_NAME,
   DEFAULT_MAX_BODY_BYTES,
   DEFAULT_PAGES_BRIDGE_FIELD,
@@ -30,8 +33,12 @@ type ResolvedCollectionOptions = {
   docsEnabled: boolean
   docsGroupsCollectionSlug: string
   docsGroupsEnabled: boolean
+  docsKeysCollectionSlug: string
+  docsKeysEnabled: boolean
   docsSetsCollectionSlug: string
   docsSetsEnabled: boolean
+  docsTrustedCollectionSlug: string
+  docsTrustedEnabled: boolean
   enableDrafts: boolean
   markdownFieldName: string
   noncesCollectionSlug: string
@@ -49,9 +56,12 @@ const normalizeEndpointPath = (path: string): string => {
 const resolveCollectionOptions = (
   pluginOptions: PayloadMarkdownDocsConfig,
 ): ResolvedCollectionOptions => {
-  if (pluginOptions.target?.type === 'existingCollection') {
+  if (
+    pluginOptions.target?.type !== undefined &&
+    pluginOptions.target.type !== 'docsCollection'
+  ) {
     throw new Error(
-      'payloadMarkdownDocs: target.type "existingCollection" is not supported yet. Use target.type "docsCollection".',
+      'payloadMarkdownDocs: target.type only supports "docsCollection". existingCollection is not supported.',
     )
   }
 
@@ -75,17 +85,19 @@ const resolveCollectionOptions = (
     docsGroupsCollectionSlug:
       pluginOptions.collections?.docsGroups?.slug ?? DEFAULT_DOCS_GROUPS_COLLECTION_SLUG,
     docsGroupsEnabled: pluginOptions.collections?.docsGroups?.enabled !== false,
+    docsKeysCollectionSlug:
+      pluginOptions.collections?.docsKeys?.slug ?? DEFAULT_DOCS_KEYS_COLLECTION_SLUG,
+    docsKeysEnabled: pluginOptions.collections?.docsKeys?.enabled !== false,
     docsSetsCollectionSlug:
       pluginOptions.collections?.docsSets?.slug ?? DEFAULT_DOCS_SETS_COLLECTION_SLUG,
     docsSetsEnabled: pluginOptions.collections?.docsSets?.enabled !== false,
+    docsTrustedCollectionSlug:
+      pluginOptions.collections?.docsTrusted?.slug ?? DEFAULT_DOCS_TRUSTED_COLLECTION_SLUG,
+    docsTrustedEnabled: pluginOptions.collections?.docsTrusted?.enabled !== false,
     enableDrafts:
-      pluginOptions.target?.type === 'docsCollection'
-        ? pluginOptions.target.enableDrafts === true
-        : false,
+      pluginOptions.target?.enableDrafts === true,
     markdownFieldName:
-      pluginOptions.target?.type === 'docsCollection'
-        ? pluginOptions.target.markdownField ?? DEFAULT_MARKDOWN_FIELD_NAME
-        : DEFAULT_MARKDOWN_FIELD_NAME,
+      pluginOptions.target?.markdownField ?? DEFAULT_MARKDOWN_FIELD_NAME,
     noncesCollectionSlug:
       pluginOptions.collections?.nonces?.slug ?? DEFAULT_DOCS_SYNC_NONCES_COLLECTION_SLUG,
     noncesEnabled: pluginOptions.collections?.nonces?.enabled !== false,
@@ -147,8 +159,12 @@ export const payloadMarkdownDocs =
       docsEnabled,
       docsGroupsCollectionSlug,
       docsGroupsEnabled,
+      docsKeysCollectionSlug,
+      docsKeysEnabled,
       docsSetsCollectionSlug,
       docsSetsEnabled,
+      docsTrustedCollectionSlug,
+      docsTrustedEnabled,
       enableDrafts,
       markdownFieldName,
       noncesCollectionSlug,
@@ -161,8 +177,12 @@ export const payloadMarkdownDocs =
       docsEnabled,
       docsGroupsCollectionSlug,
       docsGroupsEnabled,
+      docsKeysCollectionSlug,
+      docsKeysEnabled,
       docsSetsCollectionSlug,
       docsSetsEnabled,
+      docsTrustedCollectionSlug,
+      docsTrustedEnabled,
       enableDrafts,
       markdownFieldName,
       noncesCollectionSlug,
@@ -177,6 +197,8 @@ export const payloadMarkdownDocs =
     const collectionSlugsToAdd = [
       ...(docsGroupsEnabled ? [docsGroupsCollectionSlug] : []),
       ...(docsSetsEnabled ? [docsSetsCollectionSlug] : []),
+      ...(docsKeysEnabled ? [docsKeysCollectionSlug] : []),
+      ...(docsTrustedEnabled ? [docsTrustedCollectionSlug] : []),
       ...(docsEnabled ? [docsCollectionSlug] : []),
       ...(syncRunsEnabled ? [syncRunsCollectionSlug] : []),
       ...(noncesEnabled ? [noncesCollectionSlug] : []),
@@ -199,6 +221,20 @@ export const payloadMarkdownDocs =
               docsCollectionSlug: docsEnabled ? docsCollectionSlug : undefined,
               docsGroupsCollectionSlug,
               syncRunsCollectionSlug: syncRunsEnabled ? syncRunsCollectionSlug : undefined,
+            }),
+          ]
+        : []),
+      ...(docsKeysEnabled
+        ? [
+            createDocsKeysCollection({
+              slug: docsKeysCollectionSlug,
+            }),
+          ]
+        : []),
+      ...(docsTrustedEnabled
+        ? [
+            createDocsTrustedCollection({
+              slug: docsTrustedCollectionSlug,
             }),
           ]
         : []),
@@ -247,15 +283,19 @@ export const payloadMarkdownDocs =
           docsCollectionSlug,
           docsEnabled,
           docsEnableDrafts: enableDrafts,
+          docsGroupsCollectionSlug,
+          docsKeysCollectionSlug,
+          docsKeysEnabled,
           docsSetsCollectionSlug,
           docsSetsEnabled,
+          docsTrustedCollectionSlug,
+          docsTrustedEnabled,
           endpointPath,
           markdownFieldName,
           maxBodyBytes: pluginOptions.endpoint?.maxBodyBytes ?? DEFAULT_MAX_BODY_BYTES,
           noncesCollectionSlug,
           noncesEnabled,
           requireDryRunBeforeApply: pluginOptions.sync?.requireDryRunBeforeApply,
-          routeBase: DEFAULT_DOCS_ROUTE_BASE,
           routing: {
             pages: {
               allowBridgePages:
@@ -269,7 +309,6 @@ export const payloadMarkdownDocs =
                 pluginOptions.routing?.pages?.routeField ?? DEFAULT_PAGES_ROUTE_FIELD,
             },
           },
-          sources: pluginOptions.sources,
           syncRunsCollectionSlug,
           syncRunsEnabled,
         }),

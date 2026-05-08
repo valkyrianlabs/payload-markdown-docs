@@ -12,7 +12,7 @@ import {
 } from '../sync/index.js'
 import { applyDocsSync, assertApplyDeleteBehaviorSupported } from './applyDocsSync.js'
 import { buildDocsData } from './docsData.js'
-import { findDocsSetBySourceId } from './docsSets.js'
+import { findDocsSetBySlug } from './docsSets.js'
 import {
   findExistingPayloadDocsRecords,
   toExistingDocsRecord,
@@ -123,25 +123,28 @@ describe('docs sync apply helpers', () => {
 
   it('preserves numeric docs set ids from Payload records', async () => {
     const payload = {
-      find: vi.fn(() =>
+      find: vi.fn(({ collection }) =>
         Promise.resolve({
-          docs: [
-            {
-              id: 123,
-              routeBase: '/plugins/payload-markdown-docs',
-              sourceId: 'main-docs',
-              sourceRoot: 'docs',
-            },
-          ],
+          docs:
+            collection === 'docs-sets'
+              ? [
+                  {
+                    id: 123,
+                    slug: 'main-docs',
+                    branch: 'main',
+                  },
+                ]
+              : [],
         }),
       ),
     }
 
     await expect(
-      findDocsSetBySourceId({
+      findDocsSetBySlug({
+        slug: 'main-docs',
         collectionSlug: 'docs-sets',
+        docsGroupsCollectionSlug: 'docs-groups',
         payload,
-        sourceId: 'main-docs',
       }),
     ).resolves.toMatchObject({
       id: 123,

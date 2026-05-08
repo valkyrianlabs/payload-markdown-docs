@@ -36,14 +36,13 @@ jobs:
 
       - name: Dry-run docs sync
         if: github.event_name == 'pull_request'
-        # Requires the matching docs set to enable GitHub OIDC and allow this
-        # repository/ref/workflow.
+        # Advanced workflow restrictions are optional. By default, any workflow
+        # from a trusted owner/repository on the docs set branch is accepted.
         run: |
           pnpm exec payload-markdown-docs push ./docs \
             --endpoint "$DOCS_SYNC_ENDPOINT" \
             --source main-docs \
             --github-oidc \
-            --oidc-audience payload-markdown-docs \
             --dry-run
         env:
           DOCS_SYNC_ENDPOINT: ${{ secrets.DOCS_SYNC_ENDPOINT }}
@@ -57,7 +56,6 @@ jobs:
             --endpoint "$DOCS_SYNC_ENDPOINT" \
             --source main-docs \
             --github-oidc \
-            --oidc-audience payload-markdown-docs \
             --sync \
             --publish
         env:

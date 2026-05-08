@@ -74,7 +74,7 @@ describe('GitHub Actions docs workflow example', () => {
     expect(workflow).toContain('DOCS_SYNC_ENDPOINT')
     expect(workflow).toContain('id-token: write')
     expect(workflow).toContain('--github-oidc')
-    expect(workflow).toContain('--oidc-audience payload-markdown-docs')
+    expect(workflow).not.toContain('--oidc-audience')
     expect(workflow).not.toContain('--push')
     expect(workflow).not.toContain('--publish-mode')
   })

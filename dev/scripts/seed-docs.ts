@@ -4,10 +4,14 @@ import { getPayload } from 'payload'
 
 import {
   buildDevDocsGroupSeedData,
+  buildDevDocsKeySeedData,
   buildDevDocsSetSeedData,
+  buildDevDocsTrustedSeedData,
   devDocsGroupSlug,
+  devDocsKeySlug,
   devDocsSetSlug,
   devDocsSourceId,
+  devDocsTrustedSlug,
   getPayloadRecordId,
 } from '../helpers/docsSeedData.js'
 import {
@@ -91,21 +95,47 @@ const run = async () => {
       collection: devDocsSetSlug,
       data: buildDevDocsSetSeedData({
         groupId,
-        keyId: docsSyncKeyId,
-        publicKey: docsSyncPublicKey,
       }),
       payload,
       where: {
-        sourceId: {
+        slug: {
           equals: devDocsSourceId,
+        },
+      },
+    })
+    const docsKey = docsSyncPublicKey
+      ? await upsert({
+          collection: devDocsKeySlug,
+          data: buildDevDocsKeySeedData({
+            keyId: docsSyncKeyId,
+            publicKey: docsSyncPublicKey,
+          }),
+          payload,
+          where: {
+            keyId: {
+              equals: docsSyncKeyId,
+            },
+          },
+        })
+      : undefined
+    const trusted = await upsert({
+      collection: devDocsTrustedSlug,
+      data: buildDevDocsTrustedSeedData(),
+      payload,
+      where: {
+        owner: {
+          equals: 'valkyrianlabs',
         },
       },
     })
 
     process.stdout.write(`Seeded docs group: ${groupId ?? 'created'}\n`)
     process.stdout.write(`Seeded docs set: ${getPayloadRecordId(docsSet) ?? 'created'}\n`)
+    process.stdout.write(`Seeded docs trusted owner: ${getPayloadRecordId(trusted) ?? 'created'}\n`)
     if (!docsSyncPublicKey) {
-      process.stdout.write('Docs sync public key not found; docs set auth was not updated.\n')
+      process.stdout.write('Docs sync public key not found; docs key was not updated.\n')
+    } else {
+      process.stdout.write(`Seeded docs key: ${getPayloadRecordId(docsKey) ?? 'created'}\n`)
     }
   } finally {
     await payload.destroy()

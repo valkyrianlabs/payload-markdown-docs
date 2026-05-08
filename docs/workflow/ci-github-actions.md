@@ -32,10 +32,9 @@ Required secret or environment value:
 
 - `DOCS_SYNC_ENDPOINT`
 
-The server may define a plugin-level `auth.githubOidc.audience`, but the
-repository/ref/workflow allowlist belongs on the matching docs set in Payload
-Admin. The same docs set can also keep `auth.ed25519.keys` for local machines
-or non-GitHub CI on the same endpoint.
+Create a docs set whose slug matches the CLI source and add a Trusted GitHub
+owner in Payload Admin. The docs set branch remains the normal publishing
+boundary. Advanced workflow refs are optional and disabled by default.
 
 ## Ed25519 Secrets
 
@@ -43,7 +42,7 @@ or non-GitHub CI on the same endpoint.
 - `DOCS_SYNC_PRIVATE_KEY`
 
 Use these only for the Ed25519 workflow. The matching docs set must have the
-public key configured under the same key id.
+public key configured under the same key id in `Docs Globals > Keys`.
 
 ## Workflow Example
 
@@ -60,7 +59,6 @@ pnpm exec payload-markdown-docs push ./docs \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
   --source main-docs \
   --github-oidc \
-  --oidc-audience payload-markdown-docs \
   --dry-run
 ```
 
@@ -69,7 +67,6 @@ pnpm exec payload-markdown-docs push ./docs \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
   --source main-docs \
   --github-oidc \
-  --oidc-audience payload-markdown-docs \
   --sync \
   --publish
 ```

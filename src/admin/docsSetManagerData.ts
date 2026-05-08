@@ -3,14 +3,20 @@ import type {
   DocsSetManagerDocItem,
   DocsSetManagerPayloadOperations,
   DocsSetManagerWarning,
+  RawDocsGroupRecord,
   RawDocsRecord,
   RawDocsSetRecord,
 } from './docsSetManagerTypes.js'
 
 import {
   DEFAULT_DOCS_COLLECTION_SLUG,
+  DEFAULT_DOCS_GROUPS_COLLECTION_SLUG,
   DEFAULT_DOCS_SETS_COLLECTION_SLUG,
 } from '../constants.js'
+import {
+  deriveDocsSetRouteBase,
+  joinRouteSegments,
+} from '../routing/index.js'
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -74,22 +80,6 @@ const getOverrideSummary = (overrides: RawDocsRecord['overrides']): string[] => 
     summary.push('Hidden from nav')
   }
 
-  if (hasText(overrides.theme)) {
-    summary.push('Theme override')
-  }
-
-  if (
-    hasText(overrides.heroEyebrow) ||
-    hasText(overrides.heroTitle) ||
-    hasText(overrides.heroDescription)
-  ) {
-    summary.push('Hero override')
-  }
-
-  if (hasText(overrides.seoTitle) || hasText(overrides.seoDescription)) {
-    summary.push('SEO override')
-  }
-
   return summary
 }
 
@@ -120,6 +110,63 @@ const getSourcePathSegments = (sourcePath: string): string[] => {
   }
 
   return segments
+}
+
+const getGroupRoutePath = ({
+  groupId,
+  groupsById,
+  seen = new Set<string>(),
+}: {
+  groupId?: string
+  groupsById: Map<string, RawDocsGroupRecord>
+  seen?: Set<string>
+}): string | undefined => {
+  if (!groupId || seen.has(groupId)) {
+    return undefined
+  }
+
+  const group = groupsById.get(groupId)
+
+  if (!group?.slug) {
+    return undefined
+  }
+
+  return joinRouteSegments(
+    getGroupRoutePath({
+      groupId: getRelationshipId(group.parent),
+      groupsById,
+      seen: new Set([groupId, ...seen]),
+    }),
+    group.slug,
+  )
+}
+
+const getDocsSetRouteBase = ({
+  docsGroups,
+  docsSet,
+}: {
+  docsGroups: RawDocsGroupRecord[]
+  docsSet: RawDocsSetRecord
+}): string => {
+  if (!docsSet.slug) {
+    return ''
+  }
+
+  const groupsById = new Map(
+    docsGroups.flatMap((group) => {
+      const id = getRecordId(group)
+
+      return id ? [[id, group]] : []
+    }),
+  )
+
+  return deriveDocsSetRouteBase({
+    docsSetSlug: docsSet.slug,
+    groupRoutePath: getGroupRoutePath({
+      groupId: getRelationshipId(docsSet.group),
+      groupsById,
+    }),
+  })
 }
 
 const titleCaseSegment = (segment: string): string =>
@@ -297,11 +344,13 @@ export const buildDocsSetManagerData = ({
   adminRoute,
   docs,
   docsCollectionSlug = DEFAULT_DOCS_COLLECTION_SLUG,
+  docsGroups = [],
   docsSet,
 }: {
   adminRoute?: string
   docs: RawDocsRecord[]
   docsCollectionSlug?: string
+  docsGroups?: RawDocsGroupRecord[]
   docsSet: RawDocsSetRecord
 }): DocsSetManagerData => {
   const warnings: DocsSetManagerWarning[] = []
@@ -332,8 +381,11 @@ export const buildDocsSetManagerData = ({
     docs: sortedDocs,
     docsSet: {
       id: docsSetId,
-      routeBase: docsSet.routeBase ?? '',
-      sourceId: docsSet.sourceId ?? '',
+      slug: docsSet.slug ?? '',
+      routeBase: getDocsSetRouteBase({
+        docsGroups,
+        docsSet,
+      }),
       title: docsSet.title ?? docsSetId,
     },
     summary: {
@@ -363,24 +415,19 @@ export const buildDocsSetManagerData = ({
 export const isDocsRecordForDocsSet = ({
   doc,
   docsSetId,
-  sourceId,
 }: {
   doc: RawDocsRecord
   docsSetId: string
-  sourceId: string
 }): boolean => {
   const docDocsSetId = getRelationshipId(doc.docsSet)
 
-  if (docDocsSetId) {
-    return docDocsSetId === docsSetId
-  }
-
-  return doc.sync?.sourceId === sourceId
+  return docDocsSetId === docsSetId
 }
 
 export const getDocsSetManagerData = async ({
   adminRoute,
   docsCollectionSlug = DEFAULT_DOCS_COLLECTION_SLUG,
+  docsGroupsCollectionSlug = DEFAULT_DOCS_GROUPS_COLLECTION_SLUG,
   docsSetId,
   docsSetsCollectionSlug = DEFAULT_DOCS_SETS_COLLECTION_SLUG,
   overrideAccess = true,
@@ -388,6 +435,7 @@ export const getDocsSetManagerData = async ({
 }: {
   adminRoute?: string
   docsCollectionSlug?: string
+  docsGroupsCollectionSlug?: string
   docsSetId: string
   docsSetsCollectionSlug?: string
   overrideAccess?: boolean
@@ -406,19 +454,16 @@ export const getDocsSetManagerData = async ({
     limit: 1000,
     overrideAccess,
     where: {
-      or: [
-        {
-          docsSet: {
-            equals: docsSetId,
-          },
-        },
-        {
-          'sync.sourceId': {
-            equals: docsSet.sourceId,
-          },
-        },
-      ],
+      docsSet: {
+        equals: docsSetId,
+      },
     },
+  })
+  const docsGroupsResult = await payload.find({
+    collection: docsGroupsCollectionSlug,
+    depth: 0,
+    limit: 1000,
+    overrideAccess,
   })
   const docs = docsResult.docs
     .filter(isRecord)
@@ -427,7 +472,6 @@ export const getDocsSetManagerData = async ({
       isDocsRecordForDocsSet({
         doc,
         docsSetId,
-        sourceId: docsSet.sourceId ?? '',
       }),
     )
 
@@ -435,6 +479,9 @@ export const getDocsSetManagerData = async ({
     adminRoute,
     docs,
     docsCollectionSlug,
+    docsGroups: docsGroupsResult.docs
+      .filter(isRecord)
+      .map((group) => group as RawDocsGroupRecord),
     docsSet,
   })
 }

@@ -21,10 +21,26 @@ import {
   parseIntegerFlag,
 } from '../parseArgs.js'
 
+const getRepositoryName = (repository: string | undefined): string | undefined => {
+  if (!repository) {
+    return undefined
+  }
+
+  const [, name] = repository.split('/', 2)
+
+  return name ?? repository
+}
+
+const getDefaultSourceId = (docsRoot: string): string =>
+  getRepositoryName(process.env.GITHUB_REPOSITORY) ??
+  (path.basename(path.resolve(docsRoot)) === 'docs'
+    ? 'local-docs'
+    : path.basename(path.resolve(docsRoot)))
+
 export const getDocsCommandOptions = (
   args: ParsedCliArgs,
 ): CliResult | DocsCommandOptions => {
-  const docsRoot = args.positionals[0] ?? getFlagString(args, 'root')
+  const docsRoot = args.positionals[0]
 
   if (!docsRoot) {
     return {
@@ -51,9 +67,7 @@ export const getDocsCommandOptions = (
     maxFiles: typeof maxFiles === 'number' ? maxFiles : undefined,
     maxTotalBytes: typeof maxTotalBytes === 'number' ? maxTotalBytes : undefined,
     repository: getFlagString(args, 'repository'),
-    routeBase: getFlagString(args, 'route-base'),
-    sourceId: getFlagString(args, 'source') ?? 'local-docs',
-    sourceRoot: getFlagString(args, 'root') ?? path.basename(path.resolve(docsRoot)),
+    sourceId: getFlagString(args, 'source') ?? getDefaultSourceId(docsRoot),
   }
 }
 
@@ -95,14 +109,13 @@ export const runValidateCommand = async (
     commit: options.commit,
     files,
     repository: options.repository,
-    root: options.sourceRoot,
     sourceId: options.sourceId,
   })
   const validation = validateDocsManifest(manifest, {
     maxFileBytes: options.maxFileBytes,
     maxFiles: options.maxFiles,
     maxTotalBytes: options.maxTotalBytes,
-    routeBase: options.routeBase,
+    routeBase: `/${options.sourceId}`,
   })
   const validationWithReadWarnings = {
     ...validation,

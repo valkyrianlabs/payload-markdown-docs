@@ -1,6 +1,8 @@
 export const devDocsSourceId = 'payload-markdown-docs'
 export const devDocsGroupSlug = 'docs-groups'
+export const devDocsKeySlug = 'docs-keys'
 export const devDocsSetSlug = 'docs-sets'
+export const devDocsTrustedSlug = 'docs-trusted'
 
 export type PayloadRecordId = number | string
 
@@ -19,46 +21,36 @@ export const buildDevDocsGroupSeedData = () => ({
   description: 'Dev docs namespace for plugin documentation.',
   navTitle: 'Plugins',
   order: 0,
-  routePath: '/plugins',
   serveIndex: false,
   title: 'Plugins',
 })
 
 export const buildDevDocsSetSeedData = ({
   groupId,
-  keyId = 'dev-local',
-  publicKey,
 }: {
   groupId?: PayloadRecordId
-  keyId?: string
-  publicKey?: string
 } = {}) => ({
-  ...(publicKey
-    ? {
-        auth: {
-          ed25519: {
-            keys: [
-              {
-                keyId,
-                publicKey,
-              },
-            ],
-          },
-        },
-      }
-    : {}),
-  defaults: {
-    heroDescription: 'Local dev harness for the dedicated docs workflow.',
-    heroTitle: 'Payload Markdown Docs',
-    sidebarMode: 'auto',
-  },
+  branch: 'main',
   description: 'Local dev docs set for end-to-end dedicated docs testing.',
   ...(groupId !== undefined ? { group: groupId } : {}),
   slug: 'payload-markdown-docs',
-  navTitle: 'Payload Markdown Docs',
-  order: 0,
-  routeBase: '/plugins/payload-markdown-docs',
-  sourceId: devDocsSourceId,
-  sourceRoot: 'docs',
   title: 'Payload Markdown Docs',
+})
+
+export const buildDevDocsKeySeedData = ({
+  keyId = 'dev-local',
+  publicKey,
+}: {
+  keyId?: string
+  publicKey: string
+}) => ({
+  keyId,
+  publicKey,
+  title: 'Dev Local',
+})
+
+export const buildDevDocsTrustedSeedData = () => ({
+  limitRepos: false,
+  owner: 'valkyrianlabs',
+  title: 'Valkyrian Labs',
 })

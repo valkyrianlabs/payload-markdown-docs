@@ -1,7 +1,7 @@
 ---
 title: GitHub OIDC
 navTitle: GitHub OIDC
-description: Use GitHub Actions OIDC instead of a long-lived docs sync private key.
+description: Use GitHub Actions OIDC without long-lived docs sync secrets.
 order: 235
 status: published
 tags:
@@ -12,31 +12,24 @@ tags:
 
 # GitHub OIDC
 
-GitHub OIDC lets GitHub Actions authenticate to the sync endpoint without storing a long-lived Ed25519 private key secret.
+GitHub OIDC lets GitHub Actions authenticate to the sync endpoint without
+storing a long-lived Ed25519 private key secret.
 
 :::toc {title="On this page" depth="3" theme="compact"}
 :::
 
 ## Server Config
 
-Configure the plugin with the shared OIDC audience and keep repository/workflow
-allowlists on each docs set.
+Enable GitHub OIDC at the plugin level:
 
 ```ts
 payloadMarkdownDocs({
-  enabled: true,
-
   auth: {
-    githubOidc: {
-      audience: 'payload-markdown-docs',
-    },
+    githubOidc: true,
   },
-
   target: {
-    type: 'docsCollection',
     enableDrafts: true,
   },
-
   sync: {
     allowWrites: true,
     allowPublish: true,
@@ -44,32 +37,19 @@ payloadMarkdownDocs({
 })
 ```
 
-Then create or update the matching docs set in Payload Admin:
+Then create records in Payload Admin:
 
-```text
-sourceId: main-docs
-sourceRoot: docs
-routeBase: /plugins/payload-markdown-docs
-auth.githubOidc.enabled: true
-auth.githubOidc.allowedRepositories:
-  - valkyrianlabs/payload-markdown-docs
-auth.githubOidc.allowedRefs:
-  - refs/heads/main
-```
+- `Docs Globals > Sets`: a docs set whose slug matches the CLI source
+- `Docs Globals > Trusted`: a trusted GitHub owner
 
-You can also add `auth.ed25519.keys` on the same docs set. The sync endpoint
-will accept either Ed25519 signed requests or GitHub OIDC bearer requests for
-that source.
-
-:::callout {variant="warning" title="Keep the allowlist narrow"}
-Do not configure OIDC for every repository or ref. The endpoint verifies the
-GitHub token, but your docs set policy decides which repositories, refs,
-workflows, and environments are trusted.
-:::
+The docs set branch is the normal publishing boundary. The token repository
+owner must match a Trusted owner. If `limitRepos` is off, any repository under
+that owner is trusted. If it is on, the repository must be listed.
 
 ## Workflow Permissions
 
-GitHub only exposes the OIDC token request endpoint when the workflow grants `id-token: write`.
+GitHub only exposes the OIDC token request endpoint when the workflow grants
+`id-token: write`.
 
 ```yaml
 permissions:
@@ -84,7 +64,6 @@ pnpm exec payload-markdown-docs push ./docs \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
   --source main-docs \
   --github-oidc \
-  --oidc-audience payload-markdown-docs \
   --dry-run
 ```
 
@@ -93,19 +72,21 @@ pnpm exec payload-markdown-docs push ./docs \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
   --source main-docs \
   --github-oidc \
-  --oidc-audience payload-markdown-docs \
   --sync \
   --publish
 ```
 
-The endpoint still checks `X-VL-MD-DOCS-Body-SHA256`, but OIDC is bearer authentication, not a body signature. Replay protection uses the token `jti`.
+When the docs set slug matches the repository name, omit `--source` in GitHub
+Actions and the CLI derives it from `GITHUB_REPOSITORY`.
 
-:::details {title="Claims checked by the endpoint"}
-The endpoint validates issuer, audience, expiry, issued-at time, `jti`, repository, repository owner, ref, optional workflow fields, optional environment, and pull request policy.
-
-Pull request events are rejected by default. Set `allowPullRequests: true` only if the server should accept PR-originated docs sync requests.
+:::details {title="Advanced workflow refs"}
+You do not need this for normal docs publishing. Each docs set can enable exact
+workflow refs in its advanced security section. When disabled, all workflows are
+accepted as long as the trusted owner/repository and branch match.
 :::
 
 ## Ed25519 Still Works
 
-Ed25519 signed sync remains supported and is still the provider-neutral option for local machines, non-GitHub CI, and workflows that prefer static key pairs. See [signed push](/workflow/signed-push).
+Ed25519 signed sync remains supported for local machines, non-GitHub CI, and
+workflows that prefer static key pairs. Add public keys in `Docs Globals > Keys`.
+See [signed push](/workflow/signed-push).

@@ -45,6 +45,7 @@ order:
   - ./reference/manifest.md
   - ./reference/frontmatter.md
   - ./reference/troubleshooting.md
+  - ./reference/migration.md
 
 exclude:
   - ./drafts/**

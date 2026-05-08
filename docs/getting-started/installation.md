@@ -35,8 +35,10 @@ export default buildConfig({
 
 An enabled plugin registers the default docs infrastructure:
 
-- `docs-groups`
 - `docs-sets`
+- `docs-groups`
+- `docs-keys`
+- `docs-trusted`
 - `docs`
 - `docs-sync-runs`
 - `docs-sync-nonces`
@@ -45,16 +47,11 @@ An enabled plugin registers the default docs infrastructure:
 
 ```ts
 payloadMarkdownDocs({
-  enabled: true,
-
   auth: {
-    githubOidc: {
-      audience: 'payload-markdown-docs',
-    },
+    githubOidc: true,
   },
 
   target: {
-    type: 'docsCollection',
     enableDrafts: true,
   },
 
@@ -68,9 +65,9 @@ payloadMarkdownDocs({
 })
 ```
 
-Create a docs set in Payload Admin for each docs package. The docs set owns
-`sourceId`, `sourceRoot`, `routeBase`, and source-specific auth policy such as
-GitHub repository allowlists or Ed25519 public keys.
+Create a docs set in Payload Admin for each docs package. The docs set slug is
+the sync source. Routes are derived from the optional group and slug. GitHub trust
+and Ed25519 keys live in `Docs Globals > Trusted` and `Docs Globals > Keys`.
 
 :::callout {variant="warning" title="Writes are opt-in"}
 `mode: "sync"` requests are rejected unless the server has `sync.allowWrites: true`. Publish requests are rejected unless `sync.allowPublish: true` and drafts are enabled for the dedicated docs collection.

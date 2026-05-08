@@ -32,24 +32,12 @@ export type ResolvePayloadMarkdownDocsRouteOptions = {
 }
 
 export type PayloadMarkdownDocsDefaults = {
-  heroDescription?: string
-  heroEyebrow?: string
-  heroTitle?: string
-  seoDescription?: string
-  seoTitle?: string
   sidebarMode?: 'auto' | 'hidden' | 'manual'
-  theme?: string
 }
 
 export type PayloadMarkdownDocsOverrides = {
-  heroDescription?: string
-  heroEyebrow?: string
-  heroTitle?: string
   hideFromNav?: boolean
   navTitle?: string
-  seoDescription?: string
-  seoTitle?: string
-  theme?: string
 }
 
 export type ResolvedPayloadMarkdownDocsSet = {
@@ -61,8 +49,6 @@ export type ResolvedPayloadMarkdownDocsSet = {
   order: number
   routeBase: string
   slug?: string
-  sourceId?: string
-  sourceRoot?: string
   title: string
 }
 

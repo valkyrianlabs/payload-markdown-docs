@@ -71,6 +71,8 @@ export interface Config {
     media: Media;
     'docs-groups': DocsGroup;
     'docs-sets': DocsSet;
+    'docs-keys': DocsKey;
+    'docs-trusted': DocsTrusted;
     docs: Doc;
     'docs-sync-runs': DocsSyncRun;
     'docs-sync-nonces': DocsSyncNonce;
@@ -86,6 +88,8 @@ export interface Config {
     media: MediaSelect<false> | MediaSelect<true>;
     'docs-groups': DocsGroupsSelect<false> | DocsGroupsSelect<true>;
     'docs-sets': DocsSetsSelect<false> | DocsSetsSelect<true>;
+    'docs-keys': DocsKeysSelect<false> | DocsKeysSelect<true>;
+    'docs-trusted': DocsTrustedSelect<false> | DocsTrustedSelect<true>;
     docs: DocsSelect<false> | DocsSelect<true>;
     'docs-sync-runs': DocsSyncRunsSelect<false> | DocsSyncRunsSelect<true>;
     'docs-sync-nonces': DocsSyncNoncesSelect<false> | DocsSyncNoncesSelect<true>;
@@ -165,7 +169,6 @@ export interface DocsGroup {
   title: string;
   slug: string;
   parent?: (number | null) | DocsGroup;
-  routePath: string;
   description?: string | null;
   navTitle?: string | null;
   order?: number | null;
@@ -181,79 +184,46 @@ export interface DocsSet {
   id: number;
   title: string;
   slug: string;
-  sourceId: string;
-  sourceRoot?: string | null;
   group?: (number | null) | DocsGroup;
-  routeBase: string;
+  /**
+   * Git branch allowed to publish this docs set. The full Git ref is handled internally.
+   */
+  branch?: string | null;
+  /**
+   * Allow GitHub pull request events to dry-run or publish this docs set.
+   */
+  allowPullRequests?: boolean | null;
   description?: string | null;
-  navTitle?: string | null;
-  order?: number | null;
-  auth?: {
-    ed25519?: {
-      keys?:
-        | {
-            keyId: string;
-            publicKey: string;
-            id?: string | null;
-          }[]
-        | null;
-      maxSkewSeconds?: number | null;
-      nonceTtlSeconds?: number | null;
-    };
-    githubOidc?: {
-      enabled?: boolean | null;
-      audience?: string | null;
-      allowedRepositories?:
-        | {
-            value: string;
-            id?: string | null;
-          }[]
-        | null;
-      allowedRepositoryOwners?:
-        | {
-            value: string;
-            id?: string | null;
-          }[]
-        | null;
-      allowedRefs?:
-        | {
-            value: string;
-            id?: string | null;
-          }[]
-        | null;
-      allowedWorkflows?:
-        | {
-            value: string;
-            id?: string | null;
-          }[]
-        | null;
-      allowedWorkflowRefs?:
-        | {
-            value: string;
-            id?: string | null;
-          }[]
-        | null;
-      allowedEnvironments?:
-        | {
-            value: string;
-            id?: string | null;
-          }[]
-        | null;
-      allowPullRequests?: boolean | null;
-      issuer?: string | null;
-      jwksUrl?: string | null;
-      maxSkewSeconds?: number | null;
-    };
+  /**
+   * Optional workflow lock-down. Leave disabled to allow any workflow from a trusted GitHub owner/repository and branch.
+   */
+  advancedSecurity?: {
+    /**
+     * When enabled, only the workflow refs listed below can publish this docs set.
+     */
+    enabled?: boolean | null;
+    /**
+     * Exact GitHub workflow refs, for example owner/repo/.github/workflows/publish-docs.yml@refs/heads/main.
+     */
+    allowedWorkflowRefs?:
+      | {
+          value: string;
+          id?: string | null;
+        }[]
+      | null;
   };
-  defaults?: {
-    theme?: string | null;
-    heroEyebrow?: string | null;
-    heroTitle?: string | null;
-    heroDescription?: string | null;
-    seoTitle?: string | null;
-    seoDescription?: string | null;
-    sidebarMode?: ('auto' | 'manual' | 'hidden') | null;
-  };
+  /**
+   * Parsed index.ai.yml control data for the raw Markdown AI export route.
+   */
+  aiExport?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
   sync?: {
     lastSyncedAt?: string | null;
     lastSyncRunId?: (number | null) | DocsSyncRun;
@@ -311,6 +281,51 @@ export interface DocsSyncRun {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "docs-keys".
+ */
+export interface DocsKey {
+  id: number;
+  title: string;
+  /**
+   * Identifier sent by signed docs sync requests. Keep this stable for each publishing environment.
+   */
+  keyId: string;
+  /**
+   * Ed25519 public key allowed to publish docs. Private keys never belong in Payload.
+   */
+  publicKey: string;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "docs-trusted".
+ */
+export interface DocsTrusted {
+  id: number;
+  title: string;
+  /**
+   * GitHub owner or organization trusted to publish docs through OIDC.
+   */
+  owner: string;
+  /**
+   * Leave off to trust every repository owned by this GitHub owner. Enable to list specific repositories.
+   */
+  limitRepos?: boolean | null;
+  /**
+   * Repository names or owner/repository pairs allowed when repo limiting is enabled.
+   */
+  repositories?:
+    | {
+        value: string;
+        id?: string | null;
+      }[]
+    | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "docs".
  */
 export interface Doc {
@@ -329,12 +344,6 @@ export interface Doc {
   overrides?: {
     navTitle?: string | null;
     hideFromNav?: boolean | null;
-    theme?: string | null;
-    heroEyebrow?: string | null;
-    heroTitle?: string | null;
-    heroDescription?: string | null;
-    seoTitle?: string | null;
-    seoDescription?: string | null;
   };
   sync?: {
     sourceId?: string | null;
@@ -432,6 +441,14 @@ export interface PayloadLockedDocument {
         value: number | DocsSet;
       } | null)
     | ({
+        relationTo: 'docs-keys';
+        value: number | DocsKey;
+      } | null)
+    | ({
+        relationTo: 'docs-trusted';
+        value: number | DocsTrusted;
+      } | null)
+    | ({
         relationTo: 'docs';
         value: number | Doc;
       } | null)
@@ -522,7 +539,6 @@ export interface DocsGroupsSelect<T extends boolean = true> {
   title?: T;
   slug?: T;
   parent?: T;
-  routePath?: T;
   description?: T;
   navTitle?: T;
   order?: T;
@@ -537,87 +553,22 @@ export interface DocsGroupsSelect<T extends boolean = true> {
 export interface DocsSetsSelect<T extends boolean = true> {
   title?: T;
   slug?: T;
-  sourceId?: T;
-  sourceRoot?: T;
   group?: T;
-  routeBase?: T;
+  branch?: T;
+  allowPullRequests?: T;
   description?: T;
-  navTitle?: T;
-  order?: T;
-  auth?:
+  advancedSecurity?:
     | T
     | {
-        ed25519?:
+        enabled?: T;
+        allowedWorkflowRefs?:
           | T
           | {
-              keys?:
-                | T
-                | {
-                    keyId?: T;
-                    publicKey?: T;
-                    id?: T;
-                  };
-              maxSkewSeconds?: T;
-              nonceTtlSeconds?: T;
-            };
-        githubOidc?:
-          | T
-          | {
-              enabled?: T;
-              audience?: T;
-              allowedRepositories?:
-                | T
-                | {
-                    value?: T;
-                    id?: T;
-                  };
-              allowedRepositoryOwners?:
-                | T
-                | {
-                    value?: T;
-                    id?: T;
-                  };
-              allowedRefs?:
-                | T
-                | {
-                    value?: T;
-                    id?: T;
-                  };
-              allowedWorkflows?:
-                | T
-                | {
-                    value?: T;
-                    id?: T;
-                  };
-              allowedWorkflowRefs?:
-                | T
-                | {
-                    value?: T;
-                    id?: T;
-                  };
-              allowedEnvironments?:
-                | T
-                | {
-                    value?: T;
-                    id?: T;
-                  };
-              allowPullRequests?: T;
-              issuer?: T;
-              jwksUrl?: T;
-              maxSkewSeconds?: T;
+              value?: T;
+              id?: T;
             };
       };
-  defaults?:
-    | T
-    | {
-        theme?: T;
-        heroEyebrow?: T;
-        heroTitle?: T;
-        heroDescription?: T;
-        seoTitle?: T;
-        seoDescription?: T;
-        sidebarMode?: T;
-      };
+  aiExport?: T;
   sync?:
     | T
     | {
@@ -625,6 +576,34 @@ export interface DocsSetsSelect<T extends boolean = true> {
         lastSyncRunId?: T;
         lastStatus?: T;
         docsCount?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "docs-keys_select".
+ */
+export interface DocsKeysSelect<T extends boolean = true> {
+  title?: T;
+  keyId?: T;
+  publicKey?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "docs-trusted_select".
+ */
+export interface DocsTrustedSelect<T extends boolean = true> {
+  title?: T;
+  owner?: T;
+  limitRepos?: T;
+  repositories?:
+    | T
+    | {
+        value?: T;
+        id?: T;
       };
   updatedAt?: T;
   createdAt?: T;
@@ -650,12 +629,6 @@ export interface DocsSelect<T extends boolean = true> {
     | {
         navTitle?: T;
         hideFromNav?: T;
-        theme?: T;
-        heroEyebrow?: T;
-        heroTitle?: T;
-        heroDescription?: T;
-        seoTitle?: T;
-        seoDescription?: T;
       };
   sync?:
     | T

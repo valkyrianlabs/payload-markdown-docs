@@ -18,7 +18,6 @@ The sync protocol uses JSON manifest uploads, not ZIP files.
   "version": 1,
   "source": {
     "id": "main-docs",
-    "root": "docs",
     "commit": "abc123",
     "branch": "main",
     "repository": "valkyrianlabs/payload-markdown-docs"

@@ -12,8 +12,7 @@ import {
 
 const docsSet = {
   id: 'set-1',
-  routeBase: '/plugins/payload-markdown',
-  sourceId: 'payload-markdown',
+  slug: 'payload-markdown',
   sync: {
     docsCount: 5,
     lastStatus: 'success' as const,
@@ -151,12 +150,7 @@ describe('docs set manager data helpers', () => {
     })
     expect(
       data.docs.find((item) => item.id === 'doc-1')?.overrideSummary,
-    ).toEqual([
-      'Nav title override',
-      'Hidden from nav',
-      'Hero override',
-      'SEO override',
-    ])
+    ).toEqual(['Nav title override', 'Hidden from nav'])
   })
 
   it('sorts docs deterministically and builds a source path tree', () => {
@@ -245,23 +239,21 @@ describe('docs set manager data helpers', () => {
     ])
   })
 
-  it('supports migration compatibility by source id', () => {
+  it('requires generated docs to belong to the docs set relationship', () => {
     expect(
       isDocsRecordForDocsSet({
         doc: doc({
           docsSet: undefined,
         }),
         docsSetId: 'set-1',
-        sourceId: 'payload-markdown',
       }),
-    ).toBe(true)
+    ).toBe(false)
     expect(
       isDocsRecordForDocsSet({
         doc: doc({
           docsSet: 'other-set',
         }),
         docsSetId: 'set-1',
-        sourceId: 'payload-markdown',
       }),
     ).toBe(false)
   })
@@ -313,22 +305,13 @@ describe('docs set manager data helpers', () => {
       expect.objectContaining({
         collection: 'generated-docs',
         where: {
-          or: [
-            {
-              docsSet: {
-                equals: 'set-1',
-              },
-            },
-            {
-              'sync.sourceId': {
-                equals: 'payload-markdown',
-              },
-            },
-          ],
+          docsSet: {
+            equals: 'set-1',
+          },
         },
       }),
     )
-    expect(data.docs.map((item) => item.id)).toEqual(['doc-1', 'legacy-doc'])
+    expect(data.docs.map((item) => item.id)).toEqual(['doc-1'])
     expect(data.docs[0]?.adminURL).toBe('/admin/collections/generated-docs/doc-1')
   })
 

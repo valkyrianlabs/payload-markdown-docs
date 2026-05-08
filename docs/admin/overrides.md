@@ -10,18 +10,12 @@ tags:
 
 # Overrides
 
-Generated docs records can store per-doc overrides for presentation metadata.
+Generated docs records can store a small set of per-doc navigation overrides.
 
 Supported override fields include:
 
 - `navTitle`
 - `hideFromNav`
-- `theme`
-- `heroEyebrow`
-- `heroTitle`
-- `heroDescription`
-- `seoTitle`
-- `seoDescription`
 
 ## When To Use Overrides
 
@@ -31,8 +25,6 @@ Examples:
 
 - hide a generated doc from sidebar navigation
 - adjust a short nav label
-- override SEO title or description
-- choose a future theme value
 
 :::callout {variant="warning" title="Do not use overrides for source content"}
 Markdown content should stay in Git. Overrides are for Payload-side presentation metadata.

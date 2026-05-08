@@ -131,7 +131,6 @@ const validateSource = ({
       branch: typeof source.branch === 'string' ? source.branch : undefined,
       commit: typeof source.commit === 'string' ? source.commit : undefined,
       repository: typeof source.repository === 'string' ? source.repository : undefined,
-      root: typeof source.root === 'string' ? source.root : undefined,
     },
   }
 }

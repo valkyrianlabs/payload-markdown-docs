@@ -31,7 +31,6 @@ describe('dogfood docs assets', () => {
     const manifest = buildDocsManifest({
       aiExport: aiExport.ok ? aiExport.manifest : undefined,
       files,
-      root: 'docs',
       sourceId: 'main-docs',
     })
     const validated = validateDocsManifest(manifest, {
@@ -154,7 +153,7 @@ describe('GitHub Actions workflow docs asset', () => {
     expect(workflow).toContain('DOCS_SYNC_ENDPOINT')
     expect(workflow).toContain('id-token: write')
     expect(workflow).toContain('--github-oidc')
-    expect(workflow).toContain('--oidc-audience payload-markdown-docs')
+    expect(workflow).not.toContain('--oidc-audience')
     expect(workflow).toContain('sync.allowWrites: true')
     expect(workflow).toContain('sync.allowPublish: true')
     expect(workflow).toContain('target.enableDrafts: true')

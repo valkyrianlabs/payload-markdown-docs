@@ -38,7 +38,8 @@ Prints manifest JSON.
 payload-markdown-docs plan ./docs --source main-docs
 ```
 
-Plans against an optional local existing-records JSON file. Without `--existing`, all valid docs are planned as creates.
+Plans against an optional local existing-records JSON file. Without
+`--existing`, all valid docs are planned as creates.
 
 ## keygen
 
@@ -46,7 +47,8 @@ Plans against an optional local existing-records JSON file. Without `--existing`
 payload-markdown-docs keygen --out .docs-sync
 ```
 
-Generates Ed25519 PEM keys for signed sync.
+Generates Ed25519 PEM keys for signed sync. Add the public key to
+`Docs Globals > Keys`.
 
 ## push
 
@@ -56,7 +58,7 @@ Ed25519:
 payload-markdown-docs push ./docs \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
   --source main-docs \
-  --key-id github-actions-main \
+  --key-id local-docs \
   --private-key-env DOCS_SYNC_PRIVATE_KEY \
   --dry-run
 ```
@@ -68,17 +70,19 @@ payload-markdown-docs push ./docs \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
   --source main-docs \
   --github-oidc \
-  --oidc-audience payload-markdown-docs \
   --sync
 ```
 
-`push` supports `--dry-run`, `--sync`, and `--publish`. Dry-run is the default. Publishing and writes remain server-owned.
+`push` supports `--dry-run`, `--sync`, and `--publish`. Dry-run is the default.
+Publishing and writes remain server-owned.
 
 OIDC-specific flags:
 
 - `--github-oidc`
-- `--oidc-audience <audience>`
 - `--oidc-token-env <env-name>`
+
+When `--source` is omitted in GitHub Actions, the CLI derives it from
+`GITHUB_REPOSITORY`.
 
 ## install skill
 
@@ -86,7 +90,8 @@ OIDC-specific flags:
 payload-markdown-docs install skill --codex
 ```
 
-Installs local AI-agent guidance under `.agents/skills/payload-markdown-docs/`.
+Installs local AI-agent guidance under
+`.agents/skills/payload-markdown-docs/`.
 
 Alias:
 
@@ -102,11 +107,11 @@ Useful flags:
 - `--force`
 - `--dry-run`
 
-The installer writes Markdown files only. It does not sync docs or run package manager commands.
+The installer writes Markdown files only. It does not sync docs or run package
+manager commands.
 
 :::details {title="Common flags"}
 - `--source <id>`
-- `--route-base <route>`
 - `--repository <repo>`
 - `--branch <branch>`
 - `--commit <sha>`

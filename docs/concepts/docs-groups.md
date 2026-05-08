@@ -34,11 +34,12 @@ Important docs group fields include:
 - `title`
 - `slug`
 - `parent`
-- `routePath`
 - `description`
 - `navTitle`
 - `order`
 - `serveIndex`
+
+The route path is derived from parent group slugs plus the group slug.
 
 ## `serveIndex`
 

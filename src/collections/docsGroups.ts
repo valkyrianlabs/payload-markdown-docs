@@ -1,5 +1,7 @@
 import type { CollectionConfig } from 'payload'
 
+import { DOCS_GLOBALS_ADMIN_GROUP } from '../constants.js'
+
 export type CreateDocsGroupsCollectionOptions = {
   slug: string
 }
@@ -9,8 +11,8 @@ export const createDocsGroupsCollection = ({
 }: CreateDocsGroupsCollectionOptions): CollectionConfig => ({
   slug,
   admin: {
-    defaultColumns: ['title', 'routePath', 'serveIndex', 'updatedAt'],
-    group: 'Docs',
+    defaultColumns: ['title', 'slug', 'serveIndex', 'updatedAt'],
+    group: DOCS_GLOBALS_ADMIN_GROUP,
     useAsTitle: 'title',
   },
   fields: [
@@ -31,12 +33,6 @@ export const createDocsGroupsCollection = ({
       relationTo: slug,
     },
     {
-      name: 'routePath',
-      type: 'text',
-      index: true,
-      required: true,
-    },
-    {
       name: 'description',
       type: 'textarea',
     },
@@ -55,4 +51,8 @@ export const createDocsGroupsCollection = ({
       defaultValue: false,
     },
   ],
+  labels: {
+    plural: 'Groups',
+    singular: 'Group',
+  },
 })

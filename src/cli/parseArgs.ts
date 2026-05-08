@@ -23,8 +23,6 @@ const docsValueFlags = new Set([
   'max-files',
   'max-total-bytes',
   'repository',
-  'root',
-  'route-base',
   'source',
 ])
 
@@ -34,7 +32,6 @@ const pushValueFlags = new Set([
   'delete-behavior',
   'endpoint',
   'key-id',
-  'oidc-audience',
   'oidc-token-env',
   'private-key-env',
   'private-key-file',

@@ -1,7 +1,7 @@
 import { generateKeyPairSync, randomUUID, sign  } from 'node:crypto'
 import { describe, expect, it, vi } from 'vitest'
 
-import type { PayloadMarkdownDocsAuthConfig } from '../types.js'
+import type { GitHubOidcVerifyConfig } from './index.js'
 import type { FetchJson } from './jwks.js'
 
 import {
@@ -69,12 +69,15 @@ const createTokenFixture = (
 }
 
 const config = (
-  overrides: Partial<Extract<PayloadMarkdownDocsAuthConfig, { mode: 'github-oidc' }>> = {},
-): Extract<PayloadMarkdownDocsAuthConfig, { mode: 'github-oidc' }> => ({
-  allowedRepositories: ['valkyrianlabs/payload-markdown-docs'],
+  overrides: Partial<GitHubOidcVerifyConfig> = {},
+): GitHubOidcVerifyConfig => ({
   audience: 'payload-markdown-docs',
   jwksUrl: `https://example.test/${randomUUID()}/jwks`,
-  mode: 'github-oidc',
+  trustedSources: [
+    {
+      owner: 'valkyrianlabs',
+    },
+  ],
   ...overrides,
 })
 
@@ -207,15 +210,19 @@ describe('GitHub OIDC security helpers', () => {
     ).resolves.toMatchObject({ code: 'oidc_missing_jti', ok: false })
   })
 
-  it('enforces repository, owner, ref, workflow, and environment allowlists', async () => {
-    const { jwk, token } = createTokenFixture({
-      environment: 'production',
-    })
+  it('enforces trusted owners, optional repository limits, refs, and advanced workflow refs', async () => {
+    const { jwk, token } = createTokenFixture()
 
     await expect(
       verifyGitHubOidcToken({
         config: config({
-          allowedRepositories: ['other/repo'],
+          trustedSources: [
+            {
+              limitRepos: true,
+              owner: 'valkyrianlabs',
+              repositories: ['other-repo'],
+            },
+          ],
         }),
         fetchJson: fetchJsonForJwk(jwk),
         now,
@@ -225,7 +232,11 @@ describe('GitHub OIDC security helpers', () => {
     await expect(
       verifyGitHubOidcToken({
         config: config({
-          allowedRepositoryOwners: ['other'],
+          trustedSources: [
+            {
+              owner: 'other',
+            },
+          ],
         }),
         fetchJson: fetchJsonForJwk(jwk),
         now,
@@ -245,7 +256,8 @@ describe('GitHub OIDC security helpers', () => {
     await expect(
       verifyGitHubOidcToken({
         config: config({
-          allowedWorkflows: ['Other workflow'],
+          allowedWorkflowRefs: ['other/repo/.github/workflows/docs.yml@refs/heads/main'],
+          enforceWorkflowRefs: true,
         }),
         fetchJson: fetchJsonForJwk(jwk),
         now,
@@ -255,13 +267,16 @@ describe('GitHub OIDC security helpers', () => {
     await expect(
       verifyGitHubOidcToken({
         config: config({
-          allowedEnvironments: ['staging'],
+          allowedWorkflowRefs: [
+            'valkyrianlabs/payload-markdown-docs/.github/workflows/publish-docs.yml@refs/heads/main',
+          ],
+          enforceWorkflowRefs: true,
         }),
         fetchJson: fetchJsonForJwk(jwk),
         now,
         token,
       }),
-    ).resolves.toMatchObject({ code: 'oidc_environment_not_allowed', ok: false })
+    ).resolves.toMatchObject({ ok: true })
   })
 
   it('rejects pull request events by default and allows them when configured', async () => {

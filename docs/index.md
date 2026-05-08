@@ -44,7 +44,7 @@ Install local agent guidance for writing docs that validate and sync.
 
 - dedicated docs, docs groups, docs sets, sync runs, and nonce collections
 - signed Ed25519 sync endpoint with nonce replay protection
-- GitHub Actions OIDC auth mode with docs-set repository/ref allowlists
+- GitHub Actions OIDC auth mode with global Trusted owner/repository checks
 - CLI commands for `validate`, `manifest`, `plan`, `keygen`, and signed `push`
 - server-gated sync writes, publishing, draft behavior, archive behavior, and hard delete
 - route reservations and opt-in Pages collision checks
@@ -69,7 +69,7 @@ Add `@valkyrianlabs/payload-markdown-docs` and `@valkyrianlabs/payload-markdown`
 ### Configure Payload
 
 Register `payloadMarkdownDocs()` with explicit write gates, then create a docs
-set in Payload Admin with `sourceId`, `routeBase`, and auth policy.
+set in Payload Admin with a title, slug, branch, and optional group.
 
 ### Validate locally
 

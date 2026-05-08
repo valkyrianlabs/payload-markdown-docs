@@ -691,7 +691,7 @@ describe('push command', () => {
       '--endpoint',
       endpoint,
       '--github-oidc',
-      '--oidc-audience',
+      '--source',
       'payload-markdown-docs',
     ])
 
