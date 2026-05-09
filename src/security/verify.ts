@@ -1,6 +1,7 @@
-import { createPublicKey, verify } from 'node:crypto'
+import { verify } from 'node:crypto'
 
 import { sha256Hex } from '../sync/index.js'
+import { getEd25519PublicKeyInput } from './ed25519Keys.js'
 
 export type VerifyBodyHashResult =
   | {
@@ -77,18 +78,6 @@ export const validateTimestampSkew = ({
   }
 }
 
-const getPublicKeyInput = (publicKey: string) => {
-  if (publicKey.includes('BEGIN PUBLIC KEY')) {
-    return publicKey
-  }
-
-  return createPublicKey({
-    type: 'spki',
-    format: 'der',
-    key: Buffer.from(publicKey, 'base64'),
-  })
-}
-
 export const verifyEd25519Signature = ({
   canonicalString,
   publicKey,
@@ -102,11 +91,10 @@ export const verifyEd25519Signature = ({
     return verify(
       null,
       Buffer.from(canonicalString, 'utf8'),
-      getPublicKeyInput(publicKey),
+      getEd25519PublicKeyInput(publicKey),
       Buffer.from(signature, 'base64'),
     )
   } catch {
     return false
   }
 }
-

@@ -11,7 +11,10 @@ import type {
   PushCommandOptions,
 } from '../types.js'
 
-import { signDocsSyncRequest } from '../../security/index.js'
+import {
+  DocsSyncKeyError,
+  signDocsSyncRequest,
+} from '../../security/index.js'
 import {
   buildDocsManifest,
   sha256Hex,
@@ -402,12 +405,23 @@ export const runPushCommand = async (
       },
     }
   } else {
-    signedRequest = signDocsSyncRequest({
-      body,
-      endpoint: options.endpoint,
-      keyId: options.keyId,
-      privateKey: options.privateKey,
-    })
+    try {
+      signedRequest = signDocsSyncRequest({
+        body,
+        endpoint: options.endpoint,
+        keyId: options.keyId,
+        privateKey: options.privateKey,
+      })
+    } catch (error) {
+      if (error instanceof DocsSyncKeyError) {
+        return {
+          exitCode: 1,
+          stderr: `${error.message}\n`,
+        }
+      }
+
+      throw error
+    }
   }
 
   const response = await httpPost({

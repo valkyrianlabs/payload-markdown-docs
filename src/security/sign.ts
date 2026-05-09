@@ -1,11 +1,11 @@
 import {
-  createPrivateKey,
   randomUUID,
   sign,
 } from 'node:crypto'
 
 import { sha256Hex } from '../sync/index.js'
 import { buildCanonicalSigningString } from './canonical.js'
+import { getEd25519PrivateKeyInput } from './ed25519Keys.js'
 
 export type SignDocsSyncRequestOptions = {
   body: string
@@ -19,18 +19,6 @@ export type SignDocsSyncRequestOptions = {
 export type SignedDocsSyncRequest = {
   body: string
   headers: Record<string, string>
-}
-
-const getPrivateKeyInput = (privateKey: string) => {
-  if (privateKey.includes('BEGIN PRIVATE KEY')) {
-    return privateKey
-  }
-
-  return createPrivateKey({
-    type: 'pkcs8',
-    format: 'der',
-    key: Buffer.from(privateKey, 'base64'),
-  })
 }
 
 const getEndpointPathname = (endpoint: string): string => new URL(endpoint).pathname
@@ -55,7 +43,7 @@ export const signDocsSyncRequest = ({
   const signature = sign(
     null,
     Buffer.from(canonicalString, 'utf8'),
-    getPrivateKeyInput(privateKey),
+    getEd25519PrivateKeyInput(privateKey),
   ).toString('base64')
 
   return {

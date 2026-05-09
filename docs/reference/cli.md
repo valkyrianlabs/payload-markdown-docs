@@ -48,7 +48,8 @@ payload-markdown-docs keygen --out .docs-sync
 ```
 
 Generates Ed25519 PEM keys for signed sync. Add the public key to
-`Docs Globals > Keys`.
+`Docs Globals > Keys`. `push` also accepts unencrypted OpenSSH Ed25519 private
+keys when the matching `ssh-ed25519 ...` public key is stored in Keys.
 
 ## push
 

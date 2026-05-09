@@ -608,6 +608,26 @@ describe('push command', () => {
     )
   })
 
+  it('returns a friendly error for unsupported private key files', async () => {
+    const root = await createDocsRoot()
+    const privateKeyPath = path.join(root, 'not-a-docs-key')
+    await writeFile(privateKeyPath, 'not a private key', 'utf8')
+    const result = await runCli([
+      'push',
+      root,
+      '--endpoint',
+      endpoint,
+      '--key-id',
+      'github-actions-main',
+      '--private-key-file',
+      privateKeyPath,
+    ])
+
+    expect(result.exitCode).toBe(1)
+    expect(result.stderr).toContain('Private key must be an Ed25519')
+    expect(result.stderr).not.toContain('node:internal/crypto')
+  })
+
   it('supports GitHub OIDC push with a token environment variable', async () => {
     const root = await createDocsRoot()
     const requests: Parameters<HttpPostJson>[0][] = []

@@ -3,6 +3,12 @@ export {
   getCanonicalPathFromRequestUrl,
 } from './canonical.js'
 export type { CanonicalSigningStringInput } from './canonical.js'
+export {
+  buildOpenSshEd25519PublicKey,
+  DocsSyncKeyError,
+  getEd25519PrivateKeyInput,
+  getEd25519PublicKeyInput,
+} from './ed25519Keys.js'
 export { verifyGitHubOidcToken } from './githubOidc.js'
 export type {
   GitHubOidcClaims,

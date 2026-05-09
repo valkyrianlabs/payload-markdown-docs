@@ -61,6 +61,10 @@ The endpoint reads the manifest source, resolves the matching docs set, and
 then verifies the request against the global Keys collection before it applies
 the manifest.
 
+Private keys may be CLI-generated PKCS#8 PEM/base64 keys or unencrypted
+OpenSSH Ed25519 private keys. Public keys in `Docs Globals > Keys` may be
+PKCS#8/SPKI public keys from `keygen` or `ssh-ed25519 ...` OpenSSH public keys.
+
 ## GitHub OIDC
 
 ```bash

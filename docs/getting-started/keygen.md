@@ -27,6 +27,10 @@ The public key belongs in `Docs Globals > Keys`. The private key belongs in
 local secret storage or a CI secret such as `DOCS_SYNC_PRIVATE_KEY`.
 :::
 
+The CLI also accepts unencrypted OpenSSH Ed25519 private keys, for example a
+dedicated `ssh-keygen -t ed25519` key. If you use an OpenSSH key, paste the
+matching `ssh-ed25519 ...` public key into `Docs Globals > Keys`.
+
 ## Configure The Public Key
 
 ```text

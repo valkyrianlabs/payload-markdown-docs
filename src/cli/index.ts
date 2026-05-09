@@ -93,7 +93,7 @@ Options:
 Options:
   --endpoint <url>           Full Payload sync endpoint URL.
   --key-id <id>              Server-configured Ed25519 key id.
-  --private-key-file <path>  PEM private key file from keygen.
+  --private-key-file <path>  Private key file from keygen, or an unencrypted OpenSSH Ed25519 key.
   --private-key-env <name>   Environment variable containing the private key.
   --github-oidc              Use GitHub Actions OIDC bearer auth instead of Ed25519.
   --oidc-token-env <name>    Environment variable containing an already-fetched OIDC token.
