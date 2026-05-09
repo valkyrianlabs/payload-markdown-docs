@@ -29,7 +29,7 @@ type NamedField = {
   }
   fields?: NamedField[]
   name?: string
-  relationTo?: string
+  relationTo?: string | string[]
   type?: string
 }
 
@@ -102,12 +102,8 @@ describe('payloadMarkdownDocs collection wiring', () => {
     expect(getCollection(transformedConfig, DEFAULT_DOCS_GROUPS_COLLECTION_SLUG)).toBeDefined()
     expect(getCollection(transformedConfig, DEFAULT_DOCS_SETS_COLLECTION_SLUG)).toBeDefined()
     expect(getCollection(transformedConfig, DEFAULT_DOCS_COLLECTION_SLUG)).toBeDefined()
-    expect(
-      getCollection(transformedConfig, DEFAULT_DOCS_SYNC_RUNS_COLLECTION_SLUG),
-    ).toBeDefined()
-    expect(
-      getCollection(transformedConfig, DEFAULT_DOCS_SYNC_NONCES_COLLECTION_SLUG),
-    ).toBeDefined()
+    expect(getCollection(transformedConfig, DEFAULT_DOCS_SYNC_RUNS_COLLECTION_SLUG)).toBeDefined()
+    expect(getCollection(transformedConfig, DEFAULT_DOCS_SYNC_NONCES_COLLECTION_SLUG)).toBeDefined()
     expect(transformedConfig.endpoints).toContainEqual(
       expect.objectContaining({
         method: 'post',
@@ -124,15 +120,9 @@ describe('payloadMarkdownDocs collection wiring', () => {
       transformedConfig,
       DEFAULT_DOCS_GROUPS_COLLECTION_SLUG,
     )
-    const docsSetsCollection = getCollection(
-      transformedConfig,
-      DEFAULT_DOCS_SETS_COLLECTION_SLUG,
-    )
+    const docsSetsCollection = getCollection(transformedConfig, DEFAULT_DOCS_SETS_COLLECTION_SLUG)
     const docsCollection = getCollection(transformedConfig, DEFAULT_DOCS_COLLECTION_SLUG)
-    const docsKeysCollection = getCollection(
-      transformedConfig,
-      DEFAULT_DOCS_KEYS_COLLECTION_SLUG,
-    )
+    const docsKeysCollection = getCollection(transformedConfig, DEFAULT_DOCS_KEYS_COLLECTION_SLUG)
     const docsTrustedCollection = getCollection(
       transformedConfig,
       DEFAULT_DOCS_TRUSTED_COLLECTION_SLUG,
@@ -247,9 +237,7 @@ describe('payloadMarkdownDocs collection wiring', () => {
     })({ collections: [] } as unknown as Config)
 
     expect(getCollection(transformedConfig, DEFAULT_DOCS_COLLECTION_SLUG)).toBeDefined()
-    expect(
-      getCollection(transformedConfig, DEFAULT_DOCS_SYNC_RUNS_COLLECTION_SLUG),
-    ).toBeUndefined()
+    expect(getCollection(transformedConfig, DEFAULT_DOCS_SYNC_RUNS_COLLECTION_SLUG)).toBeUndefined()
     expect(
       getCollection(transformedConfig, DEFAULT_DOCS_SYNC_NONCES_COLLECTION_SLUG),
     ).toBeUndefined()
@@ -302,15 +290,15 @@ describe('payloadMarkdownDocs collection wiring', () => {
     expect(sourcePathField).not.toMatchObject({
       unique: true,
     })
-    expect(getField(docsCollection, 'docsSet')?.relationTo).toBe(
-      DEFAULT_DOCS_SETS_COLLECTION_SLUG,
-    )
+    expect(getField(docsCollection, 'docsSet')?.relationTo).toBe(DEFAULT_DOCS_SETS_COLLECTION_SLUG)
     expect(getField(docsCollection, 'sourceHash')?.type).toBe('text')
     expect(getField(docsCollection, 'depth')?.type).toBe('number')
     expect(getField(docsCollection, 'order')?.type).toBe('number')
-    expect(getField(docsCollection, 'parent')?.relationTo).toBe(
-      DEFAULT_DOCS_COLLECTION_SLUG,
-    )
+    expect(getField(docsCollection, 'parent')?.relationTo).toBe(DEFAULT_DOCS_COLLECTION_SLUG)
+    expect(getField(docsCollection, 'heroImage')).toMatchObject({
+      type: 'upload',
+      relationTo: 'media',
+    })
     expect(getField(docsCollection, DEFAULT_MARKDOWN_FIELD_NAME)?.type).toBe('text')
     expect(getGroupField(docsCollection, 'overrides')).toBeDefined()
     expect(syncFieldNames).toEqual([
@@ -323,6 +311,25 @@ describe('payloadMarkdownDocs collection wiring', () => {
       'archived',
       'archivedAt',
     ])
+  })
+
+  test('docs collection can add extra hero image media collections', () => {
+    const transformedConfig = payloadMarkdownDocs({
+      enabled: true,
+      target: {
+        heroImage: {
+          additionalMediaCollections: ['docs-media'],
+        },
+      },
+    })({
+      collections: [],
+    } as unknown as Config)
+    const docsCollection = getCollection(transformedConfig, DEFAULT_DOCS_COLLECTION_SLUG)
+
+    expect(getField(docsCollection, 'heroImage')).toMatchObject({
+      type: 'upload',
+      relationTo: ['media', 'docs-media'],
+    })
   })
 
   test('docs groups collection contains expected fields', () => {
@@ -348,10 +355,7 @@ describe('payloadMarkdownDocs collection wiring', () => {
     const transformedConfig = payloadMarkdownDocs({ enabled: true })({
       collections: [],
     } as unknown as Config)
-    const docsSetsCollection = getCollection(
-      transformedConfig,
-      DEFAULT_DOCS_SETS_COLLECTION_SLUG,
-    )
+    const docsSetsCollection = getCollection(transformedConfig, DEFAULT_DOCS_SETS_COLLECTION_SLUG)
     const advancedSecurityField = getGroupField(docsSetsCollection, 'advancedSecurity')
     const syncField = getGroupField(docsSetsCollection, 'sync')
 
@@ -405,10 +409,7 @@ describe('payloadMarkdownDocs collection wiring', () => {
     })({
       collections: [],
     } as unknown as Config)
-    const docsSetsCollection = getCollection(
-      transformedConfig,
-      DEFAULT_DOCS_SETS_COLLECTION_SLUG,
-    )
+    const docsSetsCollection = getCollection(transformedConfig, DEFAULT_DOCS_SETS_COLLECTION_SLUG)
 
     expect(docsSetsCollection?.endpoints).toContainEqual(
       expect.objectContaining({

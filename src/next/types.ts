@@ -40,6 +40,15 @@ export type PayloadMarkdownDocsOverrides = {
   navTitle?: string
 }
 
+export type PayloadMarkdownDocsHeroImage = {
+  alt?: string
+  height?: number
+  id?: string
+  relationTo?: string
+  url: string
+  width?: number
+}
+
 export type ResolvedPayloadMarkdownDocsSet = {
   aiExport?: DocsAiExportManifest
   defaults?: PayloadMarkdownDocsDefaults
@@ -69,6 +78,7 @@ export type ResolvedPayloadMarkdownDocsRecord = {
   depth: number
   description?: string
   docsSetId?: string
+  heroImage?: PayloadMarkdownDocsHeroImage
   id: string
   navTitle?: string
   order: number

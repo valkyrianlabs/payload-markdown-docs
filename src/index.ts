@@ -13,6 +13,7 @@ export {
   DEFAULT_MAX_DOCS_FILES,
   DEFAULT_MAX_DOCS_TOTAL_BYTES,
   DEFAULT_MAX_SKEW_SECONDS,
+  DEFAULT_MEDIA_COLLECTION_SLUG,
   DEFAULT_NONCE_TTL_SECONDS,
   DEFAULT_PAGES_BRIDGE_FIELD,
   DEFAULT_PAGES_COLLECTION_SLUG,
@@ -36,10 +37,7 @@ export type {
   DocsRouteReservationOwnerType,
 } from './routing/index.js'
 export { signDocsSyncRequest } from './security/index.js'
-export type {
-  SignDocsSyncRequestOptions,
-  SignedDocsSyncRequest,
-} from './security/index.js'
+export type { SignDocsSyncRequestOptions, SignedDocsSyncRequest } from './security/index.js'
 export {
   buildDocsManifest,
   deriveRouteFromSourcePath,
@@ -77,6 +75,7 @@ export type {
   PayloadMarkdownDocsCollectionsConfig,
   PayloadMarkdownDocsConfig,
   PayloadMarkdownDocsEndpointConfig,
+  PayloadMarkdownDocsHeroImageConfig,
   PayloadMarkdownDocsPagesRoutingConfig,
   PayloadMarkdownDocsRoutingConfig,
   PayloadMarkdownDocsSyncConfig,

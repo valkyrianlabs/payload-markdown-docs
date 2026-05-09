@@ -1,4 +1,4 @@
-import type { CollectionConfig } from 'payload'
+import type { CollectionConfig, Field } from 'payload'
 
 import { markdownField } from '@valkyrianlabs/payload-markdown'
 
@@ -7,15 +7,42 @@ import { MANAGED_BY } from '../constants.js'
 export type CreateDocsCollectionOptions = {
   docsSetsCollectionSlug?: string
   enableDrafts?: boolean
+  heroImageMediaCollectionSlugs?: string[]
   markdownFieldName: string
   slug: string
   syncRunsCollectionSlug?: string
+}
+
+const createHeroImageField = (relationToSlugs: string[]): Field => {
+  const fieldBase = {
+    name: 'heroImage',
+    type: 'upload' as const,
+    admin: {
+      description: 'Optional hero image rendered above generated docs content.',
+    },
+    displayPreview: true,
+    label: 'Hero Image',
+    maxDepth: 1,
+  }
+
+  if (relationToSlugs.length === 1) {
+    return {
+      ...fieldBase,
+      relationTo: relationToSlugs[0] ?? 'media',
+    }
+  }
+
+  return {
+    ...fieldBase,
+    relationTo: relationToSlugs,
+  }
 }
 
 export const createDocsCollection = ({
   slug,
   docsSetsCollectionSlug,
   enableDrafts = false,
+  heroImageMediaCollectionSlugs,
   markdownFieldName,
   syncRunsCollectionSlug,
 }: CreateDocsCollectionOptions): CollectionConfig => ({
@@ -82,6 +109,9 @@ export const createDocsCollection = ({
       type: 'relationship',
       relationTo: slug,
     },
+    ...(heroImageMediaCollectionSlugs?.length
+      ? [createHeroImageField(heroImageMediaCollectionSlugs)]
+      : []),
     markdownField({
       name: markdownFieldName,
       label: 'Content',

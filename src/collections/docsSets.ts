@@ -1,9 +1,6 @@
 import type { CollectionConfig } from 'payload'
 
-import {
-  DOCS_GLOBALS_ADMIN_GROUP,
-  DOCS_SET_MANAGER_COMPONENT,
-} from '../constants.js'
+import { DOCS_GLOBALS_ADMIN_GROUP, DOCS_SET_MANAGER_COMPONENT } from '../constants.js'
 import { createPublishGeneratedDocsEndpoint } from '../endpoints/publishGeneratedDocs.js'
 
 export type CreateDocsSetsCollectionOptions = {
@@ -69,8 +66,7 @@ export const createDocsSetsCollection = ({
       name: 'allowPullRequests',
       type: 'checkbox',
       admin: {
-        description:
-          'Allow GitHub pull request events to dry-run or publish this docs set.',
+        description: 'Allow GitHub pull request events to dry-run or publish this docs set.',
       },
       defaultValue: false,
     },
@@ -132,8 +128,7 @@ export const createDocsSetsCollection = ({
       name: 'aiExport',
       type: 'json',
       admin: {
-        description:
-          'Parsed index.ai.yml control data for the raw Markdown AI export route.',
+        description: 'Parsed index.ai.yml control data for the raw Markdown AI export route.',
       },
     },
     {

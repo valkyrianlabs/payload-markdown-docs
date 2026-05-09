@@ -1,6 +1,7 @@
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 
 import type {
+  PayloadMarkdownDocsHeroImage,
   PayloadMarkdownDocsSidebarItem,
   ResolvedPayloadMarkdownDocsRecord,
   ResolvedPayloadMarkdownDocsRoute,
@@ -18,6 +19,27 @@ export type PayloadMarkdownDocsPageProps = {
 const cx = (...values: (false | null | string | undefined)[]): string =>
   values.filter(Boolean).join(' ')
 
+const docsLayoutStyles = `
+[data-payload-markdown-docs-layout] {
+  display: grid;
+  gap: 2.5rem;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (min-width: 1024px) {
+  [data-payload-markdown-docs-layout="with-sidebar"] {
+    grid-template-columns: 16rem minmax(0, 1fr);
+  }
+}
+`
+
+const getDocsLayoutStyle = (hasHero: boolean): CSSProperties =>
+  hasHero
+    ? {}
+    : {
+        marginTop: '6rem',
+      }
+
 const renderSidebarItems = (
   items: PayloadMarkdownDocsSidebarItem[],
   activeRoute: string,
@@ -29,11 +51,7 @@ const renderSidebarItems = (
 
   return (
     <ul
-      className={cx(
-        depth === 0
-          ? 'space-y-1'
-          : 'ml-3 mt-1 space-y-1 border-l border-border pl-3',
-      )}
+      className={cx(depth === 0 ? 'space-y-1' : 'ml-3 mt-1 space-y-1 border-l border-border pl-3')}
     >
       {items.map((item) => (
         <li key={item.route}>
@@ -48,9 +66,7 @@ const renderSidebarItems = (
           >
             {item.label}
           </a>
-          {item.children
-            ? renderSidebarItems(item.children, activeRoute, depth + 1)
-            : null}
+          {item.children ? renderSidebarItems(item.children, activeRoute, depth + 1) : null}
         </li>
       ))}
     </ul>
@@ -88,22 +104,53 @@ const DocsHeader = ({
   doc?: ResolvedPayloadMarkdownDocsRecord
   docsSet: ResolvedPayloadMarkdownDocsSet
 }) => {
-  const description =
-    doc?.description ??
-    docsSet.description
+  const description = doc?.description ?? docsSet.description
   const title = doc?.title ?? docsSet.title
 
   return (
     <header className="mb-10 border-b border-border pb-8">
-      <h1 className="text-4xl font-semibold tracking-tight text-foreground md:text-5xl">
-        {title}
-      </h1>
+      <h1 className="text-4xl font-semibold tracking-tight text-foreground md:text-5xl">{title}</h1>
       {description ? (
-        <p className="mt-4 max-w-3xl text-lg leading-8 text-foreground/70">
-          {description}
-        </p>
+        <p className="mt-4 max-w-3xl text-lg leading-8 text-foreground/70">{description}</p>
       ) : null}
     </header>
+  )
+}
+
+const DocsHero = ({
+  heroImage,
+  title,
+}: {
+  heroImage?: PayloadMarkdownDocsHeroImage
+  title: string
+}) => {
+  if (!heroImage) {
+    return null
+  }
+
+  return (
+    <figure
+      className="mb-10 overflow-hidden rounded-xl border border-border bg-white/[0.03]"
+      data-payload-markdown-docs-hero
+      style={{
+        borderRadius: '0.75rem',
+        marginBottom: '2.5rem',
+        overflow: 'hidden',
+      }}
+    >
+      <img
+        alt={heroImage.alt ?? title}
+        className="block h-auto w-full"
+        height={heroImage.height}
+        src={heroImage.url}
+        style={{
+          display: 'block',
+          height: 'auto',
+          width: '100%',
+        }}
+        width={heroImage.width}
+      />
+    </figure>
   )
 }
 
@@ -120,9 +167,7 @@ export const PayloadMarkdownDocsPage = async ({
       >
         <div className="mx-auto w-full max-w-6xl px-6 py-14 lg:px-8">
           <header className="mb-10 border-b border-border pb-8">
-            <p className="mb-3 text-sm font-medium uppercase tracking-wide text-cyan-300">
-              Docs
-            </p>
+            <p className="mb-3 text-sm font-medium uppercase tracking-wide text-cyan-300">Docs</p>
             <h1 className="text-4xl font-semibold tracking-tight md:text-5xl">
               {resolved.group.navTitle ?? resolved.group.title}
             </h1>
@@ -164,22 +209,27 @@ export const PayloadMarkdownDocsPage = async ({
     collectionSlug,
     markdown: resolved.doc?.content,
   })
+  const hasHero = Boolean(resolved.doc?.heroImage)
+  const hasSidebar = renderSidebar && resolved.sidebar.length > 0
 
   return (
     <main
       className="min-h-screen bg-background text-foreground"
       data-payload-markdown-docs-route={resolved.route}
     >
+      <style>{docsLayoutStyles}</style>
       <div
-        className={cx(
-          'mx-auto grid w-full max-w-7xl gap-10 px-6 py-10 lg:px-8',
-          renderSidebar && resolved.sidebar.length > 0
-            ? 'lg:grid-cols-[16rem_minmax(0,1fr)]'
-            : 'lg:grid-cols-[minmax(0,1fr)]',
-        )}
+        className="mx-auto w-full max-w-7xl px-6 py-10 lg:px-8"
+        data-payload-markdown-docs-layout={hasSidebar ? 'with-sidebar' : 'default'}
+        style={getDocsLayoutStyle(hasHero)}
       >
-        {renderSidebar && resolved.sidebar.length > 0 ? (
-          <aside className="lg:sticky lg:top-8 lg:self-start">
+        {hasSidebar ? (
+          <aside
+            className="lg:sticky lg:top-8 lg:self-start"
+            style={{
+              alignSelf: 'start',
+            }}
+          >
             <nav
               aria-label="Docs navigation"
               className="rounded-xl border border-border bg-white/[0.03] p-3"
@@ -189,6 +239,10 @@ export const PayloadMarkdownDocsPage = async ({
           </aside>
         ) : null}
         <article className="min-w-0 max-w-4xl">
+          <DocsHero
+            heroImage={resolved.doc?.heroImage}
+            title={resolved.doc?.title ?? resolved.docsSet.title}
+          />
           <DocsHeader doc={resolved.doc} docsSet={resolved.docsSet} />
           {markdown}
         </article>

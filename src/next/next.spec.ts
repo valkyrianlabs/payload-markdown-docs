@@ -12,14 +12,8 @@ import { getPayloadMarkdownDocsLinks } from './links.js'
 import { resolvePayloadMarkdownDocsMarkdownRoute } from './markdown.js'
 import { getPayloadMarkdownDocsMetadata } from './metadata.js'
 import { PayloadMarkdownDocsPage } from './PayloadMarkdownDocsPage.js'
-import {
-  getPayloadMarkdownDocsRoutePath,
-  resolvePayloadMarkdownDocsRoute,
-} from './route.js'
-import {
-  buildPayloadMarkdownDocsSidebar,
-  getPayloadMarkdownDocsSidebar,
-} from './sidebar.js'
+import { getPayloadMarkdownDocsRoutePath, resolvePayloadMarkdownDocsRoute } from './route.js'
+import { buildPayloadMarkdownDocsSidebar, getPayloadMarkdownDocsSidebar } from './sidebar.js'
 
 type TestPayloadData = {
   docs?: Record<string, unknown>[]
@@ -44,9 +38,7 @@ const docsGroup = {
   title: 'Plugins',
 }
 
-const createDoc = (
-  overrides: Partial<Record<string, unknown>> = {},
-): Record<string, unknown> => ({
+const createDoc = (overrides: Partial<Record<string, unknown>> = {}): Record<string, unknown> => ({
   id: 'doc-1',
   content: '# Installation\n',
   depth: 1,
@@ -136,9 +128,7 @@ const createPayloadMock = ({
   return {
     find: vi.fn((args) =>
       Promise.resolve({
-        docs: (collections[args.collection] ?? []).filter((doc) =>
-          matchesWhere(doc, args.where),
-        ),
+        docs: (collections[args.collection] ?? []).filter((doc) => matchesWhere(doc, args.where)),
       }),
     ),
   }
@@ -519,9 +509,7 @@ describe('Payload Markdown Docs raw Markdown export', () => {
       contentType: 'text/markdown; charset=utf-8',
       output: '/payload-markdown.md',
     })
-    expect(resolved?.markdown.startsWith('# Payload Markdown Documentation')).toBe(
-      true,
-    )
+    expect(resolved?.markdown.startsWith('# Payload Markdown Documentation')).toBe(true)
     expect(resolved?.markdown).toContain('Read the documents in order.')
     expect(resolved?.markdown).toContain('## Overview')
     expect(resolved?.markdown).toContain('### Overview')
@@ -866,9 +854,37 @@ describe('Payload Markdown Docs page component', () => {
     )
 
     expect(markup).toContain('min-h-screen bg-background text-foreground')
-    expect(markup).toContain('lg:grid-cols-[16rem_minmax(0,1fr)]')
+    expect(markup).toContain('data-payload-markdown-docs-layout="with-sidebar"')
+    expect(markup).toContain('grid-template-columns: 16rem minmax(0, 1fr)')
+    expect(markup).toContain('margin-top:6rem')
     expect(markup).toContain('aria-label="Docs navigation"')
     expect(markup).toContain('border-border')
+  })
+
+  it('renders a hero image without the no-hero top margin', async () => {
+    const markup = renderToStaticMarkup(
+      await PayloadMarkdownDocsPage({
+        resolved: {
+          type: 'doc',
+          doc: resolvedRecord({
+            content: undefined,
+            heroImage: {
+              alt: 'Docs hero',
+              height: 600,
+              url: '/media/docs-hero.jpg',
+              width: 1200,
+            },
+          }),
+          docsSet: resolvedDocsSet,
+          route: '/payload-markdown/getting-started/installation',
+          sidebar: [],
+        },
+      }),
+    )
+
+    expect(markup).toContain('data-payload-markdown-docs-hero')
+    expect(markup).toContain('src="/media/docs-hero.jpg"')
+    expect(markup).not.toContain('margin-top:6rem')
   })
 })
 

@@ -227,11 +227,7 @@ import {
   resolvePayloadMarkdownDocsRoute,
 } from '@valkyrianlabs/payload-markdown-docs/next'
 
-export default async function Page({
-  params,
-}: {
-  params: Promise<{ slug?: string[] }>
-}) {
+export default async function Page({ params }: { params: Promise<{ slug?: string[] }> }) {
   const { slug } = await params
   const payload = await getPayload({ config })
   const resolved = await resolvePayloadMarkdownDocsRoute({

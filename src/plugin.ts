@@ -22,6 +22,7 @@ import {
   DEFAULT_DOCS_TRUSTED_COLLECTION_SLUG,
   DEFAULT_MARKDOWN_FIELD_NAME,
   DEFAULT_MAX_BODY_BYTES,
+  DEFAULT_MEDIA_COLLECTION_SLUG,
   DEFAULT_PAGES_BRIDGE_FIELD,
   DEFAULT_PAGES_COLLECTION_SLUG,
   DEFAULT_PAGES_ROUTE_FIELD,
@@ -40,6 +41,7 @@ type ResolvedCollectionOptions = {
   docsTrustedCollectionSlug: string
   docsTrustedEnabled: boolean
   enableDrafts: boolean
+  heroImageMediaCollectionSlugs?: string[]
   markdownFieldName: string
   noncesCollectionSlug: string
   noncesEnabled: boolean
@@ -53,13 +55,30 @@ const normalizeEndpointPath = (path: string): string => {
   return normalized.length > 1 ? normalized.replace(/\/+$/g, '') : normalized
 }
 
+const resolveHeroImageMediaCollectionSlugs = (
+  pluginOptions: PayloadMarkdownDocsConfig,
+): string[] | undefined => {
+  if (pluginOptions.target?.heroImage === false) {
+    return undefined
+  }
+
+  const additionalMediaCollections =
+    typeof pluginOptions.target?.heroImage === 'object'
+      ? (pluginOptions.target.heroImage.additionalMediaCollections ?? [])
+      : []
+
+  return [
+    ...new Set([
+      DEFAULT_MEDIA_COLLECTION_SLUG,
+      ...additionalMediaCollections.map((slug) => slug.trim()).filter(Boolean),
+    ]),
+  ]
+}
+
 const resolveCollectionOptions = (
   pluginOptions: PayloadMarkdownDocsConfig,
 ): ResolvedCollectionOptions => {
-  if (
-    pluginOptions.target?.type !== undefined &&
-    pluginOptions.target.type !== 'docsCollection'
-  ) {
+  if (pluginOptions.target?.type !== undefined && pluginOptions.target.type !== 'docsCollection') {
     throw new Error(
       'payloadMarkdownDocs: target.type only supports "docsCollection". existingCollection is not supported.',
     )
@@ -94,10 +113,9 @@ const resolveCollectionOptions = (
     docsTrustedCollectionSlug:
       pluginOptions.collections?.docsTrusted?.slug ?? DEFAULT_DOCS_TRUSTED_COLLECTION_SLUG,
     docsTrustedEnabled: pluginOptions.collections?.docsTrusted?.enabled !== false,
-    enableDrafts:
-      pluginOptions.target?.enableDrafts === true,
-    markdownFieldName:
-      pluginOptions.target?.markdownField ?? DEFAULT_MARKDOWN_FIELD_NAME,
+    enableDrafts: pluginOptions.target?.enableDrafts === true,
+    heroImageMediaCollectionSlugs: resolveHeroImageMediaCollectionSlugs(pluginOptions),
+    markdownFieldName: pluginOptions.target?.markdownField ?? DEFAULT_MARKDOWN_FIELD_NAME,
     noncesCollectionSlug:
       pluginOptions.collections?.nonces?.slug ?? DEFAULT_DOCS_SYNC_NONCES_COLLECTION_SLUG,
     noncesEnabled: pluginOptions.collections?.nonces?.enabled !== false,
@@ -136,9 +154,7 @@ const assertNoCollectionSlugConflicts = (
     incomingConfig.collections?.map((collection) => collection.slug) ?? [],
   )
 
-  const conflictingSlug = collectionSlugsToAdd.find((slug) =>
-    existingCollectionSlugs.has(slug),
-  )
+  const conflictingSlug = collectionSlugsToAdd.find((slug) => existingCollectionSlugs.has(slug))
 
   if (conflictingSlug) {
     throw new Error(
@@ -166,6 +182,7 @@ export const payloadMarkdownDocs =
       docsTrustedCollectionSlug,
       docsTrustedEnabled,
       enableDrafts,
+      heroImageMediaCollectionSlugs,
       markdownFieldName,
       noncesCollectionSlug,
       noncesEnabled,
@@ -184,6 +201,7 @@ export const payloadMarkdownDocs =
       docsTrustedCollectionSlug,
       docsTrustedEnabled,
       enableDrafts,
+      heroImageMediaCollectionSlugs,
       markdownFieldName,
       noncesCollectionSlug,
       noncesEnabled,
@@ -244,10 +262,9 @@ export const payloadMarkdownDocs =
         ? [
             createDocsCollection({
               slug: docsCollectionSlug,
-              docsSetsCollectionSlug: docsSetsEnabled
-                ? docsSetsCollectionSlug
-                : undefined,
+              docsSetsCollectionSlug: docsSetsEnabled ? docsSetsCollectionSlug : undefined,
               enableDrafts,
+              heroImageMediaCollectionSlugs,
               markdownFieldName,
               syncRunsCollectionSlug: syncRunsEnabled ? syncRunsCollectionSlug : undefined,
             }),
@@ -300,15 +317,11 @@ export const payloadMarkdownDocs =
           requireDryRunBeforeApply: pluginOptions.sync?.requireDryRunBeforeApply,
           routing: {
             pages: {
-              allowBridgePages:
-                pluginOptions.routing?.pages?.allowBridgePages ?? true,
-              bridgeField:
-                pluginOptions.routing?.pages?.bridgeField ?? DEFAULT_PAGES_BRIDGE_FIELD,
-              collection:
-                pluginOptions.routing?.pages?.collection ?? DEFAULT_PAGES_COLLECTION_SLUG,
+              allowBridgePages: pluginOptions.routing?.pages?.allowBridgePages ?? true,
+              bridgeField: pluginOptions.routing?.pages?.bridgeField ?? DEFAULT_PAGES_BRIDGE_FIELD,
+              collection: pluginOptions.routing?.pages?.collection ?? DEFAULT_PAGES_COLLECTION_SLUG,
               enabled: pluginOptions.routing?.pages?.enabled === true,
-              routeField:
-                pluginOptions.routing?.pages?.routeField ?? DEFAULT_PAGES_ROUTE_FIELD,
+              routeField: pluginOptions.routing?.pages?.routeField ?? DEFAULT_PAGES_ROUTE_FIELD,
             },
           },
           syncRunsCollectionSlug,

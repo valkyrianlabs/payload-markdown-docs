@@ -1,19 +1,14 @@
 import type {
   PayloadMarkdownDocsDefaults,
+  PayloadMarkdownDocsHeroImage,
   PayloadMarkdownDocsOverrides,
   ResolvedPayloadMarkdownDocsGroup,
   ResolvedPayloadMarkdownDocsRecord,
   ResolvedPayloadMarkdownDocsSet,
 } from './types.js'
 
-import {
-  deriveDocsSetRouteBase,
-  normalizeRoutePath,
-} from '../routing/index.js'
-import {
-  isAiMarkdownExportManifestPath,
-  validateDocsAiExportManifest,
-} from '../sync/index.js'
+import { deriveDocsSetRouteBase, normalizeRoutePath } from '../routing/index.js'
+import { isAiMarkdownExportManifestPath, validateDocsAiExportManifest } from '../sync/index.js'
 
 export const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -38,20 +33,14 @@ export const getRelationshipId = (value: unknown): string | undefined => {
   return undefined
 }
 
-const getOptionalString = (
-  doc: Record<string, unknown>,
-  key: string,
-): string | undefined => (typeof doc[key] === 'string' ? doc[key] : undefined)
+const getOptionalString = (doc: Record<string, unknown>, key: string): string | undefined =>
+  typeof doc[key] === 'string' ? doc[key] : undefined
 
-const getOptionalNumber = (
-  doc: Record<string, unknown>,
-  key: string,
-): number | undefined => (typeof doc[key] === 'number' ? doc[key] : undefined)
+const getOptionalNumber = (doc: Record<string, unknown>, key: string): number | undefined =>
+  typeof doc[key] === 'number' ? doc[key] : undefined
 
-const getOptionalBoolean = (
-  doc: Record<string, unknown>,
-  key: string,
-): boolean | undefined => (typeof doc[key] === 'boolean' ? doc[key] : undefined)
+const getOptionalBoolean = (doc: Record<string, unknown>, key: string): boolean | undefined =>
+  typeof doc[key] === 'boolean' ? doc[key] : undefined
 
 const cleanObject = <T extends Record<string, unknown>>(input: T): Partial<T> =>
   Object.fromEntries(
@@ -64,18 +53,14 @@ const toDefaults = (value: unknown): PayloadMarkdownDocsDefaults | undefined => 
   }
 
   const sidebarMode: PayloadMarkdownDocsDefaults['sidebarMode'] =
-    value.sidebarMode === 'auto' ||
-    value.sidebarMode === 'hidden' ||
-    value.sidebarMode === 'manual'
+    value.sidebarMode === 'auto' || value.sidebarMode === 'hidden' || value.sidebarMode === 'manual'
       ? value.sidebarMode
       : undefined
   const defaults = cleanObject({
     sidebarMode,
   } satisfies PayloadMarkdownDocsDefaults)
 
-  return Object.keys(defaults).length > 0
-    ? (defaults as PayloadMarkdownDocsDefaults)
-    : undefined
+  return Object.keys(defaults).length > 0 ? (defaults as PayloadMarkdownDocsDefaults) : undefined
 }
 
 const toOverrides = (value: unknown): PayloadMarkdownDocsOverrides | undefined => {
@@ -91,9 +76,30 @@ const toOverrides = (value: unknown): PayloadMarkdownDocsOverrides | undefined =
   return Object.keys(overrides).length > 0 ? overrides : undefined
 }
 
-export const toResolvedDocsSet = (
-  doc: unknown,
-): ResolvedPayloadMarkdownDocsSet | undefined => {
+const toHeroImage = (value: unknown): PayloadMarkdownDocsHeroImage | undefined => {
+  const media = isRecord(value) && isRecord(value.value) ? value.value : value
+
+  if (!isRecord(media)) {
+    return undefined
+  }
+
+  const url = getOptionalString(media, 'url')
+
+  if (!url) {
+    return undefined
+  }
+
+  return cleanObject({
+    id: getRecordId(media),
+    alt: getOptionalString(media, 'alt'),
+    height: getOptionalNumber(media, 'height'),
+    relationTo: isRecord(value) ? getOptionalString(value, 'relationTo') : undefined,
+    url,
+    width: getOptionalNumber(media, 'width'),
+  }) as PayloadMarkdownDocsHeroImage
+}
+
+export const toResolvedDocsSet = (doc: unknown): ResolvedPayloadMarkdownDocsSet | undefined => {
   if (!isRecord(doc)) {
     return undefined
   }
@@ -130,9 +136,7 @@ export const toResolvedDocsSet = (
   }
 }
 
-export const toResolvedDocsGroup = (
-  doc: unknown,
-): ResolvedPayloadMarkdownDocsGroup | undefined => {
+export const toResolvedDocsGroup = (doc: unknown): ResolvedPayloadMarkdownDocsGroup | undefined => {
   if (!isRecord(doc)) {
     return undefined
   }
@@ -179,17 +183,16 @@ export const toResolvedDocsRecord = ({
   }
 
   const sync = isRecord(doc.sync) ? doc.sync : undefined
-  const status =
-    doc._status === 'draft' || doc._status === 'published' ? doc._status : undefined
+  const status = doc._status === 'draft' || doc._status === 'published' ? doc._status : undefined
 
   return {
     id,
     archived: getOptionalBoolean(sync ?? {}, 'archived') ?? false,
-    content:
-      typeof doc[markdownField] === 'string' ? doc[markdownField] : undefined,
+    content: typeof doc[markdownField] === 'string' ? doc[markdownField] : undefined,
     depth: getOptionalNumber(doc, 'depth') ?? 0,
     description: getOptionalString(doc, 'description'),
     docsSetId: getRelationshipId(doc.docsSet),
+    heroImage: toHeroImage(doc.heroImage),
     navTitle: getOptionalString(doc, 'navTitle'),
     order: getOptionalNumber(doc, 'order') ?? 0,
     overrides: toOverrides(doc.overrides),

@@ -1,10 +1,5 @@
-export {
-  getPayloadMarkdownDocsLinks,
-} from './links.js'
-export type {
-  GetPayloadMarkdownDocsLinksOptions,
-  PayloadMarkdownDocsLink,
-} from './links.js'
+export { getPayloadMarkdownDocsLinks } from './links.js'
+export type { GetPayloadMarkdownDocsLinksOptions, PayloadMarkdownDocsLink } from './links.js'
 export {
   createPayloadMarkdownDocsMarkdownResponse,
   resolvePayloadMarkdownDocsMarkdownRoute,
@@ -13,20 +8,11 @@ export type {
   ResolvedPayloadMarkdownDocsMarkdownRoute,
   ResolvePayloadMarkdownDocsMarkdownRouteOptions,
 } from './markdown.js'
-export {
-  generatePayloadMarkdownDocsMetadata,
-  getPayloadMarkdownDocsMetadata,
-} from './metadata.js'
+export { generatePayloadMarkdownDocsMetadata, getPayloadMarkdownDocsMetadata } from './metadata.js'
 export { PayloadMarkdownDocsPage } from './PayloadMarkdownDocsPage.js'
 export type { PayloadMarkdownDocsPageProps } from './PayloadMarkdownDocsPage.js'
-export {
-  getPayloadMarkdownDocsRoutePath,
-  resolvePayloadMarkdownDocsRoute,
-} from './route.js'
-export {
-  buildPayloadMarkdownDocsSidebar,
-  getPayloadMarkdownDocsSidebar,
-} from './sidebar.js'
+export { getPayloadMarkdownDocsRoutePath, resolvePayloadMarkdownDocsRoute } from './route.js'
+export { buildPayloadMarkdownDocsSidebar, getPayloadMarkdownDocsSidebar } from './sidebar.js'
 export type {
   BuildPayloadMarkdownDocsSidebarOptions,
   GetPayloadMarkdownDocsSidebarOptions,
@@ -35,6 +21,7 @@ export type {
   PayloadMarkdownDocsCollectionSlugs,
   PayloadMarkdownDocsDefaults,
   PayloadMarkdownDocsFindArgs,
+  PayloadMarkdownDocsHeroImage,
   PayloadMarkdownDocsMetadata,
   PayloadMarkdownDocsOverrides,
   PayloadMarkdownDocsReadPayload,

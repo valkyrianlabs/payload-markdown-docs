@@ -53,13 +53,17 @@ export type PayloadMarkdownDocsRoutingConfig = {
   pages?: PayloadMarkdownDocsPagesRoutingConfig
 }
 
-export type PayloadMarkdownDocsTargetConfig =
-  {
-    enableDrafts?: boolean
-    markdownField?: string
-    slug?: string
-    type?: 'docsCollection'
-  }
+export type PayloadMarkdownDocsTargetConfig = {
+  enableDrafts?: boolean
+  heroImage?: false | PayloadMarkdownDocsHeroImageConfig
+  markdownField?: string
+  slug?: string
+  type?: 'docsCollection'
+}
+
+export type PayloadMarkdownDocsHeroImageConfig = {
+  additionalMediaCollections?: string[]
+}
 
 export type PayloadMarkdownDocsSyncConfig = {
   allowHardDelete?: boolean

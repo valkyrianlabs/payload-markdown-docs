@@ -8,6 +8,7 @@ export const DEFAULT_DOCS_SYNC_RUNS_COLLECTION_SLUG = 'docs-sync-runs'
 export const DEFAULT_DOCS_TRUSTED_COLLECTION_SLUG = 'docs-trusted'
 export const DEFAULT_DOCS_SYNC_ENDPOINT_PATH = '/payload-markdown-docs/sync'
 export const DEFAULT_MARKDOWN_FIELD_NAME = 'content'
+export const DEFAULT_MEDIA_COLLECTION_SLUG = 'media'
 export const DOCS_SET_MANAGER_COMPONENT =
   '@valkyrianlabs/payload-markdown-docs/admin#DocsSetManager'
 export const DEFAULT_PAGES_BRIDGE_FIELD = 'docsBridge'
@@ -19,7 +20,6 @@ export const DEFAULT_MAX_DOCS_TOTAL_BYTES = 5_000_000
 export const DEFAULT_MAX_BODY_BYTES = 5_000_000
 export const DEFAULT_MAX_SKEW_SECONDS = 300
 export const DEFAULT_NONCE_TTL_SECONDS = 600
-export const DEFAULT_GITHUB_OIDC_ISSUER =
-  'https://token.actions.githubusercontent.com'
+export const DEFAULT_GITHUB_OIDC_ISSUER = 'https://token.actions.githubusercontent.com'
 export const MANAGED_BY = 'payload-markdown-docs'
 export const DOCS_GLOBALS_ADMIN_GROUP = 'Docs Globals'

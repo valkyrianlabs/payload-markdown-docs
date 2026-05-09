@@ -11,6 +11,7 @@ It shows:
 - draft and published docs
 - hidden-from-nav docs
 - docs with overrides
+- hero images on generated docs records
 - generated docs grouped by source path
 - links to generated docs records
 - a publish action for draft generated docs when draft publishing is enabled

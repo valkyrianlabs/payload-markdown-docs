@@ -56,3 +56,22 @@ GitHub trust belongs in `Docs Globals > Trusted`. Ed25519 public keys belong in
 `Docs Globals > Keys`. Docs packages belong in `Docs Globals > Sets`.
 
 See [sync config](/configuration/sync-config) and [routing config](/configuration/routing-config) for the safety gates.
+
+## Hero Images
+
+Generated docs records include an optional `heroImage` upload field. It uses the
+`media` collection by default.
+
+Add extra upload collections when your app stores docs imagery elsewhere:
+
+```ts
+payloadMarkdownDocs({
+  target: {
+    heroImage: {
+      additionalMediaCollections: ['docs-media'],
+    },
+  },
+})
+```
+
+Set `target.heroImage: false` to omit the field.
