@@ -53,22 +53,30 @@ const renderSidebarItems = (
     <ul
       className={cx(depth === 0 ? 'space-y-1' : 'ml-3 mt-1 space-y-1 border-l border-border pl-3')}
     >
-      {items.map((item) => (
-        <li key={item.route}>
-          <a
-            className={cx(
-              'block rounded-lg px-3 py-2 text-sm leading-5 transition-colors',
-              item.route === activeRoute
-                ? 'bg-cyan-400/10 text-cyan-200'
-                : 'text-foreground/70 hover:bg-white/[0.04] hover:text-foreground',
+      {items.map((item) => {
+        const isActive = item.route === activeRoute
+        const labelClassName = cx(
+          'block rounded-lg px-3 py-2 text-sm leading-5 transition-colors',
+          item.route
+            ? isActive
+              ? 'bg-cyan-400/10 text-cyan-200'
+              : 'text-foreground/70 hover:bg-white/[0.04] hover:text-foreground'
+            : 'text-foreground/55',
+        )
+
+        return (
+          <li key={item.route ?? item.sourcePath}>
+            {item.route ? (
+              <a className={labelClassName} href={item.route}>
+                {item.label}
+              </a>
+            ) : (
+              <span className={labelClassName}>{item.label}</span>
             )}
-            href={item.route}
-          >
-            {item.label}
-          </a>
-          {item.children ? renderSidebarItems(item.children, activeRoute, depth + 1) : null}
-        </li>
-      ))}
+            {item.children ? renderSidebarItems(item.children, activeRoute, depth + 1) : null}
+          </li>
+        )
+      })}
     </ul>
   )
 }

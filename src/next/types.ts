@@ -98,7 +98,7 @@ export type PayloadMarkdownDocsSidebarItem = {
   hidden?: boolean
   label: string
   order: number
-  route: string
+  route?: string
   sourcePath: string
 }
 

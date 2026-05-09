@@ -7,7 +7,6 @@ import type {
 } from './types.js'
 
 import { DEFAULT_DOCS_COLLECTION_SLUG, DEFAULT_MARKDOWN_FIELD_NAME } from '../constants.js'
-import { joinRouteSegments } from '../routing/index.js'
 import { isVisibleDocsRecord, toResolvedDocsRecord } from './records.js'
 
 export type BuildPayloadMarkdownDocsSidebarOptions = {
@@ -45,6 +44,22 @@ const getSourcePathSegments = (sourcePath: string): string[] => {
   return segments
 }
 
+const getSidebarPath = (segments: string[]): string => segments.join('/')
+
+const getFolderPaths = (records: ResolvedPayloadMarkdownDocsRecord[]): Set<string> => {
+  const folderPaths = new Set<string>()
+
+  for (const record of records) {
+    const segments = getSourcePathSegments(record.sourcePath)
+
+    for (let index = 1; index < segments.length; index += 1) {
+      folderPaths.add(getSidebarPath(segments.slice(0, index)))
+    }
+  }
+
+  return folderPaths
+}
+
 const compareSidebarItems = (
   first: PayloadMarkdownDocsSidebarItem,
   second: PayloadMarkdownDocsSidebarItem,
@@ -69,14 +84,12 @@ const sortSidebarTree = (items: PayloadMarkdownDocsSidebarItem[]) => {
 const getOrCreateFolderNode = ({
   currentItems,
   depth,
-  docsSet,
   order,
   segment,
   sourcePath,
 }: {
   currentItems: PayloadMarkdownDocsSidebarItem[]
   depth: number
-  docsSet?: ResolvedPayloadMarkdownDocsSet
   order: number
   segment: string
   sourcePath: string
@@ -93,7 +106,6 @@ const getOrCreateFolderNode = ({
     depth,
     label: titleCaseSegment(segment),
     order,
-    route: docsSet ? joinRouteSegments(docsSet.routeBase, sourcePath) : `/${sourcePath}`,
     sourcePath,
   }
 
@@ -103,11 +115,11 @@ const getOrCreateFolderNode = ({
 }
 
 const mergeLeafIntoTree = ({
-  docsSet,
+  folderPaths,
   record,
   rootItems,
 }: {
-  docsSet?: ResolvedPayloadMarkdownDocsSet
+  folderPaths: Set<string>
   record: ResolvedPayloadMarkdownDocsRecord
   rootItems: PayloadMarkdownDocsSidebarItem[]
 }) => {
@@ -127,17 +139,18 @@ const mergeLeafIntoTree = ({
   let currentItems = rootItems
 
   for (const [index, segment] of segments.entries()) {
-    const sourcePath = segments.slice(0, index + 1).join('/')
+    const sourcePath = getSidebarPath(segments.slice(0, index + 1))
     const isLeaf = index === segments.length - 1
 
     if (isLeaf) {
       const existing = currentItems.find((item) => item.sourcePath === sourcePath)
+      const itemSourcePath = folderPaths.has(sourcePath) ? sourcePath : record.sourcePath
 
       if (existing) {
         existing.label = getSidebarLabel(record)
         existing.order = record.order
         existing.route = record.route
-        existing.sourcePath = record.sourcePath
+        existing.sourcePath = itemSourcePath
         existing.children ??= []
         return
       }
@@ -147,7 +160,7 @@ const mergeLeafIntoTree = ({
         label: getSidebarLabel(record),
         order: record.order,
         route: record.route,
-        sourcePath: record.sourcePath,
+        sourcePath: itemSourcePath,
       })
       return
     }
@@ -155,7 +168,6 @@ const mergeLeafIntoTree = ({
     const folder = getOrCreateFolderNode({
       currentItems,
       depth: index,
-      docsSet,
       order: record.order,
       segment,
       sourcePath,
@@ -186,10 +198,11 @@ export const buildPayloadMarkdownDocsSidebar = (
 
       return first.sourcePath.localeCompare(second.sourcePath)
     })
+  const folderPaths = getFolderPaths(visibleRecords)
 
   for (const record of visibleRecords) {
     mergeLeafIntoTree({
-      docsSet: options.docsSet,
+      folderPaths,
       record,
       rootItems: sidebar,
     })

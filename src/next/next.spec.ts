@@ -790,6 +790,54 @@ describe('Payload Markdown Docs sidebar helpers', () => {
         label: 'Configuration',
       }),
     ])
+    expect(sidebar[1]).not.toHaveProperty('route')
+  })
+
+  it('uses a folder index page as the sidebar link for that folder', () => {
+    const sidebar = buildPayloadMarkdownDocsSidebar(
+      [
+        resolvedRecord({
+          order: 20,
+          route: '/payload-markdown/getting-started/installation',
+          sourcePath: 'getting-started/installation.md',
+          title: 'Installation',
+        }),
+        resolvedRecord({
+          order: 10,
+          route: '/payload-markdown/getting-started',
+          sourcePath: 'getting-started/index.md',
+          title: 'Getting Started',
+        }),
+        resolvedRecord({
+          order: 0,
+          route: '/payload-markdown',
+          sourcePath: 'index.md',
+          title: 'Overview',
+        }),
+      ],
+      {
+        docsSet: resolvedDocsSet,
+      },
+    )
+
+    expect(sidebar).toEqual([
+      expect.objectContaining({
+        label: 'Overview',
+        route: '/payload-markdown',
+        sourcePath: 'index.md',
+      }),
+      expect.objectContaining({
+        children: [
+          expect.objectContaining({
+            label: 'Installation',
+            route: '/payload-markdown/getting-started/installation',
+          }),
+        ],
+        label: 'Getting Started',
+        route: '/payload-markdown/getting-started',
+        sourcePath: 'getting-started',
+      }),
+    ])
   })
 
   it('keeps archived and hidden docs out of sidebar when drafts are included', () => {
@@ -886,11 +934,19 @@ describe('Payload Markdown Docs page component', () => {
           route: '/payload-markdown',
           sidebar: [
             {
+              children: [
+                {
+                  depth: 1,
+                  label: 'Installation',
+                  order: 10,
+                  route: '/payload-markdown/getting-started/installation',
+                  sourcePath: 'getting-started/installation.md',
+                },
+              ],
               depth: 0,
-              label: 'Overview',
+              label: 'Getting Started',
               order: 0,
-              route: '/payload-markdown',
-              sourcePath: 'index.md',
+              sourcePath: 'getting-started',
             },
           ],
         },
@@ -903,6 +959,9 @@ describe('Payload Markdown Docs page component', () => {
     expect(markup).toContain('margin-top:6rem')
     expect(markup).toContain('aria-label="Docs navigation"')
     expect(markup).toContain('border-border')
+    expect(markup).toContain('<span')
+    expect(markup).not.toContain('href="/payload-markdown/getting-started"')
+    expect(markup).toContain('href="/payload-markdown/getting-started/installation"')
   })
 
   it('renders a hero image without the no-hero top margin', async () => {
