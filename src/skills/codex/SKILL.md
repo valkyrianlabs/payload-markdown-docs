@@ -1,6 +1,7 @@
 ---
 name: payload-markdown-docs
 description: Use this skill when maintaining Git-backed documentation for a project that uses `@valkyrianlabs/payload-markdown-docs`.
+---
 
 # Payload Markdown Docs Skill
 

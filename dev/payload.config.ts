@@ -6,9 +6,10 @@ import sharp from 'sharp'
 import { fileURLToPath } from 'url'
 
 import { payloadMarkdownDocs } from '../src/index.js'
+import { Header } from './Header/config.js'
 import { testEmailAdapter } from './helpers/testEmailAdapter.js'
-import { seed } from './seed.js'
 import './helpers/loadDevEnv.js'
+import { seed } from './seed.js'
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
@@ -43,6 +44,7 @@ export default buildConfig({
   }),
   editor: lexicalEditor(),
   email: testEmailAdapter,
+  globals: [Header],
   onInit: async (payload) => {
     await seed(payload)
   },
