@@ -1,20 +1,9 @@
-import {
-  createPublicKey,
-  type JsonWebKey,
-  verify,
-} from 'node:crypto'
+import { createPublicKey, type JsonWebKey, verify } from 'node:crypto'
 
 import type { FetchJson } from './jwks.js'
 
-import {
-  DEFAULT_GITHUB_OIDC_ISSUER,
-  DEFAULT_MAX_SKEW_SECONDS,
-} from '../constants.js'
-import {
-  fetchJwks,
-  findJwkByKid,
-  getGithubOidcJwksUrl,
-} from './jwks.js'
+import { DEFAULT_GITHUB_OIDC_ISSUER, DEFAULT_MAX_SKEW_SECONDS } from '../constants.js'
+import { fetchJwks, findJwkByKid, getGithubOidcJwksUrl } from './jwks.js'
 import { decodeJwt } from './jwt.js'
 
 export type GitHubOidcErrorCode =
@@ -96,27 +85,19 @@ const isStringArray = (value: unknown): value is string[] =>
 const isNumber = (value: unknown): value is number =>
   typeof value === 'number' && Number.isFinite(value)
 
-const getStringClaim = (
-  payload: Record<string, unknown>,
-  claim: string,
-): string | undefined => {
+const getStringClaim = (payload: Record<string, unknown>, claim: string): string | undefined => {
   const value = payload[claim]
 
   return isString(value) ? value : undefined
 }
 
-const getNumberClaim = (
-  payload: Record<string, unknown>,
-  claim: string,
-): number | undefined => {
+const getNumberClaim = (payload: Record<string, unknown>, claim: string): number | undefined => {
   const value = payload[claim]
 
   return isNumber(value) ? value : undefined
 }
 
-const getAudienceClaim = (
-  payload: Record<string, unknown>,
-): string | string[] | undefined => {
+const getAudienceClaim = (payload: Record<string, unknown>): string | string[] | undefined => {
   const value = payload.aud
 
   if (isString(value) || isStringArray(value)) {
@@ -126,9 +107,7 @@ const getAudienceClaim = (
   return undefined
 }
 
-const toClaims = (
-  payload: Record<string, unknown>,
-): GitHubOidcClaims | undefined => {
+const toClaims = (payload: Record<string, unknown>): GitHubOidcClaims | undefined => {
   const aud = getAudienceClaim(payload)
   const exp = getNumberClaim(payload, 'exp')
   const iat = getNumberClaim(payload, 'iat')
@@ -174,10 +153,7 @@ const toClaims = (
   }
 }
 
-const issue = (
-  code: GitHubOidcErrorCode,
-  message: string,
-): VerifyGitHubOidcTokenResult => ({
+const issue = (code: GitHubOidcErrorCode, message: string): VerifyGitHubOidcTokenResult => ({
   code,
   message,
   ok: false,
@@ -194,10 +170,7 @@ const includesIfConfigured = (
   return value !== undefined && allowed.includes(value)
 }
 
-const audienceMatches = (
-  audience: string | string[],
-  expected: string,
-): boolean =>
+const audienceMatches = (audience: string | string[], expected: string): boolean =>
   Array.isArray(audience) ? audience.includes(expected) : audience === expected
 
 const getRepositoryName = (repository: string): string => {
@@ -206,8 +179,7 @@ const getRepositoryName = (repository: string): string => {
   return name ?? repository
 }
 
-const isReleaseTagRef = (claims: GitHubOidcClaims): boolean =>
-  claims.event_name === 'release' && claims.ref.startsWith('refs/tags/')
+const isTagRef = (claims: GitHubOidcClaims): boolean => claims.ref.startsWith('refs/tags/')
 
 const repositoryMatches = ({
   allowed,
@@ -271,12 +243,7 @@ const verifyJwtSignature = ({
       key: jwk as JsonWebKey,
     })
 
-    return verify(
-      'RSA-SHA256',
-      Buffer.from(signingInput, 'utf8'),
-      publicKey,
-      signature,
-    )
+    return verify('RSA-SHA256', Buffer.from(signingInput, 'utf8'), publicKey, signature)
   } catch {
     return false
   }
@@ -376,10 +343,7 @@ export const verifyGitHubOidcToken = async ({
   const trustedSources = config.trustedSources ?? []
 
   if (trustedSources.length === 0) {
-    return issue(
-      'oidc_repository_not_allowed',
-      'GitHub OIDC auth requires a trusted GitHub owner.',
-    )
+    return issue('oidc_repository_not_allowed', 'GitHub OIDC auth requires a trusted GitHub owner.')
   }
 
   const trustedSource = findTrustedSource({
@@ -390,8 +354,7 @@ export const verifyGitHubOidcToken = async ({
 
   if (!trustedSource) {
     const matchingOwner = trustedSources.find(
-      (source) =>
-        source.owner.toLowerCase() === claims.repository_owner.toLowerCase(),
+      (source) => source.owner.toLowerCase() === claims.repository_owner.toLowerCase(),
     )
 
     if (matchingOwner) {
@@ -409,7 +372,7 @@ export const verifyGitHubOidcToken = async ({
 
   const repositoryName = getRepositoryName(claims.repository)
 
-  if (!includesIfConfigured(config.allowedRefs, claims.ref) && !isReleaseTagRef(claims)) {
+  if (!includesIfConfigured(config.allowedRefs, claims.ref) && !isTagRef(claims)) {
     return issue(
       'oidc_ref_not_allowed',
       `GitHub OIDC token ref "${claims.ref}" is not allowed for "${repositoryName}".`,
@@ -418,10 +381,7 @@ export const verifyGitHubOidcToken = async ({
 
   const workflowRef = claims.workflow_ref ?? claims.job_workflow_ref
 
-  if (
-    config.enforceWorkflowRefs === true &&
-    (config.allowedWorkflowRefs?.length ?? 0) === 0
-  ) {
+  if (config.enforceWorkflowRefs === true && (config.allowedWorkflowRefs?.length ?? 0) === 0) {
     return issue(
       'oidc_workflow_not_allowed',
       'Advanced workflow security is enabled but no workflow refs are trusted.',
@@ -432,10 +392,7 @@ export const verifyGitHubOidcToken = async ({
     config.enforceWorkflowRefs === true &&
     !includesIfConfigured(config.allowedWorkflowRefs, workflowRef)
   ) {
-    return issue(
-      'oidc_workflow_not_allowed',
-      'GitHub OIDC token workflow ref is not allowed.',
-    )
+    return issue('oidc_workflow_not_allowed', 'GitHub OIDC token workflow ref is not allowed.')
   }
 
   if (claims.event_name === 'pull_request' && config.allowPullRequests !== true) {

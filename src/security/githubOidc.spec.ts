@@ -1,14 +1,10 @@
-import { generateKeyPairSync, randomUUID, sign  } from 'node:crypto'
+import { generateKeyPairSync, randomUUID, sign } from 'node:crypto'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { GitHubOidcVerifyConfig } from './index.js'
 import type { FetchJson } from './jwks.js'
 
-import {
-  decodeJwt,
-  toBase64Url,
-  verifyGitHubOidcToken,
-} from './index.js'
+import { decodeJwt, toBase64Url, verifyGitHubOidcToken } from './index.js'
 
 const now = new Date('2026-01-01T00:00:00.000Z')
 
@@ -68,9 +64,7 @@ const createTokenFixture = (
   }
 }
 
-const config = (
-  overrides: Partial<GitHubOidcVerifyConfig> = {},
-): GitHubOidcVerifyConfig => ({
+const config = (overrides: Partial<GitHubOidcVerifyConfig> = {}): GitHubOidcVerifyConfig => ({
   audience: 'payload-markdown-docs',
   jwksUrl: `https://example.test/${randomUUID()}/jwks`,
   trustedSources: [
@@ -82,9 +76,11 @@ const config = (
 })
 
 const fetchJsonForJwk = (jwk: Record<string, unknown>): FetchJson =>
-  vi.fn(() => Promise.resolve({
-    keys: [jwk],
-  }))
+  vi.fn(() =>
+    Promise.resolve({
+      keys: [jwk],
+    }),
+  )
 
 describe('GitHub OIDC security helpers', () => {
   it('decodes JWT header and payload', () => {
@@ -92,9 +88,7 @@ describe('GitHub OIDC security helpers', () => {
     const decoded = decodeJwt(token)
 
     expect(decoded?.header.alg).toBe('RS256')
-    expect(decoded?.payload.repository).toBe(
-      'valkyrianlabs/payload-markdown-docs',
-    )
+    expect(decoded?.payload.repository).toBe('valkyrianlabs/payload-markdown-docs')
   })
 
   it('rejects malformed JWTs', async () => {
@@ -279,9 +273,8 @@ describe('GitHub OIDC security helpers', () => {
     ).resolves.toMatchObject({ ok: true })
   })
 
-  it('allows release tag refs when advanced workflow security is disabled', async () => {
+  it('allows tag refs when advanced workflow security is disabled', async () => {
     const { jwk, token } = createTokenFixture({
-      event_name: 'release',
       ref: 'refs/tags/v0.6.0',
       sub: 'repo:valkyrianlabs/payload-markdown-docs:ref:refs/tags/v0.6.0',
       workflow_ref:

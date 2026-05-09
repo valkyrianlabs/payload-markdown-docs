@@ -48,9 +48,9 @@ owner/repository on the configured branch. Enable it only when you want exact
 workflow refs. When enabled, an empty workflow list rejects all workflow
 publishing for that docs set.
 
-GitHub release tag events are allowed from trusted repositories when advanced
-security is disabled. If release publishing needs stricter control, enable
-advanced security and add the exact release workflow refs.
+GitHub tag refs are allowed from trusted repositories when advanced security is
+disabled. If tag publishing needs stricter control, enable advanced security and
+add the exact release workflow refs.
 
 ## Sync Metadata
 

@@ -1040,9 +1040,8 @@ describe('sync endpoint dry-run handling', () => {
     )
   })
 
-  it('accepts GitHub OIDC release tag refs when advanced workflow security is disabled', async () => {
+  it('accepts GitHub OIDC tag refs when advanced workflow security is disabled', async () => {
     const tokenFixture = createOidcTokenFixture({
-      event_name: 'release',
       ref: 'refs/tags/v0.6.0',
       sub: 'repo:valkyrianlabs/payload-markdown-docs:ref:refs/tags/v0.6.0',
       workflow_ref:
