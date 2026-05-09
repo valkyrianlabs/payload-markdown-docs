@@ -1,5 +1,21 @@
-export { getPayloadMarkdownDocsLinks } from './links.js'
-export type { GetPayloadMarkdownDocsLinksOptions, PayloadMarkdownDocsLink } from './links.js'
+export {
+  appendPayloadMarkdownDocsHeaderNavItems,
+  getPayloadMarkdownDocsHeaderNavItems,
+  getPayloadMarkdownDocsLinks,
+  getPayloadMarkdownDocsNavItems,
+} from './links.js'
+export type {
+  AppendPayloadMarkdownDocsHeaderNavItemsOptions,
+  GetPayloadMarkdownDocsHeaderNavItemsOptions,
+  GetPayloadMarkdownDocsLinksOptions,
+  GetPayloadMarkdownDocsNavItemsOptions,
+  PayloadMarkdownDocsHeaderNavItem,
+  PayloadMarkdownDocsHeaderNavLink,
+  PayloadMarkdownDocsLink,
+  PayloadMarkdownDocsNavCapacityOptions,
+  PayloadMarkdownDocsNavItem,
+  PayloadMarkdownDocsNavItemType,
+} from './links.js'
 export {
   createPayloadMarkdownDocsMarkdownResponse,
   resolvePayloadMarkdownDocsMarkdownRoute,
@@ -9,6 +25,12 @@ export type {
   ResolvePayloadMarkdownDocsMarkdownRouteOptions,
 } from './markdown.js'
 export { generatePayloadMarkdownDocsMetadata, getPayloadMarkdownDocsMetadata } from './metadata.js'
+export { PayloadMarkdownDocsNavbar } from './PayloadMarkdownDocsNavbar.js'
+export type {
+  PayloadMarkdownDocsNavbarClassNames,
+  PayloadMarkdownDocsNavbarProps,
+  PayloadMarkdownDocsNavbarRenderLinkOptions,
+} from './PayloadMarkdownDocsNavbar.js'
 export { PayloadMarkdownDocsPage } from './PayloadMarkdownDocsPage.js'
 export type { PayloadMarkdownDocsPageProps } from './PayloadMarkdownDocsPage.js'
 export { getPayloadMarkdownDocsRoutePath, resolvePayloadMarkdownDocsRoute } from './route.js'

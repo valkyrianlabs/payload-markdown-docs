@@ -86,11 +86,7 @@ import {
 import { notFound } from 'next/navigation'
 import { getPayload } from 'payload'
 
-export default async function Page({
-  params,
-}: {
-  params: Promise<{ slug?: string[] }>
-}) {
+export default async function Page({ params }: { params: Promise<{ slug?: string[] }> }) {
   const { slug } = await params
   const payload = await getPayload({ config })
   const resolved = await resolvePayloadMarkdownDocsRoute({ payload, slug })
@@ -103,7 +99,54 @@ export default async function Page({
 }
 ```
 
-For header navigation, use the link helper:
+For docs navigation, use the drop-in navbar when you want the plugin to own the
+docs menu UI:
+
+```tsx
+import { PayloadMarkdownDocsNavbar } from '@valkyrianlabs/payload-markdown-docs/next'
+import type { Payload } from 'payload'
+
+export async function HeaderDocsNav({ payload }: { payload: Payload }) {
+  return (
+    <PayloadMarkdownDocsNavbar currentPath="/plugins/payload-markdown-docs" payload={payload} />
+  )
+}
+```
+
+The navbar reads docs groups and docs sets, renders nested docs navigation, and
+accepts `classNames` and `renderLink` overrides for app-specific Tailwind,
+routing, and analytics.
+
+If you already have a site header, use the Header adapter to append top-level
+docs groups and top-level ungrouped docs sets without exceeding your existing
+menu cap:
+
+```ts
+import { appendPayloadMarkdownDocsHeaderNavItems } from '@valkyrianlabs/payload-markdown-docs/next'
+
+const navItems = await appendPayloadMarkdownDocsHeaderNavItems({
+  existingItems: header.navItems ?? [],
+  maxItems: headerNavItemsMaxRows,
+  payload,
+})
+```
+
+The adapter defaults to custom URL links so it does not require CMSLink changes.
+Use `mode: 'relationship'` only when your renderer understands `docs-groups`
+and `docs-sets` relationships.
+
+For fully custom navigation, use the headless nav builder:
+
+```ts
+import { getPayloadMarkdownDocsNavItems } from '@valkyrianlabs/payload-markdown-docs/next'
+
+const docsNav = await getPayloadMarkdownDocsNavItems({
+  availableSlots: 4,
+  payload,
+})
+```
+
+For simple flat header links, use the compatibility link helper:
 
 ```ts
 import { getPayloadMarkdownDocsLinks } from '@valkyrianlabs/payload-markdown-docs/next'
@@ -234,5 +277,6 @@ empty list rejects all workflow publishing for that docs set.
 - [Quick Start](docs/getting-started/quick-start.md)
 - [Plugin Config](docs/configuration/plugin-config.md)
 - [GitHub Actions](docs/workflow/ci-github-actions.md)
+- [Docs Navbar](docs/frontend/navbar.md)
 - [CLI](docs/reference/cli.md)
 - [Migration Notes](docs/reference/migration.md)

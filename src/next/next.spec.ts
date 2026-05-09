@@ -8,9 +8,15 @@ import type {
   ResolvedPayloadMarkdownDocsSet,
 } from './types.js'
 
-import { getPayloadMarkdownDocsLinks } from './links.js'
+import {
+  appendPayloadMarkdownDocsHeaderNavItems,
+  getPayloadMarkdownDocsHeaderNavItems,
+  getPayloadMarkdownDocsLinks,
+  getPayloadMarkdownDocsNavItems,
+} from './links.js'
 import { resolvePayloadMarkdownDocsMarkdownRoute } from './markdown.js'
 import { getPayloadMarkdownDocsMetadata } from './metadata.js'
+import { PayloadMarkdownDocsNavbar } from './PayloadMarkdownDocsNavbar.js'
 import { PayloadMarkdownDocsPage } from './PayloadMarkdownDocsPage.js'
 import { getPayloadMarkdownDocsRoutePath, resolvePayloadMarkdownDocsRoute } from './route.js'
 import { buildPayloadMarkdownDocsSidebar, getPayloadMarkdownDocsSidebar } from './sidebar.js'
@@ -926,6 +932,209 @@ describe('Payload Markdown Docs sidebar helpers', () => {
 })
 
 describe('Payload Markdown Docs link helpers', () => {
+  it('builds ordered top-level docs navigation with nested groups and docs sets', async () => {
+    const childGroup = {
+      id: 'group-guides',
+      slug: 'guides',
+      order: 5,
+      parent: docsGroup,
+      title: 'Guides',
+    }
+    const payload = createPayloadMock({
+      docsGroups: [
+        docsGroup,
+        childGroup,
+        {
+          id: 'group-api',
+          slug: 'api',
+          order: 0,
+          serveIndex: true,
+          title: 'API',
+        },
+      ],
+      docsSets: [
+        {
+          ...docsSet,
+          group: docsGroup,
+          navTitle: 'Docs',
+          order: 20,
+        },
+        {
+          id: 'guides-set',
+          slug: 'handbook',
+          group: childGroup,
+          order: 2,
+          title: 'Handbook',
+        },
+        {
+          id: 'cli-set',
+          slug: 'cli',
+          order: 5,
+          title: 'CLI',
+        },
+      ],
+    })
+
+    await expect(getPayloadMarkdownDocsNavItems({ payload })).resolves.toEqual([
+      expect.objectContaining({
+        id: 'group-api',
+        type: 'docsGroup',
+        label: 'API',
+        url: '/api',
+      }),
+      expect.objectContaining({
+        id: 'group-1',
+        type: 'docsGroup',
+        children: [
+          expect.objectContaining({
+            id: 'group-guides',
+            type: 'docsGroup',
+            children: [
+              expect.objectContaining({
+                id: 'guides-set',
+                url: '/plugins/guides/handbook',
+              }),
+            ],
+            route: '/plugins/guides',
+          }),
+          expect.objectContaining({
+            id: 'set-1',
+            label: 'Docs',
+            url: '/plugins/payload-markdown',
+          }),
+        ],
+        label: 'Plugins',
+        url: '/plugins',
+      }),
+      expect.objectContaining({
+        id: 'cli-set',
+        type: 'docsSet',
+        label: 'CLI',
+        url: '/cli',
+      }),
+    ])
+  })
+
+  it('caps only top-level docs nav items by explicit slots or existing header count', async () => {
+    const payload = createPayloadMock({
+      docsGroups: [docsGroup],
+      docsSets: [
+        {
+          ...docsSet,
+          group: docsGroup,
+        },
+        {
+          id: 'api-set',
+          slug: 'api',
+          order: 20,
+          title: 'API',
+        },
+      ],
+    })
+
+    await expect(
+      getPayloadMarkdownDocsNavItems({
+        existingItemsCount: 1,
+        maxItems: 2,
+        payload,
+      }),
+    ).resolves.toHaveLength(1)
+    await expect(
+      getPayloadMarkdownDocsNavItems({
+        availableSlots: 0,
+        payload,
+      }),
+    ).resolves.toEqual([])
+  })
+
+  it('excludes draft docs sets unless drafts are requested', async () => {
+    const payload = createPayloadMock({
+      docsSets: [
+        {
+          ...docsSet,
+          _status: 'draft',
+        },
+      ],
+    })
+
+    await expect(getPayloadMarkdownDocsNavItems({ payload })).resolves.toEqual([])
+    await expect(getPayloadMarkdownDocsNavItems({ includeDrafts: true, payload })).resolves.toEqual(
+      [
+        expect.objectContaining({
+          id: 'set-1',
+        }),
+      ],
+    )
+  })
+
+  it('returns Header adapter items without mutating existing nav items', async () => {
+    const existingItems = [{ link: { type: 'custom', label: 'Home', url: '/' } }]
+    const payload = createPayloadMock({
+      docsGroups: [docsGroup],
+      docsSets: [
+        {
+          ...docsSet,
+          group: docsGroup,
+        },
+        {
+          id: 'api-set',
+          slug: 'api',
+          order: 20,
+          title: 'API',
+        },
+      ],
+    })
+
+    await expect(
+      getPayloadMarkdownDocsHeaderNavItems({
+        existingItems,
+        maxItems: 2,
+        payload,
+      }),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        link: {
+          type: 'custom',
+          label: 'Plugins',
+          url: '/plugins',
+        },
+      }),
+    ])
+    await expect(
+      getPayloadMarkdownDocsHeaderNavItems({
+        availableSlots: 1,
+        mode: 'relationship',
+        payload,
+      }),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        link: {
+          type: 'reference',
+          label: 'Plugins',
+          reference: {
+            relationTo: 'docs-groups',
+            value: 'group-1',
+          },
+        },
+      }),
+    ])
+    await expect(
+      appendPayloadMarkdownDocsHeaderNavItems({
+        availableSlots: 1,
+        existingItems,
+        payload,
+      }),
+    ).resolves.toEqual([
+      existingItems[0],
+      expect.objectContaining({
+        link: expect.objectContaining({
+          label: 'Plugins',
+        }),
+      }),
+    ])
+    expect(existingItems).toEqual([{ link: { type: 'custom', label: 'Home', url: '/' } }])
+  })
+
   it('returns Header/CMSLink-compatible docs set links with derived group routes', async () => {
     const payload = createPayloadMock({
       docsGroups: [docsGroup],
@@ -958,6 +1167,46 @@ describe('Payload Markdown Docs link helpers', () => {
         url: '/api',
       },
     ])
+  })
+
+  it('renders a drop-in navbar with override classes and exact active state', async () => {
+    const markup = renderToStaticMarkup(
+      await PayloadMarkdownDocsNavbar({
+        classNames: {
+          activeLink: 'is-active',
+          root: 'docs-nav',
+        },
+        currentPath: '/plugins/payload-markdown',
+        items: [
+          {
+            id: 'group-1',
+            type: 'docsGroup',
+            children: [
+              {
+                id: 'set-1',
+                type: 'docsSet',
+                collection: 'docs-sets',
+                label: 'Payload Markdown',
+                order: 0,
+                route: '/plugins/payload-markdown',
+                url: '/plugins/payload-markdown',
+              },
+            ],
+            collection: 'docs-groups',
+            label: 'Plugins',
+            order: 0,
+            route: '/plugins',
+            url: '/plugins',
+          },
+        ],
+      }),
+    )
+
+    expect(markup).toContain('class="docs-nav"')
+    expect(markup).toContain('href="/plugins/payload-markdown"')
+    expect(markup).toContain('aria-current="page"')
+    expect(markup.match(/aria-current="page"/g)).toHaveLength(1)
+    expect(markup).toContain('is-active')
   })
 })
 
