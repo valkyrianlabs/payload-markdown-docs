@@ -59,7 +59,6 @@ payloadMarkdownDocs({
     allowWrites: true,
     allowPublish: true,
     allowHardDelete: false,
-    defaultPublishMode: 'draft',
     deleteBehavior: 'archive',
   },
 })

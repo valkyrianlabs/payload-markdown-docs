@@ -61,11 +61,6 @@ export const createSyncRunsCollection = ({
       defaultValue: false,
     },
     {
-      name: 'effectivePublishMode',
-      type: 'select',
-      options: ['draft', 'preserve', 'published'],
-    },
-    {
       name: 'deleteBehavior',
       type: 'select',
       options: ['archive', 'delete', 'draft', 'ignore'],

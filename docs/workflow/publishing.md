@@ -37,13 +37,7 @@ sync: {
 
 If publishing is not allowed, the endpoint returns a deterministic error.
 
-Synced draft docs can also be published from the Docs Set Admin Manager when
-the same server requirements are met. That action marks non-archived generated
-docs for the set as published; it does not sync new Git content.
-
-:::details {title="Preserve mode"}
-When `defaultPublishMode` is `preserve`, existing docs keep their current draft or published state unless the manifest requests publishing and the server allows it. New docs default to draft when drafts are enabled.
-:::
+When `--publish` is not requested, synced generated docs are written as drafts.
 
 ## Hard Delete Is Separate
 

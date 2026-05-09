@@ -23,6 +23,7 @@ import {
   getRelationshipId,
   isRecord,
   isVisibleDocsRecord,
+  isVisibleDocsSet,
   toResolvedDocsGroup,
   toResolvedDocsRecord,
   toResolvedDocsSet,
@@ -159,11 +160,13 @@ const withComputedDocsSetRoute = ({
 const findDocsSetById = async ({
   id,
   collections,
+  includeDrafts,
   overrideAccess,
   payload,
 }: {
   collections: ResolvedCollectionSlugs
   id: string
+  includeDrafts: boolean
   overrideAccess: boolean
   payload: PayloadMarkdownDocsReadPayload
 }): Promise<ResolvedPayloadMarkdownDocsSet | undefined> => {
@@ -186,20 +189,24 @@ const findDocsSetById = async ({
     }),
   ])
 
-  return withComputedDocsSetRoute({
+  const docsSet = withComputedDocsSetRoute({
     doc: result.docs[0],
     docsSet: toResolvedDocsSet(result.docs[0]),
     groupsById,
   })
+
+  return docsSet && isVisibleDocsSet({ docsSet, includeDrafts }) ? docsSet : undefined
 }
 
 const findDocsSetByRouteBase = async ({
   collections,
+  includeDrafts,
   overrideAccess,
   payload,
   route,
 }: {
   collections: ResolvedCollectionSlugs
+  includeDrafts: boolean
   overrideAccess: boolean
   payload: PayloadMarkdownDocsReadPayload
   route: string
@@ -226,16 +233,22 @@ const findDocsSetByRouteBase = async ({
         groupsById,
       }),
     )
+    .filter(
+      (docsSet): docsSet is ResolvedPayloadMarkdownDocsSet =>
+        docsSet !== undefined && isVisibleDocsSet({ docsSet, includeDrafts }),
+    )
     .find((docsSet) => docsSet?.routeBase === route)
 }
 
 const findDocsSetByRoutePrefix = async ({
   collections,
+  includeDrafts,
   overrideAccess,
   payload,
   route,
 }: {
   collections: ResolvedCollectionSlugs
+  includeDrafts: boolean
   overrideAccess: boolean
   payload: PayloadMarkdownDocsReadPayload
   route: string
@@ -267,6 +280,10 @@ const findDocsSetByRoutePrefix = async ({
         return false
       }
 
+      if (!isVisibleDocsSet({ docsSet, includeDrafts })) {
+        return false
+      }
+
       return docsSet.routeBase === route || isRouteDescendant(docsSet.routeBase, route)
     })
     .sort((first, second) => second.routeBase.length - first.routeBase.length)[0]
@@ -283,37 +300,37 @@ const getRelatedDocsSet = (doc: unknown): ResolvedPayloadMarkdownDocsSet | undef
 const findDocsSetForRecord = async ({
   collections,
   doc,
+  includeDrafts,
   overrideAccess,
   payload,
   record,
 }: {
   collections: ResolvedCollectionSlugs
   doc: unknown
+  includeDrafts: boolean
   overrideAccess: boolean
   payload: PayloadMarkdownDocsReadPayload
   record: ResolvedPayloadMarkdownDocsRecord
 }): Promise<ResolvedPayloadMarkdownDocsSet | undefined> => {
   if (record.docsSetId) {
-    const docsSetById = await findDocsSetById({
+    return findDocsSetById({
       id: record.docsSetId,
       collections,
+      includeDrafts,
       overrideAccess,
       payload,
     })
-
-    if (docsSetById) {
-      return docsSetById
-    }
   }
 
   const relatedDocsSet = getRelatedDocsSet(doc)
 
-  if (relatedDocsSet) {
+  if (relatedDocsSet && isVisibleDocsSet({ docsSet: relatedDocsSet, includeDrafts })) {
     return relatedDocsSet
   }
 
   return findDocsSetByRoutePrefix({
     collections,
+    includeDrafts,
     overrideAccess,
     payload,
     route: record.route,
@@ -422,11 +439,13 @@ const findDocsSetIndexRecord = async ({
 
 const findGroupIndexRoute = async ({
   collections,
+  includeDrafts,
   overrideAccess,
   payload,
   route,
 }: {
   collections: ResolvedCollectionSlugs
+  includeDrafts: boolean
   overrideAccess: boolean
   payload: PayloadMarkdownDocsReadPayload
   route: string
@@ -473,6 +492,7 @@ const findGroupIndexRoute = async ({
       }),
     )
     .filter((docsSet): docsSet is ResolvedPayloadMarkdownDocsSet => docsSet !== undefined)
+    .filter((docsSet) => isVisibleDocsSet({ docsSet, includeDrafts }))
     .sort((first, second) => {
       if (first.order !== second.order) {
         return first.order - second.order
@@ -507,6 +527,7 @@ export const resolvePayloadMarkdownDocsRoute = async ({
   const collections = resolveCollectionSlugs(collectionOptions)
   const docsSet = await findDocsSetByRouteBase({
     collections,
+    includeDrafts,
     overrideAccess,
     payload,
     route,
@@ -554,6 +575,7 @@ export const resolvePayloadMarkdownDocsRoute = async ({
     const resolvedDocsSet = await findDocsSetForRecord({
       collections,
       doc: docResult.doc,
+      includeDrafts,
       overrideAccess,
       payload,
       record: docResult.record,
@@ -581,6 +603,7 @@ export const resolvePayloadMarkdownDocsRoute = async ({
 
   const groupRoute = await findGroupIndexRoute({
     collections,
+    includeDrafts,
     overrideAccess,
     payload,
     route,

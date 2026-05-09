@@ -162,7 +162,7 @@ describe('docs sync apply helpers', () => {
         manifest,
         markdownFieldName: 'body',
         now,
-        publishMode: 'preserve',
+        publish: false,
         syncRunId: 'sync-run-1',
       }),
     ).toMatchObject({
@@ -201,7 +201,7 @@ describe('docs sync apply helpers', () => {
       now,
       payload,
       plan,
-      publishMode: 'preserve',
+      publish: false,
       syncRunId: 456,
     })
 
@@ -241,7 +241,7 @@ describe('docs sync apply helpers', () => {
       now,
       payload,
       plan,
-      publishMode: 'preserve',
+      publish: false,
     })
 
     expect(payload.create).toHaveBeenCalledWith(
@@ -253,7 +253,7 @@ describe('docs sync apply helpers', () => {
     )
   })
 
-  it('creates docs as drafts when draft publish mode is effective', async () => {
+  it('creates draft docs when publish is not requested', async () => {
     const manifest = getValidatedManifest()
     const payload = createPayloadMock()
     const plan = planDocsSync({
@@ -271,7 +271,7 @@ describe('docs sync apply helpers', () => {
       now,
       payload,
       plan,
-      publishMode: 'draft',
+      publish: false,
     })
 
     expect(result).toMatchObject({ ok: true, writes: { create: 1 } })
@@ -284,7 +284,7 @@ describe('docs sync apply helpers', () => {
     )
   })
 
-  it('creates docs as published when published mode is effective', async () => {
+  it('creates published docs when publish is requested', async () => {
     const manifest = getValidatedManifest()
     const payload = createPayloadMock()
     const plan = planDocsSync({
@@ -302,7 +302,7 @@ describe('docs sync apply helpers', () => {
       now,
       payload,
       plan,
-      publishMode: 'published',
+      publish: true,
     })
 
     expect(payload.create).toHaveBeenCalledWith(
@@ -314,7 +314,7 @@ describe('docs sync apply helpers', () => {
     )
   })
 
-  it('preserves existing status and defaults new preserve-mode docs to draft', async () => {
+  it('sets synced docs to draft when publish is not requested', async () => {
     const manifest = getValidatedManifest([
       { content: '# Changed\n', path: 'index.md' },
       { content: '# New\n', path: 'new.md' },
@@ -336,14 +336,14 @@ describe('docs sync apply helpers', () => {
       now,
       payload,
       plan,
-      publishMode: 'preserve',
+      publish: false,
     })
 
     expect(payload.update).toHaveBeenCalledWith(
       expect.objectContaining({
         id: 'doc-1',
         data: expect.objectContaining({
-          _status: 'published',
+          _status: 'draft',
         }),
       }),
     )
@@ -381,7 +381,7 @@ describe('docs sync apply helpers', () => {
       now,
       payload,
       plan,
-      publishMode: 'preserve',
+      publish: false,
     })
 
     expect(result).toMatchObject({ ok: true, writes: { update: 1 } })
@@ -412,7 +412,7 @@ describe('docs sync apply helpers', () => {
       now,
       payload,
       plan,
-      publishMode: 'preserve',
+      publish: false,
     })
 
     expect(result).toMatchObject({ ok: true, writes: { reactivate: 1 } })
@@ -451,7 +451,7 @@ describe('docs sync apply helpers', () => {
       now,
       payload,
       plan,
-      publishMode: 'preserve',
+      publish: false,
       syncRunId: 'sync-run-1',
     })
 
@@ -492,7 +492,7 @@ describe('docs sync apply helpers', () => {
       now,
       payload,
       plan,
-      publishMode: 'preserve',
+      publish: false,
     })
 
     expect(result).toMatchObject({ ok: true, writes: { archive: 0 } })
@@ -522,7 +522,7 @@ describe('docs sync apply helpers', () => {
       now,
       payload,
       plan,
-      publishMode: 'preserve',
+      publish: false,
     })
 
     expect(result).toMatchObject({ ok: true, writes: { draft: 1 } })
@@ -561,7 +561,7 @@ describe('docs sync apply helpers', () => {
       now,
       payload,
       plan,
-      publishMode: 'preserve',
+      publish: false,
     })
 
     expect(result).toMatchObject({ ok: true, writes: { delete: 1 } })
@@ -608,7 +608,7 @@ describe('docs sync apply helpers', () => {
       now,
       payload,
       plan,
-      publishMode: 'preserve',
+      publish: false,
     })
 
     expect(result).toMatchObject({
@@ -643,7 +643,7 @@ describe('docs sync apply helpers', () => {
       now,
       payload,
       plan,
-      publishMode: 'preserve',
+      publish: false,
     })
 
     expect(result).toMatchObject({
@@ -691,7 +691,7 @@ describe('docs sync apply helpers', () => {
       now,
       payload,
       plan,
-      publishMode: 'preserve',
+      publish: false,
     })
 
     expect(result).toMatchObject({
@@ -730,7 +730,7 @@ describe('docs sync apply helpers', () => {
       now,
       payload,
       plan,
-      publishMode: 'preserve',
+      publish: false,
     })
 
     expect(result).toMatchObject({

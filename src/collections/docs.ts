@@ -3,6 +3,7 @@ import type { CollectionConfig, Field } from 'payload'
 import { markdownField } from '@valkyrianlabs/payload-markdown'
 
 import { MANAGED_BY } from '../constants.js'
+import { populatePublishedAt } from '../payload/populatePublishedAt.js'
 
 export type CreateDocsCollectionOptions = {
   docsSetsCollectionSlug?: string
@@ -65,6 +66,13 @@ export const createDocsCollection = ({
     {
       name: 'description',
       type: 'textarea',
+    },
+    {
+      name: 'publishedAt',
+      type: 'date',
+      admin: {
+        position: 'sidebar',
+      },
     },
     {
       name: 'route',
@@ -186,6 +194,9 @@ export const createDocsCollection = ({
       ],
     },
   ],
+  hooks: {
+    beforeChange: [populatePublishedAt],
+  },
   ...(enableDrafts
     ? {
         versions: {

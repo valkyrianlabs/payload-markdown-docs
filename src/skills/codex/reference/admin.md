@@ -14,7 +14,6 @@ It shows:
 - hero images on generated docs records
 - generated docs grouped by source path
 - links to generated docs records
-- a publish action for draft generated docs when draft publishing is enabled
 
 Per-doc overrides live on generated docs records:
 

@@ -69,7 +69,6 @@ export type PayloadMarkdownDocsSyncConfig = {
   allowHardDelete?: boolean
   allowPublish?: boolean
   allowWrites?: boolean
-  defaultPublishMode?: 'draft' | 'preserve' | 'published'
   deleteBehavior?: 'archive' | 'delete' | 'draft' | 'ignore'
   requireDryRunBeforeApply?: boolean
 }

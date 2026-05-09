@@ -1,18 +1,12 @@
-import type {
-  DocsSyncPlan,
-  DocsValidationIssue,
-  DocsValidationResult,
-} from '../sync/index.js'
+import type { DocsSyncPlan, DocsValidationIssue, DocsValidationResult } from '../sync/index.js'
 
 export type PushSummaryInput = {
   deleteBehavior?: string
-  effectivePublishMode?: string
   endpoint: string
   mode: 'dry-run' | 'sync'
   publishRequested?: boolean
   response: {
     deleteBehavior?: string
-    effectivePublishMode?: string
     ok?: boolean
     publishRequested?: boolean
     summary?: {
@@ -98,7 +92,6 @@ export const formatPlanSummary = (plan: DocsSyncPlan): string => {
 
 export const formatPushSummary = ({
   deleteBehavior,
-  effectivePublishMode,
   endpoint,
   mode,
   publishRequested,
@@ -112,12 +105,7 @@ export const formatPushSummary = ({
     `Endpoint: ${endpoint}`,
     `Mode: ${mode}`,
     `Source: ${sourceId}`,
-    `Publish requested: ${
-      (publishRequested ?? response.publishRequested) === true ? 'yes' : 'no'
-    }`,
-    `Publish mode: ${
-      effectivePublishMode ?? response.effectivePublishMode ?? 'unknown'
-    }`,
+    `Publish requested: ${(publishRequested ?? response.publishRequested) === true ? 'yes' : 'no'}`,
     `Delete behavior: ${deleteBehavior ?? response.deleteBehavior ?? 'unknown'}`,
     '',
     `Create: ${summary.create ?? 0}`,

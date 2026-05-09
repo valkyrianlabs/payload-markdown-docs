@@ -331,7 +331,6 @@ const createEndpointForTests = ({
   allowHardDelete = false,
   allowPublish = false,
   allowWrites = false,
-  defaultPublishMode,
   deleteBehavior,
   docsEnableDrafts = false,
   docsSetsEnabled = true,
@@ -342,7 +341,6 @@ const createEndpointForTests = ({
   allowHardDelete?: boolean
   allowPublish?: boolean
   allowWrites?: boolean
-  defaultPublishMode?: 'draft' | 'preserve' | 'published'
   deleteBehavior?: 'archive' | 'delete' | 'draft' | 'ignore'
   docsEnableDrafts?: boolean
   docsSetsEnabled?: boolean
@@ -359,7 +357,6 @@ const createEndpointForTests = ({
     auth: {
       ed25519: true,
     },
-    defaultPublishMode,
     deleteBehavior,
     docsCollectionSlug: 'docs',
     docsEnabled: true,
@@ -402,7 +399,6 @@ const callEndpoint = async ({
     allowHardDelete?: boolean
     allowPublish?: boolean
     allowWrites?: boolean
-    defaultPublishMode?: 'draft' | 'preserve' | 'published'
     deleteBehavior?: 'archive' | 'delete' | 'draft' | 'ignore'
     docsEnableDrafts?: boolean
     docsSetsEnabled?: boolean
@@ -1219,7 +1215,6 @@ describe('sync endpoint dry-run handling', () => {
 
     expect(response.status).toBe(200)
     expect(json).toMatchObject({
-      effectivePublishMode: 'published',
       publishRequested: true,
     })
     expect(payload.create).toHaveBeenCalledWith(
@@ -1232,7 +1227,7 @@ describe('sync endpoint dry-run handling', () => {
     )
   })
 
-  it('applies default draft publish mode when drafts are enabled', async () => {
+  it('creates draft docs when publish is not requested and drafts are enabled', async () => {
     const { privateKey, publicKey } = keyPair()
     const body = JSON.stringify(createManifest({ mode: 'sync' }))
     const payload = createMockPayload()
@@ -1251,7 +1246,7 @@ describe('sync endpoint dry-run handling', () => {
     })
 
     expect(response.status).toBe(200)
-    expect(json.effectivePublishMode).toBe('draft')
+    expect(json.publishRequested).toBe(false)
     expect(payload.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
@@ -1259,27 +1254,6 @@ describe('sync endpoint dry-run handling', () => {
         }),
       }),
     )
-  })
-
-  it('rejects default published mode unless publishing is allowed', async () => {
-    const { privateKey, publicKey } = keyPair()
-    const body = JSON.stringify(createManifest({ mode: 'sync' }))
-    const { json, response } = await callEndpoint({
-      body,
-      endpointOptions: {
-        allowWrites: true,
-        defaultPublishMode: 'published',
-        docsEnableDrafts: true,
-      },
-      headers: signBody({
-        body,
-        privateKey,
-      }),
-      publicKey: publicKey.toString(),
-    })
-
-    expect(response.status).toBe(403)
-    expect(json.error).toMatchObject({ code: 'publish_disabled' })
   })
 
   it('rejects publish requests when drafts are not enabled', async () => {
@@ -1381,7 +1355,6 @@ describe('sync endpoint dry-run handling', () => {
         collection: 'docs-sync-runs',
         data: expect.objectContaining({
           deleteBehavior: 'archive',
-          effectivePublishMode: 'preserve',
           publishRequested: false,
         }),
       }),
@@ -1945,7 +1918,7 @@ describe('sync endpoint dry-run handling', () => {
     })
   })
 
-  it('preserves existing draft status in preserve mode', async () => {
+  it('sets existing docs to draft when publish is not requested', async () => {
     const { privateKey, publicKey } = keyPair()
     const body = JSON.stringify(createManifest({ mode: 'sync' }))
     const payload = createMockPayload({
@@ -1972,7 +1945,6 @@ describe('sync endpoint dry-run handling', () => {
       body,
       endpointOptions: {
         allowWrites: true,
-        defaultPublishMode: 'preserve',
         docsEnableDrafts: true,
       },
       headers: signBody({
@@ -1988,7 +1960,7 @@ describe('sync endpoint dry-run handling', () => {
       expect.objectContaining({
         id: 'doc-1',
         data: expect.objectContaining({
-          _status: 'published',
+          _status: 'draft',
         }),
       }),
     )

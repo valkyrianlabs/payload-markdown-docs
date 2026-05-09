@@ -1,10 +1,5 @@
-import type {
-  DocsDeleteBehavior,
-  DocsSyncPlan,
-  ValidatedDocsManifest,
-} from '../sync/index.js'
+import type { DocsDeleteBehavior, DocsSyncPlan, ValidatedDocsManifest } from '../sync/index.js'
 import type { DocsSyncConflict } from './docsConflicts.js'
-import type { DocsPublishMode } from './docsData.js'
 import type { ExistingPayloadDocsRecord } from './existingDocs.js'
 
 import { findDocsSyncConflicts } from './docsConflicts.js'
@@ -78,7 +73,7 @@ export const applyDocsSync = async ({
   now,
   payload,
   plan,
-  publishMode,
+  publish,
   syncRunId,
 }: {
   collectionSlug: string
@@ -91,12 +86,10 @@ export const applyDocsSync = async ({
   now: Date
   payload: ApplyDocsSyncPayloadOperations
   plan: DocsSyncPlan
-  publishMode: DocsPublishMode
+  publish: boolean
   syncRunId?: number | string
 }): Promise<ApplyDocsSyncResult> => {
-  const existingBySourcePath = new Map(
-    existing.map((record) => [record.sourcePath, record]),
-  )
+  const existingBySourcePath = new Map(existing.map((record) => [record.sourcePath, record]))
   const reactivations = plan.unchanged.filter((change) => change.current?.archived)
   const conflicts = findDocsSyncConflicts({
     existingBySourcePath,
@@ -139,7 +132,7 @@ export const applyDocsSync = async ({
         manifest,
         markdownFieldName,
         now,
-        publishMode,
+        publish,
         syncRunId,
       }),
       overrideAccess: true,
@@ -162,14 +155,13 @@ export const applyDocsSync = async ({
       id: current.id,
       collection: collectionSlug,
       data: buildDocsData({
-        current,
         desired: change.desired,
         docsEnableDrafts,
         docsSetId,
         manifest,
         markdownFieldName,
         now,
-        publishMode,
+        publish,
         syncRunId,
       }),
       overrideAccess: true,
@@ -192,14 +184,13 @@ export const applyDocsSync = async ({
       id: current.id,
       collection: collectionSlug,
       data: buildDocsData({
-        current,
         desired: change.desired,
         docsEnableDrafts,
         docsSetId,
         manifest,
         markdownFieldName,
         now,
-        publishMode,
+        publish,
         syncRunId,
       }),
       overrideAccess: true,

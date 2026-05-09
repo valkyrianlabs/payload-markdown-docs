@@ -1,34 +1,14 @@
 import { readFile } from 'node:fs/promises'
 
 import type { DocsDeleteBehavior } from '../../sync/index.js'
-import type {
-  HttpGetJson,
-  HttpPostJson,
-} from '../http.js'
-import type {
-  CliResult,
-  ParsedCliArgs,
-  PushCommandOptions,
-} from '../types.js'
+import type { HttpGetJson, HttpPostJson } from '../http.js'
+import type { CliResult, ParsedCliArgs, PushCommandOptions } from '../types.js'
 
-import {
-  DocsSyncKeyError,
-  signDocsSyncRequest,
-} from '../../security/index.js'
-import {
-  buildDocsManifest,
-  sha256Hex,
-  validateDocsManifest,
-} from '../../sync/index.js'
-import {
-  readDocsAiExportManifest,
-  walkDocsFiles,
-} from '../filesystem.js'
+import { DocsSyncKeyError, signDocsSyncRequest } from '../../security/index.js'
+import { buildDocsManifest, sha256Hex, validateDocsManifest } from '../../sync/index.js'
+import { readDocsAiExportManifest, walkDocsFiles } from '../filesystem.js'
 import { formatIssues, formatPushSummary, printJson } from '../format.js'
-import {
-  getJson,
-  postJson,
-} from '../http.js'
+import { getJson, postJson } from '../http.js'
 import { getFlagBoolean, getFlagString } from '../parseArgs.js'
 import { getDocsCommandOptions } from './validate.js'
 
@@ -41,7 +21,6 @@ const supportedPushDeleteBehaviors = new Set<DocsDeleteBehavior>([
 
 type ServerPushResponse = {
   deleteBehavior?: string
-  effectivePublishMode?: string
   error?: {
     code?: string
     message?: string
@@ -63,8 +42,7 @@ type ServerPushResponse = {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
 
-const isServerPushResponse = (value: unknown): value is ServerPushResponse =>
-  isRecord(value)
+const isServerPushResponse = (value: unknown): value is ServerPushResponse => isRecord(value)
 
 const validateEndpointUrl = (endpoint: string): CliResult | string => {
   try {
@@ -86,17 +64,14 @@ const validateEndpointUrl = (endpoint: string): CliResult | string => {
   }
 }
 
-const readPrivateKey = async (
-  args: ParsedCliArgs,
-): Promise<CliResult | string> => {
+const readPrivateKey = async (args: ParsedCliArgs): Promise<CliResult | string> => {
   const privateKeyFile = getFlagString(args, 'private-key-file')
   const privateKeyEnv = getFlagString(args, 'private-key-env')
 
   if (privateKeyFile && privateKeyEnv) {
     return {
       exitCode: 1,
-      stderr:
-        'Use either --private-key-file or --private-key-env, not both.\n',
+      stderr: 'Use either --private-key-file or --private-key-env, not both.\n',
     }
   }
 
@@ -257,9 +232,7 @@ const getPushCommandOptions = async (
     }
   }
 
-  const mode: PushCommandOptions['mode'] = getFlagBoolean(args, 'sync')
-    ? 'sync'
-    : 'dry-run'
+  const mode: PushCommandOptions['mode'] = getFlagBoolean(args, 'sync') ? 'sync' : 'dry-run'
   const baseOptions = {
     ...docsOptions,
     deleteBehavior: deleteBehaviorFlag as DocsDeleteBehavior | undefined,
@@ -313,13 +286,7 @@ const getPushCommandOptions = async (
   }
 }
 
-const formatServerFailure = ({
-  body,
-  status,
-}: {
-  body: unknown
-  status: number
-}): string => {
+const formatServerFailure = ({ body, status }: { body: unknown; status: number }): string => {
   if (isServerPushResponse(body) && body.error?.message) {
     return `${body.error.message}\n`
   }
@@ -433,11 +400,7 @@ export const runPushCommand = async (
   if (getFlagBoolean(args, 'json')) {
     return {
       exitCode:
-        response.ok &&
-        isServerPushResponse(response.body) &&
-        response.body.ok === true
-          ? 0
-          : 1,
+        response.ok && isServerPushResponse(response.body) && response.body.ok === true ? 0 : 1,
       stdout: printJson(
         {
           endpoint: options.endpoint,
@@ -451,11 +414,7 @@ export const runPushCommand = async (
     }
   }
 
-  if (
-    !response.ok ||
-    !isServerPushResponse(response.body) ||
-    response.body.ok !== true
-  ) {
+  if (!response.ok || !isServerPushResponse(response.body) || response.body.ok !== true) {
     return {
       exitCode: 1,
       stderr: formatServerFailure({

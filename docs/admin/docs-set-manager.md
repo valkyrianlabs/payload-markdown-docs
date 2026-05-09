@@ -27,18 +27,10 @@ It exists so users manage docs from one central docs set context instead of mana
 - generated docs grouped by source path
 - links to generated docs records
 
-## Publishing Drafts
-
-When synced generated docs are drafts, the manager shows a publish action if
-the plugin is configured with `target.enableDrafts: true` and
-`sync.allowPublish: true`.
-
-Publishing from the manager marks non-archived generated docs for that set as
-published. It does not sync new Git content.
-
 ## What It Does Not Do
 
 - it does not sync docs
+- it does not publish generated docs
 - it does not mutate Pages
 - it does not create Pages
 - it does not inline-edit overrides yet

@@ -1,63 +1,51 @@
 import type { ValidatedDocsManifest, ValidatedDocsManifestFile } from '../sync/index.js'
-import type { ExistingPayloadDocsRecord } from './existingDocs.js'
 
 import { MANAGED_BY } from '../constants.js'
 import { sha256Hex } from '../sync/index.js'
 
 export type BuildDocsDataInput = {
-  current?: ExistingPayloadDocsRecord
   desired: ValidatedDocsManifestFile
   docsEnableDrafts: boolean
   docsSetId?: number | string
   manifest: ValidatedDocsManifest
   markdownFieldName: string
   now: Date
-  publishMode: DocsPublishMode
+  publish: boolean
   syncRunId?: number | string
 }
 
 export type DocsDraftStatus = 'draft' | 'published'
 
-export type DocsPublishMode = 'draft' | 'preserve' | 'published'
-
 export const getDocsDepth = (sourcePath: string): number =>
   sourcePath === 'index.md' ? 0 : Math.max(0, sourcePath.split('/').length - 1)
 
 const getDraftStatusForDocsData = ({
-  current,
   docsEnableDrafts,
-  publishMode,
+  publish,
 }: {
-  current?: ExistingPayloadDocsRecord
   docsEnableDrafts: boolean
-  publishMode: DocsPublishMode
+  publish: boolean
 }): DocsDraftStatus | undefined => {
   if (!docsEnableDrafts) {
     return undefined
   }
 
-  if (publishMode === 'draft' || publishMode === 'published') {
-    return publishMode
-  }
-
-  return current ? current.status : 'draft'
+  return publish ? 'published' : 'draft'
 }
 
 export const buildDocsData = ({
-  current,
   desired,
   docsEnableDrafts,
   docsSetId,
   manifest,
   markdownFieldName,
   now,
-  publishMode,
+  publish,
   syncRunId,
 }: BuildDocsDataInput): Record<string, unknown> => {
   const draftStatus = getDraftStatusForDocsData({
-    current,
     docsEnableDrafts,
-    publishMode,
+    publish,
   })
 
   return {

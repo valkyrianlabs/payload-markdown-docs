@@ -440,6 +440,39 @@ describe('Payload Markdown Docs route adapter', () => {
       type: 'doc',
     })
   })
+
+  it('does not resolve draft docs sets by default', async () => {
+    const payload = createPayloadMock({
+      docs: [
+        createDoc({
+          route: '/payload-markdown',
+          sourcePath: 'index.md',
+        }),
+      ],
+      docsSets: [
+        {
+          ...docsSet,
+          _status: 'draft',
+        },
+      ],
+    })
+
+    await expect(
+      resolvePayloadMarkdownDocsRoute({
+        path: '/payload-markdown',
+        payload,
+      }),
+    ).resolves.toBeNull()
+    await expect(
+      resolvePayloadMarkdownDocsRoute({
+        includeDrafts: true,
+        path: '/payload-markdown',
+        payload,
+      }),
+    ).resolves.toMatchObject({
+      type: 'docsSetIndex',
+    })
+  })
 })
 
 describe('Payload Markdown Docs raw Markdown export', () => {

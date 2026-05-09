@@ -58,6 +58,7 @@ export type ResolvedPayloadMarkdownDocsSet = {
   order: number
   routeBase: string
   slug?: string
+  status?: 'draft' | 'published'
   title: string
 }
 

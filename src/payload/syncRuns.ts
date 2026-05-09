@@ -1,8 +1,4 @@
-import type {
-  DocsDeleteBehavior,
-  DocsSyncMode,
-  DocsValidationIssue,
-} from '../sync/index.js'
+import type { DocsDeleteBehavior, DocsSyncMode, DocsValidationIssue } from '../sync/index.js'
 
 export type SyncRunStatus = 'failed' | 'pending' | 'success'
 
@@ -40,7 +36,6 @@ export type CreateSyncRunAuditInput = {
   commit?: string
   completedAt: Date
   deleteBehavior: DocsDeleteBehavior
-  effectivePublishMode?: 'draft' | 'preserve' | 'published'
   errors: DocsValidationIssue[]
   fileCount: number
   keyId: string
@@ -68,7 +63,6 @@ export const createSyncRunAudit = async ({
   commit,
   completedAt,
   deleteBehavior,
-  effectivePublishMode,
   errors,
   fileCount,
   keyId,
@@ -92,7 +86,6 @@ export const createSyncRunAudit = async ({
       commit,
       completedAt: completedAt.toISOString(),
       deleteBehavior,
-      effectivePublishMode,
       errors: errors.map(issueToArrayRow),
       fileCount,
       keyId,
@@ -109,9 +102,7 @@ export const createSyncRunAudit = async ({
     overrideAccess: true,
   })
 
-export const getRecordId = (
-  record: Record<string, unknown>,
-): PayloadRecordId | undefined => {
+export const getRecordId = (record: Record<string, unknown>): PayloadRecordId | undefined => {
   if (typeof record.id === 'string' || typeof record.id === 'number') {
     return record.id
   }

@@ -295,6 +295,12 @@ describe('payloadMarkdownDocs collection wiring', () => {
     expect(getField(docsCollection, 'depth')?.type).toBe('number')
     expect(getField(docsCollection, 'order')?.type).toBe('number')
     expect(getField(docsCollection, 'parent')?.relationTo).toBe(DEFAULT_DOCS_COLLECTION_SLUG)
+    expect(getField(docsCollection, 'publishedAt')).toMatchObject({
+      type: 'date',
+      admin: {
+        position: 'sidebar',
+      },
+    })
     expect(getField(docsCollection, 'heroImage')).toMatchObject({
       type: 'upload',
       relationTo: 'media',
@@ -370,7 +376,16 @@ describe('payloadMarkdownDocs collection wiring', () => {
     expect(getField(docsSetsCollection, 'branch')?.type).toBe('text')
     expect(getField(docsSetsCollection, 'allowPullRequests')?.type).toBe('checkbox')
     expect(getField(docsSetsCollection, 'routeBase')).toBeUndefined()
+    expect(getField(docsSetsCollection, 'publishedAt')).toMatchObject({
+      type: 'date',
+      admin: {
+        position: 'sidebar',
+      },
+    })
     expect(getField(docsSetsCollection, 'aiExport')?.type).toBe('json')
+    expect(docsSetsCollection?.versions).toMatchObject({
+      drafts: true,
+    })
     expect(docsSetsCollection?.admin?.group).toBe(DOCS_GLOBALS_ADMIN_GROUP)
     expect(getGroupField(docsSetsCollection, 'auth')).toBeUndefined()
     expect(getGroupField(docsSetsCollection, 'defaults')).toBeUndefined()
@@ -396,28 +411,6 @@ describe('payloadMarkdownDocs collection wiring', () => {
         },
       },
     })
-  })
-
-  test('docs sets collection includes a publish endpoint when draft publishing is enabled', () => {
-    const transformedConfig = payloadMarkdownDocs({
-      enabled: true,
-      sync: {
-        allowPublish: true,
-      },
-      target: {
-        enableDrafts: true,
-      },
-    })({
-      collections: [],
-    } as unknown as Config)
-    const docsSetsCollection = getCollection(transformedConfig, DEFAULT_DOCS_SETS_COLLECTION_SLUG)
-
-    expect(docsSetsCollection?.endpoints).toContainEqual(
-      expect.objectContaining({
-        method: 'post',
-        path: '/:id/publish-generated-docs',
-      }),
-    )
   })
 
   test('docs set manager respects custom docs and docs set slugs', () => {
@@ -466,7 +459,6 @@ describe('payloadMarkdownDocs collection wiring', () => {
       'mode',
       'status',
       'publishRequested',
-      'effectivePublishMode',
       'deleteBehavior',
       'bodyHash',
       'fileCount',

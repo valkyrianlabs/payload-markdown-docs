@@ -3,7 +3,6 @@ import type { Endpoint, PayloadRequest } from 'payload'
 import type {
   ApplyDocsSyncPayloadOperations,
   DocsKeyPayloadOperations,
-  DocsPublishMode,
   DocsSetPayloadOperations,
   DocsTrustedPayloadOperations,
   ExistingDocsPayloadOperations,
@@ -12,10 +11,7 @@ import type {
   RouteCollisionPayloadOperations,
   SyncRunsPayloadOperations,
 } from '../payload/index.js'
-import type {
-  FetchJson,
-  NoncePayloadOperations,
-} from '../security/index.js'
+import type { FetchJson, NoncePayloadOperations } from '../security/index.js'
 import type {
   DocsDeleteBehavior,
   DocsManifest,
@@ -60,10 +56,7 @@ import {
   verifyEd25519Signature,
   verifyGitHubOidcToken,
 } from '../security/index.js'
-import {
-  planDocsSync,
-  validateDocsManifest,
-} from '../sync/index.js'
+import { planDocsSync, validateDocsManifest } from '../sync/index.js'
 
 export type DocsSyncEndpointErrorCode =
   | 'audit_unavailable'
@@ -110,7 +103,6 @@ export type CreateSyncEndpointOptions = {
   allowPublish?: boolean
   allowWrites?: boolean
   auth?: PayloadMarkdownDocsAuthConfig
-  defaultPublishMode?: DocsPublishMode
   deleteBehavior?: DocsDeleteBehavior
   docsCollectionSlug: string
   docsEnabled: boolean
@@ -189,7 +181,6 @@ type SyncSuccessResponse = {
   }
   deleteBehavior: DocsDeleteBehavior
   dryRun: boolean
-  effectivePublishMode: DocsPublishMode
   ok: true
   publishRequested: boolean
   summary: {
@@ -205,10 +196,7 @@ type SyncSuccessResponse = {
   warnings: DocsValidationIssue[]
 }
 
-const jsonResponse = (
-  body: SyncErrorResponse | SyncSuccessResponse,
-  status = 200,
-): Response =>
+const jsonResponse = (body: SyncErrorResponse | SyncSuccessResponse, status = 200): Response =>
   Response.json(body, {
     status,
   })
@@ -280,15 +268,14 @@ const resolveSyncSource = async ({
     }
   }
 
-  const docsSet =
-    options.docsSetsEnabled
-      ? await findDocsSetBySlug({
-          slug: sourceId,
-          collectionSlug: options.docsSetsCollectionSlug,
-          docsGroupsCollectionSlug: options.docsGroupsCollectionSlug,
-          payload,
-        })
-      : undefined
+  const docsSet = options.docsSetsEnabled
+    ? await findDocsSetBySlug({
+        slug: sourceId,
+        collectionSlug: options.docsSetsCollectionSlug,
+        docsGroupsCollectionSlug: options.docsGroupsCollectionSlug,
+        payload,
+      })
+    : undefined
 
   if (docsSet) {
     return {
@@ -349,10 +336,7 @@ const serializeChanges = (plan: ReturnType<typeof planDocsSync>) => ({
 })
 
 const getTotalManifestBytes = (manifest: ValidatedDocsManifest): number =>
-  manifest.files.reduce(
-    (total, file) => total + Buffer.byteLength(file.content, 'utf8'),
-    0,
-  )
+  manifest.files.reduce((total, file) => total + Buffer.byteLength(file.content, 'utf8'), 0)
 
 const getPlannedConflictChanges = ({
   existing,
@@ -361,71 +345,33 @@ const getPlannedConflictChanges = ({
   existing: ExistingPayloadDocsRecord[]
   plan: ReturnType<typeof planDocsSync>
 }): PlannedDocChange[] => {
-  const existingBySourcePath = new Map(
-    existing.map((record) => [record.sourcePath, record]),
-  )
+  const existingBySourcePath = new Map(existing.map((record) => [record.sourcePath, record]))
   const archivedUnchanged = plan.unchanged.filter((change) => {
     const current = existingBySourcePath.get(change.sourcePath)
 
     return current?.archived === true
   })
 
-  return [
-    ...plan.update,
-    ...plan.archive,
-    ...plan.draft,
-    ...plan.delete,
-    ...archivedUnchanged,
-  ]
+  return [...plan.update, ...plan.archive, ...plan.draft, ...plan.delete, ...archivedUnchanged]
 }
-
-const getDefaultPublishMode = (
-  options: CreateSyncEndpointOptions,
-): DocsPublishMode =>
-  options.defaultPublishMode ?? (options.docsEnableDrafts ? 'draft' : 'preserve')
 
 const getLifecyclePolicyError = ({
   deleteBehavior,
   manifest,
   options,
-  publishMode,
 }: {
   deleteBehavior: DocsDeleteBehavior
   manifest: ValidatedDocsManifest
   options: CreateSyncEndpointOptions
-  publishMode: DocsPublishMode
 }): Response | undefined => {
   if (manifest.publish && options.allowPublish !== true) {
-    return errorResponse(
-      'publish_disabled',
-      'Publishing is disabled by server configuration.',
-      403,
-    )
+    return errorResponse('publish_disabled', 'Publishing is disabled by server configuration.', 403)
   }
 
-  if (
-    (manifest.publish || publishMode === 'published') &&
-    !options.docsEnableDrafts
-  ) {
+  if (manifest.publish && !options.docsEnableDrafts) {
     return errorResponse(
       'publish_not_available',
       'Publishing requires a draft-enabled dedicated docs collection.',
-      400,
-    )
-  }
-
-  if (publishMode === 'published' && options.allowPublish !== true) {
-    return errorResponse(
-      'publish_disabled',
-      'Publishing is disabled by server configuration.',
-      403,
-    )
-  }
-
-  if (publishMode === 'draft' && !options.docsEnableDrafts) {
-    return errorResponse(
-      'draft_behavior_not_available',
-      'Draft mode requires a draft-enabled dedicated docs collection.',
       400,
     )
   }
@@ -463,8 +409,7 @@ const getRouteCollisionIssues = async ({
   routeBase: string
 }) => {
   const desiredRoutes = manifest.files.map((file) => file.route)
-  const duplicateDesiredRouteCollisions =
-    findDuplicateDesiredRouteCollisions(desiredRoutes)
+  const duplicateDesiredRouteCollisions = findDuplicateDesiredRouteCollisions(desiredRoutes)
   const existingDocsRouteCollisions = options.docsEnabled
     ? await findExistingDocsRouteCollisions({
         collectionSlug: options.docsCollectionSlug,
@@ -504,10 +449,7 @@ type AuthenticatedSyncRequest = {
   repository?: string
 }
 
-const getRequiredHeader = (
-  headers: Headers,
-  name: string,
-): string | undefined => {
+const getRequiredHeader = (headers: Headers, name: string): string | undefined => {
   const value = headers.get(name)
 
   return value && value.trim() !== '' ? value.trim() : undefined
@@ -616,20 +558,14 @@ const authenticateEd25519Request = async ({
   }
 
   const timestampValidation = validateTimestampSkew({
-    maxSkewSeconds:
-      options.maxSkewSeconds ??
-      DEFAULT_MAX_SKEW_SECONDS,
+    maxSkewSeconds: options.maxSkewSeconds ?? DEFAULT_MAX_SKEW_SECONDS,
     now,
     timestamp: headersResult.headers.timestamp,
   })
 
   if (!timestampValidation.ok) {
     return {
-      response: errorResponse(
-        'invalid_timestamp',
-        timestampValidation.message,
-        401,
-      ),
+      response: errorResponse('invalid_timestamp', timestampValidation.message, 401),
     }
   }
 
@@ -651,11 +587,7 @@ const authenticateEd25519Request = async ({
 
   if (!nonceAvailable) {
     return {
-      response: errorResponse(
-        'nonce_replay',
-        'Sync request nonce has already been used.',
-        409,
-      ),
+      response: errorResponse('nonce_replay', 'Sync request nonce has already been used.', 409),
     }
   }
 
@@ -679,11 +611,7 @@ const authenticateEd25519Request = async ({
     })
   ) {
     return {
-      response: errorResponse(
-        'invalid_signature',
-        'Invalid sync request signature.',
-        401,
-      ),
+      response: errorResponse('invalid_signature', 'Invalid sync request signature.', 401),
     }
   }
 
@@ -743,10 +671,7 @@ const authenticateGitHubOidcRequest = async ({
     }
   }
 
-  const expectedHash = getRequiredHeader(
-    req.headers,
-    'x-vl-md-docs-body-sha256',
-  )
+  const expectedHash = getRequiredHeader(req.headers, 'x-vl-md-docs-body-sha256')
 
   if (!expectedHash) {
     return {
@@ -833,11 +758,7 @@ const authenticateGitHubOidcRequest = async ({
 
   if (!nonceAvailable) {
     return {
-      response: errorResponse(
-        'oidc_replay',
-        'GitHub OIDC token jti has already been used.',
-        409,
-      ),
+      response: errorResponse('oidc_replay', 'GitHub OIDC token jti has already been used.', 409),
     }
   }
 
@@ -1012,14 +933,10 @@ const createSyncEndpointHandler =
     }
 
     const effectiveDeleteBehavior = options.deleteBehavior ?? 'archive'
-    const effectivePublishMode: DocsPublishMode = validation.data.publish
-      ? 'published'
-      : getDefaultPublishMode(options)
     const lifecyclePolicyError = getLifecyclePolicyError({
       deleteBehavior: effectiveDeleteBehavior,
       manifest: validation.data,
       options,
-      publishMode: effectivePublishMode,
     })
 
     if (lifecyclePolicyError) {
@@ -1146,17 +1063,15 @@ const createSyncEndpointHandler =
         branch: authentication.identity.branch ?? validation.data.source.branch,
         collectionSlug: options.syncRunsCollectionSlug,
         commit: authentication.identity.commit ?? validation.data.source.commit,
-        completedAt: isSyncMode ? startedAt : options.getNow?.() ?? new Date(),
+        completedAt: isSyncMode ? startedAt : (options.getNow?.() ?? new Date()),
         deleteBehavior: effectiveDeleteBehavior,
-        effectivePublishMode,
         errors: [],
         fileCount: validation.data.files.length,
         keyId: authentication.identity.keyId,
         mode: isSyncMode ? 'sync' : 'dry-run',
         payload: req.payload as unknown as SyncRunsPayloadOperations,
         publishRequested: validation.data.publish,
-        repository:
-          authentication.identity.repository ?? validation.data.source.repository,
+        repository: authentication.identity.repository ?? validation.data.source.repository,
         sourceId: validation.data.source.id,
         startedAt,
         status: isSyncMode ? 'pending' : 'success',
@@ -1189,7 +1104,7 @@ const createSyncEndpointHandler =
           now: options.getNow?.() ?? new Date(),
           payload: req.payload as unknown as ApplyDocsSyncPayloadOperations,
           plan,
-          publishMode: effectivePublishMode,
+          publish: validation.data.publish,
           syncRunId,
         })
 
@@ -1250,7 +1165,6 @@ const createSyncEndpointHandler =
       changes: serializeChanges(plan),
       deleteBehavior: effectiveDeleteBehavior,
       dryRun: !isSyncMode,
-      effectivePublishMode,
       ok: true,
       publishRequested: validation.data.publish,
       summary,

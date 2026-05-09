@@ -236,11 +236,8 @@ export const payloadMarkdownDocs =
         ? [
             createDocsSetsCollection({
               slug: docsSetsCollectionSlug,
-              allowPublish: pluginOptions.sync?.allowPublish === true,
               docsCollectionSlug: docsEnabled ? docsCollectionSlug : undefined,
-              docsEnableDrafts: enableDrafts,
               docsGroupsCollectionSlug,
-              markdownFieldName,
               syncRunsCollectionSlug: syncRunsEnabled ? syncRunsCollectionSlug : undefined,
             }),
           ]
@@ -298,7 +295,6 @@ export const payloadMarkdownDocs =
           allowPublish: pluginOptions.sync?.allowPublish,
           allowWrites: pluginOptions.sync?.allowWrites,
           auth: pluginOptions.auth,
-          defaultPublishMode: pluginOptions.sync?.defaultPublishMode,
           deleteBehavior: pluginOptions.sync?.deleteBehavior,
           docsCollectionSlug,
           docsEnabled,

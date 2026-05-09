@@ -132,8 +132,23 @@ export const toResolvedDocsSet = (doc: unknown): ResolvedPayloadMarkdownDocsSet 
           docsSetSlug: slug ?? id,
         }),
     ),
+    status: doc._status === 'draft' || doc._status === 'published' ? doc._status : undefined,
     title,
   }
+}
+
+export const isVisibleDocsSet = ({
+  docsSet,
+  includeDrafts = false,
+}: {
+  docsSet: ResolvedPayloadMarkdownDocsSet
+  includeDrafts?: boolean
+}): boolean => {
+  if (!includeDrafts && docsSet.status === 'draft') {
+    return false
+  }
+
+  return true
 }
 
 export const toResolvedDocsGroup = (doc: unknown): ResolvedPayloadMarkdownDocsGroup | undefined => {

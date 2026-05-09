@@ -53,7 +53,6 @@ export default buildConfig({
         allowHardDelete: false,
         allowPublish: true,
         allowWrites: true,
-        defaultPublishMode: 'draft',
         deleteBehavior: 'archive',
       },
       target: {

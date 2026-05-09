@@ -52,16 +52,7 @@ sync: {
 ```
 
 Publishing requires both a draft-enabled dedicated docs collection and `allowPublish: true`.
-
-## Publish Modes
-
-`defaultPublishMode` can be:
-
-- `draft`
-- `published`
-- `preserve`
-
-`published` requires `allowPublish: true`.
+When `--publish` is not requested, synced generated docs are written as drafts.
 
 ## Delete Behavior
 

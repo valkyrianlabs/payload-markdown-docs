@@ -1,25 +1,19 @@
 import type { CollectionConfig } from 'payload'
 
 import { DOCS_GLOBALS_ADMIN_GROUP, DOCS_SET_MANAGER_COMPONENT } from '../constants.js'
-import { createPublishGeneratedDocsEndpoint } from '../endpoints/publishGeneratedDocs.js'
+import { populatePublishedAt } from '../payload/populatePublishedAt.js'
 
 export type CreateDocsSetsCollectionOptions = {
-  allowPublish?: boolean
   docsCollectionSlug?: string
-  docsEnableDrafts?: boolean
   docsGroupsCollectionSlug: string
-  markdownFieldName: string
   slug: string
   syncRunsCollectionSlug?: string
 }
 
 export const createDocsSetsCollection = ({
   slug,
-  allowPublish = false,
   docsCollectionSlug,
-  docsEnableDrafts = false,
   docsGroupsCollectionSlug,
-  markdownFieldName,
   syncRunsCollectionSlug,
 }: CreateDocsSetsCollectionOptions): CollectionConfig => ({
   slug,
@@ -28,16 +22,6 @@ export const createDocsSetsCollection = ({
     group: DOCS_GLOBALS_ADMIN_GROUP,
     useAsTitle: 'title',
   },
-  endpoints:
-    docsCollectionSlug && docsEnableDrafts && allowPublish
-      ? [
-          createPublishGeneratedDocsEndpoint({
-            docsCollectionSlug,
-            docsSetsCollectionSlug: slug,
-            markdownFieldName,
-          }),
-        ]
-      : undefined,
   fields: [
     {
       name: 'title',
@@ -76,6 +60,13 @@ export const createDocsSetsCollection = ({
     {
       name: 'description',
       type: 'textarea',
+    },
+    {
+      name: 'publishedAt',
+      type: 'date',
+      admin: {
+        position: 'sidebar',
+      },
     },
     {
       name: 'advancedSecurity',
@@ -173,9 +164,7 @@ export const createDocsSetsCollection = ({
                 Field: DOCS_SET_MANAGER_COMPONENT,
               },
               custom: {
-                allowPublish,
                 docsCollectionSlug,
-                docsEnableDrafts,
                 docsGroupsCollectionSlug,
                 docsSetsCollectionSlug: slug,
               },
@@ -184,8 +173,14 @@ export const createDocsSetsCollection = ({
         ]
       : []),
   ],
+  hooks: {
+    beforeChange: [populatePublishedAt],
+  },
   labels: {
     plural: 'Sets',
     singular: 'Set',
+  },
+  versions: {
+    drafts: true,
   },
 })
