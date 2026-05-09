@@ -49,6 +49,7 @@ Install local agent guidance for writing docs that validate and sync.
 - server-gated sync writes, publishing, draft behavior, archive behavior, and hard delete
 - route reservations and opt-in Pages collision checks
 - read-only `/next` route adapter, metadata helper, and sidebar helper
+- AI-facing raw Markdown export helper for `text/markdown` route handlers
 - Docs Set Admin Manager with generated doc review and draft publish action
 - local agent skill installer
 
@@ -57,6 +58,7 @@ Install local agent guidance for writing docs that validate and sync.
 - existing collection targets
 - block targets
 - inline override editing in the Docs Set Admin Manager
+- automatic frontend route or Page creation in your Next app
 
 ## Recommended Path
 

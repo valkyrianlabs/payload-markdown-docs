@@ -44,6 +44,7 @@ order:
   - ./reference/cli.md
   - ./reference/manifest.md
   - ./reference/frontmatter.md
+  - ./reference/formatting.md
   - ./reference/troubleshooting.md
   - ./reference/migration.md
 

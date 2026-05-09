@@ -76,6 +76,7 @@ describe('install skill command', () => {
       'examples/docs-page.md',
       'examples/github-actions.md',
       'reference/admin.md',
+      'reference/formatting.md',
       'reference/frontmatter.md',
       'reference/payload-markdown-directives.md',
       'reference/routing.md',
@@ -187,6 +188,7 @@ describe('install skill command', () => {
       'reference/payload-markdown-directives.md',
     )
     const frontmatter = await readInstalledFile(out, 'reference/frontmatter.md')
+    const formatting = await readInstalledFile(out, 'reference/formatting.md')
 
     expect(result.exitCode).toBe(0)
     for (const directive of [':::toc', ':::callout', ':::details', ':::steps', ':::cards', ':::card']) {
@@ -205,6 +207,8 @@ describe('install skill command', () => {
     ]) {
       expect(frontmatter).toContain(`\`${field}\``)
     }
+    expect(formatting).toContain('plain Markdown')
+    expect(formatting).toContain('Do not add')
   })
 
   it('detects package manager from lockfiles', async () => {

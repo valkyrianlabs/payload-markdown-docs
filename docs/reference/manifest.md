@@ -94,3 +94,16 @@ Supported first-pass behavior:
 - `headingMode: preserve` keeps original Markdown headings as-is.
 
 Defaults are `orphans: append` and `headingMode: normalize`.
+
+## Raw Markdown Route
+
+The `output` field is the intended public `.md` URL. The plugin stores the
+validated manifest data on the docs set during sync, and the `/next` helper uses
+that data to assemble one Markdown response from generated docs records.
+
+The route is served by a Next route handler, not by a generated Payload Page.
+If `output` is omitted, the fallback route is the docs set route base with `.md`
+appended, such as `/plugins/payload-markdown-docs.md`.
+
+Keep `canonical` pointed at the human docs route and `output` pointed at the raw
+Markdown route.

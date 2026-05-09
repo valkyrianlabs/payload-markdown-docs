@@ -1,3 +1,7 @@
+---
+name: payload-markdown-docs
+description: Use this skill when maintaining Git-backed documentation for a project that uses `@valkyrianlabs/payload-markdown-docs`.
+
 # Payload Markdown Docs Skill
 
 Use this skill when maintaining Git-backed documentation for a project that uses `@valkyrianlabs/payload-markdown-docs`.
@@ -11,8 +15,10 @@ The docs source lives in `{{docsRoot}}` unless the user says otherwise. Edit Mar
 - Use supported frontmatter only.
 - Keep internal docs links root-relative inside the docs set, such as `/getting-started/quick-start`.
 - Use `payload-markdown` directives only when they are supported.
+- Keep formatting plain Markdown: supported frontmatter, one H1, clear H2/H3 sections, root-relative links, and supported directives.
 - Do not invent directives, frontmatter fields, CLI flags, sync modes, or runtime features.
 - Do not describe unsupported features as implemented.
+- Do not add MDX, arbitrary YAML objects, inline frontmatter arrays, HTML widgets, or one Payload Page per Markdown file.
 - Run validation before finishing docs edits.
 - Treat sync and publishing as CMS/server-owned. The request may ask; Payload
   docs sets and plugin config decide.
@@ -39,6 +45,7 @@ Rules for `index.ai.yml`:
 - Do not show the manifest in human docs navigation.
 - Do not render the manifest as a normal docs page.
 - Use it as the canonical ordering source for the `.md` export.
+- Remember that the `.md` export is served by a Next route handler, not by a generated Payload Page.
 - Avoid backend hand-sorting unless the project already has a docs sort field.
 
 Ordering source preference:
@@ -154,6 +161,7 @@ Sync writes require `sync.allowWrites: true`. Publishing additionally requires `
 ## References
 
 - `reference/payload-markdown-directives.md`
+- `reference/formatting.md`
 - `reference/frontmatter.md`
 - `reference/workflow.md`
 - `reference/sync.md`

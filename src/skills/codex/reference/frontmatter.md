@@ -35,5 +35,7 @@ Rules:
 - `tags` and `redirectFrom` must use list item syntax.
 - `slug` may contain letters, numbers, and hyphens.
 - Avoid arbitrary nested YAML objects.
+- Avoid inline arrays such as `tags: [getting-started]`.
 - Avoid unsupported fields unless the user accepts validation warnings.
 - Explicit `title` is preferred even though title fallback exists.
+- Use `slug` only to override the final route segment; move files to change route hierarchy.

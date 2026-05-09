@@ -677,6 +677,43 @@ describe('Payload Markdown Docs raw Markdown export', () => {
     )
   })
 
+  it('resolves catch-all slug arrays ending in .md', async () => {
+    const payload = createPayloadMock({
+      docs: [
+        createDoc({
+          id: 'doc-index',
+          content: '# Overview\n',
+          docsSet: {
+            ...docsSet,
+            group: docsGroup,
+          },
+          route: '/plugins/payload-markdown',
+          sourcePath: 'index.md',
+          title: 'Overview',
+        }),
+      ],
+      docsGroups: [docsGroup],
+      docsSets: [
+        {
+          ...docsSet,
+          group: docsGroup,
+        },
+      ],
+    })
+
+    const resolved = await resolvePayloadMarkdownDocsMarkdownRoute({
+      slug: ['plugins', 'payload-markdown.md'],
+      payload,
+    })
+
+    expect(resolved).toMatchObject({
+      type: 'markdown',
+      output: '/plugins/payload-markdown.md',
+      route: '/plugins/payload-markdown.md',
+    })
+    expect(resolved?.markdown).toContain('## Overview')
+  })
+
   it('returns null for missing raw Markdown docs set routes', async () => {
     const payload = createPayloadMock({
       docs: [],

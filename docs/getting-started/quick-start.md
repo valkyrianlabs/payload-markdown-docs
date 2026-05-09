@@ -33,6 +33,19 @@ In `Docs Globals > Trusted`, create:
 The set slug is the manifest source. The route base is derived from the
 optional group and the set slug.
 
+## Install The Codex Skill
+
+In the docs set target application, install the local agent skill so Codex has
+project-specific guidance for maintaining Markdown docs, supported frontmatter,
+`index.ai.yml`, validation, and sync safety rules.
+
+```bash
+pnpm exec payload-markdown-docs install skill --codex
+```
+
+The installer writes `.agents/skills/payload-markdown-docs/`. It does not sync
+docs, call Payload, or publish content.
+
 ## Validate Local Docs
 
 ```bash

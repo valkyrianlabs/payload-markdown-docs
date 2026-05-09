@@ -36,6 +36,7 @@ Default output:
   SKILL.md
   reference/
     payload-markdown-directives.md
+    formatting.md
     frontmatter.md
     workflow.md
     sync.md
@@ -67,6 +68,7 @@ Use `--dry-run` to preview files and `--force` to overwrite existing skill files
 
 - maintain docs in repo-local Markdown files
 - use supported frontmatter only
+- follow plain Markdown formatting expectations
 - use supported `payload-markdown` directives
 - keep internal links root-relative inside the docs set
 - create and maintain `docs/index.ai.yml` from the actual docs files present

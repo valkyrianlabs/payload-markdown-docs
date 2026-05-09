@@ -221,22 +221,19 @@ jobs:
           set -euo pipefail
           npm publish --access public
 
-#      - name: Publish docs to docs.valkyrianlabs.com
-#        run: |
-#          set -euo pipefail
-#
-#          node ./dist/cli/index.js validate ./docs \
-#            --source payload-markdown-docs \
-#            --route-base /plugins/payload-markdown-docs
-#
-#          node ./dist/cli/index.js push ./docs \
-#            --endpoint "https://docs.valkyrianlabs.com/api/payload-markdown-docs/sync" \
-#            --source payload-markdown-docs \
-#            --route-base /docs/payload-markdown-docs \
-#            --repository "$GITHUB_REPOSITORY" \
-#            --branch "$GITHUB_REF_NAME" \
-#            --commit "$GITHUB_SHA" \
-#            --github-oidc \
-#            --oidc-audience payload-markdown-docs \
-#            --sync \
-#            --publish
+      - name: Publish docs to docs.valkyrianlabs.com
+        run: |
+          set -euo pipefail
+
+          node ./dist/cli/index.js validate ./docs \
+            --source payload-markdown-docs
+
+          node ./dist/cli/index.js push ./docs \
+            --endpoint "https://docs.valkyrianlabs.com/api/payload-markdown-docs/sync" \
+            --source payload-markdown-docs \
+            --repository "$GITHUB_REPOSITORY" \
+            --branch "$GITHUB_REF_NAME" \
+            --commit "$GITHUB_SHA" \
+            --github-oidc \
+            --sync \
+            --publish

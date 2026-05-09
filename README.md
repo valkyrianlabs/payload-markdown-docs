@@ -73,6 +73,10 @@ to a matching docs set from the configured branch.
 
 ## Render In Next
 
+The plugin does not mutate your Pages collection and does not register public
+frontend routes. Add route handlers in your Next app where you want docs to
+render.
+
 ```tsx
 import config from '@payload-config'
 import {
@@ -108,6 +112,37 @@ const docsLinks = await getPayloadMarkdownDocsLinks({ payload })
 // [{ label: 'Payload Markdown Docs', url: '/plugins/payload-markdown-docs' }]
 ```
 
+## Serve Raw Markdown
+
+The AI-facing raw Markdown export is a route-handler response, not a generated
+Payload Page. Add a `route.ts` at the exported path, usually the value from
+`docs/index.ai.yml`:
+
+```ts
+// app/(frontend)/plugins/payload-markdown-docs.md/route.ts
+import config from '@payload-config'
+import { createPayloadMarkdownDocsMarkdownResponse } from '@valkyrianlabs/payload-markdown-docs/next'
+import { notFound } from 'next/navigation'
+import { getPayload } from 'payload'
+
+export async function GET() {
+  const payload = await getPayload({ config })
+  const response = await createPayloadMarkdownDocsMarkdownResponse({
+    payload,
+    path: '/plugins/payload-markdown-docs.md',
+  })
+
+  if (response) {
+    return response
+  }
+
+  notFound()
+}
+```
+
+The response is `text/markdown; charset=utf-8` and is assembled from synced
+docs records using `docs/index.ai.yml` when present.
+
 ## Validate Locally
 
 In an app or docs repository that has installed this package:
@@ -126,6 +161,19 @@ pnpm cli validate ./docs --source payload-markdown-docs
 
 In GitHub Actions, `--source` can be omitted when the docs set slug matches the
 repository name. The CLI infers it from `GITHUB_REPOSITORY`.
+
+## Maintain Docs With Codex
+
+In a docs set target application, install the local Codex skill so agents have
+repo-local guidance for maintaining Markdown docs, frontmatter, `index.ai.yml`,
+validation, and sync safety rules.
+
+```bash
+pnpm exec payload-markdown-docs install skill --codex
+```
+
+The installer writes `.agents/skills/payload-markdown-docs/`. It does not sync
+docs, call Payload, or publish content.
 
 ## Publish From GitHub Actions
 
