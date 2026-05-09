@@ -7,6 +7,7 @@ import { publishGeneratedDocsForSet } from '../payload/publishGeneratedDocs.js'
 export type CreatePublishGeneratedDocsEndpointOptions = {
   docsCollectionSlug: string
   docsSetsCollectionSlug: string
+  markdownFieldName: string
 }
 
 type AccessCheckedPayload = {
@@ -54,6 +55,7 @@ const redirectResponse = (location: string): Response =>
 export const createPublishGeneratedDocsEndpoint = ({
   docsCollectionSlug,
   docsSetsCollectionSlug,
+  markdownFieldName,
 }: CreatePublishGeneratedDocsEndpointOptions): Endpoint => ({
   handler: async (req) => {
     if (!req.user) {
@@ -99,6 +101,7 @@ export const createPublishGeneratedDocsEndpoint = ({
     const summary = await publishGeneratedDocsForSet({
       docsCollectionSlug,
       docsSetId,
+      markdownFieldName,
       payload: req.payload as unknown as PublishGeneratedDocsPayloadOperations,
     })
     const redirect = getRedirectTarget(req)

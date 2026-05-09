@@ -20,6 +20,7 @@ export type ExistingPayloadDocsRecord = {
   sync?: {
     archived?: boolean
     archivedAt?: null | string
+    contentHashAtLastSync?: string
     lastSyncedAt?: string
     lastSyncRunId?: string
     managedBy?: string
@@ -70,16 +71,12 @@ const toExistingPayloadDocsRecord = ({
   }
 
   const sync = isRecord(doc.sync) ? doc.sync : undefined
-  const status =
-    doc._status === 'draft' || doc._status === 'published'
-      ? doc._status
-      : undefined
+  const status = doc._status === 'draft' || doc._status === 'published' ? doc._status : undefined
 
   return {
     id,
     archived: typeof sync?.archived === 'boolean' ? sync.archived : undefined,
-    content:
-      typeof doc[markdownFieldName] === 'string' ? doc[markdownFieldName] : undefined,
+    content: typeof doc[markdownFieldName] === 'string' ? doc[markdownFieldName] : undefined,
     docsSetId: getRelationshipId(doc.docsSet),
     route: doc.route,
     sourceHash: typeof doc.sourceHash === 'string' ? doc.sourceHash : undefined,
@@ -92,15 +89,13 @@ const toExistingPayloadDocsRecord = ({
             typeof sync.archivedAt === 'string' || sync.archivedAt === null
               ? sync.archivedAt
               : undefined,
-          lastSyncedAt:
-            typeof sync.lastSyncedAt === 'string' ? sync.lastSyncedAt : undefined,
-          lastSyncRunId:
-            typeof sync.lastSyncRunId === 'string' ? sync.lastSyncRunId : undefined,
+          contentHashAtLastSync:
+            typeof sync.contentHashAtLastSync === 'string' ? sync.contentHashAtLastSync : undefined,
+          lastSyncedAt: typeof sync.lastSyncedAt === 'string' ? sync.lastSyncedAt : undefined,
+          lastSyncRunId: typeof sync.lastSyncRunId === 'string' ? sync.lastSyncRunId : undefined,
           managedBy: typeof sync.managedBy === 'string' ? sync.managedBy : undefined,
           sourceHashAtLastSync:
-            typeof sync.sourceHashAtLastSync === 'string'
-              ? sync.sourceHashAtLastSync
-              : undefined,
+            typeof sync.sourceHashAtLastSync === 'string' ? sync.sourceHashAtLastSync : undefined,
           sourceId: typeof sync.sourceId === 'string' ? sync.sourceId : undefined,
           sourcePath: typeof sync.sourcePath === 'string' ? sync.sourcePath : undefined,
         }
@@ -109,9 +104,7 @@ const toExistingPayloadDocsRecord = ({
   }
 }
 
-export const toExistingDocsRecord = (
-  doc: ExistingPayloadDocsRecord,
-): ExistingDocsRecord => ({
+export const toExistingDocsRecord = (doc: ExistingPayloadDocsRecord): ExistingDocsRecord => ({
   archived: doc.archived,
   route: doc.route,
   sourceHash: doc.sourceHash,

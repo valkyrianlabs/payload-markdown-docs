@@ -45,8 +45,24 @@ export const findDocsSyncConflicts = ({
     }
 
     const currentContentHash = sha256Hex(current.content ?? '')
+    const expectedContentHash = current.sync.contentHashAtLastSync
 
-    if (currentContentHash !== current.sync.sourceHashAtLastSync) {
+    if (expectedContentHash) {
+      if (currentContentHash !== expectedContentHash) {
+        conflicts.push({
+          reason: 'current_content_hash_mismatch',
+          route: current.route,
+          sourcePath: current.sourcePath,
+        })
+      }
+
+      continue
+    }
+
+    if (
+      currentContentHash !== current.sync.sourceHashAtLastSync &&
+      current.sourceHash !== current.sync.sourceHashAtLastSync
+    ) {
       conflicts.push({
         reason: 'current_content_hash_mismatch',
         route: current.route,
@@ -57,4 +73,3 @@ export const findDocsSyncConflicts = ({
 
   return conflicts
 }
-

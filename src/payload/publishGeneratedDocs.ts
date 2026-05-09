@@ -1,3 +1,5 @@
+import { sha256Hex } from '../sync/index.js'
+
 export type PublishGeneratedDocsPayloadOperations = {
   find: (args: {
     collection: string
@@ -58,10 +60,12 @@ const isArchived = (doc: Record<string, unknown>): boolean => {
 export const publishGeneratedDocsForSet = async ({
   docsCollectionSlug,
   docsSetId,
+  markdownFieldName,
   payload,
 }: {
   docsCollectionSlug: string
   docsSetId: number | string
+  markdownFieldName: string
   payload: PublishGeneratedDocsPayloadOperations
 }): Promise<PublishGeneratedDocsResult> => {
   const result = await payload.find({
@@ -100,12 +104,18 @@ export const publishGeneratedDocsForSet = async ({
       continue
     }
 
+    const sync = isRecord(rawDoc.sync) ? rawDoc.sync : {}
+    const content = typeof rawDoc[markdownFieldName] === 'string' ? rawDoc[markdownFieldName] : ''
+    const contentHashAtLastSync = sha256Hex(content)
+    const needsContentHashUpdate = sync.contentHashAtLastSync !== contentHashAtLastSync
+
     if (rawDoc._status === 'published') {
       summary.published += 1
-      continue
-    }
 
-    if (rawDoc._status === 'draft') {
+      if (!needsContentHashUpdate) {
+        continue
+      }
+    } else if (rawDoc._status === 'draft') {
       summary.drafts += 1
     }
 
@@ -119,12 +129,19 @@ export const publishGeneratedDocsForSet = async ({
       id,
       collection: docsCollectionSlug,
       data: {
-        _status: 'published',
+        ...(rawDoc._status === 'published' ? {} : { _status: 'published' }),
+        sync: {
+          ...sync,
+          contentHashAtLastSync,
+        },
       },
       overrideAccess: true,
     })
     summary.updated += 1
-    summary.published += 1
+
+    if (rawDoc._status !== 'published') {
+      summary.published += 1
+    }
   }
 
   return summary

@@ -305,6 +305,7 @@ describe('payloadMarkdownDocs collection wiring', () => {
       'sourceId',
       'sourcePath',
       'sourceHashAtLastSync',
+      'contentHashAtLastSync',
       'lastSyncedAt',
       'lastSyncRunId',
       'managedBy',

@@ -11,6 +11,7 @@ describe('publishGeneratedDocsForSet', () => {
             {
               id: 'draft-1',
               _status: 'draft',
+              content: '# Draft\n',
               docsSet: 'set-1',
               sync: {
                 archived: false,
@@ -19,9 +20,12 @@ describe('publishGeneratedDocsForSet', () => {
             {
               id: 'published-1',
               _status: 'published',
+              content: '# Published\n',
               docsSet: 'set-1',
               sync: {
                 archived: false,
+                contentHashAtLastSync:
+                  'c8d2983a4f4aaf1aa12c8fb3cefa70a791e5d86f1127cdac4542ffcec0e8aa9c',
               },
             },
             {
@@ -50,6 +54,7 @@ describe('publishGeneratedDocsForSet', () => {
       publishGeneratedDocsForSet({
         docsCollectionSlug: 'docs',
         docsSetId: 'set-1',
+        markdownFieldName: 'content',
         payload,
       }),
     ).resolves.toEqual({
@@ -76,6 +81,10 @@ describe('publishGeneratedDocsForSet', () => {
       collection: 'docs',
       data: {
         _status: 'published',
+        sync: {
+          archived: false,
+          contentHashAtLastSync: 'c47fffce7ab6215da4633829b59605e9bdf14fb3d49b6ac0fe8105e639b9c4f9',
+        },
       },
       overrideAccess: true,
     })

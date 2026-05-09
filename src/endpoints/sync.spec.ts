@@ -16,10 +16,7 @@ import {
   getCanonicalPathFromRequestUrl,
   toBase64Url,
 } from '../security/index.js'
-import {
-  buildDocsManifest,
-  sha256Hex,
-} from '../sync/index.js'
+import { buildDocsManifest, sha256Hex } from '../sync/index.js'
 import { createSyncEndpoint } from './index.js'
 
 const now = new Date('2026-01-01T00:00:00.000Z')
@@ -50,10 +47,7 @@ type MockPayload = {
 
 let currentPublicKey = ''
 
-const getEqualsConstraint = (
-  where: unknown,
-  field: string,
-): string | undefined => {
+const getEqualsConstraint = (where: unknown, field: string): string | undefined => {
   if (typeof where !== 'object' || where === null || Array.isArray(where)) {
     return undefined
   }
@@ -73,11 +67,7 @@ const getEqualsConstraint = (
   return typeof value === 'string' ? value : undefined
 }
 
-const filterDocsByEquals = (
-  docs: unknown[],
-  where: unknown,
-  field: string,
-): unknown[] => {
+const filterDocsByEquals = (docs: unknown[], where: unknown, field: string): unknown[] => {
   const expected = getEqualsConstraint(where, field)
 
   if (!expected) {
@@ -167,16 +157,14 @@ const createMockPayload = ({
     }
 
     if (collection === DEFAULT_DOCS_KEYS_COLLECTION_SLUG) {
-      const resolvedDocsKeys =
-        docsKeys ??
-        [
-          {
-            id: 'key-id',
-            keyId: 'test-key',
-            publicKey: currentPublicKey,
-            title: 'Test Key',
-          },
-        ]
+      const resolvedDocsKeys = docsKeys ?? [
+        {
+          id: 'key-id',
+          keyId: 'test-key',
+          publicKey: currentPublicKey,
+          title: 'Test Key',
+        },
+      ]
 
       return Promise.resolve({
         docs: filterDocsByEquals(resolvedDocsKeys, args.where, 'keyId'),
@@ -244,9 +232,7 @@ const signBody = ({
     path,
     timestamp,
   })
-  const signature = sign(null, Buffer.from(canonicalString), privateKey).toString(
-    'base64',
-  )
+  const signature = sign(null, Buffer.from(canonicalString), privateKey).toString('base64')
 
   return new Headers({
     'X-VL-MD-DOCS-Body-SHA256': bodySha256,
@@ -257,9 +243,7 @@ const signBody = ({
   })
 }
 
-const createOidcTokenFixture = (
-  payloadOverrides: Record<string, unknown> = {},
-) => {
+const createOidcTokenFixture = (payloadOverrides: Record<string, unknown> = {}) => {
   const { privateKey, publicKey } = rsaKeyPair()
   const kid = `kid-${randomUUID()}`
   const header = {
@@ -313,13 +297,7 @@ const createOidcTokenFixture = (
   }
 }
 
-const oidcHeaders = ({
-  body,
-  token,
-}: {
-  body: string
-  token: string
-}): Headers =>
+const oidcHeaders = ({ body, token }: { body: string; token: string }): Headers =>
   new Headers({
     Authorization: `Bearer ${token}`,
     'X-VL-MD-DOCS-Body-SHA256': sha256Hex(body),
@@ -605,9 +583,7 @@ describe('sync endpoint registration', () => {
     const incomingConfig = {
       collections: [],
     } as unknown as Config
-    const transformedConfig = payloadMarkdownDocs({ enabled: false })(
-      incomingConfig,
-    ) as Config
+    const transformedConfig = payloadMarkdownDocs({ enabled: false })(incomingConfig) as Config
 
     expect(transformedConfig.endpoints).toBeUndefined()
   })
@@ -797,12 +773,14 @@ describe('sync endpoint dry-run handling', () => {
 
   it('rejects unknown sources when no docs set or configured source matches', async () => {
     const { privateKey, publicKey } = keyPair()
-    const body = JSON.stringify(createManifest({
-      source: {
-        id: 'unknown-docs',
-        root: 'docs',
-      },
-    }))
+    const body = JSON.stringify(
+      createManifest({
+        source: {
+          id: 'unknown-docs',
+          root: 'docs',
+        },
+      }),
+    )
     const { json, response } = await callEndpoint({
       body,
       headers: signBody({
@@ -1007,13 +985,13 @@ describe('sync endpoint dry-run handling', () => {
     })
     expect(payload.create).toHaveBeenCalledWith(
       expect.objectContaining({
-          collection: 'docs',
-          data: expect.objectContaining({
-            docsSet: 'docs-set-1',
-            route: '/main-docs',
-          }),
+        collection: 'docs',
+        data: expect.objectContaining({
+          docsSet: 'docs-set-1',
+          route: '/main-docs',
         }),
-      )
+      }),
+    )
   })
 
   it('accepts GitHub OIDC using global Trusted records with repo limiting', async () => {
@@ -1089,10 +1067,10 @@ describe('sync endpoint dry-run handling', () => {
     expect(response.status).toBe(400)
     expect(json).toMatchObject({
       error: {
-          code: 'source_not_allowed',
-          message:
-            'No docs set exists for source "unknown-docs". Create a docs set with slug "unknown-docs" in Payload Admin before syncing this source.',
-        },
+        code: 'source_not_allowed',
+        message:
+          'No docs set exists for source "unknown-docs". Create a docs set with slug "unknown-docs" in Payload Admin before syncing this source.',
+      },
       ok: false,
     })
   })
@@ -1449,12 +1427,12 @@ describe('sync endpoint dry-run handling', () => {
     expect(json.summary).toMatchObject({ create: 1 })
     expect(payload.create).toHaveBeenCalledWith(
       expect.objectContaining({
-          collection: 'docs',
-          data: expect.objectContaining({
-            docsSet: 'docs-set-1',
-            route: '/main-docs',
-          }),
+        collection: 'docs',
+        data: expect.objectContaining({
+          docsSet: 'docs-set-1',
+          route: '/main-docs',
         }),
+      }),
     )
     expect(payload.find).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -1631,6 +1609,7 @@ describe('sync endpoint dry-run handling', () => {
           sourcePath: 'index.md',
           sync: {
             archived: false,
+            contentHashAtLastSync: sha256Hex('# Old\n'),
             managedBy: 'payload-markdown-docs',
             sourceHashAtLastSync: sha256Hex('# Old\n'),
             sourceId: 'main-docs',
@@ -1659,6 +1638,77 @@ describe('sync endpoint dry-run handling', () => {
       expect.objectContaining({
         id: 'doc-1',
         collection: 'docs',
+      }),
+    )
+  })
+
+  it('updates legacy frontmatter docs without treating stripped content as a manual edit', async () => {
+    const { privateKey, publicKey } = keyPair()
+    const previousManifest = buildDocsManifest({
+      files: [
+        {
+          content: '---\ntitle: Home\n---\n# Old\n',
+          path: 'index.md',
+        },
+      ],
+      sourceId: 'main-docs',
+    })
+    const manifest = buildDocsManifest({
+      files: [
+        {
+          content: '---\ntitle: Home\n---\n# New\n',
+          path: 'index.md',
+        },
+      ],
+      mode: 'sync',
+      repository: 'valkyrianlabs/payload-markdown',
+      sourceId: 'main-docs',
+    })
+    const body = JSON.stringify(manifest)
+    const payload = createMockPayload({
+      existingDocs: [
+        {
+          id: 'doc-1',
+          content: '# Old\n',
+          route: '/docs',
+          sourceHash: previousManifest.files[0]?.sha256,
+          sourcePath: 'index.md',
+          sync: {
+            archived: false,
+            managedBy: 'payload-markdown-docs',
+            sourceHashAtLastSync: previousManifest.files[0]?.sha256,
+            sourceId: 'main-docs',
+          },
+          title: 'Home',
+        },
+      ],
+    })
+
+    const { json, response } = await callEndpoint({
+      body,
+      endpointOptions: {
+        allowWrites: true,
+      },
+      headers: signBody({
+        body,
+        privateKey,
+      }),
+      payload,
+      publicKey: publicKey.toString(),
+    })
+
+    expect(response.status).toBe(200)
+    expect(json.summary).toMatchObject({ update: 1 })
+    expect(payload.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'doc-1',
+        data: expect.objectContaining({
+          content: '# New\n',
+          sync: expect.objectContaining({
+            contentHashAtLastSync: sha256Hex('# New\n'),
+            sourceHashAtLastSync: manifest.files[0]?.sha256,
+          }),
+        }),
       }),
     )
   })
@@ -1957,6 +2007,7 @@ describe('sync endpoint dry-run handling', () => {
           sourcePath: 'index.md',
           sync: {
             archived: false,
+            contentHashAtLastSync: sha256Hex('# Old\n'),
             managedBy: 'payload-markdown-docs',
             sourceHashAtLastSync: sha256Hex('# Old\n'),
             sourceId: 'main-docs',
@@ -1981,12 +2032,8 @@ describe('sync endpoint dry-run handling', () => {
 
     expect(response.status).toBe(409)
     expect(json.error).toMatchObject({ code: 'manual_edit_conflict' })
-    expect(payload.create).not.toHaveBeenCalledWith(
-      expect.objectContaining({ collection: 'docs' }),
-    )
-    expect(payload.update).not.toHaveBeenCalledWith(
-      expect.objectContaining({ collection: 'docs' }),
-    )
+    expect(payload.create).not.toHaveBeenCalledWith(expect.objectContaining({ collection: 'docs' }))
+    expect(payload.update).not.toHaveBeenCalledWith(expect.objectContaining({ collection: 'docs' }))
   })
 
   it('uses the actual request path in canonical signing', () => {

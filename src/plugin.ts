@@ -240,6 +240,7 @@ export const payloadMarkdownDocs =
               docsCollectionSlug: docsEnabled ? docsCollectionSlug : undefined,
               docsEnableDrafts: enableDrafts,
               docsGroupsCollectionSlug,
+              markdownFieldName,
               syncRunsCollectionSlug: syncRunsEnabled ? syncRunsCollectionSlug : undefined,
             }),
           ]

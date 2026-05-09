@@ -1,10 +1,8 @@
-import type {
-  ValidatedDocsManifest,
-  ValidatedDocsManifestFile,
-} from '../sync/index.js'
+import type { ValidatedDocsManifest, ValidatedDocsManifestFile } from '../sync/index.js'
 import type { ExistingPayloadDocsRecord } from './existingDocs.js'
 
 import { MANAGED_BY } from '../constants.js'
+import { sha256Hex } from '../sync/index.js'
 
 export type BuildDocsDataInput = {
   current?: ExistingPayloadDocsRecord
@@ -76,6 +74,7 @@ export const buildDocsData = ({
     sync: {
       archived: false,
       archivedAt: null,
+      contentHashAtLastSync: sha256Hex(desired.content),
       lastSyncedAt: now.toISOString(),
       lastSyncRunId: syncRunId,
       managedBy: MANAGED_BY,

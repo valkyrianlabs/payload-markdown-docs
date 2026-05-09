@@ -4,19 +4,11 @@ import type { DocsDeleteBehavior, ValidatedDocsManifest } from '../sync/index.js
 import type { ExistingPayloadDocsRecord } from './existingDocs.js'
 
 import { MANAGED_BY } from '../constants.js'
-import {
-  buildDocsManifest,
-  planDocsSync,
-  sha256Hex,
-  validateDocsManifest,
-} from '../sync/index.js'
+import { buildDocsManifest, planDocsSync, sha256Hex, validateDocsManifest } from '../sync/index.js'
 import { applyDocsSync, assertApplyDeleteBehaviorSupported } from './applyDocsSync.js'
 import { buildDocsData } from './docsData.js'
 import { findDocsSetBySlug } from './docsSets.js'
-import {
-  findExistingPayloadDocsRecords,
-  toExistingDocsRecord,
-} from './existingDocs.js'
+import { findExistingPayloadDocsRecords, toExistingDocsRecord } from './existingDocs.js'
 
 const now = new Date('2026-01-01T00:00:00.000Z')
 
@@ -46,6 +38,7 @@ const existingRecord = ({
   id = 'doc-1',
   archived = false,
   content = '# Home\n',
+  contentHashAtLastSync = sha256Hex(content),
   managedBy = MANAGED_BY,
   sourceHashAtLastSync = sha256Hex(content),
   sourcePath = 'index.md',
@@ -53,6 +46,7 @@ const existingRecord = ({
 }: {
   archived?: boolean
   content?: string
+  contentHashAtLastSync?: string
   id?: string
   managedBy?: string
   sourceHashAtLastSync?: string
@@ -68,6 +62,7 @@ const existingRecord = ({
   status,
   sync: {
     archived,
+    contentHashAtLastSync,
     managedBy,
     sourceHashAtLastSync,
     sourceId: 'main-docs',
@@ -217,6 +212,7 @@ describe('docs sync apply helpers', () => {
         data: expect.objectContaining({
           content: '# Home\n',
           sync: expect.objectContaining({
+            contentHashAtLastSync: sha256Hex('# Home\n'),
             lastSyncRunId: 456,
             sourceHashAtLastSync: sha256Hex('# Home\n'),
           }),
@@ -591,6 +587,7 @@ describe('docs sync apply helpers', () => {
     const existing = [
       existingRecord({
         content: '# Manual edit\n',
+        contentHashAtLastSync: sha256Hex('# Old\n'),
         sourceHashAtLastSync: sha256Hex('# Old\n'),
       }),
     ]
@@ -626,6 +623,7 @@ describe('docs sync apply helpers', () => {
     const existing = [
       existingRecord({
         content: '# Manually edited\n',
+        contentHashAtLastSync: sha256Hex('# Old\n'),
         sourceHashAtLastSync: sha256Hex('# Old\n'),
       }),
     ]
@@ -654,6 +652,63 @@ describe('docs sync apply helpers', () => {
     })
     expect(payload.create).not.toHaveBeenCalled()
     expect(payload.update).not.toHaveBeenCalled()
+  })
+
+  it('allows legacy records that only stored the raw source hash before content hash tracking', async () => {
+    const previousManifest = getValidatedManifest([
+      {
+        content: '---\ntitle: Home\n---\n# Old\n',
+        path: 'index.md',
+      },
+    ])
+    const manifest = getValidatedManifest([
+      {
+        content: '---\ntitle: Home\n---\n# New\n',
+        path: 'index.md',
+      },
+    ])
+    const previousSourceHash = previousManifest.files[0]?.sha256 ?? ''
+    const existing = [
+      existingRecord({
+        content: '# Old\n',
+        contentHashAtLastSync: undefined,
+        sourceHashAtLastSync: previousSourceHash,
+      }),
+    ]
+    const payload = createPayloadMock()
+    const plan = planDocsSync({
+      desired: manifest,
+      existing: existing.map(toExistingDocsRecord),
+    })
+
+    const result = await applyDocsSync({
+      collectionSlug: 'docs',
+      deleteBehavior: 'archive',
+      docsEnableDrafts: false,
+      existing,
+      manifest,
+      markdownFieldName: 'content',
+      now,
+      payload,
+      plan,
+      publishMode: 'preserve',
+    })
+
+    expect(result).toMatchObject({
+      ok: true,
+      writes: { update: 1 },
+    })
+    expect(payload.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          content: '# New\n',
+          sync: expect.objectContaining({
+            contentHashAtLastSync: sha256Hex('# New\n'),
+            sourceHashAtLastSync: manifest.files[0]?.sha256,
+          }),
+        }),
+      }),
+    )
   })
 
   it('detects unmanaged record conflicts', async () => {

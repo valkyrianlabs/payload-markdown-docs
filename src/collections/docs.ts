@@ -151,6 +151,11 @@ export const createDocsCollection = ({
           index: true,
         },
         {
+          name: 'contentHashAtLastSync',
+          type: 'text',
+          index: true,
+        },
+        {
           name: 'lastSyncedAt',
           type: 'date',
         },

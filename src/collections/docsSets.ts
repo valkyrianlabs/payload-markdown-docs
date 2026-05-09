@@ -8,6 +8,7 @@ export type CreateDocsSetsCollectionOptions = {
   docsCollectionSlug?: string
   docsEnableDrafts?: boolean
   docsGroupsCollectionSlug: string
+  markdownFieldName: string
   slug: string
   syncRunsCollectionSlug?: string
 }
@@ -18,6 +19,7 @@ export const createDocsSetsCollection = ({
   docsCollectionSlug,
   docsEnableDrafts = false,
   docsGroupsCollectionSlug,
+  markdownFieldName,
   syncRunsCollectionSlug,
 }: CreateDocsSetsCollectionOptions): CollectionConfig => ({
   slug,
@@ -32,6 +34,7 @@ export const createDocsSetsCollection = ({
           createPublishGeneratedDocsEndpoint({
             docsCollectionSlug,
             docsSetsCollectionSlug: slug,
+            markdownFieldName,
           }),
         ]
       : undefined,
