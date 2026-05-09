@@ -128,7 +128,9 @@ const createPayloadMock = ({
   return {
     find: vi.fn((args) =>
       Promise.resolve({
-        docs: (collections[args.collection] ?? []).filter((doc) => matchesWhere(doc, args.where)),
+        docs: (collections[args.collection] ?? [])
+          .filter((doc) => args.draft === true || doc._status !== 'draft')
+          .filter((doc) => matchesWhere(doc, args.where)),
       }),
     ),
   }
@@ -212,12 +214,14 @@ describe('Payload Markdown Docs route adapter', () => {
     expect(payload.find).toHaveBeenCalledWith(
       expect.objectContaining({
         collection: 'docs-sets',
+        draft: false,
         overrideAccess: true,
       }),
     )
     expect(payload.find).toHaveBeenCalledWith(
       expect.objectContaining({
         collection: 'docs',
+        draft: false,
         overrideAccess: true,
         where: {
           route: {
@@ -229,6 +233,7 @@ describe('Payload Markdown Docs route adapter', () => {
     expect(payload.find).toHaveBeenCalledWith(
       expect.objectContaining({
         collection: 'docs',
+        draft: false,
         overrideAccess: true,
         where: {
           docsSet: {
@@ -472,6 +477,12 @@ describe('Payload Markdown Docs route adapter', () => {
     ).resolves.toMatchObject({
       type: 'docsSetIndex',
     })
+    expect(payload.find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: 'docs-sets',
+        draft: true,
+      }),
+    )
   })
 })
 

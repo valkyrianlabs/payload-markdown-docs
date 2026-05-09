@@ -9,6 +9,7 @@ export type ApplyDocsSyncPayloadOperations = {
   create: (args: {
     collection: string
     data: Record<string, unknown>
+    draft?: boolean
     overrideAccess?: boolean
   }) => Promise<Record<string, unknown>>
   delete?: (args: {
@@ -19,6 +20,7 @@ export type ApplyDocsSyncPayloadOperations = {
   update: (args: {
     collection: string
     data: Record<string, unknown>
+    draft?: boolean
     id: string
     overrideAccess?: boolean
   }) => Promise<Record<string, unknown>>
@@ -61,6 +63,14 @@ export const assertApplyDeleteBehaviorSupported = (
 
   return allowHardDelete
 }
+
+const getDocsWriteDraftOption = ({
+  docsEnableDrafts,
+  publish,
+}: {
+  docsEnableDrafts: boolean
+  publish: boolean
+}): { draft?: boolean } => (docsEnableDrafts ? { draft: !publish } : {})
 
 export const applyDocsSync = async ({
   collectionSlug,
@@ -117,6 +127,10 @@ export const applyDocsSync = async ({
     reactivate: 0,
     update: 0,
   }
+  const writeDraftOption = getDocsWriteDraftOption({
+    docsEnableDrafts,
+    publish,
+  })
 
   for (const change of plan.create) {
     if (!change.desired) {
@@ -135,6 +149,7 @@ export const applyDocsSync = async ({
         publish,
         syncRunId,
       }),
+      ...writeDraftOption,
       overrideAccess: true,
     })
     writes.create += 1
@@ -164,6 +179,7 @@ export const applyDocsSync = async ({
         publish,
         syncRunId,
       }),
+      ...writeDraftOption,
       overrideAccess: true,
     })
     writes.update += 1
@@ -193,6 +209,7 @@ export const applyDocsSync = async ({
         publish,
         syncRunId,
       }),
+      ...writeDraftOption,
       overrideAccess: true,
     })
     writes.reactivate += 1
@@ -214,6 +231,7 @@ export const applyDocsSync = async ({
           now,
           syncRunId,
         }),
+        ...writeDraftOption,
         overrideAccess: true,
       })
       writes.archive += 1
@@ -237,6 +255,7 @@ export const applyDocsSync = async ({
           now,
           syncRunId,
         }),
+        ...(docsEnableDrafts ? { draft: true } : {}),
         overrideAccess: true,
       })
       writes.draft += 1

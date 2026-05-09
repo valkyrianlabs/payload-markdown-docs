@@ -6,15 +6,9 @@ import type {
   ResolvedPayloadMarkdownDocsSet,
 } from './types.js'
 
-import {
-  DEFAULT_DOCS_COLLECTION_SLUG,
-  DEFAULT_MARKDOWN_FIELD_NAME,
-} from '../constants.js'
+import { DEFAULT_DOCS_COLLECTION_SLUG, DEFAULT_MARKDOWN_FIELD_NAME } from '../constants.js'
 import { joinRouteSegments } from '../routing/index.js'
-import {
-  isVisibleDocsRecord,
-  toResolvedDocsRecord,
-} from './records.js'
+import { isVisibleDocsRecord, toResolvedDocsRecord } from './records.js'
 
 export type BuildPayloadMarkdownDocsSidebarOptions = {
   docsSet?: ResolvedPayloadMarkdownDocsSet
@@ -219,6 +213,7 @@ export const getPayloadMarkdownDocsSidebar = async ({
   const result = await payload.find({
     collection: collections?.docs ?? DEFAULT_DOCS_COLLECTION_SLUG,
     depth: 0,
+    draft: includeDrafts,
     limit: 1000,
     overrideAccess,
     where: {
@@ -235,9 +230,7 @@ export const getPayloadMarkdownDocsSidebar = async ({
         markdownField,
       }),
     )
-    .filter(
-      (record): record is ResolvedPayloadMarkdownDocsRecord => record !== undefined,
-    )
+    .filter((record): record is ResolvedPayloadMarkdownDocsRecord => record !== undefined)
 
   return buildPayloadMarkdownDocsSidebar(records, {
     docsSet,

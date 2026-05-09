@@ -4,6 +4,7 @@ export type ExistingDocsPayloadOperations = {
   find: (args: {
     collection: string
     depth?: number
+    draft?: boolean
     limit?: number
     overrideAccess?: boolean
     where?: unknown
@@ -109,18 +110,21 @@ export const toExistingDocsRecord = (doc: ExistingPayloadDocsRecord): ExistingDo
   route: doc.route,
   sourceHash: doc.sourceHash,
   sourcePath: doc.sourcePath,
+  status: doc.status,
   title: doc.title,
 })
 
 export const findExistingPayloadDocsRecords = async ({
   collectionSlug,
   docsSetId,
+  draft,
   markdownFieldName,
   payload,
   sourceId,
 }: {
   collectionSlug: string
   docsSetId?: number | string
+  draft?: boolean
   markdownFieldName: string
   payload: ExistingDocsPayloadOperations
   sourceId: string
@@ -128,6 +132,7 @@ export const findExistingPayloadDocsRecords = async ({
   const result = await payload.find({
     collection: collectionSlug,
     depth: 0,
+    draft,
     limit: 1000,
     overrideAccess: true,
     where: docsSetId
@@ -165,12 +170,14 @@ export const findExistingPayloadDocsRecords = async ({
 export const findExistingDocsRecords = async ({
   collectionSlug,
   docsSetId,
+  draft,
   markdownFieldName,
   payload,
   sourceId,
 }: {
   collectionSlug: string
   docsSetId?: number | string
+  draft?: boolean
   markdownFieldName: string
   payload: ExistingDocsPayloadOperations
   sourceId: string
@@ -178,6 +185,7 @@ export const findExistingDocsRecords = async ({
   const docs = await findExistingPayloadDocsRecords({
     collectionSlug,
     docsSetId,
+    draft,
     markdownFieldName,
     payload,
     sourceId,

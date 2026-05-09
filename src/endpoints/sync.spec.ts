@@ -9,6 +9,7 @@ import {
   DEFAULT_DOCS_SETS_COLLECTION_SLUG,
   DEFAULT_DOCS_SYNC_ENDPOINT_PATH,
   DEFAULT_DOCS_TRUSTED_COLLECTION_SLUG,
+  MANAGED_BY,
 } from '../constants.js'
 import { payloadMarkdownDocs } from '../plugin.js'
 import {
@@ -1223,6 +1224,68 @@ describe('sync endpoint dry-run handling', () => {
         data: expect.objectContaining({
           _status: 'published',
         }),
+        draft: false,
+      }),
+    )
+    expect(payload.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: DEFAULT_DOCS_SETS_COLLECTION_SLUG,
+        data: expect.objectContaining({
+          _status: 'published',
+        }),
+        draft: false,
+      }),
+    )
+  })
+
+  it('publishes unchanged draft docs when publish is requested', async () => {
+    const { privateKey, publicKey } = keyPair()
+    const manifest = createManifest({ mode: 'sync', publish: true })
+    const body = JSON.stringify(manifest)
+    const payload = createMockPayload({
+      existingDocs: [
+        {
+          id: 'doc-1',
+          _status: 'draft',
+          content: '# Home\n',
+          route: '/main-docs',
+          sourceHash: manifest.files[0]?.sha256,
+          sourcePath: 'index.md',
+          sync: {
+            contentHashAtLastSync: sha256Hex('# Home\n'),
+            managedBy: MANAGED_BY,
+            sourceHashAtLastSync: manifest.files[0]?.sha256,
+            sourceId: 'main-docs',
+            sourcePath: 'index.md',
+          },
+        },
+      ],
+    })
+    const { json, response } = await callEndpoint({
+      body,
+      endpointOptions: {
+        allowPublish: true,
+        allowWrites: true,
+        docsEnableDrafts: true,
+      },
+      headers: signBody({
+        body,
+        privateKey,
+      }),
+      payload,
+      publicKey: publicKey.toString(),
+    })
+
+    expect(response.status).toBe(200)
+    expect(json.summary).toMatchObject({ update: 1 })
+    expect(payload.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'doc-1',
+        collection: 'docs',
+        data: expect.objectContaining({
+          _status: 'published',
+        }),
+        draft: false,
       }),
     )
   })
@@ -1252,6 +1315,16 @@ describe('sync endpoint dry-run handling', () => {
         data: expect.objectContaining({
           _status: 'draft',
         }),
+        draft: true,
+      }),
+    )
+    expect(payload.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: DEFAULT_DOCS_SETS_COLLECTION_SLUG,
+        data: expect.objectContaining({
+          _status: 'draft',
+        }),
+        draft: true,
       }),
     )
   })

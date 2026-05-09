@@ -1,18 +1,11 @@
-import type {
-  PayloadMarkdownDocsCollectionSlugs,
-  PayloadMarkdownDocsReadPayload,
-} from './types.js'
+import type { PayloadMarkdownDocsCollectionSlugs, PayloadMarkdownDocsReadPayload } from './types.js'
 
 import {
   DEFAULT_DOCS_GROUPS_COLLECTION_SLUG,
   DEFAULT_DOCS_SETS_COLLECTION_SLUG,
 } from '../constants.js'
 import { deriveDocsSetRouteBase, joinRouteSegments } from '../routing/index.js'
-import {
-  getRelationshipId,
-  isRecord,
-  toResolvedDocsSet,
-} from './records.js'
+import { getRelationshipId, isRecord, isVisibleDocsSet, toResolvedDocsSet } from './records.js'
 
 export type PayloadMarkdownDocsLink = {
   label: string
@@ -59,14 +52,13 @@ export const getPayloadMarkdownDocsLinks = async ({
   overrideAccess = true,
   payload,
 }: GetPayloadMarkdownDocsLinksOptions): Promise<PayloadMarkdownDocsLink[]> => {
-  const docsGroupsCollectionSlug =
-    collections?.docsGroups ?? DEFAULT_DOCS_GROUPS_COLLECTION_SLUG
-  const docsSetsCollectionSlug =
-    collections?.docsSets ?? DEFAULT_DOCS_SETS_COLLECTION_SLUG
+  const docsGroupsCollectionSlug = collections?.docsGroups ?? DEFAULT_DOCS_GROUPS_COLLECTION_SLUG
+  const docsSetsCollectionSlug = collections?.docsSets ?? DEFAULT_DOCS_SETS_COLLECTION_SLUG
   const [docsSetsResult, docsGroupsResult] = await Promise.all([
     payload.find({
       collection: docsSetsCollectionSlug,
       depth: 0,
+      draft: false,
       limit: 1000,
       overrideAccess,
     }),
@@ -93,7 +85,7 @@ export const getPayloadMarkdownDocsLinks = async ({
     .flatMap((doc) => {
       const docsSet = toResolvedDocsSet(doc)
 
-      if (!docsSet?.slug || !isRecord(doc)) {
+      if (!docsSet?.slug || !isRecord(doc) || !isVisibleDocsSet({ docsSet })) {
         return []
       }
 

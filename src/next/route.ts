@@ -174,6 +174,7 @@ const findDocsSetById = async ({
     payload.find({
       collection: collections.docsSets,
       depth: 0,
+      draft: includeDrafts,
       limit: 1,
       overrideAccess,
       where: {
@@ -215,6 +216,7 @@ const findDocsSetByRouteBase = async ({
     payload.find({
       collection: collections.docsSets,
       depth: 0,
+      draft: includeDrafts,
       limit: 1000,
       overrideAccess,
     }),
@@ -257,6 +259,7 @@ const findDocsSetByRoutePrefix = async ({
     payload.find({
       collection: collections.docsSets,
       depth: 0,
+      draft: includeDrafts,
       limit: 1000,
       overrideAccess,
     }),
@@ -361,6 +364,7 @@ const findDocsRecordByRoute = async ({
   const result = await payload.find({
     collection: collections.docs,
     depth: 1,
+    draft: includeDrafts,
     limit: 5,
     overrideAccess,
     where: {
@@ -479,6 +483,7 @@ const findGroupIndexRoute = async ({
   const docsSetsResult = await payload.find({
     collection: collections.docsSets,
     depth: 0,
+    draft: includeDrafts,
     limit: 1000,
     overrideAccess,
   })

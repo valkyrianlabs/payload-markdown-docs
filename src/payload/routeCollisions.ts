@@ -10,6 +10,7 @@ export type RouteCollisionPayloadOperations = {
   find: (args: {
     collection: string
     depth?: number
+    draft?: boolean
     limit?: number
     overrideAccess?: boolean
     where?: unknown
@@ -66,14 +67,13 @@ const getNestedString = (
 
 const collisionToIssue = (collision: DocsRouteCollision): DocsRouteCollisionIssue => ({
   reason: collision.reason,
-  route: collision.first.route === collision.second.route
-    ? collision.first.route
-    : `${collision.first.route} <> ${collision.second.route}`,
+  route:
+    collision.first.route === collision.second.route
+      ? collision.first.route
+      : `${collision.first.route} <> ${collision.second.route}`,
 })
 
-export const findDuplicateDesiredRouteCollisions = (
-  routes: string[],
-): DocsRouteCollisionIssue[] =>
+export const findDuplicateDesiredRouteCollisions = (routes: string[]): DocsRouteCollisionIssue[] =>
   findRouteReservationCollisions(
     routes.map((route, index) => ({
       ownerId: `desired-${index}`,
@@ -85,12 +85,14 @@ export const findDuplicateDesiredRouteCollisions = (
 export const findExistingDocsRouteCollisions = async ({
   collectionSlug,
   docsSetId,
+  includeDrafts = false,
   payload,
   routes,
   sourceId,
 }: {
   collectionSlug: string
   docsSetId?: number | string
+  includeDrafts?: boolean
   payload: RouteCollisionPayloadOperations
   routes: string[]
   sourceId: string
@@ -104,6 +106,7 @@ export const findExistingDocsRouteCollisions = async ({
   const result = await payload.find({
     collection: collectionSlug,
     depth: 0,
+    draft: includeDrafts,
     limit: 1000,
     overrideAccess: true,
     where: {

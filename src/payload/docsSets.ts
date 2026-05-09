@@ -1,15 +1,12 @@
 import type { PayloadMarkdownDocsAuthToggle } from '../types.js'
 
-import {
-  deriveDocsSetRouteBase,
-  joinRouteSegments,
-  normalizeRoutePath,
-} from '../routing/index.js'
+import { deriveDocsSetRouteBase, joinRouteSegments, normalizeRoutePath } from '../routing/index.js'
 
 export type DocsSetPayloadOperations = {
   find: (args: {
     collection: string
     depth?: number
+    draft?: boolean
     limit?: number
     overrideAccess?: boolean
     where?: unknown
@@ -19,6 +16,7 @@ export type DocsSetPayloadOperations = {
   update?: (args: {
     collection: string
     data: Record<string, unknown>
+    draft?: boolean
     id: string
     overrideAccess?: boolean
   }) => Promise<Record<string, unknown>>
@@ -124,6 +122,7 @@ export const updateDocsSetAfterSync = async ({
   docsSetId,
   now,
   payload,
+  publish,
   syncRunId,
 }: {
   aiExport?: unknown
@@ -132,6 +131,7 @@ export const updateDocsSetAfterSync = async ({
   docsSetId: PayloadRecordId
   now: Date
   payload: DocsSetPayloadOperations
+  publish: boolean
   syncRunId?: PayloadRecordId
 }): Promise<void> => {
   if (!payload.update) {
@@ -142,6 +142,7 @@ export const updateDocsSetAfterSync = async ({
     id: String(docsSetId),
     collection: collectionSlug,
     data: {
+      _status: publish ? 'published' : 'draft',
       aiExport: aiExport ?? null,
       sync: {
         docsCount,
@@ -150,6 +151,7 @@ export const updateDocsSetAfterSync = async ({
         lastSyncRunId: syncRunId,
       },
     },
+    draft: !publish,
     overrideAccess: true,
   })
 }
@@ -214,9 +216,7 @@ const toResolvedDocsSet = ({
 
   const groupId = getRelationshipId(doc.group)
   const group = groupId ? toResolvedGroup(groupsById.get(groupId), groupsById) : undefined
-  const advancedSecurity = isRecord(doc.advancedSecurity)
-    ? doc.advancedSecurity
-    : undefined
+  const advancedSecurity = isRecord(doc.advancedSecurity) ? doc.advancedSecurity : undefined
   const advancedSecurityEnabled = advancedSecurity?.enabled === true
 
   return {
@@ -273,10 +273,12 @@ export const findDocsSetBySlug = async ({
   slug,
   collectionSlug,
   docsGroupsCollectionSlug,
+  includeDrafts = false,
   payload,
 }: {
   collectionSlug: string
   docsGroupsCollectionSlug: string
+  includeDrafts?: boolean
   payload: DocsSetPayloadOperations
   slug: string
 }): Promise<ResolvedDocsSet | undefined> => {
@@ -284,6 +286,7 @@ export const findDocsSetBySlug = async ({
     payload.find({
       collection: collectionSlug,
       depth: 0,
+      draft: includeDrafts,
       limit: 1,
       overrideAccess: true,
       where: {

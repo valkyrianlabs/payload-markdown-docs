@@ -1,7 +1,4 @@
-import type {
-  DocsAiExportManifest,
-  DocsValidationIssue,
-} from '../sync/index.js'
+import type { DocsAiExportManifest, DocsValidationIssue } from '../sync/index.js'
 import type {
   PayloadMarkdownDocsCollectionSlugs,
   PayloadMarkdownDocsReadPayload,
@@ -16,18 +13,13 @@ import {
   DEFAULT_DOCS_SETS_COLLECTION_SLUG,
   DEFAULT_MARKDOWN_FIELD_NAME,
 } from '../constants.js'
-import {
-  deriveDocsSetRouteBase,
-  joinRouteSegments,
-  normalizeRoutePath,
-} from '../routing/index.js'
-import {
-  isExcludedFromAiExport,
-} from '../sync/index.js'
+import { deriveDocsSetRouteBase, joinRouteSegments, normalizeRoutePath } from '../routing/index.js'
+import { isExcludedFromAiExport } from '../sync/index.js'
 import {
   getRelationshipId,
   isRecord,
   isVisibleDocsRecord,
+  isVisibleDocsSet,
   toResolvedDocsGroup,
   toResolvedDocsRecord,
   toResolvedDocsSet,
@@ -43,8 +35,7 @@ export type ResolvedPayloadMarkdownDocsMarkdownRoute = {
   warnings: DocsValidationIssue[]
 }
 
-export type ResolvePayloadMarkdownDocsMarkdownRouteOptions =
-  ResolvePayloadMarkdownDocsRouteOptions
+export type ResolvePayloadMarkdownDocsMarkdownRouteOptions = ResolvePayloadMarkdownDocsRouteOptions
 
 type ResolvedCollectionSlugs = {
   docs: string
@@ -173,11 +164,13 @@ const withComputedDocsSetRoute = ({
 
 const findDocsSetByRouteBase = async ({
   collections,
+  includeDrafts,
   overrideAccess,
   payload,
   routeBase,
 }: {
   collections: ResolvedCollectionSlugs
+  includeDrafts: boolean
   overrideAccess: boolean
   payload: PayloadMarkdownDocsReadPayload
   routeBase: string
@@ -186,6 +179,7 @@ const findDocsSetByRouteBase = async ({
     payload.find({
       collection: collections.docsSets,
       depth: 0,
+      draft: includeDrafts,
       limit: 1000,
       overrideAccess,
     }),
@@ -204,16 +198,20 @@ const findDocsSetByRouteBase = async ({
         groupsById,
       }),
     )
-    .find((docsSet) => docsSet?.routeBase === routeBase)
+    .find(
+      (docsSet) => docsSet?.routeBase === routeBase && isVisibleDocsSet({ docsSet, includeDrafts }),
+    )
 }
 
 const findDocsSetByAiExportOutput = async ({
   collections,
+  includeDrafts,
   output,
   overrideAccess,
   payload,
 }: {
   collections: ResolvedCollectionSlugs
+  includeDrafts: boolean
   output: string
   overrideAccess: boolean
   payload: PayloadMarkdownDocsReadPayload
@@ -222,6 +220,7 @@ const findDocsSetByAiExportOutput = async ({
     payload.find({
       collection: collections.docsSets,
       depth: 0,
+      draft: includeDrafts,
       limit: 1000,
       overrideAccess,
     }),
@@ -240,16 +239,21 @@ const findDocsSetByAiExportOutput = async ({
         groupsById,
       }),
     )
-    .find((docsSet) => docsSet?.aiExport?.output === output)
+    .find(
+      (docsSet) =>
+        docsSet?.aiExport?.output === output && isVisibleDocsSet({ docsSet, includeDrafts }),
+    )
 }
 
 const findDocsSetForMarkdownRoute = async ({
   collections,
+  includeDrafts,
   overrideAccess,
   payload,
   route,
 }: {
   collections: ResolvedCollectionSlugs
+  includeDrafts: boolean
   overrideAccess: boolean
   payload: PayloadMarkdownDocsReadPayload
   route: string
@@ -262,6 +266,7 @@ const findDocsSetForMarkdownRoute = async ({
 
   const docsSet = await findDocsSetByRouteBase({
     collections,
+    includeDrafts,
     overrideAccess,
     payload,
     routeBase,
@@ -271,6 +276,7 @@ const findDocsSetForMarkdownRoute = async ({
     docsSet ??
     findDocsSetByAiExportOutput({
       collections,
+      includeDrafts,
       output: route,
       overrideAccess,
       payload,
@@ -296,6 +302,7 @@ const getDocsRecords = async ({
   const result = await payload.find({
     collection: collections.docs,
     depth: 0,
+    draft: includeDrafts,
     limit: 1000,
     overrideAccess,
     where: {
@@ -453,7 +460,10 @@ const renderMarkdownExport = ({
     lines.push('', `## ${sectionTitle(record)}`, '', shiftMarkdownHeadings(content))
   }
 
-  return `${lines.join('\n').replace(/\n{4,}/g, '\n\n\n').trimEnd()}\n`
+  return `${lines
+    .join('\n')
+    .replace(/\n{4,}/g, '\n\n\n')
+    .trimEnd()}\n`
 }
 
 export const resolvePayloadMarkdownDocsMarkdownRoute = async ({
@@ -466,9 +476,7 @@ export const resolvePayloadMarkdownDocsMarkdownRoute = async ({
   overrideAccess = true,
   path,
   payload,
-}: ResolvePayloadMarkdownDocsMarkdownRouteOptions): Promise<
-  null | ResolvedPayloadMarkdownDocsMarkdownRoute
-> => {
+}: ResolvePayloadMarkdownDocsMarkdownRouteOptions): Promise<null | ResolvedPayloadMarkdownDocsMarkdownRoute> => {
   const route = getRoutePath({
     slug,
     path,
@@ -476,6 +484,7 @@ export const resolvePayloadMarkdownDocsMarkdownRoute = async ({
   const collections = resolveCollectionSlugs(collectionOptions)
   const docsSet = await findDocsSetForMarkdownRoute({
     collections,
+    includeDrafts,
     overrideAccess,
     payload,
     route,

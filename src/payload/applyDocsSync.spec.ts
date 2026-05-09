@@ -19,10 +19,12 @@ const getValidatedManifest = (
       path: 'index.md',
     },
   ],
+  publish = false,
 ): ValidatedDocsManifest => {
   const validation = validateDocsManifest(
     buildDocsManifest({
       files,
+      publish,
       sourceId: 'main-docs',
     }),
   )
@@ -280,12 +282,13 @@ describe('docs sync apply helpers', () => {
         data: expect.objectContaining({
           _status: 'draft',
         }),
+        draft: true,
       }),
     )
   })
 
   it('creates published docs when publish is requested', async () => {
-    const manifest = getValidatedManifest()
+    const manifest = getValidatedManifest(undefined, true)
     const payload = createPayloadMock()
     const plan = planDocsSync({
       desired: manifest,
@@ -310,6 +313,40 @@ describe('docs sync apply helpers', () => {
         data: expect.objectContaining({
           _status: 'published',
         }),
+        draft: false,
+      }),
+    )
+  })
+
+  it('publishes unchanged draft docs when publish is requested', async () => {
+    const manifest = getValidatedManifest(undefined, true)
+    const existing = [existingRecord({ status: 'draft' })]
+    const payload = createPayloadMock()
+    const plan = planDocsSync({
+      desired: manifest,
+      existing: existing.map(toExistingDocsRecord),
+    })
+
+    const result = await applyDocsSync({
+      collectionSlug: 'docs',
+      deleteBehavior: 'archive',
+      docsEnableDrafts: true,
+      existing,
+      manifest,
+      markdownFieldName: 'content',
+      now,
+      payload,
+      plan,
+      publish: true,
+    })
+
+    expect(result).toMatchObject({ ok: true, writes: { update: 1 } })
+    expect(payload.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          _status: 'published',
+        }),
+        draft: false,
       }),
     )
   })
@@ -345,6 +382,7 @@ describe('docs sync apply helpers', () => {
         data: expect.objectContaining({
           _status: 'draft',
         }),
+        draft: true,
       }),
     )
     expect(payload.create).toHaveBeenCalledWith(
@@ -352,6 +390,7 @@ describe('docs sync apply helpers', () => {
         data: expect.objectContaining({
           _status: 'draft',
         }),
+        draft: true,
       }),
     )
   })
@@ -534,6 +573,7 @@ describe('docs sync apply helpers', () => {
             archived: true,
           }),
         }),
+        draft: true,
       }),
     )
   })

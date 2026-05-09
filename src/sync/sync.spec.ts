@@ -285,10 +285,7 @@ slug: setup
     })
 
     expect(result.ok).toBe(false)
-    expect(result.issues.map((issue) => issue.code)).toEqual([
-      'invalid_version',
-      'empty_manifest',
-    ])
+    expect(result.issues.map((issue) => issue.code)).toEqual(['invalid_version', 'empty_manifest'])
   })
 
   test('rejects duplicate normalized paths', () => {
@@ -471,6 +468,29 @@ describe('docs dry sync planning', () => {
     expect(plan.update).toHaveLength(1)
     expect(plan.unchanged).toHaveLength(1)
     expect(plan.archive).toHaveLength(1)
+  })
+
+  test('plans status-only updates when publish state changes', () => {
+    const publishedDesired = {
+      ...desired,
+      publish: true,
+    }
+    const sameFile = publishedDesired.files.find((file) => file.path === 'same.md')
+    const plan = planDocsSync({
+      desired: publishedDesired,
+      existing: [
+        {
+          route: '/docs/same',
+          sourceHash: sameFile?.sha256,
+          sourcePath: 'same.md',
+          status: 'draft',
+        },
+      ],
+    })
+
+    expect(plan.update).toHaveLength(1)
+    expect(plan.update[0]?.reason).toBe('Existing draft status differs from desired publish state.')
+    expect(plan.unchanged).toHaveLength(0)
   })
 
   test('ignores missing existing docs when deleteBehavior is ignore', () => {

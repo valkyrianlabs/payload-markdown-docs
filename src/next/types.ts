@@ -3,6 +3,7 @@ import type { DocsAiExportManifest } from '../sync/index.js'
 export type PayloadMarkdownDocsFindArgs = {
   collection: string
   depth?: number
+  draft?: boolean
   limit?: number
   overrideAccess?: boolean
   sort?: string

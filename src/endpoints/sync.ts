@@ -273,6 +273,7 @@ const resolveSyncSource = async ({
         slug: sourceId,
         collectionSlug: options.docsSetsCollectionSlug,
         docsGroupsCollectionSlug: options.docsGroupsCollectionSlug,
+        includeDrafts: true,
         payload,
       })
     : undefined
@@ -414,6 +415,7 @@ const getRouteCollisionIssues = async ({
     ? await findExistingDocsRouteCollisions({
         collectionSlug: options.docsCollectionSlug,
         docsSetId: docsSet?.id,
+        includeDrafts: options.docsEnableDrafts,
         payload,
         routes: desiredRoutes,
         sourceId: manifest.source.id,
@@ -1006,6 +1008,7 @@ const createSyncEndpointHandler =
       ? await findExistingPayloadDocsRecords({
           collectionSlug: options.docsCollectionSlug,
           docsSetId: sourceResolution.source.docsSet?.id,
+          draft: options.docsEnableDrafts,
           markdownFieldName: options.markdownFieldName,
           payload: req.payload as unknown as ExistingDocsPayloadOperations,
           sourceId: validation.data.source.id,
@@ -1137,6 +1140,7 @@ const createSyncEndpointHandler =
             docsSetId: sourceResolution.source.docsSet.id,
             now: options.getNow?.() ?? new Date(),
             payload: req.payload as unknown as DocsSetPayloadOperations,
+            publish: validation.data.publish,
             syncRunId,
           })
         }

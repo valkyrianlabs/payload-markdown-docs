@@ -10,6 +10,7 @@ export type ExistingDocsRecord = {
   route: string
   sourceHash?: string
   sourcePath: string
+  status?: 'draft' | 'published'
   title?: string
 }
 
@@ -80,7 +81,10 @@ export const planDocsSync = ({
       continue
     }
 
-    if (current.sourceHash === desiredFile.sha256) {
+    const desiredStatus = desired.publish ? 'published' : 'draft'
+    const hasStatusMismatch = current.status !== undefined && current.status !== desiredStatus
+
+    if (current.sourceHash === desiredFile.sha256 && !hasStatusMismatch) {
       plan.unchanged.push({
         current,
         desired: desiredFile,
@@ -93,7 +97,9 @@ export const planDocsSync = ({
     plan.update.push({
       current,
       desired: desiredFile,
-      reason: 'Existing source hash differs from desired source hash.',
+      reason: hasStatusMismatch
+        ? 'Existing draft status differs from desired publish state.'
+        : 'Existing source hash differs from desired source hash.',
       sourcePath: desiredFile.path,
     })
   }
