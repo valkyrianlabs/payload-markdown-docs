@@ -1,6 +1,6 @@
 # Admin Manager
 
-The Docs Set Admin Manager is a read-only overview on the docs set edit view.
+The Docs Set Admin Manager is an overview on the docs set edit view.
 
 It shows:
 
@@ -13,6 +13,7 @@ It shows:
 - docs with overrides
 - generated docs grouped by source path
 - links to generated docs records
+- a publish action for draft generated docs when draft publishing is enabled
 
 Per-doc overrides live on generated docs records:
 

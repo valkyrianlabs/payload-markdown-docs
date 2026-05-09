@@ -218,7 +218,9 @@ export const payloadMarkdownDocs =
         ? [
             createDocsSetsCollection({
               slug: docsSetsCollectionSlug,
+              allowPublish: pluginOptions.sync?.allowPublish === true,
               docsCollectionSlug: docsEnabled ? docsCollectionSlug : undefined,
+              docsEnableDrafts: enableDrafts,
               docsGroupsCollectionSlug,
               syncRunsCollectionSlug: syncRunsEnabled ? syncRunsCollectionSlug : undefined,
             }),

@@ -71,7 +71,7 @@ branch: main
 
 The native route adapter can resolve and render generated docs routes from a Next/Payload catch-all route without creating one Page per Markdown file. It is read-only and does not mutate Pages.
 
-The docs set edit view includes a read-only generated docs manager. Use it to review generated docs for the set, inspect sync/archive/draft state, see which docs have overrides, and open generated docs records when per-doc override editing is needed.
+The docs set edit view includes a generated docs manager. Use it to review generated docs for the set, inspect sync/archive/draft state, publish draft generated docs when publishing is enabled, see which docs have overrides, and open generated docs records when per-doc override editing is needed.
 
 ## Docs Source Tree
 
@@ -251,7 +251,7 @@ The route adapter can resolve exact docs records, docs set index routes, and doc
 
 ## Docs Set Admin Manager
 
-Open a docs set in Payload Admin to review its generated docs records from one central place. The manager is read-only and shows:
+Open a docs set in Payload Admin to review its generated docs records from one central place. The manager shows:
 
 - route base
 - sync summary
@@ -259,6 +259,7 @@ Open a docs set in Payload Admin to review its generated docs records from one c
 - generated docs grouped by source path
 - route, title, status, and override summary for each generated doc
 - links to generated docs records for deeper editing
+- a publish action for draft generated docs when draft publishing is enabled
 
 Per-doc override editing is currently done by opening the generated doc record. Inline override editing from the docs set manager is deferred to a later phase.
 

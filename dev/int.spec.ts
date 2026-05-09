@@ -393,6 +393,31 @@ describe('payloadMarkdownDocs collection wiring', () => {
     })
   })
 
+  test('docs sets collection includes a publish endpoint when draft publishing is enabled', () => {
+    const transformedConfig = payloadMarkdownDocs({
+      enabled: true,
+      sync: {
+        allowPublish: true,
+      },
+      target: {
+        enableDrafts: true,
+      },
+    })({
+      collections: [],
+    } as unknown as Config)
+    const docsSetsCollection = getCollection(
+      transformedConfig,
+      DEFAULT_DOCS_SETS_COLLECTION_SLUG,
+    )
+
+    expect(docsSetsCollection?.endpoints).toContainEqual(
+      expect.objectContaining({
+        method: 'post',
+        path: '/:id/publish-generated-docs',
+      }),
+    )
+  })
+
   test('docs set manager respects custom docs and docs set slugs', () => {
     const transformedConfig = payloadMarkdownDocs({
       collections: {

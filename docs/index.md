@@ -49,7 +49,7 @@ Install local agent guidance for writing docs that validate and sync.
 - server-gated sync writes, publishing, draft behavior, archive behavior, and hard delete
 - route reservations and opt-in Pages collision checks
 - read-only `/next` route adapter, metadata helper, and sidebar helper
-- read-only Docs Set Admin Manager
+- Docs Set Admin Manager with generated doc review and draft publish action
 - local agent skill installer
 
 ## What Is Not Implemented

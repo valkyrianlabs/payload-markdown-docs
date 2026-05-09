@@ -4,9 +4,12 @@ import {
   DOCS_GLOBALS_ADMIN_GROUP,
   DOCS_SET_MANAGER_COMPONENT,
 } from '../constants.js'
+import { createPublishGeneratedDocsEndpoint } from '../endpoints/publishGeneratedDocs.js'
 
 export type CreateDocsSetsCollectionOptions = {
+  allowPublish?: boolean
   docsCollectionSlug?: string
+  docsEnableDrafts?: boolean
   docsGroupsCollectionSlug: string
   slug: string
   syncRunsCollectionSlug?: string
@@ -14,7 +17,9 @@ export type CreateDocsSetsCollectionOptions = {
 
 export const createDocsSetsCollection = ({
   slug,
+  allowPublish = false,
   docsCollectionSlug,
+  docsEnableDrafts = false,
   docsGroupsCollectionSlug,
   syncRunsCollectionSlug,
 }: CreateDocsSetsCollectionOptions): CollectionConfig => ({
@@ -24,6 +29,15 @@ export const createDocsSetsCollection = ({
     group: DOCS_GLOBALS_ADMIN_GROUP,
     useAsTitle: 'title',
   },
+  endpoints:
+    docsCollectionSlug && docsEnableDrafts && allowPublish
+      ? [
+          createPublishGeneratedDocsEndpoint({
+            docsCollectionSlug,
+            docsSetsCollectionSlug: slug,
+          }),
+        ]
+      : undefined,
   fields: [
     {
       name: 'title',
@@ -161,7 +175,9 @@ export const createDocsSetsCollection = ({
                 Field: DOCS_SET_MANAGER_COMPONENT,
               },
               custom: {
+                allowPublish,
                 docsCollectionSlug,
+                docsEnableDrafts,
                 docsGroupsCollectionSlug,
                 docsSetsCollectionSlug: slug,
               },

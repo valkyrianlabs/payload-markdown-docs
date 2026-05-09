@@ -15,14 +15,14 @@ import {
 import { getDocsSetManagerData } from './docsSetManagerData.js'
 
 type DocsSetManagerFieldCustom = {
+  allowPublish?: boolean
   docsCollectionSlug?: string
+  docsEnableDrafts?: boolean
   docsGroupsCollectionSlug?: string
   docsSetsCollectionSlug?: string
 }
 
-const getFieldCustom = (
-  field: UIFieldServerProps['field'],
-): DocsSetManagerFieldCustom => {
+const getFieldCustom = (field: UIFieldServerProps['field']): DocsSetManagerFieldCustom => {
   const custom = 'custom' in field ? field.custom : undefined
 
   if (!custom || typeof custom !== 'object') {
@@ -45,6 +45,39 @@ const formatDate = (value?: string): string => {
 
   return date.toISOString()
 }
+
+const normalizeRoute = (route = '/'): string => {
+  const normalized = `/${route.trim()}`.replace(/\/+/g, '/')
+
+  return normalized.length > 1 ? normalized.replace(/\/+$/g, '') : normalized
+}
+
+const getPublishAction = ({
+  apiRoute,
+  docsSetId,
+  docsSetsCollectionSlug,
+  redirect,
+}: {
+  apiRoute?: string
+  docsSetId: number | string
+  docsSetsCollectionSlug: string
+  redirect: string
+}): string => {
+  const path = `${normalizeRoute(apiRoute ?? '/api')}/${docsSetsCollectionSlug}/${encodeURIComponent(String(docsSetId))}/publish-generated-docs`
+
+  return `${path}?redirect=${encodeURIComponent(redirect)}`
+}
+
+const getDocsSetAdminURL = ({
+  adminRoute,
+  docsSetId,
+  docsSetsCollectionSlug,
+}: {
+  adminRoute?: string
+  docsSetId: number | string
+  docsSetsCollectionSlug: string
+}): string =>
+  `${normalizeRoute(adminRoute ?? '/admin')}/collections/${docsSetsCollectionSlug}/${encodeURIComponent(String(docsSetId))}`
 
 const StatusLabel = ({ item }: { item: DocsSetManagerDocItem }) => {
   if (item.archived) {
@@ -75,9 +108,7 @@ const renderDocItem = (item: DocsSetManagerDocItem): ReactNode => {
     return (
       <details key={item.id}>
         <summary>{item.title}</summary>
-        <div>
-          {item.children?.map((child) => renderDocItem(child))}
-        </div>
+        <div>{item.children?.map((child) => renderDocItem(child))}</div>
       </details>
     )
   }
@@ -149,18 +180,13 @@ const Summary = ({ data }: { data: DocsSetManagerData }) => (
   </dl>
 )
 
-export const DocsSetManager = async ({
-  id,
-  field,
-  payload,
-  req,
-}: UIFieldServerProps) => {
+export const DocsSetManager = async ({ id, field, payload, req }: UIFieldServerProps) => {
   const custom = getFieldCustom(field)
   const docsCollectionSlug = custom.docsCollectionSlug ?? DEFAULT_DOCS_COLLECTION_SLUG
   const docsGroupsCollectionSlug =
     custom.docsGroupsCollectionSlug ?? DEFAULT_DOCS_GROUPS_COLLECTION_SLUG
-  const docsSetsCollectionSlug =
-    custom.docsSetsCollectionSlug ?? DEFAULT_DOCS_SETS_COLLECTION_SLUG
+  const docsSetsCollectionSlug = custom.docsSetsCollectionSlug ?? DEFAULT_DOCS_SETS_COLLECTION_SLUG
+  const canPublishGeneratedDocs = custom.docsEnableDrafts === true && custom.allowPublish === true
 
   if (!id) {
     return (
@@ -179,14 +205,25 @@ export const DocsSetManager = async ({
     docsSetsCollectionSlug,
     payload: payload as DocsSetManagerPayloadOperations,
   })
+  const docsSetAdminURL = getDocsSetAdminURL({
+    adminRoute: req.payload.config.routes.admin,
+    docsSetId: id,
+    docsSetsCollectionSlug,
+  })
+  const publishAction = getPublishAction({
+    apiRoute: req.payload.config.routes.api,
+    docsSetId: id,
+    docsSetsCollectionSlug,
+    redirect: docsSetAdminURL,
+  })
 
   return (
     <section>
       <header>
         <h2>Generated Docs</h2>
         <p>
-          Review generated docs records for {data.docsSet.title}. Source docs remain
-          Git-backed; per-doc overrides can be edited by opening a generated doc.
+          Review generated docs records for {data.docsSet.title}. Source docs remain Git-backed;
+          per-doc overrides can be edited by opening a generated doc.
         </p>
       </header>
 
@@ -198,6 +235,18 @@ export const DocsSetManager = async ({
       <section>
         <h3>Sync Summary</h3>
         <Summary data={data} />
+        {data.summary.drafts > 0 ? (
+          <div>
+            <p>{data.summary.drafts} generated docs records are drafts and are not public.</p>
+            {canPublishGeneratedDocs ? (
+              <form action={publishAction} method="post">
+                <button type="submit">Publish generated docs</button>
+              </form>
+            ) : (
+              <p>Publishing is disabled for this plugin config.</p>
+            )}
+          </div>
+        ) : null}
       </section>
 
       {data.warnings.length > 0 ? (
