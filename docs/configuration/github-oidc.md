@@ -83,6 +83,10 @@ Actions and the CLI derives it from `GITHUB_REPOSITORY`.
 You do not need this for normal docs publishing. Each docs set can enable exact
 workflow refs in its advanced security section. When disabled, all workflows are
 accepted as long as the trusted owner/repository and branch match.
+
+Release tag events are also accepted from trusted repositories when advanced
+workflow security is disabled. Enable advanced workflow refs when release
+publishing should be limited to exact workflow files or refs.
 :::
 
 ## Ed25519 Still Works

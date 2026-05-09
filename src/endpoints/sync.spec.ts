@@ -1040,6 +1040,48 @@ describe('sync endpoint dry-run handling', () => {
     )
   })
 
+  it('accepts GitHub OIDC release tag refs when advanced workflow security is disabled', async () => {
+    const tokenFixture = createOidcTokenFixture({
+      event_name: 'release',
+      ref: 'refs/tags/v0.6.0',
+      sub: 'repo:valkyrianlabs/payload-markdown-docs:ref:refs/tags/v0.6.0',
+      workflow_ref:
+        'valkyrianlabs/payload-markdown-docs/.github/workflows/release.yml@refs/tags/v0.6.0',
+    })
+    const body = JSON.stringify(createManifest())
+    const payload = createMockPayload({
+      docsSets: [
+        {
+          id: 'docs-set-1',
+          slug: 'main-docs',
+          advancedSecurity: {
+            allowedWorkflowRefs: [
+              {
+                value:
+                  'valkyrianlabs/payload-markdown-docs/.github/workflows/publish-docs.yml@refs/heads/main',
+              },
+            ],
+            enabled: false,
+          },
+          branch: 'main',
+        },
+      ],
+    })
+    const { json, response } = await callOidcEndpoint({
+      body,
+      payload,
+      tokenFixture,
+    })
+
+    expect(response.status).toBe(200)
+    expect(json).toMatchObject({
+      ok: true,
+      summary: {
+        create: 1,
+      },
+    })
+  })
+
   it('rejects unknown docs set sources before auth when no fallback source is configured', async () => {
     const endpoint = createCmsManagedEndpointForTests({
       auth: {

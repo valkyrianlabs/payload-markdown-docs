@@ -206,6 +206,9 @@ const getRepositoryName = (repository: string): string => {
   return name ?? repository
 }
 
+const isReleaseTagRef = (claims: GitHubOidcClaims): boolean =>
+  claims.event_name === 'release' && claims.ref.startsWith('refs/tags/')
+
 const repositoryMatches = ({
   allowed,
   owner,
@@ -406,7 +409,7 @@ export const verifyGitHubOidcToken = async ({
 
   const repositoryName = getRepositoryName(claims.repository)
 
-  if (!includesIfConfigured(config.allowedRefs, claims.ref)) {
+  if (!includesIfConfigured(config.allowedRefs, claims.ref) && !isReleaseTagRef(claims)) {
     return issue(
       'oidc_ref_not_allowed',
       `GitHub OIDC token ref "${claims.ref}" is not allowed for "${repositoryName}".`,

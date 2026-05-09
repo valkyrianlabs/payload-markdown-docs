@@ -279,6 +279,54 @@ describe('GitHub OIDC security helpers', () => {
     ).resolves.toMatchObject({ ok: true })
   })
 
+  it('allows release tag refs when advanced workflow security is disabled', async () => {
+    const { jwk, token } = createTokenFixture({
+      event_name: 'release',
+      ref: 'refs/tags/v0.6.0',
+      sub: 'repo:valkyrianlabs/payload-markdown-docs:ref:refs/tags/v0.6.0',
+      workflow_ref:
+        'valkyrianlabs/payload-markdown-docs/.github/workflows/release.yml@refs/tags/v0.6.0',
+    })
+
+    await expect(
+      verifyGitHubOidcToken({
+        config: config({
+          allowedRefs: ['refs/heads/main'],
+          allowedWorkflowRefs: ['other/repo/.github/workflows/docs.yml@refs/heads/main'],
+          enforceWorkflowRefs: false,
+        }),
+        fetchJson: fetchJsonForJwk(jwk),
+        now,
+        token,
+      }),
+    ).resolves.toMatchObject({ ok: true })
+  })
+
+  it('still enforces release workflow refs when advanced workflow security is enabled', async () => {
+    const { jwk, token } = createTokenFixture({
+      event_name: 'release',
+      ref: 'refs/tags/v0.6.0',
+      sub: 'repo:valkyrianlabs/payload-markdown-docs:ref:refs/tags/v0.6.0',
+      workflow_ref:
+        'valkyrianlabs/payload-markdown-docs/.github/workflows/release.yml@refs/tags/v0.6.0',
+    })
+
+    await expect(
+      verifyGitHubOidcToken({
+        config: config({
+          allowedRefs: ['refs/heads/main'],
+          allowedWorkflowRefs: [
+            'valkyrianlabs/payload-markdown-docs/.github/workflows/publish-docs.yml@refs/heads/main',
+          ],
+          enforceWorkflowRefs: true,
+        }),
+        fetchJson: fetchJsonForJwk(jwk),
+        now,
+        token,
+      }),
+    ).resolves.toMatchObject({ code: 'oidc_workflow_not_allowed', ok: false })
+  })
+
   it('rejects pull request events by default and allows them when configured', async () => {
     const { jwk, token } = createTokenFixture({
       event_name: 'pull_request',
