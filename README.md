@@ -110,10 +110,18 @@ const docsLinks = await getPayloadMarkdownDocsLinks({ payload })
 
 ## Validate Locally
 
+In an app or docs repository that has installed this package:
+
 ```bash
 pnpm exec payload-markdown-docs validate ./docs --source payload-markdown-docs
 pnpm exec payload-markdown-docs manifest ./docs --source payload-markdown-docs --pretty
 pnpm exec payload-markdown-docs plan ./docs --source payload-markdown-docs
+```
+
+From this package source checkout, use the local source CLI instead:
+
+```bash
+pnpm cli validate ./docs --source payload-markdown-docs
 ```
 
 In GitHub Actions, `--source` can be omitted when the docs set slug matches the

@@ -71,6 +71,10 @@ If the server was already running when keys were generated, rerun
 
 ## Local Commands
 
+This package checkout does not self-link its published binary into
+`node_modules/.bin`, so `pnpm exec payload-markdown-docs` is for consuming
+projects that install the package. Use `pnpm cli` here to run the source CLI.
+
 Validate the happy-path fixture:
 
 ```bash
@@ -92,7 +96,7 @@ pnpm dev:docs:plan
 Dry-run against the local endpoint:
 
 ```bash
-node --import @swc-node/register/esm-register ./src/cli/index.ts push ./dev/docs-fixtures/basic \
+pnpm cli push ./dev/docs-fixtures/basic \
   --endpoint "http://localhost:3000/api/payload-markdown-docs/sync" \
   --source payload-markdown-docs \
   --key-id dev-local \
@@ -103,7 +107,7 @@ node --import @swc-node/register/esm-register ./src/cli/index.ts push ./dev/docs
 Apply as draft records:
 
 ```bash
-node --import @swc-node/register/esm-register ./src/cli/index.ts push ./dev/docs-fixtures/basic \
+pnpm cli push ./dev/docs-fixtures/basic \
   --endpoint "http://localhost:3000/api/payload-markdown-docs/sync" \
   --source payload-markdown-docs \
   --key-id dev-local \
@@ -114,7 +118,7 @@ node --import @swc-node/register/esm-register ./src/cli/index.ts push ./dev/docs
 Apply and publish:
 
 ```bash
-node --import @swc-node/register/esm-register ./src/cli/index.ts push ./dev/docs-fixtures/publishing \
+pnpm cli push ./dev/docs-fixtures/publishing \
   --endpoint "http://localhost:3000/api/payload-markdown-docs/sync" \
   --source payload-markdown-docs \
   --key-id dev-local \

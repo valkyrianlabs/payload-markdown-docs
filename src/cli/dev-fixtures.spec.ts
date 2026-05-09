@@ -81,7 +81,8 @@ describe('dev harness docs and scripts', () => {
       '--endpoint "http://localhost:3000/api/payload-markdown-docs/sync"',
     )
     expect(readme).toContain('--private-key-file dev/.docs-sync/docs-sync-private.pem')
-    expect(readme).toContain('node --import @swc-node/register/esm-register ./src/cli/index.ts push')
+    expect(readme).toContain('Use `pnpm cli` here to run the source CLI.')
+    expect(readme).toContain('pnpm cli push ./dev/docs-fixtures/basic')
     expect(readme).toContain('push ./dev/docs-fixtures/publishing')
     expect(readme).toContain('load `dev/.env` directly')
     expect(readme).toContain('stores it in')
@@ -100,6 +101,8 @@ describe('dev harness docs and scripts', () => {
     const scripts = packageJson.scripts ?? {}
 
     expect(scripts['dev:docs:validate']).toContain('dev/docs-fixtures/basic')
+    expect(scripts.cli).toBe('node --import @swc-node/register/esm-register ./src/cli/index.ts')
+    expect(scripts['cli:dist']).toBe('node ./dist/cli/index.js')
     expect(scripts['dev:docs:validate']).toContain(`--source ${sourceId}`)
     expect(scripts['dev:docs:manifest']).toContain('--pretty')
     expect(scripts['dev:docs:plan']).not.toContain('--route-base')

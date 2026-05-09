@@ -45,6 +45,8 @@
     "build:swc": "swc ./src -d ./dist --config-file .swcrc --strip-leading-paths --ignore \"**/*.spec.ts\"",
     "build:types": "tsc -p tsconfig.build.json --outDir dist --rootDir ./src",
     "clean": "rimraf {dist,*.tsbuildinfo}",
+    "cli": "node --import @swc-node/register/esm-register ./src/cli/index.ts",
+    "cli:dist": "node ./dist/cli/index.js",
     "copyfiles": "copyfiles -u 1 \"src/**/*.{html,css,scss,ttf,woff,woff2,eot,svg,jpg,png,json,md}\" dist/",
     "dev": "next dev dev --turbo",
     "dev:docs:keygen": "pnpm dev:payload run ./dev/scripts/create-docs-keypair.ts",
