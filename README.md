@@ -1,7 +1,23 @@
 # @valkyrianlabs/payload-markdown-docs
 
+<a href="https://github.com/valkyrianlabs/payload-markdown-docs/actions"><img alt="GitHub Workflow Status" src="https://img.shields.io/github/actions/workflow/status/valkyrianlabs/payload-markdown-docs/deploy.yml"></a>
+&nbsp;
+<a href="https://www.npmjs.com/package/@valkyrianlabs/payload-markdown-docs"><img alt="npm" src="https://img.shields.io/npm/v/@valkyrianlabs/payload-markdown-docs" /></a>
+&nbsp;
+<a href="https://www.npmjs.com/package/@valkyrianlabs/payload-markdown-docs"><img alt="npm" src="https://img.shields.io/npm/dw/@valkyrianlabs/payload-markdown-docs" /></a>
+&nbsp;
+<a href="https://github.com/valkyrianlabs/payload-markdown-docs?tab=MIT-1-ov-file"><img alt="license" src="https://img.shields.io/npm/l/@valkyrianlabs/payload-markdown-docs" /></a>
+
 Git-backed Markdown documentation sync for Payload CMS, powered by
 `@valkyrianlabs/payload-markdown`.
+
+> ⚠️ This plugin is still in early-release as of v0.7.3 on 5/10/26. It is fully functional but missing a few planned v1 features like group parent slug level card grids of collections in that group for better UX, along with a fully thought-out navigation solution that natively incorporates with Payload website starter variants CMSLink. A fully featured stable v1.0.0 is anticipated in the coming days, by 5/17/26 at the very latest.
+
+---
+
+[📖 Explore the Docs (made with payload-markdown-docs)](https://docs.valkyrianlabs.com/plugins/payload-markdown-docs)
+
+---
 
 The default workflow is intentionally small:
 
