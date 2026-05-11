@@ -180,16 +180,16 @@ jobs:
           console.log(`Version check passed: ${local} > ${published}`);
           NODE
 
-      - name: Run tests
-        run: |
-          set -euo pipefail
-          pnpm test:int
-
       - name: Build package
         run: |
           set -euo pipefail
           export NEXT_CPU_COUNT="$(nproc)"
           pnpm build
+
+      - name: Run tests
+        run: |
+          set -euo pipefail
+          pnpm test:int
 
       - name: Validate package contents
         shell: bash
