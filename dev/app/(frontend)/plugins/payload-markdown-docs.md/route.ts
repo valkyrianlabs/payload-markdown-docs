@@ -1,8 +1,8 @@
-import type { PayloadMarkdownDocsReadPayload } from '../../../../../dist/next'
-
 import config from '@payload-config'
 import { notFound } from 'next/navigation'
 import { getPayload } from 'payload'
+
+import type { PayloadMarkdownDocsReadPayload } from '../../../../../dist/next'
 
 import { createPayloadMarkdownDocsMarkdownResponse } from '../../../../../dist/next'
 
