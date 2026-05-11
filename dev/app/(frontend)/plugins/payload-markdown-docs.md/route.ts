@@ -1,9 +1,10 @@
-import type { PayloadMarkdownDocsReadPayload } from '@valkyrianlabs/payload-markdown-docs/next'
+import type { PayloadMarkdownDocsReadPayload } from '../../../../../dist/next'
 
 import config from '@payload-config'
-import { createPayloadMarkdownDocsMarkdownResponse } from '@valkyrianlabs/payload-markdown-docs/next'
 import { notFound } from 'next/navigation'
 import { getPayload } from 'payload'
+
+import { createPayloadMarkdownDocsMarkdownResponse } from '../../../../../dist/next'
 
 export async function GET() {
   const payload = await getPayload({

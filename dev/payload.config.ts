@@ -5,8 +5,7 @@ import { buildConfig } from 'payload'
 import sharp from 'sharp'
 import { fileURLToPath } from 'url'
 
-import { payloadMarkdownDocs } from '@valkyrianlabs/payload-markdown-docs'
-
+import { payloadMarkdownDocs } from '../dist'
 import { Header } from './Header/config'
 import { testEmailAdapter } from './helpers/testEmailAdapter'
 import './helpers/loadDevEnv'

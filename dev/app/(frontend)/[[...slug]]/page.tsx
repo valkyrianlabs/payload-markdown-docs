@@ -1,12 +1,10 @@
-import type { PayloadMarkdownDocsReadPayload } from '@valkyrianlabs/payload-markdown-docs/next'
-
 import config from '@payload-config'
-import {
-  PayloadMarkdownDocsPage,
-  resolvePayloadMarkdownDocsRoute,
-} from '@valkyrianlabs/payload-markdown-docs/next'
 import { notFound } from 'next/navigation'
 import { getPayload } from 'payload'
+
+import type { PayloadMarkdownDocsReadPayload } from '../../../../dist/next'
+
+import { PayloadMarkdownDocsPage, resolvePayloadMarkdownDocsRoute } from '../../../../dist/next'
 
 type PageProps = {
   params: Promise<{
