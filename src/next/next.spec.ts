@@ -21,6 +21,10 @@ import { PayloadMarkdownDocsPage } from './PayloadMarkdownDocsPage.js'
 import { getPayloadMarkdownDocsRoutePath, resolvePayloadMarkdownDocsRoute } from './route.js'
 import { buildPayloadMarkdownDocsSidebar, getPayloadMarkdownDocsSidebar } from './sidebar.js'
 
+vi.mock('@valkyrianlabs/payload-markdown/server', () => ({
+  MarkdownRenderer: ({ markdown }: { markdown?: string }) => markdown ?? null,
+}))
+
 type TestPayloadData = {
   docs?: Record<string, unknown>[]
   docsGroups?: Record<string, unknown>[]
@@ -1274,6 +1278,73 @@ describe('Payload Markdown Docs page component', () => {
     expect(markup).toContain('data-payload-markdown-docs-hero')
     expect(markup).toContain('src="/media/docs-hero.jpg"')
     expect(markup).not.toContain('margin-top:6rem')
+  })
+
+  it('uses an authored docs set index page instead of inserting generated title and description', async () => {
+    const markup = renderToStaticMarkup(
+      await PayloadMarkdownDocsPage({
+        resolved: {
+          type: 'docsSetIndex',
+          doc: resolvedRecord({
+            content: 'Authored plugin home content.\n',
+            description: 'Generated description should not render.',
+            route: '/payload-markdown',
+            sourcePath: 'index.md',
+            title: 'Generated Home Title',
+          }),
+          docsSet: resolvedDocsSet,
+          route: '/payload-markdown',
+          sidebar: [],
+        },
+      }),
+    )
+
+    expect(markup).toContain('Authored plugin home content.')
+    expect(markup).not.toContain('Generated Home Title')
+    expect(markup).not.toContain('Generated description should not render.')
+  })
+
+  it('uses authored nested index pages while sidebar sections without index pages stay unlinked', async () => {
+    const markup = renderToStaticMarkup(
+      await PayloadMarkdownDocsPage({
+        resolved: {
+          type: 'doc',
+          doc: resolvedRecord({
+            content: 'Authored nested index content.\n',
+            description: 'Nested generated description should not render.',
+            route: '/payload-markdown/installation',
+            sourcePath: 'installation/index.md',
+            title: 'Generated Installation Title',
+          }),
+          docsSet: resolvedDocsSet,
+          route: '/payload-markdown/installation',
+          sidebar: [
+            {
+              children: [
+                {
+                  depth: 1,
+                  label: 'Options',
+                  order: 10,
+                  route: '/payload-markdown/configuration/options',
+                  sourcePath: 'configuration/options.md',
+                },
+              ],
+              depth: 0,
+              label: 'Configuration',
+              order: 10,
+              sourcePath: 'configuration',
+            },
+          ],
+        },
+      }),
+    )
+
+    expect(markup).toContain('Authored nested index content.')
+    expect(markup).not.toContain('Generated Installation Title')
+    expect(markup).not.toContain('Nested generated description should not render.')
+    expect(markup).toContain('<span')
+    expect(markup).not.toContain('href="/payload-markdown/configuration"')
+    expect(markup).toContain('href="/payload-markdown/configuration/options"')
   })
 })
 

@@ -105,6 +105,19 @@ const renderMarkdown = async ({
   })
 }
 
+const isIndexDoc = (doc?: ResolvedPayloadMarkdownDocsRecord): boolean => {
+  if (!doc) {
+    return false
+  }
+
+  const sourcePath = doc.sourcePath.toLowerCase()
+
+  return sourcePath === 'index.md' || sourcePath.endsWith('/index.md')
+}
+
+const shouldRenderGeneratedHeader = (doc?: ResolvedPayloadMarkdownDocsRecord): boolean =>
+  !doc?.content?.trim() || !isIndexDoc(doc)
+
 const DocsHeader = ({
   doc,
   docsSet,
@@ -219,6 +232,7 @@ export const PayloadMarkdownDocsPage = async ({
   })
   const hasHero = Boolean(resolved.doc?.heroImage)
   const hasSidebar = renderSidebar && resolved.sidebar.length > 0
+  const renderGeneratedHeader = shouldRenderGeneratedHeader(resolved.doc)
 
   return (
     <main
@@ -251,7 +265,9 @@ export const PayloadMarkdownDocsPage = async ({
             heroImage={resolved.doc?.heroImage}
             title={resolved.doc?.title ?? resolved.docsSet.title}
           />
-          <DocsHeader doc={resolved.doc} docsSet={resolved.docsSet} />
+          {renderGeneratedHeader ? (
+            <DocsHeader doc={resolved.doc} docsSet={resolved.docsSet} />
+          ) : null}
           {markdown}
         </article>
       </div>
