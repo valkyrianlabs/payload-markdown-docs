@@ -311,14 +311,18 @@ export const runInstallCommand = async (
 
     for (const file of plannedFiles) {
       if (await fileExists(file.path)) {
-        existingFiles.push(file.relativePath)
+        const existingContent = await readFile(file.path, 'utf8')
+
+        if (existingContent !== file.content) {
+          existingFiles.push(file.relativePath)
+        }
       }
     }
 
     if (existingFiles.length > 0) {
       return {
         exitCode: 1,
-        stderr: `Skill files already exist. Use --force to overwrite:\n${existingFiles
+        stderr: `Skill files already exist with different content. Use --force to overwrite:\n${existingFiles
           .map((file) => `- ${file}`)
           .join('\n')}\n`,
       }

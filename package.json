@@ -1,6 +1,6 @@
 {
   "name": "@valkyrianlabs/payload-markdown-docs",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "description": "Git-backed Markdown documentation sync for Payload CMS, powered by payload-markdown.",
   "bin": {
     "payload-markdown-docs": "./dist/cli/index.js"
@@ -78,7 +78,7 @@
     "@playwright/test": "1.58.2",
     "@swc-node/register": "1.10.9",
     "@swc/cli": "0.6.0",
-    "@tailwindcss/postcss": "^4.2.4",
+    "@tailwindcss/postcss": "^4.3.0",
     "@tailwindcss/typography": "^0.5.19",
     "@types/node": "22.19.9",
     "@types/react": "19.2.14",
@@ -100,7 +100,7 @@
     "rimraf": "3.0.2",
     "sharp": "0.34.2",
     "sort-package-json": "^2.15.1",
-    "tailwindcss": "^4.2.4",
+    "tailwindcss": "^4.3.0",
     "typescript": "5.7.3",
     "vite-tsconfig-paths": "6.0.5",
     "vitest": "4.0.18"

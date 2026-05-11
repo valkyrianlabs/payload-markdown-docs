@@ -10,6 +10,16 @@ tags:
 
 # Payload Markdown Docs
 
+<span class="inline-flex gap-x-3">
+[![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/valkyrianlabs/payload-markdown-docs/deploy.yml)](https://github.com/valkyrianlabs/payload-markdown-docs/actions)
+&nbsp;
+[![npm](https://img.shields.io/npm/v/@valkyrianlabs/payload-markdown-docs)](https://www.npmjs.com/package/@valkyrianlabs/payload-markdown-docs)
+&nbsp;
+[![npm](https://img.shields.io/npm/dw/@valkyrianlabs/payload-markdown-docs)](https://www.npmjs.com/package/@valkyrianlabs/payload-markdown-docs)
+&nbsp;
+[![license](https://img.shields.io/npm/l/@valkyrianlabs/payload-markdown-docs)](https://github.com/valkyrianlabs/payload-markdown-docs?tab=MIT-1-ov-file)
+</span>
+
 `@valkyrianlabs/payload-markdown-docs` publishes Git-backed Markdown documentation into Payload CMS. Developers and agents edit files in a repo-local `docs/` folder, CI validates and authenticates a manifest, and the Payload plugin decides what can be synced.
 
 :::callout {variant="info" title="CMS-owned authority"}

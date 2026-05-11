@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import { realpathSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -214,12 +215,30 @@ export const runCli = async (argv: string[]): Promise<CliResult> => {
   }
 }
 
-const isCliEntrypoint = (): boolean => {
-  if (!process.argv[1]) {
+type CliEntrypointOptions = {
+  argvPath?: string
+  modulePath?: string
+}
+
+const resolveEntrypointPath = (input: string): string => {
+  const resolved = path.resolve(input)
+
+  try {
+    return realpathSync(resolved)
+  } catch {
+    return resolved
+  }
+}
+
+export const isCliEntrypoint = ({
+  argvPath = process.argv[1],
+  modulePath = fileURLToPath(import.meta.url),
+}: CliEntrypointOptions = {}): boolean => {
+  if (!argvPath) {
     return false
   }
 
-  return fileURLToPath(import.meta.url) === path.resolve(process.argv[1])
+  return resolveEntrypointPath(modulePath) === resolveEntrypointPath(argvPath)
 }
 
 if (isCliEntrypoint()) {

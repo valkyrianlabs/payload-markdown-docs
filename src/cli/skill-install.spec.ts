@@ -4,13 +4,14 @@ import {
   readdir,
   readFile,
   rm,
+  symlink,
   writeFile,
 } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 
-import { runCli } from './index.js'
+import { isCliEntrypoint, runCli } from './index.js'
 
 const originalCwd = process.cwd()
 const tempRoots: string[] = []
@@ -63,6 +64,28 @@ afterEach(async () => {
 })
 
 describe('install skill command', () => {
+  it('detects the CLI entrypoint through package-manager symlinks', async () => {
+    const root = await createTempRoot()
+    const realEntrypoint = path.join(root, 'store/package/dist/cli/index.js')
+    const linkedEntrypoint = path.join(root, 'project/node_modules/.bin/payload-markdown-docs')
+
+    await mkdir(path.dirname(realEntrypoint), {
+      recursive: true,
+    })
+    await mkdir(path.dirname(linkedEntrypoint), {
+      recursive: true,
+    })
+    await writeFile(realEntrypoint, '', 'utf8')
+    await symlink(realEntrypoint, linkedEntrypoint)
+
+    expect(
+      isCliEntrypoint({
+        argvPath: linkedEntrypoint,
+        modulePath: realEntrypoint,
+      }),
+    ).toBe(true)
+  })
+
   it('writes the Codex skill pack to the default output path', async () => {
     const root = await createTempRoot()
     process.chdir(root)
@@ -128,6 +151,23 @@ describe('install skill command', () => {
     expect(skill).toContain('./content/docs/index.ai.yml')
   })
 
+  it('repairs Codex discovery when skill files already exist unchanged', async () => {
+    const root = await createTempRoot()
+    const out = path.join(root, '.agents/skills/payload-markdown-docs')
+    process.chdir(root)
+
+    const first = await runCli(['install', 'skill', '--codex', '--out', out])
+
+    expect(first.exitCode).toBe(0)
+    await expect(readInstalledFile(root, 'AGENTS.md')).rejects.toThrow()
+    const second = await runCli(['install', 'skill', '--codex'])
+
+    expect(second.exitCode).toBe(0)
+    expect(await readInstalledFile(root, 'AGENTS.md')).toContain(
+      '.agents/skills/payload-markdown-docs/SKILL.md',
+    )
+  })
+
   it('installs AI export manifest guidance with a valid example', async () => {
     const root = await createTempRoot()
     const out = path.join(root, 'skill')
@@ -148,8 +188,8 @@ describe('install skill command', () => {
     const root = await createTempRoot()
     const out = path.join(root, 'skill')
     const first = await runCli(['install', 'skill', '--codex', '--out', out])
-    const second = await runCli(['install', 'skill', '--codex', '--out', out])
     await writeFile(path.join(out, 'SKILL.md'), 'stale\n', 'utf8')
+    const second = await runCli(['install', 'skill', '--codex', '--out', out])
     const forced = await runCli([
       'install',
       'skill',
