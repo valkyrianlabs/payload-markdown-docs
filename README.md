@@ -1,12 +1,12 @@
 # @valkyrianlabs/payload-markdown-docs
 
-<a href="https://github.com/valkyrianlabs/payload-markdown-docs/actions"><img alt="GitHub Workflow Status" src="https://img.shields.io/github/actions/workflow/status/valkyrianlabs/payload-markdown-docs/deploy.yml"></a>
+[![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/valkyrianlabs/payload-markdown-docs/deploy.yml)](https://github.com/valkyrianlabs/payload-markdown-docs/actions)
 &nbsp;
-<a href="https://www.npmjs.com/package/@valkyrianlabs/payload-markdown-docs"><img alt="npm" src="https://img.shields.io/npm/v/@valkyrianlabs/payload-markdown-docs" /></a>
+[![npm](https://img.shields.io/npm/v/@valkyrianlabs/payload-markdown-docs)](https://www.npmjs.com/package/@valkyrianlabs/payload-markdown-docs)
 &nbsp;
-<a href="https://www.npmjs.com/package/@valkyrianlabs/payload-markdown-docs"><img alt="npm" src="https://img.shields.io/npm/dw/@valkyrianlabs/payload-markdown-docs" /></a>
+[![npm](https://img.shields.io/npm/dw/@valkyrianlabs/payload-markdown-docs)](https://www.npmjs.com/package/@valkyrianlabs/payload-markdown-docs)
 &nbsp;
-<a href="https://github.com/valkyrianlabs/payload-markdown-docs?tab=MIT-1-ov-file"><img alt="license" src="https://img.shields.io/npm/l/@valkyrianlabs/payload-markdown-docs" /></a>
+[![license](https://img.shields.io/npm/l/@valkyrianlabs/payload-markdown-docs)](https://github.com/valkyrianlabs/payload-markdown-docs?tab=MIT-1-ov-file)
 
 Git-backed Markdown documentation sync for Payload CMS, powered by
 `@valkyrianlabs/payload-markdown`.
