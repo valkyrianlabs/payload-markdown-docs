@@ -1,4 +1,4 @@
-import type { Payload } from 'payload'
+import type { CollectionSlug, Payload, Where } from 'payload'
 
 import { getPayload } from 'payload'
 
@@ -7,17 +7,17 @@ import {
   devDocsSetSlug,
   devDocsSourceId,
   getPayloadRecordId,
-} from '../helpers/docsSeedData.js'
-import config from '../payload.config.js'
+} from '../helpers/docsSeedData'
+import config from '../payload.config'
 
 const findAll = async ({
   collection,
   payload,
   where,
 }: {
-  collection: string
+  collection: CollectionSlug
   payload: Payload
-  where?: Record<string, unknown>
+  where?: Where
 }): Promise<unknown[]> => {
   const result = await payload.find({
     collection,
@@ -35,9 +35,9 @@ const deleteRecords = async ({
   payload,
   where,
 }: {
-  collection: string
+  collection: CollectionSlug
   payload: Payload
-  where?: Record<string, unknown>
+  where?: Where
 }): Promise<number> => {
   const records = await findAll({
     collection,
@@ -78,7 +78,7 @@ const run = async () => {
       },
     })
     const docsSetId = getPayloadRecordId(docsSets[0])
-    const docsWhere = docsSetId
+    const docsWhere: Where = docsSetId
       ? {
           or: [
             {

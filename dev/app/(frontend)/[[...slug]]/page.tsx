@@ -5,7 +5,7 @@ import {
   PayloadMarkdownDocsPage,
   resolvePayloadMarkdownDocsRoute,
 } from '@valkyrianlabs/payload-markdown-docs/next'
-import { notFound } from 'next/navigation.js'
+import { notFound } from 'next/navigation'
 import { getPayload } from 'payload'
 
 type PageProps = {

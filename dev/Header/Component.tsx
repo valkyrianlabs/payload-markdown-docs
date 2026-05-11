@@ -1,7 +1,7 @@
-import type { HeaderData } from './config.js'
+import type { HeaderData } from './config'
 
-import { getCachedGlobal } from '../utilities/getGlobals.js'
-import { HeaderClient } from './Component.client.js'
+import { getCachedGlobal } from '../utilities/getGlobals'
+import { HeaderClient } from './Component.client'
 
 export async function Header() {
   const headerData: HeaderData = await getCachedGlobal('header', 3)()

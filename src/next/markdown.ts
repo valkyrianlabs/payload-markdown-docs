@@ -37,11 +37,7 @@ export type ResolvedPayloadMarkdownDocsMarkdownRoute = {
 
 export type ResolvePayloadMarkdownDocsMarkdownRouteOptions = ResolvePayloadMarkdownDocsRouteOptions
 
-type ResolvedCollectionSlugs = {
-  docs: string
-  docsGroups: string
-  docsSets: string
-}
+type ResolvedCollectionSlugs = Required<PayloadMarkdownDocsCollectionSlugs>
 
 const resolveCollectionSlugs = (
   collections?: PayloadMarkdownDocsCollectionSlugs,

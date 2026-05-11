@@ -1,26 +1,37 @@
 import type { ArrayField, Field } from 'payload'
 
-import type { LinkAppearances } from './link.js'
+import type { LinkAppearances } from './link'
 
-import { link } from './link.js'
+import { link } from './link'
 
 type LinkGroupType = (options?: {
   appearances?: false | LinkAppearances[]
-  overrides?: Partial<ArrayField>
+  overrides?: LinkArrayOverrides
 }) => Field
 
-const mergeArrayField = (field: Field, overrides: Partial<ArrayField>): Field => ({
-  ...field,
-  ...overrides,
-  admin: {
-    ...('admin' in field ? field.admin : {}),
-    ...overrides.admin,
-  },
-  fields: overrides.fields ?? ('fields' in field ? field.fields : []),
-})
+type LinkArrayOverrides = Partial<Omit<ArrayField, 'admin' | 'fields' | 'name' | 'type'>> & {
+  admin?: ArrayField['admin']
+  fields?: ArrayField['fields']
+}
+
+const mergeArrayField = (field: ArrayField, overrides: LinkArrayOverrides): Field => {
+  const { admin, fields, ...rest } = overrides
+
+  return {
+    ...field,
+    ...rest,
+    name: field.name,
+    type: field.type,
+    admin: {
+      ...field.admin,
+      ...admin,
+    },
+    fields: fields ?? field.fields,
+  } as Field
+}
 
 export const linkGroup: LinkGroupType = ({ appearances, overrides = {} } = {}) => {
-  const generatedLinkGroup: Field = {
+  const generatedLinkGroup: ArrayField = {
     name: 'links',
     type: 'array',
     admin: {

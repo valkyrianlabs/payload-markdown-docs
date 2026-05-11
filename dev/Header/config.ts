@@ -1,10 +1,10 @@
 import type { Field, GlobalConfig } from 'payload'
 
-import type { DocsGroup, DocsSet } from '../payload-types.ts'
+import type { DocsGroup, DocsSet } from '../payload-types'
 
-import { link } from '../fields/link.js'
-import { populateNavItems } from './hooks/populateNavItems.js'
-import { revalidateHeader } from './hooks/revalidateHeader.js'
+import { link } from '../fields/link'
+import { populateNavItems } from './hooks/populateNavItems'
+import { revalidateHeader } from './hooks/revalidateHeader'
 
 export type HeaderLinkReference =
   | {

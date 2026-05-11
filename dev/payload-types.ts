@@ -59,144 +59,146 @@ export type SupportedTimezones =
   | 'Pacific/Guam'
   | 'Pacific/Noumea'
   | 'Pacific/Auckland'
-  | 'Pacific/Fiji'
+  | 'Pacific/Fiji';
 
 export interface Config {
   auth: {
-    users: UserAuthOperations
-  }
-  blocks: {}
+    users: UserAuthOperations;
+  };
+  blocks: {};
   collections: {
-    posts: Post
-    media: Media
-    'docs-groups': DocsGroup
-    'docs-sets': DocsSet
-    'docs-keys': DocsKey
-    'docs-trusted': DocsTrusted
-    docs: Doc
-    'docs-sync-runs': DocsSyncRun
-    'docs-sync-nonces': DocsSyncNonce
-    'payload-kv': PayloadKv
-    users: User
-    'payload-locked-documents': PayloadLockedDocument
-    'payload-preferences': PayloadPreference
-    'payload-migrations': PayloadMigration
-  }
-  collectionsJoins: {}
+    posts: Post;
+    media: Media;
+    'docs-groups': DocsGroup;
+    'docs-sets': DocsSet;
+    'docs-keys': DocsKey;
+    'docs-trusted': DocsTrusted;
+    docs: Doc;
+    'docs-sync-runs': DocsSyncRun;
+    'docs-sync-nonces': DocsSyncNonce;
+    'payload-kv': PayloadKv;
+    users: User;
+    'payload-locked-documents': PayloadLockedDocument;
+    'payload-preferences': PayloadPreference;
+    'payload-migrations': PayloadMigration;
+  };
+  collectionsJoins: {};
   collectionsSelect: {
-    posts: PostsSelect<false> | PostsSelect<true>
-    media: MediaSelect<false> | MediaSelect<true>
-    'docs-groups': DocsGroupsSelect<false> | DocsGroupsSelect<true>
-    'docs-sets': DocsSetsSelect<false> | DocsSetsSelect<true>
-    'docs-keys': DocsKeysSelect<false> | DocsKeysSelect<true>
-    'docs-trusted': DocsTrustedSelect<false> | DocsTrustedSelect<true>
-    docs: DocsSelect<false> | DocsSelect<true>
-    'docs-sync-runs': DocsSyncRunsSelect<false> | DocsSyncRunsSelect<true>
-    'docs-sync-nonces': DocsSyncNoncesSelect<false> | DocsSyncNoncesSelect<true>
-    'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>
-    users: UsersSelect<false> | UsersSelect<true>
-    'payload-locked-documents':
-      | PayloadLockedDocumentsSelect<false>
-      | PayloadLockedDocumentsSelect<true>
-    'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>
-    'payload-migrations': PayloadMigrationsSelect<false> | PayloadMigrationsSelect<true>
-  }
+    posts: PostsSelect<false> | PostsSelect<true>;
+    media: MediaSelect<false> | MediaSelect<true>;
+    'docs-groups': DocsGroupsSelect<false> | DocsGroupsSelect<true>;
+    'docs-sets': DocsSetsSelect<false> | DocsSetsSelect<true>;
+    'docs-keys': DocsKeysSelect<false> | DocsKeysSelect<true>;
+    'docs-trusted': DocsTrustedSelect<false> | DocsTrustedSelect<true>;
+    docs: DocsSelect<false> | DocsSelect<true>;
+    'docs-sync-runs': DocsSyncRunsSelect<false> | DocsSyncRunsSelect<true>;
+    'docs-sync-nonces': DocsSyncNoncesSelect<false> | DocsSyncNoncesSelect<true>;
+    'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
+    users: UsersSelect<false> | UsersSelect<true>;
+    'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
+    'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
+    'payload-migrations': PayloadMigrationsSelect<false> | PayloadMigrationsSelect<true>;
+  };
   db: {
-    defaultIDType: number
-  }
-  fallbackLocale: null
-  globals: {}
-  globalsSelect: {}
-  locale: null
+    defaultIDType: number;
+  };
+  fallbackLocale: null;
+  globals: {
+    header: Header;
+  };
+  globalsSelect: {
+    header: HeaderSelect<false> | HeaderSelect<true>;
+  };
+  locale: null;
   widgets: {
-    collections: CollectionsWidget
-  }
-  user: User
+    collections: CollectionsWidget;
+  };
+  user: User;
   jobs: {
-    tasks: unknown
-    workflows: unknown
-  }
+    tasks: unknown;
+    workflows: unknown;
+  };
 }
 export interface UserAuthOperations {
   forgotPassword: {
-    email: string
-    password: string
-  }
+    email: string;
+    password: string;
+  };
   login: {
-    email: string
-    password: string
-  }
+    email: string;
+    password: string;
+  };
   registerFirstUser: {
-    email: string
-    password: string
-  }
+    email: string;
+    password: string;
+  };
   unlock: {
-    email: string
-    password: string
-  }
+    email: string;
+    password: string;
+  };
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "posts".
  */
 export interface Post {
-  id: number
-  updatedAt: string
-  createdAt: string
+  id: number;
+  updatedAt: string;
+  createdAt: string;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "media".
  */
 export interface Media {
-  id: number
-  updatedAt: string
-  createdAt: string
-  url?: string | null
-  thumbnailURL?: string | null
-  filename?: string | null
-  mimeType?: string | null
-  filesize?: number | null
-  width?: number | null
-  height?: number | null
-  focalX?: number | null
-  focalY?: number | null
+  id: number;
+  updatedAt: string;
+  createdAt: string;
+  url?: string | null;
+  thumbnailURL?: string | null;
+  filename?: string | null;
+  mimeType?: string | null;
+  filesize?: number | null;
+  width?: number | null;
+  height?: number | null;
+  focalX?: number | null;
+  focalY?: number | null;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "docs-groups".
  */
 export interface DocsGroup {
-  id: number
-  title: string
-  slug: string
-  parent?: (number | null) | DocsGroup
-  description?: string | null
-  navTitle?: string | null
-  order?: number | null
-  serveIndex?: boolean | null
-  updatedAt: string
-  createdAt: string
+  id: number;
+  title: string;
+  slug: string;
+  parent?: (number | null) | DocsGroup;
+  description?: string | null;
+  navTitle?: string | null;
+  order?: number | null;
+  serveIndex?: boolean | null;
+  updatedAt: string;
+  createdAt: string;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "docs-sets".
  */
 export interface DocsSet {
-  id: number
-  title: string
-  slug: string
-  group?: (number | null) | DocsGroup
+  id: number;
+  title: string;
+  slug: string;
+  group?: (number | null) | DocsGroup;
   /**
    * Git branch allowed to publish this docs set. The full Git ref is handled internally.
    */
-  branch?: string | null
+  branch?: string | null;
   /**
    * Allow GitHub pull request events to dry-run or publish this docs set.
    */
-  allowPullRequests?: boolean | null
-  description?: string | null
-  publishedAt?: string | null
+  allowPullRequests?: boolean | null;
+  description?: string | null;
+  publishedAt?: string | null;
   /**
    * Optional workflow lock-down. Leave disabled to allow any workflow from a trusted GitHub owner/repository and branch.
    */
@@ -204,574 +206,699 @@ export interface DocsSet {
     /**
      * When enabled, only the workflow refs listed below can publish this docs set.
      */
-    enabled?: boolean | null
+    enabled?: boolean | null;
     /**
      * Exact GitHub workflow refs, for example owner/repo/.github/workflows/publish-docs.yml@refs/heads/main.
      */
     allowedWorkflowRefs?:
       | {
-          value: string
-          id?: string | null
+          value: string;
+          id?: string | null;
         }[]
-      | null
-  }
+      | null;
+  };
   /**
    * Parsed index.ai.yml control data for the raw Markdown AI export route.
    */
   aiExport?:
     | {
-        [k: string]: unknown
+        [k: string]: unknown;
       }
     | unknown[]
     | string
     | number
     | boolean
-    | null
+    | null;
   sync?: {
-    lastSyncedAt?: string | null
-    lastSyncRunId?: (number | null) | DocsSyncRun
-    lastStatus?: ('failed' | 'pending' | 'success') | null
-    docsCount?: number | null
-  }
-  updatedAt: string
-  createdAt: string
-  _status?: ('draft' | 'published') | null
+    lastSyncedAt?: string | null;
+    lastSyncRunId?: (number | null) | DocsSyncRun;
+    lastStatus?: ('failed' | 'pending' | 'success') | null;
+    docsCount?: number | null;
+  };
+  updatedAt: string;
+  createdAt: string;
+  _status?: ('draft' | 'published') | null;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "docs-sync-runs".
  */
 export interface DocsSyncRun {
-  id: number
-  sourceId: string
-  repository?: string | null
-  branch?: string | null
-  commit?: string | null
-  actor?: string | null
-  keyId?: string | null
-  mode: 'dry-run' | 'sync'
-  status: 'pending' | 'success' | 'failed'
-  publishRequested?: boolean | null
-  deleteBehavior?: ('archive' | 'delete' | 'draft' | 'ignore') | null
-  bodyHash?: string | null
-  fileCount?: number | null
-  totalBytes?: number | null
+  id: number;
+  sourceId: string;
+  repository?: string | null;
+  branch?: string | null;
+  commit?: string | null;
+  actor?: string | null;
+  keyId?: string | null;
+  mode: 'dry-run' | 'sync';
+  status: 'pending' | 'success' | 'failed';
+  publishRequested?: boolean | null;
+  deleteBehavior?: ('archive' | 'delete' | 'draft' | 'ignore') | null;
+  bodyHash?: string | null;
+  fileCount?: number | null;
+  totalBytes?: number | null;
   summary?:
     | {
-        [k: string]: unknown
+        [k: string]: unknown;
       }
     | unknown[]
     | string
     | number
     | boolean
-    | null
+    | null;
   warnings?:
     | {
-        message?: string | null
-        id?: string | null
+        message?: string | null;
+        id?: string | null;
       }[]
-    | null
+    | null;
   errors?:
     | {
-        message?: string | null
-        id?: string | null
+        message?: string | null;
+        id?: string | null;
       }[]
-    | null
-  startedAt: string
-  completedAt?: string | null
-  updatedAt: string
-  createdAt: string
+    | null;
+  startedAt: string;
+  completedAt?: string | null;
+  updatedAt: string;
+  createdAt: string;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "docs-keys".
  */
 export interface DocsKey {
-  id: number
-  title: string
+  id: number;
+  title: string;
   /**
    * Identifier sent by signed docs sync requests. Keep this stable for each publishing environment.
    */
-  keyId: string
+  keyId: string;
   /**
    * Ed25519 public key allowed to publish docs. Private keys never belong in Payload.
    */
-  publicKey: string
-  updatedAt: string
-  createdAt: string
+  publicKey: string;
+  updatedAt: string;
+  createdAt: string;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "docs-trusted".
  */
 export interface DocsTrusted {
-  id: number
-  title: string
+  id: number;
+  title: string;
   /**
    * GitHub owner or organization trusted to publish docs through OIDC.
    */
-  owner: string
+  owner: string;
   /**
    * Leave off to trust every repository owned by this GitHub owner. Enable to list specific repositories.
    */
-  limitRepos?: boolean | null
+  limitRepos?: boolean | null;
   /**
    * Repository names or owner/repository pairs allowed when repo limiting is enabled.
    */
   repositories?:
     | {
-        value: string
-        id?: string | null
+        value: string;
+        id?: string | null;
       }[]
-    | null
-  updatedAt: string
-  createdAt: string
+    | null;
+  updatedAt: string;
+  createdAt: string;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "docs".
  */
 export interface Doc {
-  id: number
-  title: string
-  navTitle?: string | null
-  description?: string | null
-  publishedAt?: string | null
-  route: string
-  sourcePath: string
-  docsSet?: (number | null) | DocsSet
-  sourceHash?: string | null
-  depth?: number | null
-  order?: number | null
-  parent?: (number | null) | Doc
+  id: number;
+  title: string;
+  navTitle?: string | null;
+  description?: string | null;
+  publishedAt?: string | null;
+  route: string;
+  sourcePath: string;
+  docsSet?: (number | null) | DocsSet;
+  sourceHash?: string | null;
+  depth?: number | null;
+  order?: number | null;
+  parent?: (number | null) | Doc;
   /**
    * Optional hero image rendered above generated docs content.
    */
-  heroImage?: (number | null) | Media
-  content?: string | null
+  heroImage?: (number | null) | Media;
+  content?: string | null;
   overrides?: {
-    navTitle?: string | null
-    hideFromNav?: boolean | null
-  }
+    navTitle?: string | null;
+    hideFromNav?: boolean | null;
+  };
   sync?: {
-    sourceId?: string | null
-    sourcePath?: string | null
-    sourceHashAtLastSync?: string | null
-    contentHashAtLastSync?: string | null
-    lastSyncedAt?: string | null
-    lastSyncRunId?: (number | null) | DocsSyncRun
-    managedBy?: string | null
-    archived?: boolean | null
-    archivedAt?: string | null
-  }
-  updatedAt: string
-  createdAt: string
-  _status?: ('draft' | 'published') | null
+    sourceId?: string | null;
+    sourcePath?: string | null;
+    sourceHashAtLastSync?: string | null;
+    contentHashAtLastSync?: string | null;
+    lastSyncedAt?: string | null;
+    lastSyncRunId?: (number | null) | DocsSyncRun;
+    managedBy?: string | null;
+    archived?: boolean | null;
+    archivedAt?: string | null;
+  };
+  updatedAt: string;
+  createdAt: string;
+  _status?: ('draft' | 'published') | null;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "docs-sync-nonces".
  */
 export interface DocsSyncNonce {
-  id: number
-  keyId: string
-  nonce: string
-  sourceId?: string | null
-  bodyHash?: string | null
-  syncRunId?: (number | null) | DocsSyncRun
-  expiresAt: string
-  usedAt?: string | null
-  updatedAt: string
-  createdAt: string
+  id: number;
+  keyId: string;
+  nonce: string;
+  sourceId?: string | null;
+  bodyHash?: string | null;
+  syncRunId?: (number | null) | DocsSyncRun;
+  expiresAt: string;
+  usedAt?: string | null;
+  updatedAt: string;
+  createdAt: string;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
 export interface PayloadKv {
-  id: number
-  key: string
+  id: number;
+  key: string;
   data:
     | {
-        [k: string]: unknown
+        [k: string]: unknown;
       }
     | unknown[]
     | string
     | number
     | boolean
-    | null
+    | null;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "users".
  */
 export interface User {
-  id: number
-  updatedAt: string
-  createdAt: string
-  email: string
-  resetPasswordToken?: string | null
-  resetPasswordExpiration?: string | null
-  salt?: string | null
-  hash?: string | null
-  loginAttempts?: number | null
-  lockUntil?: string | null
+  id: number;
+  updatedAt: string;
+  createdAt: string;
+  email: string;
+  resetPasswordToken?: string | null;
+  resetPasswordExpiration?: string | null;
+  salt?: string | null;
+  hash?: string | null;
+  loginAttempts?: number | null;
+  lockUntil?: string | null;
   sessions?:
     | {
-        id: string
-        createdAt?: string | null
-        expiresAt: string
+        id: string;
+        createdAt?: string | null;
+        expiresAt: string;
       }[]
-    | null
-  password?: string | null
-  collection: 'users'
+    | null;
+  password?: string | null;
+  collection: 'users';
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-locked-documents".
  */
 export interface PayloadLockedDocument {
-  id: number
+  id: number;
   document?:
     | ({
-        relationTo: 'posts'
-        value: number | Post
+        relationTo: 'posts';
+        value: number | Post;
       } | null)
     | ({
-        relationTo: 'media'
-        value: number | Media
+        relationTo: 'media';
+        value: number | Media;
       } | null)
     | ({
-        relationTo: 'docs-groups'
-        value: number | DocsGroup
+        relationTo: 'docs-groups';
+        value: number | DocsGroup;
       } | null)
     | ({
-        relationTo: 'docs-sets'
-        value: number | DocsSet
+        relationTo: 'docs-sets';
+        value: number | DocsSet;
       } | null)
     | ({
-        relationTo: 'docs-keys'
-        value: number | DocsKey
+        relationTo: 'docs-keys';
+        value: number | DocsKey;
       } | null)
     | ({
-        relationTo: 'docs-trusted'
-        value: number | DocsTrusted
+        relationTo: 'docs-trusted';
+        value: number | DocsTrusted;
       } | null)
     | ({
-        relationTo: 'docs'
-        value: number | Doc
+        relationTo: 'docs';
+        value: number | Doc;
       } | null)
     | ({
-        relationTo: 'docs-sync-runs'
-        value: number | DocsSyncRun
+        relationTo: 'docs-sync-runs';
+        value: number | DocsSyncRun;
       } | null)
     | ({
-        relationTo: 'docs-sync-nonces'
-        value: number | DocsSyncNonce
+        relationTo: 'docs-sync-nonces';
+        value: number | DocsSyncNonce;
       } | null)
     | ({
-        relationTo: 'users'
-        value: number | User
-      } | null)
-  globalSlug?: string | null
+        relationTo: 'users';
+        value: number | User;
+      } | null);
+  globalSlug?: string | null;
   user: {
-    relationTo: 'users'
-    value: number | User
-  }
-  updatedAt: string
-  createdAt: string
+    relationTo: 'users';
+    value: number | User;
+  };
+  updatedAt: string;
+  createdAt: string;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-preferences".
  */
 export interface PayloadPreference {
-  id: number
+  id: number;
   user: {
-    relationTo: 'users'
-    value: number | User
-  }
-  key?: string | null
+    relationTo: 'users';
+    value: number | User;
+  };
+  key?: string | null;
   value?:
     | {
-        [k: string]: unknown
+        [k: string]: unknown;
       }
     | unknown[]
     | string
     | number
     | boolean
-    | null
-  updatedAt: string
-  createdAt: string
+    | null;
+  updatedAt: string;
+  createdAt: string;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-migrations".
  */
 export interface PayloadMigration {
-  id: number
-  name?: string | null
-  batch?: number | null
-  updatedAt: string
-  createdAt: string
+  id: number;
+  name?: string | null;
+  batch?: number | null;
+  updatedAt: string;
+  createdAt: string;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "posts_select".
  */
 export interface PostsSelect<T extends boolean = true> {
-  updatedAt?: T
-  createdAt?: T
+  updatedAt?: T;
+  createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "media_select".
  */
 export interface MediaSelect<T extends boolean = true> {
-  updatedAt?: T
-  createdAt?: T
-  url?: T
-  thumbnailURL?: T
-  filename?: T
-  mimeType?: T
-  filesize?: T
-  width?: T
-  height?: T
-  focalX?: T
-  focalY?: T
+  updatedAt?: T;
+  createdAt?: T;
+  url?: T;
+  thumbnailURL?: T;
+  filename?: T;
+  mimeType?: T;
+  filesize?: T;
+  width?: T;
+  height?: T;
+  focalX?: T;
+  focalY?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "docs-groups_select".
  */
 export interface DocsGroupsSelect<T extends boolean = true> {
-  title?: T
-  slug?: T
-  parent?: T
-  description?: T
-  navTitle?: T
-  order?: T
-  serveIndex?: T
-  updatedAt?: T
-  createdAt?: T
+  title?: T;
+  slug?: T;
+  parent?: T;
+  description?: T;
+  navTitle?: T;
+  order?: T;
+  serveIndex?: T;
+  updatedAt?: T;
+  createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "docs-sets_select".
  */
 export interface DocsSetsSelect<T extends boolean = true> {
-  title?: T
-  slug?: T
-  group?: T
-  branch?: T
-  allowPullRequests?: T
-  description?: T
-  publishedAt?: T
+  title?: T;
+  slug?: T;
+  group?: T;
+  branch?: T;
+  allowPullRequests?: T;
+  description?: T;
+  publishedAt?: T;
   advancedSecurity?:
     | T
     | {
-        enabled?: T
+        enabled?: T;
         allowedWorkflowRefs?:
           | T
           | {
-              value?: T
-              id?: T
-            }
-      }
-  aiExport?: T
+              value?: T;
+              id?: T;
+            };
+      };
+  aiExport?: T;
   sync?:
     | T
     | {
-        lastSyncedAt?: T
-        lastSyncRunId?: T
-        lastStatus?: T
-        docsCount?: T
-      }
-  updatedAt?: T
-  createdAt?: T
-  _status?: T
+        lastSyncedAt?: T;
+        lastSyncRunId?: T;
+        lastStatus?: T;
+        docsCount?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
+  _status?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "docs-keys_select".
  */
 export interface DocsKeysSelect<T extends boolean = true> {
-  title?: T
-  keyId?: T
-  publicKey?: T
-  updatedAt?: T
-  createdAt?: T
+  title?: T;
+  keyId?: T;
+  publicKey?: T;
+  updatedAt?: T;
+  createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "docs-trusted_select".
  */
 export interface DocsTrustedSelect<T extends boolean = true> {
-  title?: T
-  owner?: T
-  limitRepos?: T
+  title?: T;
+  owner?: T;
+  limitRepos?: T;
   repositories?:
     | T
     | {
-        value?: T
-        id?: T
-      }
-  updatedAt?: T
-  createdAt?: T
+        value?: T;
+        id?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "docs_select".
  */
 export interface DocsSelect<T extends boolean = true> {
-  title?: T
-  navTitle?: T
-  description?: T
-  publishedAt?: T
-  route?: T
-  sourcePath?: T
-  docsSet?: T
-  sourceHash?: T
-  depth?: T
-  order?: T
-  parent?: T
-  heroImage?: T
-  content?: T
+  title?: T;
+  navTitle?: T;
+  description?: T;
+  publishedAt?: T;
+  route?: T;
+  sourcePath?: T;
+  docsSet?: T;
+  sourceHash?: T;
+  depth?: T;
+  order?: T;
+  parent?: T;
+  heroImage?: T;
+  content?: T;
   overrides?:
     | T
     | {
-        navTitle?: T
-        hideFromNav?: T
-      }
+        navTitle?: T;
+        hideFromNav?: T;
+      };
   sync?:
     | T
     | {
-        sourceId?: T
-        sourcePath?: T
-        sourceHashAtLastSync?: T
-        contentHashAtLastSync?: T
-        lastSyncedAt?: T
-        lastSyncRunId?: T
-        managedBy?: T
-        archived?: T
-        archivedAt?: T
-      }
-  updatedAt?: T
-  createdAt?: T
-  _status?: T
+        sourceId?: T;
+        sourcePath?: T;
+        sourceHashAtLastSync?: T;
+        contentHashAtLastSync?: T;
+        lastSyncedAt?: T;
+        lastSyncRunId?: T;
+        managedBy?: T;
+        archived?: T;
+        archivedAt?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
+  _status?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "docs-sync-runs_select".
  */
 export interface DocsSyncRunsSelect<T extends boolean = true> {
-  sourceId?: T
-  repository?: T
-  branch?: T
-  commit?: T
-  actor?: T
-  keyId?: T
-  mode?: T
-  status?: T
-  publishRequested?: T
-  deleteBehavior?: T
-  bodyHash?: T
-  fileCount?: T
-  totalBytes?: T
-  summary?: T
+  sourceId?: T;
+  repository?: T;
+  branch?: T;
+  commit?: T;
+  actor?: T;
+  keyId?: T;
+  mode?: T;
+  status?: T;
+  publishRequested?: T;
+  deleteBehavior?: T;
+  bodyHash?: T;
+  fileCount?: T;
+  totalBytes?: T;
+  summary?: T;
   warnings?:
     | T
     | {
-        message?: T
-        id?: T
-      }
+        message?: T;
+        id?: T;
+      };
   errors?:
     | T
     | {
-        message?: T
-        id?: T
-      }
-  startedAt?: T
-  completedAt?: T
-  updatedAt?: T
-  createdAt?: T
+        message?: T;
+        id?: T;
+      };
+  startedAt?: T;
+  completedAt?: T;
+  updatedAt?: T;
+  createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "docs-sync-nonces_select".
  */
 export interface DocsSyncNoncesSelect<T extends boolean = true> {
-  keyId?: T
-  nonce?: T
-  sourceId?: T
-  bodyHash?: T
-  syncRunId?: T
-  expiresAt?: T
-  usedAt?: T
-  updatedAt?: T
-  createdAt?: T
+  keyId?: T;
+  nonce?: T;
+  sourceId?: T;
+  bodyHash?: T;
+  syncRunId?: T;
+  expiresAt?: T;
+  usedAt?: T;
+  updatedAt?: T;
+  createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv_select".
  */
 export interface PayloadKvSelect<T extends boolean = true> {
-  key?: T
-  data?: T
+  key?: T;
+  data?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "users_select".
  */
 export interface UsersSelect<T extends boolean = true> {
-  updatedAt?: T
-  createdAt?: T
-  email?: T
-  resetPasswordToken?: T
-  resetPasswordExpiration?: T
-  salt?: T
-  hash?: T
-  loginAttempts?: T
-  lockUntil?: T
+  updatedAt?: T;
+  createdAt?: T;
+  email?: T;
+  resetPasswordToken?: T;
+  resetPasswordExpiration?: T;
+  salt?: T;
+  hash?: T;
+  loginAttempts?: T;
+  lockUntil?: T;
   sessions?:
     | T
     | {
-        id?: T
-        createdAt?: T
-        expiresAt?: T
-      }
+        id?: T;
+        createdAt?: T;
+        expiresAt?: T;
+      };
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-locked-documents_select".
  */
 export interface PayloadLockedDocumentsSelect<T extends boolean = true> {
-  document?: T
-  globalSlug?: T
-  user?: T
-  updatedAt?: T
-  createdAt?: T
+  document?: T;
+  globalSlug?: T;
+  user?: T;
+  updatedAt?: T;
+  createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-preferences_select".
  */
 export interface PayloadPreferencesSelect<T extends boolean = true> {
-  user?: T
-  key?: T
-  value?: T
-  updatedAt?: T
-  createdAt?: T
+  user?: T;
+  key?: T;
+  value?: T;
+  updatedAt?: T;
+  createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-migrations_select".
  */
 export interface PayloadMigrationsSelect<T extends boolean = true> {
-  name?: T
-  batch?: T
-  updatedAt?: T
-  createdAt?: T
+  name?: T;
+  batch?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "header".
+ */
+export interface Header {
+  id: number;
+  navItems?:
+    | {
+        link: {
+          type?: ('reference' | 'custom') | null;
+          newTab?: boolean | null;
+          reference?:
+            | ({
+                relationTo: 'docs-groups';
+                value: number | DocsGroup;
+              } | null)
+            | ({
+                relationTo: 'docs-sets';
+                value: number | DocsSet;
+              } | null);
+          url?: string | null;
+          label: string;
+        };
+        subItems?:
+          | {
+              link: {
+                type?: ('reference' | 'custom') | null;
+                newTab?: boolean | null;
+                reference?:
+                  | ({
+                      relationTo: 'docs-groups';
+                      value: number | DocsGroup;
+                    } | null)
+                  | ({
+                      relationTo: 'docs-sets';
+                      value: number | DocsSet;
+                    } | null);
+                url?: string | null;
+                label: string;
+              };
+              /**
+               * Populate child items from the linked docs group's child groups and docs sets.
+               */
+              populateChildren?: boolean | null;
+              childItems?:
+                | {
+                    link: {
+                      type?: ('reference' | 'custom') | null;
+                      newTab?: boolean | null;
+                      reference?:
+                        | ({
+                            relationTo: 'docs-groups';
+                            value: number | DocsGroup;
+                          } | null)
+                        | ({
+                            relationTo: 'docs-sets';
+                            value: number | DocsSet;
+                          } | null);
+                      url?: string | null;
+                      label: string;
+                    };
+                    id?: string | null;
+                  }[]
+                | null;
+              id?: string | null;
+            }[]
+          | null;
+        id?: string | null;
+      }[]
+    | null;
+  updatedAt?: string | null;
+  createdAt?: string | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "header_select".
+ */
+export interface HeaderSelect<T extends boolean = true> {
+  navItems?:
+    | T
+    | {
+        link?:
+          | T
+          | {
+              type?: T;
+              newTab?: T;
+              reference?: T;
+              url?: T;
+              label?: T;
+            };
+        subItems?:
+          | T
+          | {
+              link?:
+                | T
+                | {
+                    type?: T;
+                    newTab?: T;
+                    reference?: T;
+                    url?: T;
+                    label?: T;
+                  };
+              populateChildren?: T;
+              childItems?:
+                | T
+                | {
+                    link?:
+                      | T
+                      | {
+                          type?: T;
+                          newTab?: T;
+                          reference?: T;
+                          url?: T;
+                          label?: T;
+                        };
+                    id?: T;
+                  };
+              id?: T;
+            };
+        id?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
+  globalType?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -779,17 +906,18 @@ export interface PayloadMigrationsSelect<T extends boolean = true> {
  */
 export interface CollectionsWidget {
   data?: {
-    [k: string]: unknown
-  }
-  width: 'full'
+    [k: string]: unknown;
+  };
+  width: 'full';
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "auth".
  */
 export interface Auth {
-  [k: string]: unknown
+  [k: string]: unknown;
 }
+
 
 declare module 'payload' {
   export interface GeneratedTypes extends Config {}

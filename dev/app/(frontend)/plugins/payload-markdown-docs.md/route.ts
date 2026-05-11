@@ -2,7 +2,7 @@ import type { PayloadMarkdownDocsReadPayload } from '@valkyrianlabs/payload-mark
 
 import config from '@payload-config'
 import { createPayloadMarkdownDocsMarkdownResponse } from '@valkyrianlabs/payload-markdown-docs/next'
-import { notFound } from 'next/navigation.js'
+import { notFound } from 'next/navigation'
 import { getPayload } from 'payload'
 
 export async function GET() {

@@ -1,6 +1,5 @@
 {
   "extends": "../tsconfig.json",
-  "exclude": [],
   "include": [
     "**/*.js",
     "**/*.jsx",
@@ -8,22 +7,19 @@
     "**/*.cjs",
     "**/*.ts",
     "**/*.tsx",
-    "../src/**/*.ts",
-    "../src/**/*.tsx",
     "next.config.mjs",
     ".next/types/**/*.ts"
   ],
   "compilerOptions": {
     "baseUrl": "./",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
     "paths": {
       "@payload-config": [
         "./payload.config.ts"
-      ],
-      "@valkyrianlabs/payload-markdown-docs": [
-        "../src/index.ts"
       ]
     },
     "noEmit": true,
-    "emitDeclarationOnly": false,
+    "emitDeclarationOnly": false
   }
 }

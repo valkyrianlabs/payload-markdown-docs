@@ -5,11 +5,12 @@ import { buildConfig } from 'payload'
 import sharp from 'sharp'
 import { fileURLToPath } from 'url'
 
-import { payloadMarkdownDocs } from '../src/index.js'
-import { Header } from './Header/config.js'
-import { testEmailAdapter } from './helpers/testEmailAdapter.js'
-import './helpers/loadDevEnv.js'
-import { seed } from './seed.js'
+import { payloadMarkdownDocs } from '@valkyrianlabs/payload-markdown-docs'
+
+import { Header } from './Header/config'
+import { testEmailAdapter } from './helpers/testEmailAdapter'
+import './helpers/loadDevEnv'
+import { seed } from './seed'
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)

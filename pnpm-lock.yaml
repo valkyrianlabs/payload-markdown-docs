@@ -13,7 +13,7 @@ importers:
         version: 1.3.1(payload@3.84.1(graphql@16.14.0)(typescript@5.7.3))
     devDependencies:
       '@eslint/eslintrc':
-        specifier: ^3.3.5
+        specifier: latest
         version: 3.3.5
       '@payloadcms/db-postgres':
         specifier: latest
@@ -22,7 +22,7 @@ importers:
         specifier: latest
         version: 3.84.1(@types/pg@8.20.0)(payload@3.84.1(graphql@16.14.0)(typescript@5.7.3))(pg@8.20.0)
       '@payloadcms/eslint-config':
-        specifier: 3.28.0
+        specifier: latest
         version: 3.28.0(@typescript-eslint/eslint-plugin@8.59.2(@typescript-eslint/parser@8.59.2(eslint@9.39.4(jiti@2.7.0))(typescript@5.7.3))(eslint@9.39.4(jiti@2.7.0))(typescript@5.7.3))(jiti@2.7.0)(ts-api-utils@2.5.0(typescript@5.7.3))
       '@payloadcms/next':
         specifier: latest

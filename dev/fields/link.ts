@@ -1,4 +1,4 @@
-import type { Field, GroupField } from 'payload'
+import type { Field, NamedGroupField } from 'payload'
 
 export type LinkAppearances = 'default' | 'outline'
 
@@ -16,21 +16,32 @@ export const appearanceOptions: Record<LinkAppearances, { label: string; value: 
 type LinkType = (options?: {
   appearances?: false | LinkAppearances[]
   disableLabel?: boolean
-  overrides?: Partial<GroupField>
+  overrides?: LinkGroupOverrides
 }) => Field
 
-const mergeGroupField = (field: GroupField, overrides: Partial<GroupField>): GroupField => ({
-  ...field,
-  ...overrides,
-  admin: {
-    ...field.admin,
-    ...overrides.admin,
-  },
-  fields: overrides.fields ?? field.fields,
-})
+type LinkGroupOverrides = Partial<Omit<NamedGroupField, 'admin' | 'fields' | 'name' | 'type'>> & {
+  admin?: NamedGroupField['admin']
+  fields?: NamedGroupField['fields']
+}
+
+const mergeGroupField = (field: NamedGroupField, overrides: LinkGroupOverrides): NamedGroupField => {
+  const { admin, fields, ...rest } = overrides
+
+  return {
+    ...field,
+    ...rest,
+    name: field.name,
+    type: field.type,
+    admin: {
+      ...field.admin,
+      ...admin,
+    },
+    fields: fields ?? field.fields,
+  } as NamedGroupField
+}
 
 export const link: LinkType = ({ appearances, disableLabel = false, overrides = {} } = {}) => {
-  const linkResult: GroupField = {
+  const linkResult: NamedGroupField = {
     name: 'link',
     type: 'group',
     admin: {
@@ -97,14 +108,14 @@ export const link: LinkType = ({ appearances, disableLabel = false, overrides = 
     },
   ]
 
-  const linkFields = !disableLabel
-    ? linkTypes.map((linkType) => ({
+  const linkFields: Field[] = !disableLabel
+    ? linkTypes.map((linkType): Field => ({
         ...linkType,
         admin: {
           ...linkType.admin,
           width: '50%',
         },
-      }))
+      }) as Field)
     : linkTypes
 
   if (!disableLabel) {

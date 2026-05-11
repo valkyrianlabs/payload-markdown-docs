@@ -1,25 +1,15 @@
+import type { CollectionSlug, Payload } from 'payload'
+
 import type { DocsAiExportManifest } from '../sync/index.js'
 
-export type PayloadMarkdownDocsFindArgs = {
-  collection: string
-  depth?: number
-  draft?: boolean
-  limit?: number
-  overrideAccess?: boolean
-  sort?: string
-  where?: unknown
-}
+export type PayloadMarkdownDocsFindArgs = Parameters<Payload['find']>[0]
 
-export type PayloadMarkdownDocsReadPayload = {
-  find: (args: PayloadMarkdownDocsFindArgs) => Promise<{
-    docs: unknown[]
-  }>
-}
+export type PayloadMarkdownDocsReadPayload = Pick<Payload, 'find'>
 
 export type PayloadMarkdownDocsCollectionSlugs = {
-  docs?: string
-  docsGroups?: string
-  docsSets?: string
+  docs?: CollectionSlug
+  docsGroups?: CollectionSlug
+  docsSets?: CollectionSlug
 }
 
 export type ResolvePayloadMarkdownDocsRouteOptions = {

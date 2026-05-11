@@ -4,7 +4,7 @@ import config from '@payload-config'
 import { getPayload } from 'payload'
 import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
-import type { PayloadMarkdownDocsConfig } from '../src/index.js'
+import type { PayloadMarkdownDocsConfig } from '@valkyrianlabs/payload-markdown-docs'
 
 import {
   DEFAULT_DOCS_COLLECTION_SLUG,
@@ -18,7 +18,7 @@ import {
   DOCS_GLOBALS_ADMIN_GROUP,
   DOCS_SET_MANAGER_COMPONENT,
   payloadMarkdownDocs,
-} from '../src/index.js'
+} from '@valkyrianlabs/payload-markdown-docs'
 
 type NamedField = {
   admin?: {
@@ -33,13 +33,27 @@ type NamedField = {
   type?: string
 }
 
-const getCollection = (configToSearch: Config, slug: string) =>
-  configToSearch.collections?.find((collection) => collection.slug === slug)
+const payloadMarkdownDocsSync =
+  (pluginConfig: PayloadMarkdownDocsConfig) =>
+  (incomingConfig: Config): Config =>
+    payloadMarkdownDocs(pluginConfig)(incomingConfig) as Config
+
+const isNamedField = (field: unknown, fieldName: string): field is NamedField =>
+  typeof field === 'object' &&
+  field !== null &&
+  'name' in field &&
+  field.name === fieldName
+
+const getCollection = (
+  configToSearch: { collections?: ReadonlyArray<{ slug: string }> } | undefined,
+  slug: string,
+) =>
+  configToSearch?.collections?.find((collection) => collection.slug === slug) as
+    | CollectionConfig
+    | undefined
 
 const getField = (collection: CollectionConfig | undefined, fieldName: string) =>
-  collection?.fields.find(
-    (field): field is NamedField => 'name' in field && field.name === fieldName,
-  )
+  collection?.fields.find((field) => isNamedField(field, fieldName)) as NamedField | undefined
 
 const getGroupField = (collection: CollectionConfig | undefined, fieldName: string) => {
   const field = getField(collection, fieldName)
@@ -78,9 +92,9 @@ describe('payloadMarkdownDocs collection wiring', () => {
           fields: [],
         },
       ],
-    } as Config
+    } as unknown as Config
 
-    const transformedConfig = payloadMarkdownDocs({ enabled: false })(incomingConfig)
+    const transformedConfig = payloadMarkdownDocsSync({ enabled: false })(incomingConfig)
 
     expect(transformedConfig).toBe(incomingConfig)
     expect(transformedConfig.collections).toHaveLength(1)
@@ -89,14 +103,14 @@ describe('payloadMarkdownDocs collection wiring', () => {
   })
 
   test('enabled plugin adds default docs infrastructure collections', () => {
-    const transformedConfig = payloadMarkdownDocs({ enabled: true })({
+    const transformedConfig = payloadMarkdownDocsSync({ enabled: true })({
       collections: [
         {
           slug: 'posts',
           fields: [],
         },
       ],
-    } as Config)
+    } as unknown as Config)
 
     expect(getCollection(transformedConfig, 'posts')).toBeDefined()
     expect(getCollection(transformedConfig, DEFAULT_DOCS_GROUPS_COLLECTION_SLUG)).toBeDefined()
@@ -113,7 +127,7 @@ describe('payloadMarkdownDocs collection wiring', () => {
   })
 
   test('uses low-noise default admin sidebar visibility', () => {
-    const transformedConfig = payloadMarkdownDocs({ enabled: true })({
+    const transformedConfig = payloadMarkdownDocsSync({ enabled: true })({
       collections: [],
     } as unknown as Config)
     const docsGroupsCollection = getCollection(
@@ -169,7 +183,7 @@ describe('payloadMarkdownDocs collection wiring', () => {
   })
 
   test('custom docs collection slug and markdown field name work', () => {
-    const transformedConfig = payloadMarkdownDocs({
+    const transformedConfig = payloadMarkdownDocsSync({
       enabled: true,
       target: {
         slug: 'knowledge-base',
@@ -189,7 +203,7 @@ describe('payloadMarkdownDocs collection wiring', () => {
   })
 
   test('custom infrastructure collection slugs work', () => {
-    const transformedConfig = payloadMarkdownDocs({
+    const transformedConfig = payloadMarkdownDocsSync({
       collections: {
         docsGroups: {
           slug: 'kb-docs-groups',
@@ -224,7 +238,7 @@ describe('payloadMarkdownDocs collection wiring', () => {
   })
 
   test('collection disabling is respected', () => {
-    const transformedConfig = payloadMarkdownDocs({
+    const transformedConfig = payloadMarkdownDocsSync({
       collections: {
         nonces: {
           enabled: false,
@@ -245,32 +259,32 @@ describe('payloadMarkdownDocs collection wiring', () => {
 
   test('duplicate collection slug conflicts throw clear errors', () => {
     expect(() =>
-      payloadMarkdownDocs({ enabled: true })({
+      payloadMarkdownDocsSync({ enabled: true })({
         collections: [
           {
             slug: DEFAULT_DOCS_COLLECTION_SLUG,
             fields: [],
           },
         ],
-      } as Config),
+      } as unknown as Config),
     ).toThrow(/already exists/)
   })
 
   test('unsupported existing collection target throws a clear error', () => {
     expect(() =>
-      payloadMarkdownDocs({
+      payloadMarkdownDocsSync({
         enabled: true,
         target: {
           type: 'existingCollection',
           collection: 'pages',
           markdownField: 'content',
         },
-      })({ collections: [] } as unknown as Config),
+      } as unknown as PayloadMarkdownDocsConfig)({ collections: [] } as unknown as Config),
     ).toThrow(/existingCollection/)
   })
 
   test('docs collection contains expected fields', () => {
-    const transformedConfig = payloadMarkdownDocs({ enabled: true })({
+    const transformedConfig = payloadMarkdownDocsSync({ enabled: true })({
       collections: [],
     } as unknown as Config)
     const docsCollection = getCollection(transformedConfig, DEFAULT_DOCS_COLLECTION_SLUG)
@@ -321,7 +335,7 @@ describe('payloadMarkdownDocs collection wiring', () => {
   })
 
   test('docs collection can add extra hero image media collections', () => {
-    const transformedConfig = payloadMarkdownDocs({
+    const transformedConfig = payloadMarkdownDocsSync({
       enabled: true,
       target: {
         heroImage: {
@@ -340,7 +354,7 @@ describe('payloadMarkdownDocs collection wiring', () => {
   })
 
   test('docs groups collection contains expected fields', () => {
-    const transformedConfig = payloadMarkdownDocs({ enabled: true })({
+    const transformedConfig = payloadMarkdownDocsSync({ enabled: true })({
       collections: [],
     } as unknown as Config)
     const docsGroupsCollection = getCollection(
@@ -359,7 +373,7 @@ describe('payloadMarkdownDocs collection wiring', () => {
   })
 
   test('docs sets collection contains expected fields', () => {
-    const transformedConfig = payloadMarkdownDocs({ enabled: true })({
+    const transformedConfig = payloadMarkdownDocsSync({ enabled: true })({
       collections: [],
     } as unknown as Config)
     const docsSetsCollection = getCollection(transformedConfig, DEFAULT_DOCS_SETS_COLLECTION_SLUG)
@@ -414,7 +428,7 @@ describe('payloadMarkdownDocs collection wiring', () => {
   })
 
   test('docs set manager respects custom docs and docs set slugs', () => {
-    const transformedConfig = payloadMarkdownDocs({
+    const transformedConfig = payloadMarkdownDocsSync({
       collections: {
         docsSets: {
           slug: 'knowledge-sets',
@@ -441,7 +455,7 @@ describe('payloadMarkdownDocs collection wiring', () => {
   })
 
   test('sync runs collection contains expected fields', () => {
-    const transformedConfig = payloadMarkdownDocs({ enabled: true })({
+    const transformedConfig = payloadMarkdownDocsSync({ enabled: true })({
       collections: [],
     } as unknown as Config)
     const syncRunsCollection = getCollection(
@@ -472,7 +486,7 @@ describe('payloadMarkdownDocs collection wiring', () => {
   })
 
   test('nonces collection contains expected fields', () => {
-    const transformedConfig = payloadMarkdownDocs({ enabled: true })({
+    const transformedConfig = payloadMarkdownDocsSync({ enabled: true })({
       collections: [],
     } as unknown as Config)
     const noncesCollection = getCollection(
@@ -547,7 +561,9 @@ describeWithPostgres('payloadMarkdownDocs dev app integration', () => {
   })
 
   test('registers sync endpoint without template behavior in the dev app', () => {
-    expect(payload?.collections['plugin-collection']).toBeUndefined()
+    expect(
+      (payload?.collections as Record<string, unknown> | undefined)?.['plugin-collection'],
+    ).toBeUndefined()
     expect(payload?.config.endpoints).toContainEqual(
       expect.objectContaining({
         method: 'post',

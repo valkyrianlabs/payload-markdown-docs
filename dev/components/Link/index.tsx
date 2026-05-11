@@ -1,9 +1,9 @@
 import Link from 'next/link'
 import React from 'react'
 
-import type { DocsGroup, DocsSet } from '../../payload-types.ts'
+import type { DocsGroup, DocsSet } from '../../payload-types'
 
-import { deriveDocsSetRouteBase, joinRouteSegments } from '../../../src/routing/index.js'
+import { deriveDocsSetRouteBase, joinRouteSegments } from '@valkyrianlabs/payload-markdown-docs'
 
 type CMSLinkType = {
   appearance?: 'inline'

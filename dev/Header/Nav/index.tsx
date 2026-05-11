@@ -2,9 +2,9 @@
 
 import React, { useRef, useState } from 'react'
 
-import type { HeaderData, HeaderNavItem, HeaderSubItem } from '../config.js'
+import type { HeaderData, HeaderNavItem, HeaderSubItem } from '../config'
 
-import { CMSLink } from '../../components/Link/index.js'
+import { CMSLink } from '../../components/Link'
 
 const cx = (...classes: (false | null | string | undefined)[]) => classes.filter(Boolean).join(' ')
 

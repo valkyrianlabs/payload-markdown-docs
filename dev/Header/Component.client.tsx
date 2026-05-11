@@ -3,9 +3,9 @@
 import Link from 'next/link'
 import React, { useEffect, useState } from 'react'
 
-import type { HeaderData } from './config.js'
+import type { HeaderData } from './config'
 
-import { HeaderNav } from './Nav/index.js'
+import { HeaderNav } from './Nav'
 
 interface HeaderClientProps {
   data: HeaderData

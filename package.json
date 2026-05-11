@@ -1,6 +1,6 @@
 {
   "name": "@valkyrianlabs/payload-markdown-docs",
-  "version": "0.7.3",
+  "version": "0.7.4",
   "description": "Git-backed Markdown documentation sync for Payload CMS, powered by payload-markdown.",
   "bin": {
     "payload-markdown-docs": "./dist/cli/index.js"
@@ -71,7 +71,7 @@
     "@eslint/eslintrc": "^3.3.5",
     "@payloadcms/db-postgres": "latest",
     "@payloadcms/db-sqlite": "latest",
-    "@payloadcms/eslint-config": "3.28.0",
+    "@payloadcms/eslint-config": "latest",
     "@payloadcms/next": "latest",
     "@payloadcms/richtext-lexical": "latest",
     "@payloadcms/ui": "latest",

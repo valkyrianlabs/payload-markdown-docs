@@ -1,24 +1,66 @@
-import type { ParsedCliArgs } from '../../src/cli/types.js'
+import { generateKeyPairSync } from 'node:crypto'
+import { access, mkdir, writeFile } from 'node:fs/promises'
+import path from 'node:path'
 
-import { runKeygenCommand } from '../../src/cli/commands/keygen.js'
-
-const args: ParsedCliArgs = {
-  command: 'keygen',
-  flags: {
-    out: 'dev/.docs-sync',
-    ...(process.argv.includes('--force') ? { force: true } : {}),
-  },
-  positionals: [],
+type GeneratedKeys = {
+  privateKey: string
+  publicKey: string
 }
 
-const result = await runKeygenCommand(args)
+const fileExists = async (filePath: string): Promise<boolean> => {
+  try {
+    await access(filePath)
 
-if (result.stdout) {
-  process.stdout.write(result.stdout)
+    return true
+  } catch {
+    return false
+  }
 }
 
-if (result.stderr) {
-  process.stderr.write(result.stderr)
+const generatePemKeys = (): GeneratedKeys => {
+  const { privateKey, publicKey } = generateKeyPairSync('ed25519', {
+    privateKeyEncoding: {
+      type: 'pkcs8',
+      format: 'pem',
+    },
+    publicKeyEncoding: {
+      type: 'spki',
+      format: 'pem',
+    },
+  })
+
+  return {
+    privateKey: privateKey.toString(),
+    publicKey: publicKey.toString(),
+  }
 }
 
-process.exitCode = result.exitCode
+const run = async () => {
+  const keys = generatePemKeys()
+  const absoluteOutDir = path.resolve('dev/.docs-sync')
+  const publicKeyPath = path.join(absoluteOutDir, 'docs-sync-public.pem')
+  const privateKeyPath = path.join(absoluteOutDir, 'docs-sync-private.pem')
+  const force = process.argv.includes('--force')
+  const publicExists = await fileExists(publicKeyPath)
+  const privateExists = await fileExists(privateKeyPath)
+
+  if (!force && (publicExists || privateExists)) {
+    process.stderr.write(
+      'Key files already exist. Use --force to overwrite docs-sync-public.pem and docs-sync-private.pem.\n',
+    )
+    process.exitCode = 1
+
+    return
+  }
+
+  await mkdir(absoluteOutDir, {
+    recursive: true,
+  })
+  await writeFile(publicKeyPath, `${keys.publicKey.trim()}\n`, 'utf8')
+  await writeFile(privateKeyPath, `${keys.privateKey.trim()}\n`, 'utf8')
+
+  process.stdout.write(`Wrote public key: ${publicKeyPath}\n`)
+  process.stdout.write(`Wrote private key: ${privateKeyPath}\n`)
+}
+
+await run()

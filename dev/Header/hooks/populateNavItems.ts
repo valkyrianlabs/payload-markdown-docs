@@ -1,6 +1,6 @@
 import type { GlobalBeforeChangeHook } from 'payload'
 
-import type { HeaderLink, HeaderNavItem, HeaderSubItem } from '../config.js'
+import type { HeaderLink, HeaderNavItem, HeaderSubItem } from '../config'
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && 'id' in value
@@ -16,7 +16,11 @@ const getRelationshipId = (
     return null
   }
 
-  return isRecord(value) ? String(value.id) : value
+  if (typeof value === 'string' || typeof value === 'number') {
+    return value
+  }
+
+  return isRecord(value) ? String(value.id) : null
 }
 
 const getReferencedGroupId = (

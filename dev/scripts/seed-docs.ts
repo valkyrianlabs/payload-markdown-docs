@@ -1,4 +1,4 @@
-import type { Payload } from 'payload'
+import type { CollectionSlug, Payload, Where } from 'payload'
 
 import { getPayload } from 'payload'
 
@@ -13,21 +13,21 @@ import {
   devDocsSourceId,
   devDocsTrustedSlug,
   getPayloadRecordId,
-} from '../helpers/docsSeedData.js'
+} from '../helpers/docsSeedData'
 import {
   docsSyncKeyId,
   readDocsSyncPublicKey,
-} from '../helpers/docsSyncKeys.js'
-import config from '../payload.config.js'
+} from '../helpers/docsSyncKeys'
+import config from '../payload.config'
 
 const findFirst = async ({
   collection,
   payload,
   where,
 }: {
-  collection: string
+  collection: CollectionSlug
   payload: Payload
-  where: Record<string, unknown>
+  where: Where
 }): Promise<unknown> => {
   const result = await payload.find({
     collection,
@@ -46,10 +46,10 @@ const upsert = async ({
   payload,
   where,
 }: {
-  collection: string
+  collection: CollectionSlug
   data: Record<string, unknown>
   payload: Payload
-  where: Record<string, unknown>
+  where: Where
 }): Promise<unknown> => {
   const existing = await findFirst({
     collection,

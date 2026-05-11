@@ -3,7 +3,7 @@ import type { RowLabelProps } from '@payloadcms/ui'
 
 import { useRowLabel } from '@payloadcms/ui'
 
-import type { HeaderNavItem } from './config.js'
+import type { HeaderNavItem } from './config'
 
 export const RowLabel: React.FC<RowLabelProps> = () => {
   const data = useRowLabel<HeaderNavItem>()
