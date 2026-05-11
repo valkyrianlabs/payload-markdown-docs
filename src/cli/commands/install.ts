@@ -20,6 +20,8 @@ type PlannedSkillFile = {
   relativePath: string
 }
 
+type PlannedInstallFile = PlannedSkillFile
+
 type InstallSkillOptions = {
   agent: AgentTarget
   docsRoot: string
@@ -27,11 +29,13 @@ type InstallSkillOptions = {
   force: boolean
   outDir: string
   packageManager: PackageManager
+  updateAgentsFile: boolean
 }
 
 const packageManagers = new Set<PackageManager>(['bun', 'npm', 'pnpm', 'yarn'])
 const supportedInstallTargets = new Set(['ai-skill', 'skill'])
 const defaultSkillOutputPath = '.agents/skills/payload-markdown-docs'
+const agentsFilePath = 'AGENTS.md'
 
 const skillTemplateRoot = new URL('../../skills/codex/', import.meta.url)
 
@@ -172,6 +176,42 @@ const createPlannedFiles = async ({
   return plannedFiles
 }
 
+const createAgentsFilePlan = async (): Promise<PlannedInstallFile | undefined> => {
+  const absoluteAgentsPath = path.resolve(agentsFilePath)
+  const skillPath = `${defaultSkillOutputPath}/SKILL.md`
+  const skillSection = [
+    '## Payload Markdown Docs Skill',
+    '',
+    `This project uses the Payload Markdown Docs skill at \`${defaultSkillOutputPath}/\`.`,
+    `Start with \`${skillPath}\` when maintaining Git-backed Markdown docs.`,
+  ].join('\n')
+
+  if (!(await fileExists(absoluteAgentsPath))) {
+    return {
+      content: `# Agents\n\n${skillSection}\n`,
+      path: absoluteAgentsPath,
+      relativePath: agentsFilePath,
+    }
+  }
+
+  const currentContent = await readFile(absoluteAgentsPath, 'utf8')
+
+  if (
+    currentContent.includes(skillPath) ||
+    currentContent.includes(defaultSkillOutputPath)
+  ) {
+    return undefined
+  }
+
+  const separator = currentContent.endsWith('\n') ? '\n' : '\n\n'
+
+  return {
+    content: `${currentContent}${separator}${skillSection}\n`,
+    path: absoluteAgentsPath,
+    relativePath: agentsFilePath,
+  }
+}
+
 const getInstallSkillOptions = async (
   args: ParsedCliArgs,
 ): Promise<CliResult | InstallSkillOptions> => {
@@ -201,6 +241,7 @@ const getInstallSkillOptions = async (
     }
   }
 
+  const outDirFlag = getFlagString(args, 'out')
   const packageManagerFlag = getFlagString(args, 'package-manager')
 
   if (
@@ -218,9 +259,10 @@ const getInstallSkillOptions = async (
     docsRoot: getFlagString(args, 'docs-root') ?? './docs',
     dryRun: getFlagBoolean(args, 'dry-run'),
     force: getFlagBoolean(args, 'force'),
-    outDir: getFlagString(args, 'out') ?? defaultSkillOutputPath,
+    outDir: outDirFlag ?? defaultSkillOutputPath,
     packageManager:
       (packageManagerFlag as PackageManager | undefined) ?? (await detectPackageManager()),
+    updateAgentsFile: outDirFlag === undefined,
   }
 }
 
@@ -230,7 +272,7 @@ const formatPlannedFiles = ({
   outDir,
 }: {
   dryRun: boolean
-  files: PlannedSkillFile[]
+  files: PlannedInstallFile[]
   outDir: string
 }): string => {
   const lines = [
@@ -261,6 +303,9 @@ export const runInstallCommand = async (
     return plannedFiles
   }
 
+  const agentsFile = options.updateAgentsFile ? await createAgentsFilePlan() : undefined
+  const plannedInstallFiles = agentsFile ? [...plannedFiles, agentsFile] : plannedFiles
+
   if (!options.force) {
     const existingFiles: string[] = []
 
@@ -285,7 +330,7 @@ export const runInstallCommand = async (
       exitCode: 0,
       stdout: formatPlannedFiles({
         dryRun: true,
-        files: plannedFiles,
+        files: plannedInstallFiles,
         outDir: options.outDir,
       }),
     }
@@ -298,11 +343,15 @@ export const runInstallCommand = async (
     await writeFile(file.path, file.content, 'utf8')
   }
 
+  if (agentsFile) {
+    await writeFile(agentsFile.path, agentsFile.content, 'utf8')
+  }
+
   return {
     exitCode: 0,
     stdout: formatPlannedFiles({
       dryRun: false,
-      files: plannedFiles,
+      files: plannedInstallFiles,
       outDir: options.outDir,
     }),
   }

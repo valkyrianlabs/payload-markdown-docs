@@ -71,6 +71,10 @@ describe('install skill command', () => {
 
     expect(result.exitCode).toBe(0)
     expect(result.stdout).toContain('.agents/skills/payload-markdown-docs')
+    expect(result.stdout).toContain('AGENTS.md')
+    expect(await readInstalledFile(root, 'AGENTS.md')).toContain(
+      '.agents/skills/payload-markdown-docs/SKILL.md',
+    )
     expect(await listFiles(path.join(root, '.agents/skills/payload-markdown-docs'))).toEqual([
       'SKILL.md',
       'examples/docs-page.md',
@@ -84,6 +88,20 @@ describe('install skill command', () => {
       'reference/troubleshooting.md',
       'reference/workflow.md',
     ])
+  })
+
+  it('merges Codex skill instructions into an existing AGENTS.md', async () => {
+    const root = await createTempRoot()
+    process.chdir(root)
+    await writeFile(path.join(root, 'AGENTS.md'), '# Agents\n\nKeep this existing note.\n', 'utf8')
+
+    const result = await runCli(['install', 'skill', '--codex'])
+    const agents = await readInstalledFile(root, 'AGENTS.md')
+
+    expect(result.exitCode).toBe(0)
+    expect(agents).toContain('Keep this existing note.')
+    expect(agents).toContain('Payload Markdown Docs Skill')
+    expect(agents).toContain('.agents/skills/payload-markdown-docs/SKILL.md')
   })
 
   it('supports the ai-skill alias and custom output directory', async () => {

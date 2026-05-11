@@ -49,6 +49,7 @@ Options:
   --dry-run                       Print planned files without writing.
   --help                          Show this help.
 
+Default installs also create or update AGENTS.md so Codex can discover the skill guidance.
 Installs local AI-agent guidance only. It does not sync docs, call Payload, or run package manager commands.
 `,
   keygen: `payload-markdown-docs keygen

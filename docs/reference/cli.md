@@ -92,7 +92,8 @@ payload-markdown-docs install skill --codex
 ```
 
 Installs local AI-agent guidance under
-`.agents/skills/payload-markdown-docs/`.
+`.agents/skills/payload-markdown-docs/` and creates or updates `AGENTS.md` so
+Codex can discover the skill guidance.
 
 Alias:
 
@@ -108,8 +109,8 @@ Useful flags:
 - `--force`
 - `--dry-run`
 
-The installer writes Markdown files only. It does not sync docs or run package
-manager commands.
+The installer writes Markdown guidance files only. It does not sync docs or run
+package manager commands.
 
 :::details {title="Common flags"}
 - `--source <id>`

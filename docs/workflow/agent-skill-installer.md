@@ -24,12 +24,38 @@ pnpm exec payload-markdown-docs install ai-skill --codex
 ```
 
 :::callout {variant="info" title="Local guidance only"}
-The installer writes Markdown guidance files. It does not sync docs, call Payload, fetch remote docs, or run package manager commands.
+The installer writes Markdown guidance files and creates or updates `AGENTS.md`
+so Codex can discover them. It does not sync docs, call Payload, fetch remote
+docs, or run package manager commands.
 :::
 
 ## Output Tree
 
 Default output:
+
+```text
+.agents/
+  skills/
+    payload-markdown-docs/
+      SKILL.md
+      reference/
+        payload-markdown-directives.md
+        formatting.md
+        frontmatter.md
+        workflow.md
+        sync.md
+        routing.md
+        admin.md
+        troubleshooting.md
+      examples/
+        docs-page.md
+        github-actions.md
+AGENTS.md
+```
+
+The `AGENTS.md` update is merged into an existing file when one is present.
+
+Skill directory:
 
 ```text
 .agents/skills/payload-markdown-docs/

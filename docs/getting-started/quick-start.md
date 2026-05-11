@@ -43,7 +43,8 @@ project-specific guidance for maintaining Markdown docs, supported frontmatter,
 pnpm exec payload-markdown-docs install skill --codex
 ```
 
-The installer writes `.agents/skills/payload-markdown-docs/`. It does not sync
+The installer writes `.agents/skills/payload-markdown-docs/` and creates or
+updates `AGENTS.md` so Codex can discover the skill guidance. It does not sync
 docs, call Payload, or publish content.
 
 ## Validate Local Docs
