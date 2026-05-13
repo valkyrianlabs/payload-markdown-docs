@@ -8,8 +8,13 @@ class Pmdocs < Formula
   license "MIT"
   head "https://github.com/valkyrianlabs/payload-markdown-docs.git", branch: "main"
 
+  depends_on "cli11" => :build
+  depends_on "cmake" => :build
+  depends_on "doctest" => :build
   depends_on "meson" => :build
+  depends_on "nlohmann-json" => :build
   depends_on "ninja" => :build
+  depends_on "pkgconf" => :build
 
   def install
     system "meson", "setup", "build", *std_meson_args

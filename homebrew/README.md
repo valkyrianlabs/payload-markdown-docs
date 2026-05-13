@@ -31,8 +31,10 @@ Release checklist:
 3. Compute the archive checksum with `curl -L <url> | shasum -a 256`.
 4. Copy `homebrew/Formula/pmdocs.rb` into `valkyrianlabs/homebrew-tap/Formula/pmdocs.rb`.
 5. Replace the `url` and `sha256` placeholders.
-6. Test with `brew install --build-from-source valkyrianlabs/tap/pmdocs`.
-7. Commit and push the formula to the tap.
+6. Confirm the formula dependencies are available: `meson`, `ninja`, `pkgconf`,
+   `cmake`, `cli11`, `nlohmann-json`, and `doctest`.
+7. Test with `brew install --build-from-source valkyrianlabs/tap/pmdocs`.
+8. Commit and push the formula to the tap.
 
 References:
 

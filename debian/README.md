@@ -7,7 +7,7 @@ proper.
 Build locally from the repository root on a Debian-like system with:
 
 ```bash
-sudo apt install build-essential debhelper meson ninja-build
+sudo apt install build-essential cmake debhelper doctest-dev libcli11-dev meson ninja-build nlohmann-json3-dev pkgconf
 dpkg-buildpackage -us -uc -b
 ```
 

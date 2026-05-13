@@ -3,9 +3,14 @@ Section: utils
 Priority: optional
 Maintainer: Valkyrian Labs <maintainers@valkyrianlabs.com>
 Build-Depends:
+ cmake,
  debhelper-compat (= 13),
+ doctest-dev,
+ libcli11-dev,
  meson (>= 1.2.0),
- ninja-build
+ ninja-build,
+ nlohmann-json3-dev,
+ pkgconf
 Standards-Version: 4.7.0
 Rules-Requires-Root: no
 Homepage: https://github.com/valkyrianlabs/payload-markdown-docs

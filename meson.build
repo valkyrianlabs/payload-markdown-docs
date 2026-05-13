@@ -6,7 +6,7 @@ project(
   meson_version: '>=1.2.0',
   default_options: [
     'buildtype=debugoptimized',
-    'cpp_std=c++23',
+    'cpp_std=c++23,c++20',
     'warning_level=2',
     'werror=false',
   ],
