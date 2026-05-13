@@ -87,11 +87,28 @@ test('pmdocs manifest fixture', pmdocs_exe, args: ['manifest', '../dev/docs-fixt
 test('pmdocs plan fixture', pmdocs_exe, args: ['plan', '../dev/docs-fixtures/basic', '--source', 'payload-markdown-docs'])
 test('pmdocs unit tests', pmdocs_test_exe)
 
+if get_option('native_cli_parity_tests')
+  node_program = find_program('node', required: true)
+  find_program('pnpm', required: true)
+
+  test(
+    'pmdocs phase2 npm parity',
+    node_program,
+    args: [
+      files('tests/parity/phase2_parity.mjs'),
+      pmdocs_exe.full_path(),
+    ],
+    depends: pmdocs_exe,
+    timeout: 120,
+  )
+endif
+
 summary(
   {
     'CLI11': cli11_dep.found(),
     'nlohmann_json': nlohmann_json_dep.found(),
     'doctest': doctest_dep.found(),
+    'native_cli_parity_tests': get_option('native_cli_parity_tests'),
   },
   section: 'Native CLI dependencies',
 )

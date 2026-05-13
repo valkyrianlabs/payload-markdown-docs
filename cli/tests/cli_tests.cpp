@@ -363,6 +363,11 @@ TEST_CASE("AI export manifest is parsed and missing order paths warn") {
   CHECK(manifest["aiExport"]["output"] == "/plugins/payload-markdown.md");
   CHECK(manifest["aiExport"]["preamble"] == "This file is intended for AI agents.");
   CHECK(manifest["aiExport"]["order"][0] == "index.md");
+
+  const auto plan_result = pmdocs::run(args({"plan", root_string, "--source", "main-docs", "--json"}));
+  REQUIRE(plan_result.exit_code == 0);
+  const auto plan = nlohmann::json::parse(plan_result.stdout_text);
+  CHECK(plan["warnings"].empty());
 }
 
 TEST_CASE("manifest fails when generated manifest is invalid") {

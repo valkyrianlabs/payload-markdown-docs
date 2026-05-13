@@ -1724,6 +1724,7 @@ Plan plan_docs_sync(const ValidationResult& desired, const std::vector<ExistingR
   Plan plan;
   const auto effective_delete_behavior = delete_behavior_override.value_or(desired.delete_behavior);
   std::map<std::string, ExistingRecord> existing_by_source_path;
+  std::vector<std::string> existing_source_path_order;
 
   for (const auto& record : existing) {
     if (existing_by_source_path.contains(record.source_path)) {
@@ -1732,6 +1733,7 @@ Plan plan_docs_sync(const ValidationResult& desired, const std::vector<ExistingR
     }
 
     existing_by_source_path[record.source_path] = record;
+    existing_source_path_order.push_back(record.source_path);
   }
 
   std::set<std::string> desired_paths;
@@ -1770,11 +1772,12 @@ Plan plan_docs_sync(const ValidationResult& desired, const std::vector<ExistingR
     });
   }
 
-  for (const auto& [source_path, current] : existing_by_source_path) {
+  for (const auto& source_path : existing_source_path_order) {
     if (desired_paths.contains(source_path)) {
       continue;
     }
 
+    const auto current = existing_by_source_path.at(source_path);
     PlannedChange change = {
       .current = current,
       .reason = "Existing doc is missing from desired manifest.",
@@ -2073,7 +2076,6 @@ CommandResult run_plan_command(const PlanCommandOptions& options) {
     }
 
     auto plan = plan_docs_sync(validation, existing, options.delete_behavior);
-    plan.warnings.insert(plan.warnings.begin(), validation.warnings.begin(), validation.warnings.end());
 
     if (options.print_json) {
       return {
