@@ -63,3 +63,10 @@ The native CLI currently supports the offline workflow:
 Do not add HTTP, auth, OIDC, Ed25519 signing, OpenSSL, curl, yaml-cpp, or other
 network/protocol dependencies in Phase 2. Those belong to the next phase after
 the local manifest and plan behavior is reviewed.
+
+## Phase 3 dependency contract
+
+Before adding `keygen`, signed `push`, HTTP, OIDC, or crypto code, follow
+[Phase 3 Dependency Plan](./PHASE3_DEPENDENCIES.md). The locked default stack is
+direct `libcurl`, OpenSSL 3 EVP APIs, existing `nlohmann_json`, existing
+`CLI11`, and existing `doctest`.
