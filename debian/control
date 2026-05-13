@@ -1,0 +1,25 @@
+Source: pmdocs
+Section: utils
+Priority: optional
+Maintainer: Valkyrian Labs <maintainers@valkyrianlabs.com>
+Build-Depends:
+ debhelper-compat (= 13),
+ meson (>= 1.2.0),
+ ninja-build
+Standards-Version: 4.7.0
+Rules-Requires-Root: no
+Homepage: https://github.com/valkyrianlabs/payload-markdown-docs
+
+Package: pmdocs
+Architecture: any
+Depends:
+ ${misc:Depends},
+ ${shlibs:Depends}
+Description: native CLI for Payload Markdown Docs
+ pmdocs is the system-level native command-line interface for
+ payload-markdown-docs. It provides docs sync tooling for projects that do not
+ want to install the npm package locally.
+ .
+ This initial package contains the native CLI skeleton and bundled Codex skill
+ data. Full docs sync commands will be ported from the npm CLI in future
+ releases.

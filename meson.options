@@ -1,0 +1,6 @@
+option(
+  'install_skill_data',
+  type: 'boolean',
+  value: true,
+  description: 'Install bundled pmdocs skill data under the system share directory.',
+)
