@@ -33,8 +33,26 @@ Release checklist:
 5. Replace the `url` and `sha256` placeholders.
 6. Confirm the formula dependencies are available: `meson`, `ninja`, `pkgconf`,
    `cmake`, `cli11`, `nlohmann-json`, and `doctest`.
-7. Test with `brew install --build-from-source valkyrianlabs/tap/pmdocs`.
-8. Commit and push the formula to the tap.
+7. Test the formula before publishing:
+
+   ```bash
+   brew install --build-from-source --HEAD ./homebrew/Formula/pmdocs.rb
+   brew test pmdocs
+   ```
+
+8. After copying the formula into the tap and replacing the release URL and
+   checksum, test the published path:
+
+   ```bash
+   brew install --build-from-source valkyrianlabs/tap/pmdocs
+   brew test pmdocs
+   ```
+
+9. Commit and push the formula to the tap.
+
+The Homebrew formula should run native Meson tests only. The npm parity harness
+requires repository dev dependencies and should stay in repository CI, not in
+the formula build.
 
 References:
 

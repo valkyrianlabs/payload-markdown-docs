@@ -37,3 +37,48 @@ jobs:
         run: |
           set -euo pipefail
           pnpm test:int
+
+  native-cli:
+    name: Native CLI
+    runs-on: [self-hosted, Linux, X64, ubuntu-latest-lts]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'pnpm'
+
+      - name: Install native build dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            cmake \
+            doctest-dev \
+            libcli11-dev \
+            meson \
+            ninja-build \
+            nlohmann-json3-dev \
+            pkgconf
+
+      - name: Install npm dependencies for parity tests
+        run: |
+          set -euo pipefail
+          corepack enable
+          pnpm install --frozen-lockfile --prefer-offline --unsafe-perm
+
+      - name: Build and test native CLI
+        run: |
+          set -euo pipefail
+          meson setup build-native -Dnative_cli_parity_tests=true
+          meson compile -C build-native
+          meson test -C build-native
+
+      - name: Smoke test Meson install
+        run: |
+          set -euo pipefail
+          meson install -C build-native --destdir "$PWD/stage-native"
+          PMDOCS_DATA_DIR="$PWD/stage-native/usr/local/share/pmdocs" \
+            "$PWD/stage-native/usr/local/bin/pmdocs" doctor

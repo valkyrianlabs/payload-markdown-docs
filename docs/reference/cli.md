@@ -13,6 +13,12 @@ tags:
 
 The package exposes the `payload-markdown-docs` binary.
 
+A native system-level binary named `pmdocs` is also being introduced for
+non-npm repositories. In the current native phase, `pmdocs` supports the local
+offline workflow: `doctor`, `skill install`, `validate`, `manifest`, and
+`plan`. Continue using the npm CLI for `keygen`, `push`, GitHub OIDC, and signed
+sync until those commands are ported.
+
 :::toc {title="On this page" depth="3" theme="compact"}
 :::
 
@@ -20,6 +26,7 @@ The package exposes the `payload-markdown-docs` binary.
 
 ```bash
 payload-markdown-docs validate ./docs --source main-docs
+pmdocs validate ./docs --source main-docs
 ```
 
 Validates local Markdown files by building and validating an in-memory manifest.
@@ -28,6 +35,7 @@ Validates local Markdown files by building and validating an in-memory manifest.
 
 ```bash
 payload-markdown-docs manifest ./docs --source main-docs --pretty
+pmdocs manifest ./docs --source main-docs --pretty
 ```
 
 Prints manifest JSON.
@@ -36,6 +44,7 @@ Prints manifest JSON.
 
 ```bash
 payload-markdown-docs plan ./docs --source main-docs
+pmdocs plan ./docs --source main-docs
 ```
 
 Plans against an optional local existing-records JSON file. Without
@@ -89,11 +98,16 @@ When `--source` is omitted in GitHub Actions, the CLI derives it from
 
 ```bash
 payload-markdown-docs install skill --codex
+pmdocs skill install
 ```
 
-Installs local AI-agent guidance under
+The npm installer installs local AI-agent guidance under
 `.agents/skills/payload-markdown-docs/` and creates or updates `AGENTS.md` so
 Codex can discover the skill guidance.
+
+The native installer copies the bundled Codex skill into
+`.codex/skills/payload-markdown-docs/` and renders the same `docsRoot` and
+`packageManager` placeholders.
 
 Alias:
 
