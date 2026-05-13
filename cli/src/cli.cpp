@@ -1,4 +1,5 @@
 #include "pmdocs/cli.hpp"
+#include "pmdocs/docs.hpp"
 
 #include "pmdocs_config.hpp"
 
@@ -543,8 +544,14 @@ CommandResult run(std::vector<std::string_view> args) {
   }
 
   InstallSkillOptions install_options;
+  DocsCommandOptions validate_options;
+  DocsCommandOptions manifest_options;
+  PlanCommandOptions plan_options;
   bool doctor_requested = false;
+  bool manifest_requested = false;
+  bool plan_requested = false;
   bool skill_update_requested = false;
+  bool validate_requested = false;
   std::string planned_command;
 
   CLI::App app{"Native CLI for Payload Markdown Docs.", "pmdocs"};
@@ -574,7 +581,40 @@ CommandResult run(std::vector<std::string_view> args) {
     skill_update_requested = true;
   });
 
-  for (const auto command : {"validate", "manifest", "plan", "push", "keygen"}) {
+  const auto add_docs_options = [](CLI::App* command, DocsCommandOptions& options) {
+    command->add_option("docs-root", options.docs_root, "Docs root path.")->required();
+    command->add_option("--source", options.source_id, "Docs set/source id.");
+    command->add_option("--repository", options.repository, "Source repository metadata.");
+    command->add_option("--branch", options.branch, "Source branch metadata.");
+    command->add_option("--commit", options.commit, "Source commit metadata.");
+    command->add_option("--max-files", options.max_files, "Maximum file count.");
+    command->add_option("--max-file-bytes", options.max_file_bytes, "Maximum single file size.");
+    command->add_option("--max-total-bytes", options.max_total_bytes, "Maximum total Markdown bytes.");
+    command->add_flag("--json", options.print_json, "Print JSON output.");
+    command->add_flag("--pretty", options.pretty, "Pretty-print JSON output.");
+  };
+
+  auto* validate = app.add_subcommand("validate", "Validate a local Markdown docs directory.");
+  add_docs_options(validate, validate_options);
+  validate->callback([&validate_requested]() {
+    validate_requested = true;
+  });
+
+  auto* manifest = app.add_subcommand("manifest", "Print a JSON docs manifest.");
+  add_docs_options(manifest, manifest_options);
+  manifest->callback([&manifest_requested]() {
+    manifest_requested = true;
+  });
+
+  auto* plan = app.add_subcommand("plan", "Build a dry sync plan against optional existing docs records.");
+  add_docs_options(plan, plan_options);
+  plan->add_option("--existing", plan_options.existing_path, "JSON array of existing docs records.");
+  plan->add_option("--delete-behavior", plan_options.delete_behavior, "archive, delete, draft, or ignore.");
+  plan->callback([&plan_requested]() {
+    plan_requested = true;
+  });
+
+  for (const auto command : {"push", "keygen"}) {
     auto* stub = app.add_subcommand(command, std::string{"Planned native command: "} + command);
     stub->allow_extras();
     stub->callback([&planned_command, command]() {
@@ -641,6 +681,18 @@ CommandResult run(std::vector<std::string_view> args) {
 
   if (skill_update_requested) {
     return planned_command_result("skill update");
+  }
+
+  if (validate_requested) {
+    return run_validate_command(validate_options);
+  }
+
+  if (manifest_requested) {
+    return run_manifest_command(manifest_options);
+  }
+
+  if (plan_requested) {
+    return run_plan_command(plan_options);
   }
 
   if (!planned_command.empty()) {

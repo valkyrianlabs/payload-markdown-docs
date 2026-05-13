@@ -46,6 +46,7 @@ pmdocs_deps = [
 
 pmdocs_sources = files(
   'src/cli.cpp',
+  'src/docs.cpp',
 )
 
 pmdocs_lib = static_library(
@@ -81,6 +82,9 @@ test('pmdocs version', pmdocs_exe, args: ['--version'])
 test('pmdocs doctor', pmdocs_exe, args: ['doctor'], env: pmdocs_test_env)
 test('pmdocs skill install help', pmdocs_exe, args: ['skill', 'install', '--help'], env: pmdocs_test_env)
 test('pmdocs skill install dry-run', pmdocs_exe, args: ['skill', 'install', '--dry-run'], env: pmdocs_test_env)
+test('pmdocs validate fixture', pmdocs_exe, args: ['validate', '../dev/docs-fixtures/basic', '--source', 'payload-markdown-docs'])
+test('pmdocs manifest fixture', pmdocs_exe, args: ['manifest', '../dev/docs-fixtures/basic', '--source', 'payload-markdown-docs'])
+test('pmdocs plan fixture', pmdocs_exe, args: ['plan', '../dev/docs-fixtures/basic', '--source', 'payload-markdown-docs'])
 test('pmdocs unit tests', pmdocs_test_exe)
 
 summary(
