@@ -116,7 +116,6 @@ export const isEd25519AuthEnabled = (
 ): boolean => auth?.mode !== 'disabled' && authToggleEnabled(auth?.ed25519, false)
 
 export const updateDocsSetAfterSync = async ({
-  aiExport,
   collectionSlug,
   docsCount,
   docsSetId,
@@ -125,7 +124,6 @@ export const updateDocsSetAfterSync = async ({
   publish,
   syncRunId,
 }: {
-  aiExport?: unknown
   collectionSlug: string
   docsCount: number
   docsSetId: PayloadRecordId
@@ -143,7 +141,6 @@ export const updateDocsSetAfterSync = async ({
     collection: collectionSlug,
     data: {
       _status: publish ? 'published' : 'draft',
-      aiExport: aiExport ?? null,
       sync: {
         docsCount,
         lastStatus: 'success',

@@ -79,11 +79,7 @@ describe('walkDocsFiles', () => {
     const root = await createTempRoot()
     await writeTempFile(root, 'guide/install.md', '# Install\n')
     await writeTempFile(root, 'index.md', '# Home\n')
-    await writeTempFile(
-      root,
-      'index.ai.yml',
-      'version: 1\norder:\n  - ./index.md\n',
-    )
+    await writeTempFile(root, 'metadata.yml', 'ignored: true\n')
     await writeTempFile(root, 'notes.txt', 'ignore me')
     await writeTempFile(root, 'node_modules/pkg/ignored.md', '# Ignored\n')
     await writeTempFile(root, '.git/ignored.md', '# Ignored\n')
@@ -224,23 +220,6 @@ describe('validate command', () => {
     expect(result.stdout).toContain('Unknown frontmatter field "unknown" was ignored.')
   })
 
-  it('warns when the AI export manifest lists missing docs', async () => {
-    const root = await createTempRoot()
-    await writeTempFile(root, 'index.md', '# Home\n')
-    await writeTempFile(
-      root,
-      'index.ai.yml',
-      'version: 1\norder:\n  - ./missing.md\n',
-    )
-
-    const result = await runCli(['validate', root])
-
-    expect(result.exitCode).toBe(0)
-    expect(result.stdout).toContain('Warnings:')
-    expect(result.stdout).toContain(
-      'AI export manifest order path "missing.md" does not exist',
-    )
-  })
 })
 
 describe('manifest command', () => {
@@ -271,52 +250,6 @@ describe('manifest command', () => {
 
     expect(result.exitCode).toBe(0)
     expect(result.stdout?.startsWith('{\n')).toBe(true)
-  })
-
-  it('includes parsed AI export manifest control data when present', async () => {
-    const root = await createTempRoot()
-    await writeTempFile(root, 'index.md', '# Home\n')
-    await writeTempFile(
-      root,
-      'index.ai.yml',
-      [
-        'version: 1',
-        'title: Payload Markdown Documentation',
-        'canonical: /plugins/payload-markdown',
-        'output: /plugins/payload-markdown.md',
-        'preamble: |',
-        '  This file is intended for AI agents.',
-        'order:',
-        '  - ./index.md',
-        'orphans: append',
-        'headingMode: normalize',
-        '',
-      ].join('\n'),
-    )
-
-    const result = await runCli(['manifest', root, '--source', 'main-docs'])
-    const manifest = JSON.parse(result.stdout ?? '{}') as {
-      aiExport?: {
-        canonical?: string
-        order?: string[]
-        output?: string
-        preamble?: string
-        title?: string
-      }
-      files?: {
-        path?: string
-      }[]
-    }
-
-    expect(result.exitCode).toBe(0)
-    expect(manifest.files?.map((file) => file.path)).toEqual(['index.md'])
-    expect(manifest.aiExport).toMatchObject({
-      canonical: '/plugins/payload-markdown',
-      order: ['index.md'],
-      output: '/plugins/payload-markdown.md',
-      preamble: 'This file is intended for AI agents.',
-      title: 'Payload Markdown Documentation',
-    })
   })
 
   it('fails when the generated manifest is invalid', async () => {
@@ -889,7 +822,7 @@ describe('push command', () => {
     expect(httpError.stderr).toContain('HTTP status 500')
   })
 
-  it('prints JSON output and does not print private keys or raw Markdown by default', async () => {
+  it('prints JSON output and does not print private keys or document bodies by default', async () => {
     const root = await createDocsRoot()
     const { privateKey, requests, result } = await pushArgs(root, ['--json'])
     const output = JSON.parse(result.stdout ?? '{}') as {

@@ -1,7 +1,7 @@
 ---
 title: Dynamic Sitemap Helper
 navTitle: Sitemap
-description: Add generated docs set URLs to a Next App Router sitemap.
+description: Add docs, static AI routes, and skill artifacts to a Next App Router sitemap.
 order: 415
 status: published
 tags:
@@ -15,8 +15,8 @@ Use `getDocsForSitemap` from the `/next` export when a Next App Router site has
 a dynamic `src/app/sitemap.ts` file.
 
 The helper reads published docs sets, resolves group paths, includes the
-generated docs records inside each set, prepends `siteUrl`, and returns a
-ready-to-use `MetadataRoute.Sitemap` array.
+generated docs records inside each set, prepends `siteUrl`, merges optional
+static routes, and returns a ready-to-use `MetadataRoute.Sitemap` array.
 
 ```ts
 import type { MetadataRoute } from 'next'
@@ -39,8 +39,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
 ## Combine With Other Routes
 
-Most apps also include static routes, Pages collection routes, or other dynamic
-content in the same sitemap.
+Most apps also include static routes, Pages collection routes, AI discovery
+files, or other dynamic content in the same sitemap. Use `additionalRoutes` for
+site-relative `path` entries or absolute `url` entries.
 
 ```ts
 import type { MetadataRoute } from 'next'
@@ -55,6 +56,12 @@ const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://example.com'
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const payload = await getPayload({ config })
   const docs = await getDocsForSitemap({
+    additionalRoutes: [
+      { path: '/llms.txt' },
+      { path: '/llms-full.txt' },
+      { path: '/plugins/payload-markdown-docs/skills/codex/SKILL.md' },
+      { path: '/plugins/payload-markdown-docs/skills/claude/SKILL.md' },
+    ],
     payload,
     siteUrl,
   })
@@ -67,6 +74,73 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   ]
 }
 ```
+
+The sitemap helper dedupes by final URL. When the same URL appears more than
+once, the newest `lastModified` value is kept. Output remains sorted by URL.
+
+## AI Discovery Routes
+
+`sitemap.xml` and `llms.txt` serve different jobs:
+
+- `sitemap.xml` is crawler discovery.
+- `llms.txt` is an AI-readable entrypoint.
+- native skills are agent workflow artifacts.
+
+This package includes source files for top-level `/llms.txt` and
+`/llms-full.txt`. Route serving belongs to the consuming Next app: copy those
+files into `public/`, or add route handlers that return their contents. Include
+them in the sitemap with `additionalRoutes`.
+
+Use `getPayloadMarkdownDocsAiSitemapRoutes` to build common AI/static routes:
+
+```ts
+import type { MetadataRoute } from 'next'
+
+import config from '@payload-config'
+import {
+  getDocsForSitemap,
+  getPayloadMarkdownDocsAiSitemapRoutes,
+} from '@valkyrianlabs/payload-markdown-docs/next'
+import { getPayload } from 'payload'
+
+const aiRoutes = getPayloadMarkdownDocsAiSitemapRoutes({
+  includeLlmsFull: true,
+  skills: [
+    {
+      basePath: '/plugins/payload-markdown-docs/skills',
+      agents: ['codex', 'claude'],
+      files: [
+        'SKILL.md',
+        'reference/payload-markdown-directives.md',
+        'reference/formatting.md',
+        'reference/frontmatter.md',
+        'reference/workflow.md',
+        'reference/sync.md',
+        'reference/routing.md',
+        'reference/admin.md',
+        'reference/troubleshooting.md',
+        'examples/docs-page.md',
+        'examples/github-actions.md',
+      ],
+    },
+  ],
+})
+
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  const payload = await getPayload({ config })
+
+  return getDocsForSitemap({
+    additionalRoutes: aiRoutes,
+    payload,
+    siteUrl,
+  })
+}
+```
+
+Skill artifacts can be hosted under plugin docs routes, such as
+`/plugins/payload-markdown-docs/skills/codex/SKILL.md`, or under a top-level
+route such as `/skills/payload-markdown-docs/codex/SKILL.md`. Set `basePath` to
+the public route your site owns.
 
 ## Cache Keys And Tags
 

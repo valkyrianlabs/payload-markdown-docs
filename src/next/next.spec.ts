@@ -14,13 +14,16 @@ import {
   getPayloadMarkdownDocsLinks,
   getPayloadMarkdownDocsNavItems,
 } from './links.js'
-import { resolvePayloadMarkdownDocsMarkdownRoute } from './markdown.js'
 import { getPayloadMarkdownDocsMetadata } from './metadata.js'
 import { PayloadMarkdownDocsNavbar } from './PayloadMarkdownDocsNavbar.js'
 import { PayloadMarkdownDocsPage } from './PayloadMarkdownDocsPage.js'
 import { getPayloadMarkdownDocsRoutePath, resolvePayloadMarkdownDocsRoute } from './route.js'
 import { buildPayloadMarkdownDocsSidebar, getPayloadMarkdownDocsSidebar } from './sidebar.js'
-import { getDocsForSitemap, getPaginatedDocsForSitemap } from './sitemap.js'
+import {
+  getDocsForSitemap,
+  getPaginatedDocsForSitemap,
+  getPayloadMarkdownDocsAiSitemapRoutes,
+} from './sitemap.js'
 
 const cacheMocks = vi.hoisted(() => ({
   unstableCache: vi.fn((callback: (...args: unknown[]) => Promise<unknown>) => callback),
@@ -399,27 +402,6 @@ describe('Payload Markdown Docs route adapter', () => {
     ).resolves.toBeNull()
   })
 
-  it('does not resolve AI export manifest files as normal docs routes', async () => {
-    const payload = createPayloadMock({
-      docs: [
-        createDoc({
-          id: 'ai-manifest',
-          route: '/payload-markdown/index.ai.yml',
-          sourcePath: 'index.ai.yml',
-          title: 'AI Manifest',
-        }),
-      ],
-      docsSets: [docsSet],
-    })
-
-    await expect(
-      resolvePayloadMarkdownDocsRoute({
-        path: '/payload-markdown/index.ai.yml',
-        payload,
-      }),
-    ).resolves.toBeNull()
-  })
-
   it('does not resolve archived docs or drafts by default', async () => {
     const archivedPayload = createPayloadMock({
       docs: [
@@ -609,6 +591,152 @@ describe('Payload Markdown Docs route adapter', () => {
     ])
   })
 
+  it('includes additional routes in paginated sitemap docs', async () => {
+    const payload = createPayloadMock({})
+
+    const result = await getPaginatedDocsForSitemap({
+      additionalRoutes: [
+        {
+          lastModified: new Date('2026-05-14T12:00:00.000Z'),
+          path: 'llms.txt',
+        },
+        {
+          path: '/llms-full.txt',
+        },
+        {
+          lastModified: '2026-05-13T12:00:00.000Z',
+          url: 'https://static.example.com/agent-index.txt',
+        },
+        {
+          path: '   ',
+        },
+        {
+          url: '',
+        },
+      ],
+      payload,
+      siteUrl: 'https://example.com/docs/',
+    })
+
+    expect(result.docs).toEqual([
+      {
+        lastModified: null,
+        url: 'https://example.com/docs/llms-full.txt',
+      },
+      {
+        lastModified: '2026-05-14T12:00:00.000Z',
+        url: 'https://example.com/docs/llms.txt',
+      },
+      {
+        lastModified: '2026-05-13T12:00:00.000Z',
+        url: 'https://static.example.com/agent-index.txt',
+      },
+    ])
+  })
+
+  it('includes additional routes in Next sitemap entries and keeps latest duplicates', async () => {
+    const payload = createPayloadMock({
+      docsGroups: [docsGroup],
+      docsSets: [
+        {
+          ...docsSet,
+          _status: 'published',
+          group: docsGroup.id,
+          updatedAt: '2026-05-10T12:00:00.000Z',
+        },
+      ],
+    })
+
+    const result = await getDocsForSitemap({
+      additionalRoutes: [
+        {
+          lastModified: '2026-05-15T12:00:00.000Z',
+          path: '/plugins/payload-markdown',
+        },
+        ...getPayloadMarkdownDocsAiSitemapRoutes({
+          includeLlmsFull: true,
+          skills: [
+            {
+              agents: ['codex', 'claude'],
+              basePath: '/plugins/payload-markdown-docs/skills',
+              lastModified: '2026-05-14T12:00:00.000Z',
+            },
+          ],
+        }),
+      ],
+      payload,
+      recursive: false,
+      siteUrl: 'https://example.com',
+    })
+
+    expect(result).toEqual([
+      {
+        url: 'https://example.com/llms-full.txt',
+      },
+      {
+        url: 'https://example.com/llms.txt',
+      },
+      {
+        lastModified: '2026-05-15T12:00:00.000Z',
+        url: 'https://example.com/plugins/payload-markdown',
+      },
+      {
+        lastModified: '2026-05-14T12:00:00.000Z',
+        url: 'https://example.com/plugins/payload-markdown-docs/skills/claude/SKILL.md',
+      },
+      {
+        lastModified: '2026-05-14T12:00:00.000Z',
+        url: 'https://example.com/plugins/payload-markdown-docs/skills/codex/SKILL.md',
+      },
+    ])
+  })
+
+  it('builds common AI sitemap routes for llms files and skill artifacts', () => {
+    const routes = getPayloadMarkdownDocsAiSitemapRoutes({
+      includeLlmsFull: true,
+      skills: [
+        {
+          agents: ['codex', 'claude'],
+          basePath: '/plugins/payload-markdown-docs/skills',
+          files: ['SKILL.md', 'reference/formatting.md'],
+          lastModified: '2026-05-14T12:00:00.000Z',
+        },
+        {
+          agents: ['codex'],
+          basePath: '/skills/payload-markdown-docs',
+        },
+      ],
+    })
+
+    expect(routes).toEqual([
+      {
+        path: '/llms.txt',
+      },
+      {
+        path: '/llms-full.txt',
+      },
+      {
+        lastModified: '2026-05-14T12:00:00.000Z',
+        path: '/plugins/payload-markdown-docs/skills/codex/SKILL.md',
+      },
+      {
+        lastModified: '2026-05-14T12:00:00.000Z',
+        path: '/plugins/payload-markdown-docs/skills/codex/reference/formatting.md',
+      },
+      {
+        lastModified: '2026-05-14T12:00:00.000Z',
+        path: '/plugins/payload-markdown-docs/skills/claude/SKILL.md',
+      },
+      {
+        lastModified: '2026-05-14T12:00:00.000Z',
+        path: '/plugins/payload-markdown-docs/skills/claude/reference/formatting.md',
+      },
+      {
+        path: '/skills/payload-markdown-docs/codex/SKILL.md',
+      },
+    ])
+  })
+
   it('includes generated docs records recursively by default', async () => {
     const payload = createPayloadMock({
       docs: [
@@ -640,15 +768,6 @@ describe('Payload Markdown Docs route adapter', () => {
             archived: true,
           },
           title: 'Archived',
-          updatedAt: '2026-05-13T12:00:00.000Z',
-        }),
-        createDoc({
-          id: 'doc-ai',
-          _status: 'published',
-          docsSet: docsSet.id,
-          route: '/plugins/payload-markdown/index.ai.yml',
-          sourcePath: 'index.ai.yml',
-          title: 'AI Manifest',
           updatedAt: '2026-05-13T12:00:00.000Z',
         }),
         createDoc({
@@ -723,250 +842,6 @@ describe('Payload Markdown Docs route adapter', () => {
       },
     ])
     expect(payload.find).not.toHaveBeenCalledWith(expect.objectContaining({ collection: 'docs' }))
-  })
-})
-
-describe('Payload Markdown Docs raw Markdown export', () => {
-  it('assembles raw Markdown from docs records using index.ai.yml ordering', async () => {
-    const payload = createPayloadMock({
-      docs: [
-        createDoc({
-          id: 'doc-index',
-          content: '# Overview\n\nWelcome.\n',
-          order: 0,
-          route: '/payload-markdown',
-          sourcePath: 'index.md',
-          title: 'Overview',
-        }),
-        createDoc({
-          id: 'doc-usage',
-          content: '# Usage\n\nUse it.\n',
-          order: 30,
-          route: '/payload-markdown/usage',
-          sourcePath: 'usage.md',
-          title: 'Usage',
-        }),
-        createDoc({
-          id: 'doc-install',
-          content: '# Install\n\nInstall it.\n',
-          order: 20,
-          route: '/payload-markdown/install',
-          sourcePath: 'install.md',
-          title: 'Install',
-        }),
-        createDoc({
-          id: 'doc-internal',
-          content: '# Internal\n\nSecret.\n',
-          order: 10,
-          route: '/payload-markdown/internal',
-          sourcePath: 'internal.md',
-          title: 'Internal',
-        }),
-      ],
-      docsSets: [
-        {
-          ...docsSet,
-          aiExport: {
-            canonical: '/payload-markdown',
-            description: 'Consolidated AI docs.',
-            exclude: ['./internal.md'],
-            headingMode: 'normalize',
-            order: ['./index.md', './install.md'],
-            orphans: 'append',
-            output: '/payload-markdown.md',
-            preamble: 'Read the documents in order.',
-            sourcePath: 'index.ai.yml',
-            title: 'Payload Markdown Documentation',
-            version: 1,
-          },
-        },
-      ],
-    })
-
-    const resolved = await resolvePayloadMarkdownDocsMarkdownRoute({
-      path: '/payload-markdown.md',
-      payload,
-    })
-
-    expect(resolved).toMatchObject({
-      type: 'markdown',
-      contentType: 'text/markdown; charset=utf-8',
-      output: '/payload-markdown.md',
-    })
-    expect(resolved?.markdown.startsWith('# Payload Markdown Documentation')).toBe(true)
-    expect(resolved?.markdown).toContain('Read the documents in order.')
-    expect(resolved?.markdown).toContain('## Overview')
-    expect(resolved?.markdown).toContain('### Overview')
-    expect(resolved?.markdown).not.toContain('Secret.')
-    expect(resolved?.markdown.indexOf('## Overview')).toBeLessThan(
-      resolved?.markdown.indexOf('## Install') ?? -1,
-    )
-    expect(resolved?.markdown.indexOf('## Install')).toBeLessThan(
-      resolved?.markdown.indexOf('## Usage') ?? -1,
-    )
-  })
-
-  it('omits unlisted docs when manifest orphans is ignore', async () => {
-    const payload = createPayloadMock({
-      docs: [
-        createDoc({
-          id: 'doc-index',
-          content: '# Overview\n',
-          route: '/payload-markdown',
-          sourcePath: 'index.md',
-          title: 'Overview',
-        }),
-        createDoc({
-          id: 'doc-usage',
-          content: '# Usage\n',
-          route: '/payload-markdown/usage',
-          sourcePath: 'usage.md',
-          title: 'Usage',
-        }),
-      ],
-      docsSets: [
-        {
-          ...docsSet,
-          aiExport: {
-            exclude: [],
-            headingMode: 'preserve',
-            order: ['./index.md'],
-            orphans: 'ignore',
-            sourcePath: 'index.ai.yml',
-            version: 1,
-          },
-        },
-      ],
-    })
-
-    const resolved = await resolvePayloadMarkdownDocsMarkdownRoute({
-      path: '/payload-markdown.md',
-      payload,
-    })
-
-    expect(resolved?.markdown).toContain('# Overview')
-    expect(resolved?.markdown).not.toContain('# Usage')
-  })
-
-  it('uses manifest output as an alternate raw Markdown route', async () => {
-    const payload = createPayloadMock({
-      docs: [
-        createDoc({
-          id: 'doc-index',
-          content: '# Overview\n',
-          route: '/payload-markdown',
-          sourcePath: 'index.md',
-          title: 'Overview',
-        }),
-      ],
-      docsSets: [
-        {
-          ...docsSet,
-          aiExport: {
-            exclude: [],
-            headingMode: 'normalize',
-            order: ['./index.md'],
-            orphans: 'append',
-            output: '/ai/payload-markdown.md',
-            sourcePath: 'index.ai.yml',
-            version: 1,
-          },
-        },
-      ],
-    })
-
-    const resolved = await resolvePayloadMarkdownDocsMarkdownRoute({
-      path: '/ai/payload-markdown.md',
-      payload,
-    })
-
-    expect(resolved?.output).toBe('/ai/payload-markdown.md')
-    expect(resolved?.markdown).toContain('## Overview')
-  })
-
-  it('falls back to deterministic ordering when no AI manifest exists', async () => {
-    const payload = createPayloadMock({
-      docs: [
-        createDoc({
-          id: 'doc-b',
-          content: '# Beta\n',
-          order: 20,
-          route: '/payload-markdown/beta',
-          sourcePath: 'beta.md',
-          title: 'Beta',
-        }),
-        createDoc({
-          id: 'doc-a',
-          content: '# Alpha\n',
-          order: 10,
-          route: '/payload-markdown/alpha',
-          sourcePath: 'alpha.md',
-          title: 'Alpha',
-        }),
-      ],
-      docsSets: [docsSet],
-    })
-
-    const resolved = await resolvePayloadMarkdownDocsMarkdownRoute({
-      path: '/payload-markdown.md',
-      payload,
-    })
-
-    expect(resolved?.markdown.indexOf('## Alpha')).toBeLessThan(
-      resolved?.markdown.indexOf('## Beta') ?? -1,
-    )
-  })
-
-  it('resolves catch-all slug arrays ending in .md', async () => {
-    const payload = createPayloadMock({
-      docs: [
-        createDoc({
-          id: 'doc-index',
-          content: '# Overview\n',
-          docsSet: {
-            ...docsSet,
-            group: docsGroup,
-          },
-          route: '/plugins/payload-markdown',
-          sourcePath: 'index.md',
-          title: 'Overview',
-        }),
-      ],
-      docsGroups: [docsGroup],
-      docsSets: [
-        {
-          ...docsSet,
-          group: docsGroup,
-        },
-      ],
-    })
-
-    const resolved = await resolvePayloadMarkdownDocsMarkdownRoute({
-      slug: ['plugins', 'payload-markdown.md'],
-      payload,
-    })
-
-    expect(resolved).toMatchObject({
-      type: 'markdown',
-      output: '/plugins/payload-markdown.md',
-      route: '/plugins/payload-markdown.md',
-    })
-    expect(resolved?.markdown).toContain('## Overview')
-  })
-
-  it('returns null for missing raw Markdown docs set routes', async () => {
-    const payload = createPayloadMock({
-      docs: [],
-      docsGroups: [docsGroup],
-      docsSets: [],
-    })
-
-    await expect(
-      resolvePayloadMarkdownDocsMarkdownRoute({
-        path: '/plugins/missing.md',
-        payload,
-      }),
-    ).resolves.toBeNull()
   })
 })
 

@@ -5,7 +5,7 @@ import type { CliResult, ParsedCliArgs } from '../types.js'
 
 import { getFlagBoolean, getFlagString } from '../parseArgs.js'
 
-type AgentTarget = 'codex'
+type AgentTarget = 'claude' | 'codex'
 
 type PackageManager = 'bun' | 'npm' | 'pnpm' | 'yarn'
 
@@ -34,10 +34,12 @@ type InstallSkillOptions = {
 
 const packageManagers = new Set<PackageManager>(['bun', 'npm', 'pnpm', 'yarn'])
 const supportedInstallTargets = new Set(['ai-skill', 'skill'])
-const defaultSkillOutputPath = '.agents/skills/payload-markdown-docs'
+const supportedAgents = new Set<AgentTarget>(['claude', 'codex'])
+const defaultSkillOutputPaths: Record<AgentTarget, string> = {
+  claude: '.claude/skills/payload-markdown-docs',
+  codex: '.agents/skills/payload-markdown-docs',
+}
 const agentsFilePath = 'AGENTS.md'
-
-const skillTemplateRoot = new URL('../../skills/codex/', import.meta.url)
 
 const fileExists = async (filePath: string): Promise<boolean> => {
   try {
@@ -66,8 +68,23 @@ const detectPackageManager = async (cwd = process.cwd()): Promise<PackageManager
   return 'pnpm'
 }
 
+const getSkillTemplateRoot = async (agent: AgentTarget): Promise<URL> => {
+  const candidates = [
+    new URL(`../../skills/payload-markdown-docs/${agent}/`, import.meta.url),
+    new URL(`../../../skills/payload-markdown-docs/${agent}/`, import.meta.url),
+  ]
+
+  for (const candidate of candidates) {
+    if (await fileExists(candidate.pathname)) {
+      return candidate
+    }
+  }
+
+  return candidates[0]
+}
+
 const readTemplateFiles = async (
-  directoryUrl = skillTemplateRoot,
+  directoryUrl: URL,
   basePath = '',
 ): Promise<SkillTemplateFile[]> => {
   const entries = await readdir(directoryUrl, {
@@ -102,15 +119,18 @@ const readTemplateFiles = async (
 }
 
 const applyTemplateValues = ({
+  agent,
   content,
   docsRoot,
   packageManager,
 }: {
+  agent: AgentTarget
   content: string
   docsRoot: string
   packageManager: PackageManager
 }): string =>
   content
+    .replaceAll('{{agent}}', agent)
     .replaceAll('{{docsRoot}}', docsRoot)
     .replaceAll('{{packageManager}}', packageManager)
 
@@ -133,14 +153,15 @@ const assertSafeRelativePath = (relativePath: string): CliResult | undefined => 
 }
 
 const createPlannedFiles = async ({
+  agent,
   docsRoot,
   outDir,
   packageManager,
-}: Pick<InstallSkillOptions, 'docsRoot' | 'outDir' | 'packageManager'>): Promise<
+}: Pick<InstallSkillOptions, 'agent' | 'docsRoot' | 'outDir' | 'packageManager'>): Promise<
   CliResult | PlannedSkillFile[]
 > => {
   const absoluteOutDir = path.resolve(outDir)
-  const templates = await readTemplateFiles()
+  const templates = await readTemplateFiles(await getSkillTemplateRoot(agent))
   const plannedFiles: PlannedSkillFile[] = []
 
   for (const template of templates) {
@@ -164,6 +185,7 @@ const createPlannedFiles = async ({
 
     plannedFiles.push({
       content: applyTemplateValues({
+        agent,
         content: template.content,
         docsRoot,
         packageManager,
@@ -178,6 +200,7 @@ const createPlannedFiles = async ({
 
 const createAgentsFilePlan = async (): Promise<PlannedInstallFile | undefined> => {
   const absoluteAgentsPath = path.resolve(agentsFilePath)
+  const defaultSkillOutputPath = defaultSkillOutputPaths.codex
   const skillPath = `${defaultSkillOutputPath}/SKILL.md`
   const skillSection = [
     '## Payload Markdown Docs Skill',
@@ -226,21 +249,37 @@ const getInstallSkillOptions = async (
 
   const agentFlag = getFlagString(args, 'agent')
   const codex = getFlagBoolean(args, 'codex')
+  const claude = getFlagBoolean(args, 'claude')
 
-  if (agentFlag && agentFlag !== 'codex') {
+  if (agentFlag !== undefined && !supportedAgents.has(agentFlag as AgentTarget)) {
     return {
       exitCode: 1,
-      stderr: '--agent currently supports only "codex".\n',
+      stderr: '--agent must be codex or claude.\n',
     }
   }
 
-  if (!codex && agentFlag !== 'codex') {
+  const requestedAgents = [
+    ...(agentFlag ? [agentFlag as AgentTarget] : []),
+    ...(codex ? (['codex'] as const) : []),
+    ...(claude ? (['claude'] as const) : []),
+  ]
+  const uniqueRequestedAgents = [...new Set(requestedAgents)]
+
+  if (uniqueRequestedAgents.length === 0) {
     return {
       exitCode: 1,
-      stderr: 'Install skill requires --codex or --agent codex.\n',
+      stderr: 'Install skill requires --codex, --claude, or --agent codex|claude.\n',
     }
   }
 
+  if (uniqueRequestedAgents.length > 1) {
+    return {
+      exitCode: 1,
+      stderr: 'Install skill accepts one agent target at a time.\n',
+    }
+  }
+
+  const [agent] = uniqueRequestedAgents
   const outDirFlag = getFlagString(args, 'out')
   const packageManagerFlag = getFlagString(args, 'package-manager')
 
@@ -255,22 +294,24 @@ const getInstallSkillOptions = async (
   }
 
   return {
-    agent: 'codex',
+    agent,
     docsRoot: getFlagString(args, 'docs-root') ?? './docs',
     dryRun: getFlagBoolean(args, 'dry-run'),
     force: getFlagBoolean(args, 'force'),
-    outDir: outDirFlag ?? defaultSkillOutputPath,
+    outDir: outDirFlag ?? defaultSkillOutputPaths[agent],
     packageManager:
       (packageManagerFlag as PackageManager | undefined) ?? (await detectPackageManager()),
-    updateAgentsFile: outDirFlag === undefined,
+    updateAgentsFile: agent === 'codex' && outDirFlag === undefined,
   }
 }
 
 const formatPlannedFiles = ({
+  agent,
   dryRun,
   files,
   outDir,
 }: {
+  agent: AgentTarget
   dryRun: boolean
   files: PlannedInstallFile[]
   outDir: string
@@ -280,6 +321,7 @@ const formatPlannedFiles = ({
       ? 'payload-markdown-docs install skill dry-run'
       : 'payload-markdown-docs install skill',
     '',
+    `Agent: ${agent}`,
     `Target: ${path.resolve(outDir)}`,
     'Files:',
     ...files.map((file) => `- ${file.relativePath}`),
@@ -333,6 +375,7 @@ export const runInstallCommand = async (
     return {
       exitCode: 0,
       stdout: formatPlannedFiles({
+        agent: options.agent,
         dryRun: true,
         files: plannedInstallFiles,
         outDir: options.outDir,
@@ -354,6 +397,7 @@ export const runInstallCommand = async (
   return {
     exitCode: 0,
     stdout: formatPlannedFiles({
+      agent: options.agent,
       dryRun: false,
       files: plannedInstallFiles,
       outDir: options.outDir,

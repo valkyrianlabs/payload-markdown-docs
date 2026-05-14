@@ -16,14 +16,6 @@ export type {
   PayloadMarkdownDocsNavItem,
   PayloadMarkdownDocsNavItemType,
 } from './links.js'
-export {
-  createPayloadMarkdownDocsMarkdownResponse,
-  resolvePayloadMarkdownDocsMarkdownRoute,
-} from './markdown.js'
-export type {
-  ResolvedPayloadMarkdownDocsMarkdownRoute,
-  ResolvePayloadMarkdownDocsMarkdownRouteOptions,
-} from './markdown.js'
 export { generatePayloadMarkdownDocsMetadata, getPayloadMarkdownDocsMetadata } from './metadata.js'
 export { PayloadMarkdownDocsNavbar } from './PayloadMarkdownDocsNavbar.js'
 export type {
@@ -39,11 +31,18 @@ export type {
   BuildPayloadMarkdownDocsSidebarOptions,
   GetPayloadMarkdownDocsSidebarOptions,
 } from './sidebar.js'
-export { getDocsForSitemap, getPaginatedDocsForSitemap } from './sitemap.js'
+export {
+  getDocsForSitemap,
+  getPaginatedDocsForSitemap,
+  getPayloadMarkdownDocsAiSitemapRoutes,
+} from './sitemap.js'
 export type {
   GetDocsForSitemapOptions,
   GetPaginatedDocsForSitemapOptions,
+  GetPayloadMarkdownDocsAiSitemapRoutesOptions,
+  PayloadMarkdownDocsAiSitemapSkillRoutesInput,
   PayloadMarkdownDocsSitemapDoc,
+  PayloadMarkdownDocsSitemapRouteInput,
 } from './sitemap.js'
 export type {
   PayloadMarkdownDocsCollectionSlugs,

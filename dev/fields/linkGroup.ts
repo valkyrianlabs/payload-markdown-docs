@@ -9,10 +9,10 @@ type LinkGroupType = (options?: {
   overrides?: LinkArrayOverrides
 }) => Field
 
-type LinkArrayOverrides = Partial<Omit<ArrayField, 'admin' | 'fields' | 'name' | 'type'>> & {
+type LinkArrayOverrides = {
   admin?: ArrayField['admin']
   fields?: ArrayField['fields']
-}
+} & Partial<Omit<ArrayField, 'admin' | 'fields' | 'name' | 'type'>>
 
 const mergeArrayField = (field: ArrayField, overrides: LinkArrayOverrides): Field => {
   const { admin, fields, ...rest } = overrides

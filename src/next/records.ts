@@ -8,7 +8,6 @@ import type {
 } from './types.js'
 
 import { deriveDocsSetRouteBase, normalizeRoutePath } from '../routing/index.js'
-import { isAiMarkdownExportManifestPath, validateDocsAiExportManifest } from '../sync/index.js'
 
 export const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -113,13 +112,7 @@ export const toResolvedDocsSet = (doc: unknown): ResolvedPayloadMarkdownDocsSet 
     return undefined
   }
 
-  const aiExportValidation =
-    doc.aiExport === undefined || doc.aiExport === null
-      ? undefined
-      : validateDocsAiExportManifest(doc.aiExport)
-
   return {
-    ...(aiExportValidation?.ok ? { aiExport: aiExportValidation.manifest } : {}),
     id,
     slug,
     defaults: toDefaults(doc.defaults),
@@ -143,13 +136,7 @@ export const isVisibleDocsSet = ({
 }: {
   docsSet: ResolvedPayloadMarkdownDocsSet
   includeDrafts?: boolean
-}): boolean => {
-  if (!includeDrafts && docsSet.status === 'draft') {
-    return false
-  }
-
-  return true
-}
+}): boolean => !(!includeDrafts && docsSet.status === 'draft');
 
 export const toResolvedDocsGroup = (doc: unknown): ResolvedPayloadMarkdownDocsGroup | undefined => {
   if (!isRecord(doc)) {
@@ -226,17 +213,6 @@ export const isVisibleDocsRecord = ({
   includeDrafts?: boolean
   record: ResolvedPayloadMarkdownDocsRecord
 }): boolean => {
-  if (record.archived) {
-    return false
-  }
-
-  if (isAiMarkdownExportManifestPath(record.sourcePath)) {
-    return false
-  }
-
-  if (!includeDrafts && record.status === 'draft') {
-    return false
-  }
-
-  return true
+  if (record.archived) return false
+  return !(!includeDrafts && record.status === 'draft');
 }

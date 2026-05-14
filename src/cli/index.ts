@@ -22,7 +22,7 @@ Usage:
   payload-markdown-docs plan <docs-root> [options]
   payload-markdown-docs push <docs-root> [options]
   payload-markdown-docs keygen [options]
-  payload-markdown-docs install skill --codex [options]
+  payload-markdown-docs install skill --agent codex [options]
 
 Commands:
   validate   Validate a local Markdown docs directory.
@@ -34,23 +34,28 @@ Commands:
 `
 
 const commandHelp: Record<Exclude<CliCommandName, 'help'>, string> = {
-  install: `payload-markdown-docs install skill --codex
+  install: `payload-markdown-docs install skill --agent codex
 
 Aliases:
   payload-markdown-docs install ai-skill --codex
+  payload-markdown-docs install ai-skill --agent claude
   payload-markdown-docs install skill --agent codex
+  payload-markdown-docs install skill --agent claude
+  payload-markdown-docs install skill --claude
 
 Options:
   --codex                         Install the Codex skill pack.
-  --agent <codex>                 Agent target. Currently only codex.
-  --out <path>                    Output directory. Defaults to .agents/skills/payload-markdown-docs.
+  --claude                        Install the Claude skill pack.
+  --agent <codex|claude>          Agent target.
+  --out <path>                    Output directory. Defaults to .agents/skills/payload-markdown-docs for Codex and .claude/skills/payload-markdown-docs for Claude.
   --docs-root <path>              Docs root to mention in installed guidance. Defaults to ./docs.
   --package-manager <name>        pnpm, npm, yarn, or bun. Auto-detected when omitted.
   --force                         Overwrite existing skill files.
   --dry-run                       Print planned files without writing.
   --help                          Show this help.
 
-Default installs also create or update AGENTS.md so Codex can discover the skill guidance.
+Default Codex installs also create or update AGENTS.md so Codex can discover the skill guidance.
+Default Claude installs do not create or update AGENTS.md.
 Installs local AI-agent guidance only. It does not sync docs, call Payload, or run package manager commands.
 `,
   keygen: `payload-markdown-docs keygen

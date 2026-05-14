@@ -45,7 +45,7 @@ analyze codebase
   -> render inside your Payload/Next site
 ```
 
-The docs stay as raw Markdown files. The plugin handles validation, route-aware
+The docs stay as plain Markdown files. The plugin handles validation, route-aware
 metadata, syncing, publishing, and rendering.
 
 AI gets the speed. Humans keep the control. Payload owns the output.
@@ -54,20 +54,20 @@ AI gets the speed. Humans keep the control. Payload owns the output.
 
 This plugin is designed around AI-assisted documentation from the ground up.
 
-Install the Codex skill:
+Install a native agent skill:
 
 ```bash
-pnpm exec payload-markdown-docs install skill --codex
+pnpm exec payload-markdown-docs install skill --agent codex
+pnpm exec payload-markdown-docs install skill --agent claude
 ```
 
-Then ask Codex to inspect your codebase and generate or maintain your docs using
-the installed `payload-markdown-docs` skill instructions.
+Then ask Codex or Claude to inspect your codebase and generate or maintain your
+docs using the installed `payload-markdown-docs` skill instructions.
 
 The skill gives the agent repo-local guidance for:
 
 - documentation tree structure,
 - frontmatter,
-- `index.ai.yml`,
 - sync safety rules,
 - validation,
 - route-derived docs metadata,
@@ -78,9 +78,8 @@ You can still write every document by hand. In fact, you should review and tune
 important docs by hand. But the workflow is optimized for AI to build the first
 pass, maintain large sections, and keep documentation moving with the codebase.
 
-Codex support is included today. A Claude-oriented variant is planned. Until
-then, teams can translate or adapt the installed Codex skill guidance for Claude
-workflows.
+Codex and Claude skill packs are included today. The canonical skill artifacts
+live in this package under `skills/payload-markdown-docs/<agent>/`.
 
 ## Why This Exists
 
@@ -97,8 +96,8 @@ documentation delivery usually becomes a side quest:
 This package answers those questions with a boringly powerful primitive:
 
 ```txt
-/docs/*.md
-/docs/index.ai.yml
+human docs in /docs
+agent workflow packs in /skills
 ```
 
 Your docs live in the repo. The CLI validates them. GitHub Actions or Ed25519
@@ -107,15 +106,15 @@ pushes them. Payload stores and renders them. Your site owns the final output.
 ## What You Get
 
 - AI-first documentation generation workflow.
-- Codex skill installer for repo-local agent guidance.
+- Codex and Claude skill installer for repo-local agent guidance.
 - Plain Markdown source of truth in `/docs`.
-- `index.ai.yml` support for AI-facing metadata and raw Markdown exports.
+- Native skill artifacts in `/skills/payload-markdown-docs/<agent>/`.
 - GitHub Actions publishing with OIDC.
 - Ed25519 signed local publishing for advanced on-demand workflows.
 - Payload admin collections for docs sets, groups, trusted owners, and keys.
 - Next.js helpers for resolving and rendering docs routes.
+- Next.js sitemap helpers that can include docs records, AI discovery files, and skill artifacts.
 - Drop-in docs navbar and headless navigation helpers.
-- Raw Markdown route responses for AI/indexing consumers.
 - Local CLI commands for validation, manifest generation, and sync planning.
 - Rendering powered by `@valkyrianlabs/payload-markdown`.
 
@@ -204,7 +203,7 @@ A minimal docs tree can look like this:
 
 ```txt
 docs/
-  index.ai.yml
+  index.md
   getting-started/
     quick-start.md
   configuration/
@@ -215,39 +214,47 @@ docs/
     cli.md
 ```
 
-The Markdown files are the source of truth.
+The Markdown files are the source of truth. Native agent workflow packs live
+outside the docs tree under `skills/payload-markdown-docs/<agent>/`.
 
 The plugin does not require generated-only docs, hidden storage, or a hosted
 documentation service. AI can create the tree, but humans can edit it like any
 other Markdown project.
 
-## Install The Codex Skill
+## Install An Agent Skill
 
 In the repository that owns the docs tree:
 
 ```bash
-pnpm exec payload-markdown-docs install skill --codex
+pnpm exec payload-markdown-docs install skill --agent codex
+pnpm exec payload-markdown-docs install skill --agent claude
 ```
 
-The installer writes:
+The Codex installer writes:
 
 ```txt
 .agents/skills/payload-markdown-docs/
 AGENTS.md
 ```
 
+The Claude installer writes:
+
+```txt
+.claude/skills/payload-markdown-docs/
+```
+
 The installer does not sync docs, call Payload, or publish content. It only
-installs agent-facing guidance so Codex can understand the documentation rules
-inside your repo.
+installs agent-facing guidance so AI agents can understand the documentation
+rules inside your repo.
 
 A typical prompt after installing the skill:
 
 ```txt
-Use the installed payload-markdown-docs Codex skill.
+Use the installed payload-markdown-docs skill.
 
 Analyze this repository and generate a complete documentation tree under /docs.
-Use index.ai.yml, route-aware frontmatter, and payload-markdown-compatible
-Markdown. Validate the tree with the payload-markdown-docs CLI when finished.
+Use route-aware frontmatter and payload-markdown-compatible Markdown. Validate
+the tree with the payload-markdown-docs CLI when finished.
 ```
 
 That is the magic trick: the AI does not just write random docs. It writes docs
@@ -493,45 +500,46 @@ const docsLinks = await getPayloadMarkdownDocsLinks({ payload })
 // [{ label: 'Payload Markdown Docs', url: '/plugins/payload-markdown-docs' }]
 ```
 
-## Serve Raw Markdown
+## Serve Agent Skills
 
-The AI-facing raw Markdown export is a route-handler response, not a generated
-Payload Page.
+The canonical agent artifacts are normal files under `skills/`, so a website can
+serve them directly later. This repository also includes source files for
+top-level `/llms.txt` and `/llms-full.txt`; copy them to `public/` or serve them
+with route handlers in the consuming docs website.
 
-Add a `route.ts` at the exported path, usually the value from
-`docs/index.ai.yml`:
-
-```ts
-// app/(frontend)/plugins/payload-markdown-docs.md/route.ts
-import config from '@payload-config'
-import { createPayloadMarkdownDocsMarkdownResponse } from '@valkyrianlabs/payload-markdown-docs/next'
-import { notFound } from 'next/navigation'
-import { getPayload } from 'payload'
-
-export async function GET() {
-  const payload = await getPayload({ config })
-
-  const response = await createPayloadMarkdownDocsMarkdownResponse({
-    payload,
-    path: '/plugins/payload-markdown-docs.md',
-  })
-
-  if (response) {
-    return response
-  }
-
-  notFound()
-}
-```
-
-The response is:
+Useful stable paths include:
 
 ```txt
-text/markdown; charset=utf-8
+/llms.txt
+/llms-full.txt
+/skills/payload-markdown-docs/codex/SKILL.md
+/skills/payload-markdown-docs/claude/SKILL.md
+/plugins/payload-markdown-docs/skills/codex/
+/plugins/payload-markdown-docs/skills/claude/
 ```
 
-The Markdown is assembled from synced docs records using `docs/index.ai.yml`
-when present.
+Add AI/static artifacts to the docs sitemap with `additionalRoutes`:
+
+```ts
+import { getDocsForSitemap } from '@valkyrianlabs/payload-markdown-docs/next'
+
+const sitemap = await getDocsForSitemap({
+  payload,
+  siteUrl,
+  additionalRoutes: [
+    { path: '/llms.txt' },
+    { path: '/llms-full.txt' },
+    { path: '/plugins/payload-markdown-docs/skills/codex/SKILL.md' },
+    { path: '/plugins/payload-markdown-docs/skills/claude/SKILL.md' },
+  ],
+})
+```
+
+`sitemap.xml` is crawler discovery. `llms.txt` is an AI-readable entrypoint.
+Skills are native agent workflow artifacts.
+
+The source split is intentional: `/docs` contains human documentation, while
+`/skills` contains agent-native workflow packages.
 
 ## Advanced Security
 

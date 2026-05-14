@@ -15,6 +15,19 @@ import { isCliEntrypoint, runCli } from './index.js'
 
 const originalCwd = process.cwd()
 const tempRoots: string[] = []
+const skillFiles = [
+  'SKILL.md',
+  'examples/docs-page.md',
+  'examples/github-actions.md',
+  'reference/admin.md',
+  'reference/formatting.md',
+  'reference/frontmatter.md',
+  'reference/payload-markdown-directives.md',
+  'reference/routing.md',
+  'reference/sync.md',
+  'reference/troubleshooting.md',
+  'reference/workflow.md',
+]
 
 const createTempRoot = async (): Promise<string> => {
   const root = path.join(tmpdir(), `payload-markdown-docs-skill-${randomUUID()}`)
@@ -86,31 +99,94 @@ describe('install skill command', () => {
     ).toBe(true)
   })
 
-  it('writes the Codex skill pack to the default output path', async () => {
+  it('installs the Codex skill pack with --agent codex', async () => {
+    const root = await createTempRoot()
+    process.chdir(root)
+
+    const result = await runCli(['install', 'skill', '--agent', 'codex'])
+
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout).toContain('Agent: codex')
+    expect(result.stdout).toContain('.agents/skills/payload-markdown-docs')
+    expect(result.stdout).toContain('AGENTS.md')
+    expect(await readInstalledFile(root, 'AGENTS.md')).toContain(
+      '.agents/skills/payload-markdown-docs/SKILL.md',
+    )
+    expect(await listFiles(path.join(root, '.agents/skills/payload-markdown-docs'))).toEqual(
+      skillFiles,
+    )
+  })
+
+  it('installs the Codex skill pack with --codex', async () => {
     const root = await createTempRoot()
     process.chdir(root)
 
     const result = await runCli(['install', 'skill', '--codex'])
 
     expect(result.exitCode).toBe(0)
-    expect(result.stdout).toContain('.agents/skills/payload-markdown-docs')
-    expect(result.stdout).toContain('AGENTS.md')
+    expect(await listFiles(path.join(root, '.agents/skills/payload-markdown-docs'))).toEqual(
+      skillFiles,
+    )
     expect(await readInstalledFile(root, 'AGENTS.md')).toContain(
       '.agents/skills/payload-markdown-docs/SKILL.md',
     )
-    expect(await listFiles(path.join(root, '.agents/skills/payload-markdown-docs'))).toEqual([
-      'SKILL.md',
-      'examples/docs-page.md',
-      'examples/github-actions.md',
-      'reference/admin.md',
-      'reference/formatting.md',
-      'reference/frontmatter.md',
-      'reference/payload-markdown-directives.md',
-      'reference/routing.md',
-      'reference/sync.md',
-      'reference/troubleshooting.md',
-      'reference/workflow.md',
+  })
+
+  it('installs the Claude skill pack with --agent claude without changing AGENTS.md', async () => {
+    const root = await createTempRoot()
+    process.chdir(root)
+
+    const result = await runCli(['install', 'skill', '--agent', 'claude'])
+
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout).toContain('Agent: claude')
+    expect(result.stdout).toContain('.claude/skills/payload-markdown-docs')
+    expect(result.stdout).not.toContain('AGENTS.md')
+    expect(await listFiles(path.join(root, '.claude/skills/payload-markdown-docs'))).toEqual(
+      skillFiles,
+    )
+    await expect(readInstalledFile(root, 'AGENTS.md')).rejects.toThrow()
+  })
+
+  it('installs the Claude skill pack with --claude', async () => {
+    const root = await createTempRoot()
+    process.chdir(root)
+
+    const result = await runCli(['install', 'skill', '--claude'])
+
+    expect(result.exitCode).toBe(0)
+    expect(await listFiles(path.join(root, '.claude/skills/payload-markdown-docs'))).toEqual(
+      skillFiles,
+    )
+    await expect(readInstalledFile(root, 'AGENTS.md')).rejects.toThrow()
+  })
+
+  it('supports the ai-skill alias for both agents', async () => {
+    const root = await createTempRoot()
+    const codexOut = path.join(root, 'codex-skill')
+    const claudeOut = path.join(root, 'claude-skill')
+
+    const codex = await runCli([
+      'install',
+      'ai-skill',
+      '--agent',
+      'codex',
+      '--out',
+      codexOut,
     ])
+    const claude = await runCli([
+      'install',
+      'ai-skill',
+      '--agent',
+      'claude',
+      '--out',
+      claudeOut,
+    ])
+
+    expect(codex.exitCode).toBe(0)
+    expect(claude.exitCode).toBe(0)
+    expect(await readInstalledFile(codexOut, 'SKILL.md')).toContain('Use this skill in Codex')
+    expect(await readInstalledFile(claudeOut, 'SKILL.md')).toContain('Use this skill in Claude')
   })
 
   it('merges Codex skill instructions into an existing AGENTS.md', async () => {
@@ -127,13 +203,13 @@ describe('install skill command', () => {
     expect(agents).toContain('.agents/skills/payload-markdown-docs/SKILL.md')
   })
 
-  it('supports the ai-skill alias and custom output directory', async () => {
+  it('supports custom output and template substitutions', async () => {
     const root = await createTempRoot()
     const out = path.join(root, 'agent-skill')
 
     const result = await runCli([
       'install',
-      'ai-skill',
+      'skill',
       '--codex',
       '--out',
       out,
@@ -148,7 +224,8 @@ describe('install skill command', () => {
     expect(skill).toContain('npm exec payload-markdown-docs validate ./content/docs')
     expect(skill).toContain('npm exec payload-markdown-docs plan ./content/docs')
     expect(skill).toContain('npm exec payload-markdown-docs push ./content/docs')
-    expect(skill).toContain('./content/docs/index.ai.yml')
+    expect(skill).not.toContain('./content/docs/index.ai.yml')
+    await expect(readInstalledFile(root, 'AGENTS.md')).rejects.toThrow()
   })
 
   it('repairs Codex discovery when skill files already exist unchanged', async () => {
@@ -157,18 +234,21 @@ describe('install skill command', () => {
     process.chdir(root)
 
     const first = await runCli(['install', 'skill', '--codex', '--out', out])
+    const second = await runCli(['install', 'skill', '--codex', '--out', out])
 
     expect(first.exitCode).toBe(0)
-    await expect(readInstalledFile(root, 'AGENTS.md')).rejects.toThrow()
-    const second = await runCli(['install', 'skill', '--codex'])
-
     expect(second.exitCode).toBe(0)
+    await expect(readInstalledFile(root, 'AGENTS.md')).rejects.toThrow()
+
+    const defaultInstall = await runCli(['install', 'skill', '--codex'])
+
+    expect(defaultInstall.exitCode).toBe(0)
     expect(await readInstalledFile(root, 'AGENTS.md')).toContain(
       '.agents/skills/payload-markdown-docs/SKILL.md',
     )
   })
 
-  it('installs AI export manifest guidance with a valid example', async () => {
+  it('installs skill guidance that forbids deprecated AI artifact files', async () => {
     const root = await createTempRoot()
     const out = path.join(root, 'skill')
 
@@ -176,12 +256,11 @@ describe('install skill command', () => {
     const skill = await readInstalledFile(out, 'SKILL.md')
 
     expect(result.exitCode).toBe(0)
-    expect(skill).toContain('create or\nupdate this file automatically')
-    expect(skill).toContain('output: /plugins/payload-markdown.md')
-    expect(skill).toContain('order:\n  - ./index.md')
-    expect(skill).toContain('The manifest is source-controlled alongside the docs')
-    expect(skill).toContain('Do not show the manifest in human docs navigation')
-    expect(skill).toContain('Do not render the manifest as a normal docs page')
+    expect(skill).toContain('Do not create `index.ai.yml`.')
+    expect(skill).toContain('Do not create `index.ai.yaml`.')
+    expect(skill).toContain('Do not create a single consolidated AI Markdown export file.')
+    expect(skill).not.toContain('output: /plugins/payload-markdown.md')
+    expect(skill.match(/index\.ai\.yml/g)).toHaveLength(1)
   })
 
   it('refuses overwrites unless forced', async () => {
@@ -225,7 +304,7 @@ describe('install skill command', () => {
     await expect(readdir(out)).rejects.toThrow()
   })
 
-  it('does not write outside the target directory', async () => {
+  it('does not write bundled skill files outside the target directory', async () => {
     const root = await createTempRoot()
     const out = path.join(root, 'skill')
 
@@ -236,7 +315,7 @@ describe('install skill command', () => {
     expect(files.every((file) => file.startsWith('skill/'))).toBe(true)
   })
 
-  it('installs references with directives and supported frontmatter fields', async () => {
+  it('installs references and example files', async () => {
     const root = await createTempRoot()
     const out = path.join(root, 'skill')
 
@@ -247,6 +326,7 @@ describe('install skill command', () => {
     )
     const frontmatter = await readInstalledFile(out, 'reference/frontmatter.md')
     const formatting = await readInstalledFile(out, 'reference/formatting.md')
+    const example = await readInstalledFile(out, 'examples/docs-page.md')
 
     expect(result.exitCode).toBe(0)
     for (const directive of [':::toc', ':::callout', ':::details', ':::steps', ':::cards', ':::card']) {
@@ -267,6 +347,7 @@ describe('install skill command', () => {
     }
     expect(formatting).toContain('plain Markdown')
     expect(formatting).toContain('Do not add')
+    expect(example).toContain('# Example Docs Page')
   })
 
   it('detects package manager from lockfiles', async () => {
@@ -287,6 +368,7 @@ describe('install skill command', () => {
   it('validates target, agent, package manager, and help behavior', async () => {
     const missingAgent = await runCli(['install', 'skill'])
     const badAgent = await runCli(['install', 'skill', '--agent', 'cursor'])
+    const multipleAgents = await runCli(['install', 'skill', '--codex', '--claude'])
     const badTarget = await runCli(['install', 'plugin', '--codex'])
     const badPackageManager = await runCli([
       'install',
@@ -298,14 +380,17 @@ describe('install skill command', () => {
     const help = await runCli(['install', 'skill', '--help'])
 
     expect(missingAgent.exitCode).toBe(1)
-    expect(missingAgent.stderr).toContain('--codex')
+    expect(missingAgent.stderr).toContain('--agent codex|claude')
     expect(badAgent.exitCode).toBe(1)
-    expect(badAgent.stderr).toContain('only "codex"')
+    expect(badAgent.stderr).toContain('codex or claude')
+    expect(multipleAgents.exitCode).toBe(1)
+    expect(multipleAgents.stderr).toContain('one agent target')
     expect(badTarget.exitCode).toBe(1)
     expect(badTarget.stderr).toContain('target "skill" or "ai-skill"')
     expect(badPackageManager.exitCode).toBe(1)
     expect(badPackageManager.stderr).toContain('pnpm, npm, yarn, or bun')
     expect(help.exitCode).toBe(0)
-    expect(help.stdout).toContain('payload-markdown-docs install skill --codex')
+    expect(help.stdout).toContain('payload-markdown-docs install skill --agent codex')
+    expect(help.stdout).toContain('--claude')
   })
 })

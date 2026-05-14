@@ -11,7 +11,12 @@ import {
   DEFAULT_DOCS_SETS_COLLECTION_SLUG,
   DEFAULT_MARKDOWN_FIELD_NAME,
 } from '../constants.js'
-import { deriveDocsSetRouteBase, isRouteDescendant, joinRouteSegments } from '../routing/index.js'
+import {
+  deriveDocsSetRouteBase,
+  isRouteDescendant,
+  joinRouteSegments,
+  normalizeRoutePath,
+} from '../routing/index.js'
 import { getRelationshipId, isRecord, isVisibleDocsRecord, toResolvedDocsRecord } from './records.js'
 
 export type PayloadMarkdownDocsSitemapDoc = {
@@ -19,7 +24,27 @@ export type PayloadMarkdownDocsSitemapDoc = {
   url?: null | string
 }
 
+export type PayloadMarkdownDocsSitemapRouteInput = {
+  lastModified?: Date | null | string
+  path?: string
+  url?: string
+}
+
+export type PayloadMarkdownDocsAiSitemapSkillRoutesInput = {
+  agents: string[]
+  basePath: string
+  files?: string[]
+  lastModified?: Date | null | string
+}
+
+export type GetPayloadMarkdownDocsAiSitemapRoutesOptions = {
+  includeLlmsFull?: boolean
+  siteRoot?: boolean
+  skills?: PayloadMarkdownDocsAiSitemapSkillRoutesInput[]
+}
+
 export type GetPaginatedDocsForSitemapOptions = {
+  additionalRoutes?: PayloadMarkdownDocsSitemapRouteInput[]
   cacheKey?: string | string[]
   collections?: PayloadMarkdownDocsCollectionSlugs
   fetchLimit?: number
@@ -39,6 +64,7 @@ type GetPaginatedDocsForSitemapCacheOptions = Omit<
 
 const DEFAULT_SITEMAP_CACHE_KEY = 'sitemap-docs-v1'
 const DEFAULT_SITEMAP_TAGS = ['sitemap', 'sitemap:docs']
+const DEFAULT_AI_SKILL_FILES = ['SKILL.md']
 
 const getOptionalString = (doc: Record<string, unknown>, key: string): string | undefined => {
   const value = doc[key]
@@ -62,6 +88,105 @@ const getSitemapUrl = ({
   const baseUrl = normalizeSiteUrl(siteUrl)
 
   return routePath === '/' ? baseUrl : `${baseUrl}${routePath}`
+}
+
+const normalizeLastModified = (
+  lastModified?: Date | null | string,
+): null | string => {
+  if (!lastModified) {
+    return null
+  }
+
+  if (lastModified instanceof Date) {
+    return lastModified.toISOString()
+  }
+
+  const trimmed = lastModified.trim()
+
+  return trimmed || null
+}
+
+const toAdditionalSitemapDoc = ({
+  route,
+  siteUrl,
+}: {
+  route: PayloadMarkdownDocsSitemapRouteInput
+  siteUrl: string
+}): PayloadMarkdownDocsSitemapDoc | undefined => {
+  const url = route.url?.trim()
+  const path = route.path?.trim()
+
+  if (url) {
+    return {
+      lastModified: normalizeLastModified(route.lastModified),
+      url,
+    }
+  }
+
+  if (!path) {
+    return undefined
+  }
+
+  return {
+    lastModified: normalizeLastModified(route.lastModified),
+    url: getSitemapUrl({
+      routePath: normalizeRoutePath(path),
+      siteUrl,
+    }),
+  }
+}
+
+export const getPayloadMarkdownDocsAiSitemapRoutes = ({
+  includeLlmsFull = false,
+  siteRoot = true,
+  skills = [],
+}: GetPayloadMarkdownDocsAiSitemapRoutesOptions = {}): PayloadMarkdownDocsSitemapRouteInput[] => {
+  const routes: PayloadMarkdownDocsSitemapRouteInput[] = []
+
+  if (siteRoot) {
+    routes.push({
+      path: '/llms.txt',
+    })
+
+    if (includeLlmsFull) {
+      routes.push({
+        path: '/llms-full.txt',
+      })
+    }
+  }
+
+  for (const skill of skills) {
+    const basePath = skill.basePath.trim()
+
+    if (!basePath) {
+      continue
+    }
+
+    const files = skill.files ?? DEFAULT_AI_SKILL_FILES
+
+    for (const agent of skill.agents) {
+      const normalizedAgent = agent.trim()
+
+      if (!normalizedAgent) {
+        continue
+      }
+
+      for (const file of files) {
+        const normalizedFile = file.trim()
+
+        if (!normalizedFile) {
+          continue
+        }
+
+        routes.push({
+          lastModified: skill.lastModified,
+          path: joinRouteSegments(basePath, normalizedAgent, normalizedFile),
+        })
+      }
+    }
+  }
+
+  return routes
 }
 
 const getGroupRoutePath = ({
@@ -258,6 +383,7 @@ const dedupeAndSortSitemapDocs = (
 }
 
 const getDocsForSitemapUncached = async ({
+  additionalRoutes = [],
   collections,
   fetchLimit = 10000,
   overrideAccess = true,
@@ -359,6 +485,14 @@ const getDocsForSitemapUncached = async ({
   const docs = dedupeAndSortSitemapDocs([
     ...docsSetEntries.map((entry) => entry.sitemapDoc),
     ...recursiveDocs,
+    ...additionalRoutes.flatMap((route) => {
+      const sitemapDoc = toAdditionalSitemapDoc({
+        route,
+        siteUrl,
+      })
+
+      return sitemapDoc ? [sitemapDoc] : []
+    }),
   ])
 
   return {
