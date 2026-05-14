@@ -60,7 +60,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     additionalRoutes: [
       { path: '/llms.txt' },
       { path: '/llms-full.txt' },
+      { path: '/plugins/payload-markdown-docs/llms.txt' },
+      { path: '/plugins/payload-markdown-docs/llms-full.txt' },
+      { path: '/plugins/payload-markdown-docs/skills/codex' },
       { path: '/plugins/payload-markdown-docs/skills/codex/SKILL.md' },
+      { path: '/plugins/payload-markdown-docs/skills/claude' },
       { path: '/plugins/payload-markdown-docs/skills/claude/SKILL.md' },
     ],
     payload,
@@ -156,7 +160,9 @@ The plugin registers Payload-owned GET endpoints for synced AI/static assets:
 For example, a docs set served at `/plugins/payload-markdown-docs` exposes
 `/plugins/payload-markdown-docs/llms.txt`,
 `/plugins/payload-markdown-docs/skills/codex`, and
-`/plugins/payload-markdown-docs/skills/codex/SKILL.md` after the assets are
+`/plugins/payload-markdown-docs/skills/codex/SKILL.md`; the Claude skill is
+available at `/plugins/payload-markdown-docs/skills/claude` and
+`/plugins/payload-markdown-docs/skills/claude/SKILL.md` after the assets are
 synced. Consuming apps should not need to import custom route handlers for the
 standard routes. If those routes return an asset schema error, migrate the
 Payload database so the `payload-markdown-docs-assets` collection table exists.

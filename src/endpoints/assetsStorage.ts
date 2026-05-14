@@ -1,6 +1,12 @@
 import { DEFAULT_DOCS_ASSETS_COLLECTION_SLUG } from '../constants.js'
 
-export const DOCS_ASSETS_STORAGE_UNAVAILABLE_MESSAGE = `Docs assets schema is missing. Run Payload database migrations for the "${DEFAULT_DOCS_ASSETS_COLLECTION_SLUG}" collection before serving or syncing llms.txt and skill assets. If your project relies on Payload dev-time schema creation, run your app's Payload dev command, for example \`pnpm dev\`, against the target database once so Payload can create the new table.`
+export const DOCS_ASSETS_STORAGE_UNAVAILABLE_MESSAGE = `Docs assets schema is missing.
+
+The "${DEFAULT_DOCS_ASSETS_COLLECTION_SLUG}" collection/table has not been created yet.
+Run Payload locally against this database, run your migrations, or run \`pnpm dev\`
+with the production database connection long enough for Payload to create the new schema.
+
+After the schema exists, re-run docs sync.`
 
 export const getErrorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : String(error)

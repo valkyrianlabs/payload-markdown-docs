@@ -1,3 +1,9 @@
+export { createPayloadMarkdownDocsAssetRouteHandler } from './assetRoute.js'
+export type {
+  CreatePayloadMarkdownDocsAssetRouteHandlerOptions,
+  PayloadMarkdownDocsAssetRouteConfig,
+  PayloadMarkdownDocsAssetRouteHandler,
+} from './assetRoute.js'
 export {
   createPayloadMarkdownDocsAssetResponse,
   createPayloadMarkdownDocsLlmsResponse,

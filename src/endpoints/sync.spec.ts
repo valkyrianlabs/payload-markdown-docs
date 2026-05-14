@@ -902,7 +902,7 @@ describe('sync endpoint dry-run handling', () => {
     expect(json.error).toMatchObject({
       code: 'assets_storage_unavailable',
     })
-    expect(JSON.stringify(json.error)).toContain('Run Payload database migrations')
+    expect(JSON.stringify(json.error)).toContain('Run Payload locally')
     expect(JSON.stringify(json.error)).toContain(DEFAULT_DOCS_ASSETS_COLLECTION_SLUG)
   })
 

@@ -519,6 +519,7 @@ Useful stable paths include:
 /plugins/payload-markdown-docs/llms-full.txt
 /plugins/payload-markdown-docs/skills/codex
 /plugins/payload-markdown-docs/skills/codex/SKILL.md
+/plugins/payload-markdown-docs/skills/claude
 /plugins/payload-markdown-docs/skills/claude/SKILL.md
 /plugins/payload-markdown-docs/skills/codex/reference/workflow.md
 ```
@@ -535,7 +536,11 @@ const sitemap = await getDocsForSitemap({
   additionalRoutes: [
     { path: '/llms.txt' },
     { path: '/llms-full.txt' },
+    { path: '/plugins/payload-markdown-docs/llms.txt' },
+    { path: '/plugins/payload-markdown-docs/llms-full.txt' },
+    { path: '/plugins/payload-markdown-docs/skills/codex' },
     { path: '/plugins/payload-markdown-docs/skills/codex/SKILL.md' },
+    { path: '/plugins/payload-markdown-docs/skills/claude' },
     { path: '/plugins/payload-markdown-docs/skills/claude/SKILL.md' },
   ],
 })

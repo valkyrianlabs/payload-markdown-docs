@@ -334,30 +334,60 @@ const toRecursiveSitemapDoc = ({
   }
 }
 
-const toAssetSitemapDoc = ({
+const toAssetSitemapDocs = ({
   doc,
+  docsSetRouteById,
   siteUrl,
 }: {
   doc: unknown
+  docsSetRouteById: Map<string, string>
   siteUrl: string
-}): PayloadMarkdownDocsSitemapDoc | undefined => {
+}): PayloadMarkdownDocsSitemapDoc[] => {
   if (!isRecord(doc) || typeof doc.route !== 'string' || doc.route.trim() === '') {
-    return undefined
+    return []
   }
 
   const sync = isRecord(doc.sync) ? doc.sync : undefined
 
   if (sync?.archived === true) {
-    return undefined
+    return []
+  }
+  const routePath = normalizeRoutePath(doc.route)
+  const lastModified = getOptionalString(doc, 'updatedAt') ?? null
+  const docs: PayloadMarkdownDocsSitemapDoc[] = [
+    {
+      lastModified,
+      url: getSitemapUrl({
+        routePath,
+        siteUrl,
+      }),
+    },
+  ]
+  const kind = getOptionalString(doc, 'kind')
+  const docsSetId = getRelationshipId(doc.docsSet)
+  const docsSetRoutePath = docsSetId ? docsSetRouteById.get(docsSetId) : undefined
+
+  if (docsSetRoutePath && (kind === 'llms' || kind === 'llms-full')) {
+    docs.push({
+      lastModified,
+      url: getSitemapUrl({
+        routePath: joinRouteSegments(docsSetRoutePath, kind === 'llms' ? 'llms.txt' : 'llms-full.txt'),
+        siteUrl,
+      }),
+    })
   }
 
-  return {
-    lastModified: getOptionalString(doc, 'updatedAt') ?? null,
-    url: getSitemapUrl({
-      routePath: normalizeRoutePath(doc.route),
-      siteUrl,
-    }),
+  if (kind === 'skill' && routePath.endsWith('/SKILL.md')) {
+    docs.push({
+      lastModified,
+      url: getSitemapUrl({
+        routePath: routePath.slice(0, -'/SKILL.md'.length),
+        siteUrl,
+      }),
+    })
   }
+
+  return docs
 }
 
 const getLatestLastModified = (
@@ -501,6 +531,11 @@ const getDocsForSitemapUncached = async ({
   const docsSetIds = new Set(
     docsSetEntries.flatMap((entry) => (entry.docsSetId ? [entry.docsSetId] : [])),
   )
+  const docsSetRouteById = new Map(
+    docsSetEntries.flatMap((entry) =>
+      entry.docsSetId ? [[entry.docsSetId, entry.routePath] as const] : [],
+    ),
+  )
   const docsSetRoutePaths = docsSetEntries.map((entry) => entry.routePath)
   const recursiveDocs =
     docsResult?.docs.flatMap((doc) => {
@@ -523,6 +558,8 @@ const getDocsForSitemapUncached = async ({
             overrideAccess,
             select: {
               id: true,
+              docsSet: true,
+              kind: true,
               route: true,
               sync: true,
               updatedAt: true,
@@ -535,12 +572,13 @@ const getDocsForSitemapUncached = async ({
           })
 
           return assetsResult.docs.flatMap((doc) => {
-            const sitemapDoc = toAssetSitemapDoc({
+            const sitemapDocs = toAssetSitemapDocs({
               doc,
+              docsSetRouteById,
               siteUrl,
             })
 
-            return sitemapDoc ? [sitemapDoc] : []
+            return sitemapDocs
           })
         } catch {
           return []

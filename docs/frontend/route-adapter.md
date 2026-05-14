@@ -77,4 +77,6 @@ The route adapter is for rendered human docs. Native agent skill artifacts live
 outside the generated docs records under `skills/payload-markdown-docs/<agent>/`.
 When `payload-markdown-docs push` syncs those files, the plugin stores them as
 static assets and serves them through plugin-owned endpoints such as
-`/plugins/payload-markdown-docs/skills/codex/SKILL.md`.
+`/plugins/payload-markdown-docs/skills/codex`,
+`/plugins/payload-markdown-docs/skills/codex/SKILL.md`, and
+`/plugins/payload-markdown-docs/skills/claude`.

@@ -849,10 +849,18 @@ describe('Payload Markdown Docs route adapter', () => {
   })
 
   it('includes stored llms and skill assets in sitemap output by default', async () => {
+    const sitemapDocsSet = {
+      ...docsSet,
+      _status: 'published',
+      group: docsGroup.id,
+      updatedAt: '2026-05-14T11:00:00.000Z',
+    }
     const payload = createPayloadMock({
       docsAssets: [
         {
           id: 'asset-llms',
+          docsSet: sitemapDocsSet.id,
+          kind: 'llms',
           route: '/llms.txt',
           sync: {
             archived: false,
@@ -861,6 +869,8 @@ describe('Payload Markdown Docs route adapter', () => {
         },
         {
           id: 'asset-skill',
+          docsSet: sitemapDocsSet.id,
+          kind: 'skill',
           route: '/plugins/payload-markdown/skills/codex/SKILL.md',
           sync: {
             archived: false,
@@ -869,6 +879,7 @@ describe('Payload Markdown Docs route adapter', () => {
         },
         {
           id: 'asset-archived',
+          kind: 'llms-full',
           route: '/llms-full.txt',
           sync: {
             archived: true,
@@ -876,6 +887,8 @@ describe('Payload Markdown Docs route adapter', () => {
           updatedAt: '2026-05-14T12:00:00.000Z',
         },
       ],
+      docsGroups: [docsGroup],
+      docsSets: [sitemapDocsSet],
     })
 
     const result = await getDocsForSitemap({
@@ -887,6 +900,18 @@ describe('Payload Markdown Docs route adapter', () => {
       {
         lastModified: '2026-05-16T12:00:00.000Z',
         url: 'https://example.com/llms.txt',
+      },
+      {
+        lastModified: sitemapDocsSet.updatedAt,
+        url: 'https://example.com/plugins/payload-markdown',
+      },
+      {
+        lastModified: '2026-05-16T12:00:00.000Z',
+        url: 'https://example.com/plugins/payload-markdown/llms.txt',
+      },
+      {
+        lastModified: '2026-05-15T12:00:00.000Z',
+        url: 'https://example.com/plugins/payload-markdown/skills/codex',
       },
       {
         lastModified: '2026-05-15T12:00:00.000Z',

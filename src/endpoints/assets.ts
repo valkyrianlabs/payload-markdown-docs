@@ -125,6 +125,7 @@ const getRouteRemainder = ({
 const notFoundResponse = (): Response =>
   new Response('Not found', {
     headers: {
+      'Cache-Control': 'no-store',
       'Content-Type': 'text/plain; charset=utf-8',
     },
     status: 404,
@@ -133,6 +134,7 @@ const notFoundResponse = (): Response =>
 const docsAssetsStorageUnavailableResponse = (): Response =>
   new Response(DOCS_ASSETS_STORAGE_UNAVAILABLE_MESSAGE, {
     headers: {
+      'Cache-Control': 'no-store',
       'Content-Type': 'text/plain; charset=utf-8',
     },
     status: 500,
@@ -236,6 +238,7 @@ const resolveAssetByDocsSet = async ({
 const createAssetResponse = (asset: ServedDocsAsset): Response =>
   new Response(asset.content, {
     headers: {
+      'Cache-Control': 'no-store',
       'Content-Type': asset.contentType,
     },
   })
