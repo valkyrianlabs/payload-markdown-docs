@@ -80,11 +80,11 @@ props, layout modes, or MDX components.
 - inline frontmatter arrays such as `tags: [api, sync]`
 - HTML scripts, iframes, or client-side widgets
 - one Payload Page per Markdown file
-- hidden docs files that are not also handled in `index.ai.yml`
+- hidden docs files as a substitute for clean navigation metadata
 - links to generated Payload Admin records as if they were public docs routes
 
-## AI Export
+## Agent Skills
 
-Maintain `index.ai.yml` with the same docs change when pages are added, moved,
-renamed, or removed. The file controls the raw `.md` export ordering and
-exclusions; it is not a human docs page.
+Agent skill files are not human docs pages. Keep them under `/skills` or in the
+project-local agent install directory, and keep `/docs` focused on rendered
+Markdown documentation.

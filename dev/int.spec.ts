@@ -396,7 +396,6 @@ describe('payloadMarkdownDocs collection wiring', () => {
         position: 'sidebar',
       },
     })
-    expect(getField(docsSetsCollection, 'aiExport')?.type).toBe('json')
     expect(docsSetsCollection?.versions).toMatchObject({
       drafts: true,
     })

@@ -217,18 +217,6 @@ export interface DocsSet {
         }[]
       | null;
   };
-  /**
-   * Parsed index.ai.yml control data for the raw Markdown AI export route.
-   */
-  aiExport?:
-    | {
-        [k: string]: unknown;
-      }
-    | unknown[]
-    | string
-    | number
-    | boolean
-    | null;
   sync?: {
     lastSyncedAt?: string | null;
     lastSyncRunId?: (number | null) | DocsSyncRun;
@@ -580,7 +568,6 @@ export interface DocsSetsSelect<T extends boolean = true> {
               id?: T;
             };
       };
-  aiExport?: T;
   sync?:
     | T
     | {

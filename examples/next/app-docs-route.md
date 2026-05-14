@@ -34,35 +34,5 @@ export default async function Page({
 ```
 
 The adapter is read-only. It does not create Pages, update Pages, or sync one
-Page per Markdown file.
-
-## Raw Markdown Output
-
-Serve the AI-facing `.md` export from a route handler at the exported path:
-
-```ts
-// app/(frontend)/plugins/payload-markdown-docs.md/route.ts
-import { notFound } from 'next/navigation'
-import { getPayload } from 'payload'
-import config from '@payload-config'
-import {
-  createPayloadMarkdownDocsMarkdownResponse,
-} from '@valkyrianlabs/payload-markdown-docs/next'
-
-export async function GET() {
-  const payload = await getPayload({ config })
-  const response = await createPayloadMarkdownDocsMarkdownResponse({
-    payload,
-    path: '/plugins/payload-markdown-docs.md',
-  })
-
-  if (response) {
-    return response
-  }
-
-  notFound()
-}
-```
-
-A `page.tsx` catch-all can render the human docs. Raw Markdown needs a
-`route.ts` handler because it returns a `text/markdown` `Response`.
+Page per Markdown file. Agent skill artifacts live separately under `skills/`
+and can be exposed by a static route when a site wants direct skill downloads.

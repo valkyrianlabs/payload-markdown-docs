@@ -383,11 +383,9 @@ const getRevalidationTags = ({
 const getRevalidationPaths = ({
   manifest,
   plan,
-  routeBase,
 }: {
   manifest: ValidatedDocsManifest
   plan: ReturnType<typeof planDocsSync>
-  routeBase: string
 }): string[] => {
   const paths = new Set<string>()
 
@@ -405,10 +403,6 @@ const getRevalidationPaths = ({
     }
   }
 
-  if (manifest.aiExport) {
-    paths.add(manifest.aiExport.output ?? `${routeBase}.md`)
-  }
-
   return [...paths].filter((path) => path.startsWith('/'))
 }
 
@@ -416,12 +410,10 @@ const revalidateDocsSyncCache = async ({
   manifest,
   options,
   plan,
-  routeBase,
 }: {
   manifest: ValidatedDocsManifest
   options: CreateSyncEndpointOptions
   plan: ReturnType<typeof planDocsSync>
-  routeBase: string
 }): Promise<void> => {
   if (options.revalidate === false) {
     return
@@ -457,7 +449,6 @@ const revalidateDocsSyncCache = async ({
   for (const path of getRevalidationPaths({
     manifest,
     plan,
-    routeBase,
   })) {
     try {
       nextCache.revalidatePath?.(path)
@@ -1262,7 +1253,6 @@ const createSyncEndpointHandler =
 
         if (sourceResolution.source.docsSet) {
           await updateDocsSetAfterSync({
-            aiExport: validation.data.aiExport,
             collectionSlug: options.docsSetsCollectionSlug,
             docsCount: validation.data.files.length,
             docsSetId: sourceResolution.source.docsSet.id,
@@ -1277,7 +1267,6 @@ const createSyncEndpointHandler =
           manifest: validation.data,
           options,
           plan,
-          routeBase: sourceResolution.source.routeBase,
         })
       } catch (error) {
         await updateSyncRunAudit({

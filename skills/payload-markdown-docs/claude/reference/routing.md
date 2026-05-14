@@ -35,10 +35,9 @@ Do not hardcode production docs domains for internal navigation.
 
 The `/next` export can resolve docs routes and let an app fall back to normal Pages rendering when no docs route matches. It does not mutate Pages.
 
-## Raw Markdown
+## Agent Skills
 
-The AI-facing `.md` export is served by a Next route handler. It is not a
-generated Payload Page and cannot be returned from a `page.tsx` catch-all.
-
-Use `createPayloadMarkdownDocsMarkdownResponse` at the output path from
-`index.ai.yml`, or place AI exports in a dedicated namespace such as `/ai`.
+Agent-facing workflow packs live outside the human docs tree under
+`skills/payload-markdown-docs/<agent>/`. They can be copied into project-local
+agent directories or served directly by a website later, but they are not docs
+pages and should not be routed as generated docs records.

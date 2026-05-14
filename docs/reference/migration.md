@@ -57,3 +57,23 @@ payload-markdown-docs push ./docs \
 
 Do not pass route or OIDC audience flags. In GitHub Actions, `--source` can be
 omitted when the repository name is the docs set slug.
+
+## Skill-First AI Workflow
+
+AI-facing support now comes from native skill packs instead of the old AI export
+model.
+
+Removed/deprecated artifacts and runtime paths:
+
+- `index.ai.yml`
+- `index.ai.yaml`
+- docs set `aiExport` JSON
+- AI export manifest parsing
+- raw Markdown export route helpers
+- `payload-markdown-docs.md`
+- `/plugins/payload-markdown-docs.md`
+
+Use repo-local Markdown files under `/docs` for human documentation source. Use
+the canonical skill artifacts under `/skills/payload-markdown-docs/<agent>/` for
+agent workflow instructions. The CLI installer copies those artifacts into
+project-local agent paths for Codex and Claude.

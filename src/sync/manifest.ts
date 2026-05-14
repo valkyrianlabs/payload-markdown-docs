@@ -1,4 +1,3 @@
-import type { DocsAiExportManifest } from './aiExportManifest.js'
 import type { DocsFrontmatter } from './frontmatter.js'
 
 import { sha256Hex } from './hash.js'
@@ -21,7 +20,6 @@ export type DocsManifestFile = {
 }
 
 export type DocsManifest = {
-  aiExport?: DocsAiExportManifest
   deleteBehavior?: DocsDeleteBehavior
   files: DocsManifestFile[]
   mode?: DocsSyncMode
@@ -40,7 +38,6 @@ export type ValidatedDocsManifestFile = {
 }
 
 export type ValidatedDocsManifest = {
-  aiExport?: DocsAiExportManifest
   deleteBehavior: DocsDeleteBehavior
   files: ValidatedDocsManifestFile[]
   mode: DocsSyncMode
@@ -55,7 +52,6 @@ export type DocsManifestInputFile = {
 }
 
 export const buildDocsManifest = ({
-  aiExport,
   branch,
   commit,
   deleteBehavior,
@@ -65,7 +61,6 @@ export const buildDocsManifest = ({
   repository,
   sourceId,
 }: {
-  aiExport?: DocsAiExportManifest
   branch?: string
   commit?: string
   deleteBehavior?: DocsDeleteBehavior
@@ -75,7 +70,6 @@ export const buildDocsManifest = ({
   repository?: string
   sourceId: string
 }): DocsManifest => ({
-  aiExport,
   deleteBehavior,
   files: files.map((file) => ({
     ...file,

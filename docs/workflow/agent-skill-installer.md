@@ -1,7 +1,7 @@
 ---
 title: Agent Skill Installer
 navTitle: Agent Skill
-description: Install local AI-agent guidance for maintaining payload-markdown-docs documentation.
+description: Install native agent workflow packs for maintaining payload-markdown-docs documentation.
 order: 340
 status: published
 tags:
@@ -11,27 +11,40 @@ tags:
 
 # Agent Skill Installer
 
-The agent skill installer writes a local AI-agent-readable workflow pack into a consuming project.
+The installer copies native agent workflow packs from the package `skills/`
+directory into a consuming project.
+
+Codex:
 
 ```bash
+pnpm exec payload-markdown-docs install skill --agent codex
 pnpm exec payload-markdown-docs install skill --codex
+```
+
+Claude:
+
+```bash
+pnpm exec payload-markdown-docs install skill --agent claude
+pnpm exec payload-markdown-docs install skill --claude
 ```
 
 Alias:
 
 ```bash
-pnpm exec payload-markdown-docs install ai-skill --codex
+pnpm exec payload-markdown-docs install ai-skill --agent codex
+pnpm exec payload-markdown-docs install ai-skill --agent claude
 ```
 
 :::callout {variant="info" title="Local guidance only"}
-The installer writes Markdown guidance files and creates or updates `AGENTS.md`
-so Codex can discover them. It does not sync docs, call Payload, fetch remote
-docs, or run package manager commands.
+The installer writes Markdown guidance files. Codex installs create or update
+`AGENTS.md` by default so Codex can discover the skill. Claude installs do not
+touch `AGENTS.md` by default. The installer does not sync docs, call Payload,
+fetch remote docs, or run package manager commands.
 :::
 
-## Output Tree
+## Output Trees
 
-Default output:
+Codex default output:
 
 ```text
 .agents/
@@ -53,57 +66,68 @@ Default output:
 AGENTS.md
 ```
 
-The `AGENTS.md` update is merged into an existing file when one is present.
-
-Skill directory:
+Claude default output:
 
 ```text
-.agents/skills/payload-markdown-docs/
-  SKILL.md
-  reference/
-    payload-markdown-directives.md
-    formatting.md
-    frontmatter.md
-    workflow.md
-    sync.md
-    routing.md
-    admin.md
-    troubleshooting.md
-  examples/
-    docs-page.md
-    github-actions.md
+.claude/
+  skills/
+    payload-markdown-docs/
+      SKILL.md
+      reference/
+        payload-markdown-directives.md
+        formatting.md
+        frontmatter.md
+        workflow.md
+        sync.md
+        routing.md
+        admin.md
+        troubleshooting.md
+      examples/
+        docs-page.md
+        github-actions.md
 ```
 
-The installed skill also teaches agents to create and maintain
-`docs/index.ai.yml`. That manifest is source-controlled with the Markdown docs,
-controls the generated raw Markdown export such as `/plugins/payload-markdown.md`,
-and is not rendered as a human docs page or shown in human docs navigation.
+The canonical source artifacts live in the package repository:
+
+```text
+skills/payload-markdown-docs/codex/
+skills/payload-markdown-docs/claude/
+```
+
+Those directories are safe to expose from a website later, for example:
+
+```text
+/skills/payload-markdown-docs/codex/SKILL.md
+/skills/payload-markdown-docs/claude/SKILL.md
+/plugins/payload-markdown-docs/skills/codex/
+/plugins/payload-markdown-docs/skills/claude/
+```
 
 ## Options
 
 ```bash
-pnpm exec payload-markdown-docs install skill --codex \
+pnpm exec payload-markdown-docs install skill --agent codex \
   --out .agents/skills/payload-markdown-docs \
   --docs-root ./docs \
   --package-manager pnpm
 ```
 
-Use `--dry-run` to preview files and `--force` to overwrite existing skill files.
+Use `--dry-run` to preview files and `--force` to overwrite changed existing
+skill files. Unchanged existing files are accepted.
 
-## What The Skill Teaches
+## What The Skills Teach
 
 - maintain docs in repo-local Markdown files
+- use `.md` files only unless future config explicitly enables another format
 - use supported frontmatter only
-- follow plain Markdown formatting expectations
-- use supported `payload-markdown` directives
-- keep internal links root-relative inside the docs set
-- create and maintain `docs/index.ai.yml` from the actual docs files present
-- use `docs/index.ai.yml` as the preferred ordering source for the `.md` export
-- run validate and plan before finishing
+- follow plain Markdown formatting expectations first
+- use supported `payload-markdown` directives only when useful
+- keep internal links route-aware and root-relative inside the docs set
+- run validate before finishing docs edits
+- run plan when sync behavior matters
 - use signed dry-run/sync push only when explicitly requested
 - respect server-owned sync, publish, and hard-delete gates
 - avoid unsupported features and invented directives
 
-:::details {title="Future ideas"}
-Future commands may update or verify installed skills, detect drift against newer docs, generate reference pages from canonical docs, or support additional agent targets such as Claude and Cursor.
-:::
+The source split is deliberate: `/docs` is human documentation source rendered
+with Payload Markdown, while `/skills` is the agent-native workflow package.

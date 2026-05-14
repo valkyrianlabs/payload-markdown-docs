@@ -68,9 +68,9 @@ Install local agent guidance for writing docs that validate and sync.
 - server-gated sync writes, publishing, draft behavior, archive behavior, and hard delete
 - route reservations and opt-in Pages collision checks
 - read-only `/next` route adapter, metadata, sitemap, sidebar, and navbar helpers
-- AI-facing raw Markdown export helper for `text/markdown` route handlers
 - Docs Set Admin Manager with generated doc review and draft publish action
-- local agent skill installer
+- local Codex and Claude skill installer
+- canonical agent skill artifacts under `/skills`
 
 ## What Is Not Implemented
 

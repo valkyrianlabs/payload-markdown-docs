@@ -88,6 +88,10 @@ docs/
 Supported files are `.md` only. Paths must be relative, must not contain
 traversal, and must remain inside the docs root passed to the CLI.
 
+Agent workflow packs are separate from human docs. Keep native skill artifacts
+under `skills/payload-markdown-docs/<agent>/` or install them into the target
+project with `payload-markdown-docs install skill --agent codex|claude`.
+
 ## Key Generation
 
 Generate an Ed25519 key pair:

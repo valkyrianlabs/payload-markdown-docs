@@ -52,7 +52,7 @@ const installValueFlags = new Set([
   'out',
   'package-manager',
 ])
-const installBooleanFlags = new Set(['codex', 'dry-run', 'force', 'help'])
+const installBooleanFlags = new Set(['claude', 'codex', 'dry-run', 'force', 'help'])
 const keygenValueFlags = new Set(['format', 'out'])
 const keygenBooleanFlags = new Set(['force', 'help'])
 

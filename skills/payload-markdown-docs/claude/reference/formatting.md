@@ -9,11 +9,11 @@ Expected shape:
 - H2 and H3 sections for structure
 - root-relative internal links, such as `/workflow/publishing`
 - supported `payload-markdown` directives only
-- `index.ai.yml` updated when pages are added, moved, renamed, or removed
 
 Do not add:
 
 - `.mdx` files
+- generated AI manifest files
 - arbitrary YAML objects
 - inline frontmatter arrays
 - invented directive names or props

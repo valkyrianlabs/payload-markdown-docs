@@ -88,17 +88,20 @@ When `--source` is omitted in GitHub Actions, the CLI derives it from
 ## install skill
 
 ```bash
-payload-markdown-docs install skill --codex
+payload-markdown-docs install skill --agent codex
+payload-markdown-docs install skill --agent claude
 ```
 
-Installs local AI-agent guidance under
-`.agents/skills/payload-markdown-docs/` and creates or updates `AGENTS.md` so
-Codex can discover the skill guidance.
+Installs native AI-agent guidance from the package `skills/` tree. Codex
+defaults to `.agents/skills/payload-markdown-docs/` and creates or updates
+`AGENTS.md`. Claude defaults to `.claude/skills/payload-markdown-docs/` and does
+not update `AGENTS.md` by default.
 
 Alias:
 
 ```bash
-payload-markdown-docs install ai-skill --codex
+payload-markdown-docs install ai-skill --agent codex
+payload-markdown-docs install ai-skill --agent claude
 ```
 
 Useful flags:
@@ -106,6 +109,9 @@ Useful flags:
 - `--out <path>`
 - `--docs-root <path>`
 - `--package-manager <pnpm|npm|yarn|bun>`
+- `--agent <codex|claude>`
+- `--codex`
+- `--claude`
 - `--force`
 - `--dry-run`
 

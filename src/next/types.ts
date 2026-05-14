@@ -1,7 +1,5 @@
 import type { CollectionSlug, Payload } from 'payload'
 
-import type { DocsAiExportManifest } from '../sync/index.js'
-
 export type PayloadMarkdownDocsFindArgs = Parameters<Payload['find']>[0]
 
 export type PayloadMarkdownDocsReadPayload = Pick<Payload, 'find'>
@@ -41,7 +39,6 @@ export type PayloadMarkdownDocsHeroImage = {
 }
 
 export type ResolvedPayloadMarkdownDocsSet = {
-  aiExport?: DocsAiExportManifest
   defaults?: PayloadMarkdownDocsDefaults
   description?: string
   id: string

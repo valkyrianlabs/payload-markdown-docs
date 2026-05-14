@@ -1,20 +1,4 @@
 export {
-  AI_MARKDOWN_EXPORT_MANIFEST_FILENAMES,
-  isAiMarkdownExportManifestPath,
-  isExcludedFromAiExport,
-  matchesAiExportExcludePattern,
-  parseDocsAiExportManifestYaml,
-  validateDocsAiExportManifest,
-} from './aiExportManifest.js'
-export type {
-  DocsAiExportHeadingMode,
-  DocsAiExportManifest,
-  DocsAiExportManifestInput,
-  DocsAiExportManifestValidationOptions,
-  DocsAiExportManifestValidationResult,
-  DocsAiExportOrphans,
-} from './aiExportManifest.js'
-export {
   inferTitleFromMarkdown,
   parseDocsFrontmatter,
   resolveDocsTitle,
