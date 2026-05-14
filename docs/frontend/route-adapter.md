@@ -80,3 +80,10 @@ static assets and serves them through plugin-owned endpoints such as
 `/plugins/payload-markdown-docs/skills/codex`,
 `/plugins/payload-markdown-docs/skills/codex/SKILL.md`, and
 `/plugins/payload-markdown-docs/skills/claude`.
+
+If those public URLs are handled by your frontend catch-all, install the exact
+Next route files that delegate to the plugin asset handlers:
+
+```bash
+pnpm exec payload-markdown-docs install routes --payload-app "src/app/(payload)"
+```

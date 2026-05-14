@@ -118,6 +118,13 @@ top-level `/llms.txt` and `/llms-full.txt` routes for synced assets so crawlers
 can discover the static AI entrypoints while agents can consume the native skill
 files directly.
 
+For Next apps where the frontend catch-all owns those root URLs, install the
+public route bridge once:
+
+```bash
+pnpm exec payload-markdown-docs install routes --payload-app "src/app/(payload)"
+```
+
 `sitemap.xml` is crawler discovery, `llms.txt` is an AI-readable entrypoint, and
 skills are native workflow artifacts.
 

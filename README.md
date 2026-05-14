@@ -507,8 +507,19 @@ The canonical agent artifacts are normal files under `skills/`. `push` syncs
 them as static assets by convention, along with top-level `/llms.txt` and
 `/llms-full.txt` when present. Synced assets are stored separately from docs
 records. The plugin registers public Payload endpoints for the standard asset
-routes, so consuming apps do not need to import custom route handlers just to
-serve synced AI files.
+routes.
+
+Payload's current Next REST route only dispatches requests that enter the
+Payload route layer. If your frontend catch-all owns root URLs, install the
+exact public Next route files once:
+
+```bash
+pnpm exec payload-markdown-docs install routes --payload-app "src/app/(payload)"
+```
+
+Use `--payload-app "app/(payload)"` for apps without `src/`. The route files
+delegate to the plugin-owned asset handlers and prevent `/llms.txt` and skill
+URLs from being swallowed by a frontend catch-all.
 
 Useful stable paths include:
 

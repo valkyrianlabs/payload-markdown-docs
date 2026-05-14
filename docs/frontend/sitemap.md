@@ -164,8 +164,16 @@ For example, a docs set served at `/plugins/payload-markdown-docs` exposes
 available at `/plugins/payload-markdown-docs/skills/claude` and
 `/plugins/payload-markdown-docs/skills/claude/SKILL.md` after the assets are
 synced. Consuming apps should not need to import custom route handlers for the
-standard routes. If those routes return an asset schema error, migrate the
-Payload database so the `payload-markdown-docs-assets` collection table exists.
+standard routes once the public Next route files are present. Install those
+files with:
+
+```bash
+pnpm exec payload-markdown-docs install routes --payload-app "src/app/(payload)"
+```
+
+Use `--payload-app "app/(payload)"` for apps without `src/`. If the public
+routes return an asset schema error, migrate the Payload database so the
+`payload-markdown-docs-assets` collection table exists.
 
 ## Cache Keys And Tags
 

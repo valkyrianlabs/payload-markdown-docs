@@ -64,9 +64,11 @@ const pushBooleanFlags = new Set([
 ])
 const installValueFlags = new Set([
   'agent',
+  'app',
   'docs-root',
   'out',
   'package-manager',
+  'payload-app',
 ])
 const installBooleanFlags = new Set(['claude', 'codex', 'dry-run', 'force', 'help'])
 const keygenValueFlags = new Set(['format', 'out'])

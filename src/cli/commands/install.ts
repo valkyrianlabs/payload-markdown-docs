@@ -32,14 +32,41 @@ type InstallSkillOptions = {
   updateAgentsFile: boolean
 }
 
+type InstallAssetRoutesOptions = {
+  dryRun: boolean
+  force: boolean
+  payloadAppDir: string
+}
+
 const packageManagers = new Set<PackageManager>(['bun', 'npm', 'pnpm', 'yarn'])
-const supportedInstallTargets = new Set(['ai-skill', 'skill'])
+const supportedInstallTargets = new Set(['ai-routes', 'ai-skill', 'asset-routes', 'routes', 'skill'])
 const supportedAgents = new Set<AgentTarget>(['claude', 'codex'])
 const defaultSkillOutputPaths: Record<AgentTarget, string> = {
   claude: '.claude/skills/payload-markdown-docs',
   codex: '.agents/skills/payload-markdown-docs',
 }
 const agentsFilePath = 'AGENTS.md'
+const payloadAppDirCandidates = ['src/app/(payload)', 'app/(payload)', 'dev/app/(payload)']
+const assetRouteFiles = [
+  'llms.txt/route.ts',
+  'llms-full.txt/route.ts',
+  'plugins/[docsSetSlug]/llms.txt/route.ts',
+  'plugins/[docsSetSlug]/llms-full.txt/route.ts',
+  'plugins/[docsSetSlug]/skills/[agent]/[[...assetPath]]/route.ts',
+  '[docsSetSlug]/llms.txt/route.ts',
+  '[docsSetSlug]/llms-full.txt/route.ts',
+  '[docsSetSlug]/skills/[agent]/[[...assetPath]]/route.ts',
+]
+
+const assetRouteFileContent = `import config from '@payload-config'
+import { createPayloadMarkdownDocsAssetRouteHandler } from '@valkyrianlabs/payload-markdown-docs/next'
+
+export const GET = createPayloadMarkdownDocsAssetRouteHandler({
+  config,
+})
+
+export const dynamic = 'force-dynamic'
+`
 
 const fileExists = async (filePath: string): Promise<boolean> => {
   try {
@@ -66,6 +93,16 @@ const detectPackageManager = async (cwd = process.cwd()): Promise<PackageManager
   }
 
   return 'pnpm'
+}
+
+const detectPayloadAppDir = async (): Promise<string | undefined> => {
+  for (const candidate of payloadAppDirCandidates) {
+    if (await fileExists(candidate)) {
+      return candidate
+    }
+  }
+
+  return undefined
 }
 
 const getSkillTemplateRoot = async (agent: AgentTarget): Promise<URL> => {
@@ -235,6 +272,34 @@ const createAgentsFilePlan = async (): Promise<PlannedInstallFile | undefined> =
   }
 }
 
+const getInstallAssetRoutesOptions = async (
+  args: ParsedCliArgs,
+): Promise<CliResult | InstallAssetRoutesOptions> => {
+  const payloadAppDirFlag = getFlagString(args, 'payload-app') ?? getFlagString(args, 'app')
+  const detectedPayloadAppDir = payloadAppDirFlag ?? (await detectPayloadAppDir())
+
+  if (!detectedPayloadAppDir) {
+    return {
+      exitCode: 1,
+      stderr:
+        'Could not find a Payload app route group. Pass --payload-app "src/app/(payload)" or --payload-app "app/(payload)".\n',
+    }
+  }
+
+  if (payloadAppDirFlag && !(await fileExists(payloadAppDirFlag))) {
+    return {
+      exitCode: 1,
+      stderr: `Payload app route group does not exist: ${payloadAppDirFlag}\n`,
+    }
+  }
+
+  return {
+    dryRun: getFlagBoolean(args, 'dry-run'),
+    force: getFlagBoolean(args, 'force'),
+    payloadAppDir: detectedPayloadAppDir,
+  }
+}
+
 const getInstallSkillOptions = async (
   args: ParsedCliArgs,
 ): Promise<CliResult | InstallSkillOptions> => {
@@ -243,7 +308,8 @@ const getInstallSkillOptions = async (
   if (!target || !supportedInstallTargets.has(target)) {
     return {
       exitCode: 1,
-      stderr: 'Install requires target "skill" or "ai-skill".\n',
+      stderr:
+        'Install requires target "skill", "ai-skill", "routes", "asset-routes", or "ai-routes".\n',
     }
   }
 
@@ -305,6 +371,48 @@ const getInstallSkillOptions = async (
   }
 }
 
+const createAssetRoutePlan = ({
+  payloadAppDir,
+}: Pick<InstallAssetRoutesOptions, 'payloadAppDir'>): PlannedInstallFile[] => {
+  const absolutePayloadAppDir = path.resolve(payloadAppDir)
+
+  return assetRouteFiles.map((relativePath) => ({
+    content: assetRouteFileContent,
+    path: path.join(absolutePayloadAppDir, relativePath),
+    relativePath: path.posix.join(payloadAppDir.replaceAll(path.sep, '/'), relativePath),
+  }))
+}
+
+const formatInstalledAssetRoutes = ({
+  dryRun,
+  files,
+  payloadAppDir,
+}: {
+  dryRun: boolean
+  files: PlannedInstallFile[]
+  payloadAppDir: string
+}): string => {
+  const lines = [
+    dryRun
+      ? 'payload-markdown-docs install routes dry-run'
+      : 'payload-markdown-docs install routes',
+    '',
+    `Payload app route group: ${path.resolve(payloadAppDir)}`,
+    'Files:',
+    ...files.map((file) => `- ${file.relativePath}`),
+    '',
+    'Routes:',
+    '- /llms.txt',
+    '- /llms-full.txt',
+    '- /plugins/<docs-set-slug>/llms.txt',
+    '- /plugins/<docs-set-slug>/llms-full.txt',
+    '- /plugins/<docs-set-slug>/skills/<agent>',
+    '- /plugins/<docs-set-slug>/skills/<agent>/SKILL.md',
+  ]
+
+  return `${lines.join('\n')}\n`
+}
+
 const formatPlannedFiles = ({
   agent,
   dryRun,
@@ -333,6 +441,68 @@ const formatPlannedFiles = ({
 export const runInstallCommand = async (
   args: ParsedCliArgs,
 ): Promise<CliResult> => {
+  const [target] = args.positionals
+
+  if (target === 'routes' || target === 'asset-routes' || target === 'ai-routes') {
+    const options = await getInstallAssetRoutesOptions(args)
+
+    if ('exitCode' in options) {
+      return options
+    }
+
+    const plannedFiles = createAssetRoutePlan(options)
+
+    if (!options.force) {
+      const existingFiles: string[] = []
+
+      for (const file of plannedFiles) {
+        if (await fileExists(file.path)) {
+          const existingContent = await readFile(file.path, 'utf8')
+
+          if (existingContent !== file.content) {
+            existingFiles.push(file.relativePath)
+          }
+        }
+      }
+
+      if (existingFiles.length > 0) {
+        return {
+          exitCode: 1,
+          stderr: `Asset route files already exist with different content. Use --force to overwrite:\n${existingFiles
+            .map((file) => `- ${file}`)
+            .join('\n')}\n`,
+        }
+      }
+    }
+
+    if (options.dryRun) {
+      return {
+        exitCode: 0,
+        stdout: formatInstalledAssetRoutes({
+          dryRun: true,
+          files: plannedFiles,
+          payloadAppDir: options.payloadAppDir,
+        }),
+      }
+    }
+
+    for (const file of plannedFiles) {
+      await mkdir(path.dirname(file.path), {
+        recursive: true,
+      })
+      await writeFile(file.path, file.content, 'utf8')
+    }
+
+    return {
+      exitCode: 0,
+      stdout: formatInstalledAssetRoutes({
+        dryRun: false,
+        files: plannedFiles,
+        payloadAppDir: options.payloadAppDir,
+      }),
+    }
+  }
+
   const options = await getInstallSkillOptions(args)
 
   if ('exitCode' in options) {

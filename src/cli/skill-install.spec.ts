@@ -28,6 +28,16 @@ const skillFiles = [
   'reference/troubleshooting.md',
   'reference/workflow.md',
 ]
+const assetRouteFiles = [
+  'llms.txt/route.ts',
+  'llms-full.txt/route.ts',
+  'plugins/[docsSetSlug]/llms.txt/route.ts',
+  'plugins/[docsSetSlug]/llms-full.txt/route.ts',
+  'plugins/[docsSetSlug]/skills/[agent]/[[...assetPath]]/route.ts',
+  '[docsSetSlug]/llms.txt/route.ts',
+  '[docsSetSlug]/llms-full.txt/route.ts',
+  '[docsSetSlug]/skills/[agent]/[[...assetPath]]/route.ts',
+]
 
 const createTempRoot = async (): Promise<string> => {
   const root = path.join(tmpdir(), `payload-markdown-docs-skill-${randomUUID()}`)
@@ -304,6 +314,88 @@ describe('install skill command', () => {
     await expect(readdir(out)).rejects.toThrow()
   })
 
+  it('installs public Next asset route files', async () => {
+    const root = await createTempRoot()
+    const payloadApp = path.join(root, 'src/app/(payload)')
+    await mkdir(payloadApp, {
+      recursive: true,
+    })
+    process.chdir(root)
+
+    const result = await runCli(['install', 'routes'])
+
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout).toContain('/llms.txt')
+    expect(result.stdout).toContain('/plugins/<docs-set-slug>/skills/<agent>')
+    expect(await listFiles(payloadApp)).toEqual([...assetRouteFiles].sort())
+
+    const route = await readInstalledFile(root, 'src/app/(payload)/llms.txt/route.ts')
+
+    expect(route).toContain("import config from '@payload-config'")
+    expect(route).toContain('createPayloadMarkdownDocsAssetRouteHandler')
+    expect(route).toContain("dynamic = 'force-dynamic'")
+
+    const unchanged = await runCli(['install', 'asset-routes'])
+
+    expect(unchanged.exitCode).toBe(0)
+  })
+
+  it('supports asset route dry-run, explicit app path, and force overwrites', async () => {
+    const root = await createTempRoot()
+    const payloadApp = path.join(root, 'app/(payload)')
+    await mkdir(payloadApp, {
+      recursive: true,
+    })
+    process.chdir(root)
+
+    const dryRun = await runCli([
+      'install',
+      'ai-routes',
+      '--payload-app',
+      payloadApp,
+      '--dry-run',
+    ])
+
+    expect(dryRun.exitCode).toBe(0)
+    expect(dryRun.stdout).toContain('dry-run')
+    await expect(readInstalledFile(root, 'app/(payload)/llms.txt/route.ts')).rejects.toThrow()
+
+    const first = await runCli(['install', 'routes', '--payload-app', payloadApp])
+    await writeFile(path.join(payloadApp, 'llms.txt/route.ts'), 'stale\n', 'utf8')
+    const second = await runCli(['install', 'routes', '--payload-app', payloadApp])
+    const forced = await runCli([
+      'install',
+      'routes',
+      '--payload-app',
+      payloadApp,
+      '--force',
+    ])
+
+    expect(first.exitCode).toBe(0)
+    expect(second.exitCode).toBe(1)
+    expect(second.stderr).toContain('Asset route files already exist')
+    expect(forced.exitCode).toBe(0)
+    expect(await readInstalledFile(root, 'app/(payload)/llms.txt/route.ts')).not.toBe('stale\n')
+  })
+
+  it('requires a Payload app route group for asset route installs', async () => {
+    const root = await createTempRoot()
+    process.chdir(root)
+
+    const implicit = await runCli(['install', 'routes'])
+    const explicit = await runCli([
+      'install',
+      'routes',
+      '--payload-app',
+      path.join(root, 'missing/(payload)'),
+    ])
+
+    expect(implicit.exitCode).toBe(1)
+    expect(implicit.stderr).toContain('Could not find a Payload app route group')
+    expect(explicit.exitCode).toBe(1)
+    expect(explicit.stderr).toContain('Payload app route group does not exist')
+  })
+
   it('does not write bundled skill files outside the target directory', async () => {
     const root = await createTempRoot()
     const out = path.join(root, 'skill')
@@ -386,11 +478,12 @@ describe('install skill command', () => {
     expect(multipleAgents.exitCode).toBe(1)
     expect(multipleAgents.stderr).toContain('one agent target')
     expect(badTarget.exitCode).toBe(1)
-    expect(badTarget.stderr).toContain('target "skill" or "ai-skill"')
+    expect(badTarget.stderr).toContain('target "skill", "ai-skill", "routes"')
     expect(badPackageManager.exitCode).toBe(1)
     expect(badPackageManager.stderr).toContain('pnpm, npm, yarn, or bun')
     expect(help.exitCode).toBe(0)
     expect(help.stdout).toContain('payload-markdown-docs install skill --agent codex')
     expect(help.stdout).toContain('--claude')
+    expect(help.stdout).toContain('payload-markdown-docs install routes')
   })
 })

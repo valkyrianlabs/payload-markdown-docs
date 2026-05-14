@@ -23,6 +23,7 @@ Usage:
   payload-markdown-docs push [docs-root] [options]
   payload-markdown-docs keygen [options]
   payload-markdown-docs install skill --agent codex [options]
+  payload-markdown-docs install routes [options]
 
 Commands:
   validate   Validate a local docs package.
@@ -30,7 +31,7 @@ Commands:
   plan       Build a sync plan against optional existing docs records.
   push       Sign and upload a docs package manifest to a Payload sync endpoint.
   keygen     Generate Ed25519 keys for signed sync.
-  install    Install local AI-agent guidance for docs maintenance.
+  install    Install local AI-agent guidance or Next route files for docs assets.
 `
 
 const commandHelp: Record<Exclude<CliCommandName, 'help'>, string> = {
@@ -42,6 +43,9 @@ Aliases:
   payload-markdown-docs install skill --agent codex
   payload-markdown-docs install skill --agent claude
   payload-markdown-docs install skill --claude
+  payload-markdown-docs install routes
+  payload-markdown-docs install asset-routes
+  payload-markdown-docs install ai-routes
 
 Options:
   --codex                         Install the Codex skill pack.
@@ -50,13 +54,16 @@ Options:
   --out <path>                    Output directory. Defaults to .agents/skills/payload-markdown-docs for Codex and .claude/skills/payload-markdown-docs for Claude.
   --docs-root <path>              Docs root to mention in installed guidance. Defaults to ./docs.
   --package-manager <name>        pnpm, npm, yarn, or bun. Auto-detected when omitted.
+  --payload-app <path>             Payload app route group for route installs. Defaults to src/app/(payload), app/(payload), or dev/app/(payload) when found.
+  --app <path>                     Alias for --payload-app.
   --force                         Overwrite existing skill files.
   --dry-run                       Print planned files without writing.
   --help                          Show this help.
 
 Default Codex installs also create or update AGENTS.md so Codex can discover the skill guidance.
 Default Claude installs do not create or update AGENTS.md.
-Installs local AI-agent guidance only. It does not sync docs, call Payload, or run package manager commands.
+Install commands do not sync docs, call Payload, or run package manager commands.
+Route installs add exact Next App Router files for /llms.txt, /llms-full.txt, and docs-set skill asset URLs so those public routes can reach the plugin-owned Payload asset handlers instead of the frontend catch-all.
 `,
   keygen: `payload-markdown-docs keygen
 
