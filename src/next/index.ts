@@ -34,8 +34,12 @@ export type {
 export { PayloadMarkdownDocsPage } from './PayloadMarkdownDocsPage.js'
 export type { PayloadMarkdownDocsPageProps } from './PayloadMarkdownDocsPage.js'
 export { getPayloadMarkdownDocsRoutePath, resolvePayloadMarkdownDocsRoute } from './route.js'
-export { getDocsForSitemap } from './sitemap.js'
-export type { GetDocsForSitemapOptions, PayloadMarkdownDocsSitemapDoc } from './sitemap.js'
+export { getDocsForSitemap, getPaginatedDocsForSitemap } from './sitemap.js'
+export type {
+  GetDocsForSitemapOptions,
+  GetPaginatedDocsForSitemapOptions,
+  PayloadMarkdownDocsSitemapDoc,
+} from './sitemap.js'
 export { buildPayloadMarkdownDocsSidebar, getPayloadMarkdownDocsSidebar } from './sidebar.js'
 export type {
   BuildPayloadMarkdownDocsSidebarOptions,

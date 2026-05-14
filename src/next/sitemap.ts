@@ -1,3 +1,4 @@
+import type { MetadataRoute } from 'next'
 import type { PaginatedDocs } from 'payload'
 
 import { unstable_cache } from 'next/cache'
@@ -16,7 +17,7 @@ export type PayloadMarkdownDocsSitemapDoc = {
   url?: null | string
 }
 
-export type GetDocsForSitemapOptions = {
+export type GetPaginatedDocsForSitemapOptions = {
   cacheKey?: string | string[]
   collections?: Pick<PayloadMarkdownDocsCollectionSlugs, 'docsGroups' | 'docsSets'>
   fetchLimit?: number
@@ -26,7 +27,12 @@ export type GetDocsForSitemapOptions = {
   tags?: string[]
 }
 
-type GetDocsForSitemapCacheOptions = Omit<GetDocsForSitemapOptions, 'cacheKey' | 'payload' | 'tags'>
+export type GetDocsForSitemapOptions = GetPaginatedDocsForSitemapOptions
+
+type GetPaginatedDocsForSitemapCacheOptions = Omit<
+  GetPaginatedDocsForSitemapOptions,
+  'cacheKey' | 'payload' | 'tags'
+>
 
 const DEFAULT_SITEMAP_CACHE_KEY = 'sitemap-docs-v1'
 const DEFAULT_SITEMAP_TAGS = ['sitemap', 'sitemap:docs']
@@ -133,7 +139,9 @@ const getDocsForSitemapUncached = async ({
   siteUrl,
 }: {
   payload: PayloadMarkdownDocsReadPayload
-} & GetDocsForSitemapCacheOptions): Promise<PaginatedDocs<PayloadMarkdownDocsSitemapDoc>> => {
+} & GetPaginatedDocsForSitemapCacheOptions): Promise<
+  PaginatedDocs<PayloadMarkdownDocsSitemapDoc>
+> => {
   const docsGroupsCollectionSlug = collections?.docsGroups ?? DEFAULT_DOCS_GROUPS_COLLECTION_SLUG
   const docsSetsCollectionSlug = collections?.docsSets ?? DEFAULT_DOCS_SETS_COLLECTION_SLUG
   const [docsSetsResult, docsGroupsResult] = await Promise.all([
@@ -194,15 +202,15 @@ const getDocsForSitemapUncached = async ({
   }
 }
 
-export const getDocsForSitemap = async ({
+export const getPaginatedDocsForSitemap = async ({
   cacheKey = DEFAULT_SITEMAP_CACHE_KEY,
   payload,
   tags = DEFAULT_SITEMAP_TAGS,
   ...options
-}: GetDocsForSitemapOptions): Promise<PaginatedDocs<PayloadMarkdownDocsSitemapDoc>> => {
+}: GetPaginatedDocsForSitemapOptions): Promise<PaginatedDocs<PayloadMarkdownDocsSitemapDoc>> => {
   const cacheKeyParts = Array.isArray(cacheKey) ? cacheKey : [cacheKey]
   const cachedGetDocsForSitemap = unstable_cache(
-    async (cacheOptions: GetDocsForSitemapCacheOptions) =>
+    async (cacheOptions: GetPaginatedDocsForSitemapCacheOptions) =>
       getDocsForSitemapUncached({
         ...cacheOptions,
         payload,
@@ -214,4 +222,21 @@ export const getDocsForSitemap = async ({
   )
 
   return cachedGetDocsForSitemap(options)
+}
+
+export const getDocsForSitemap = async (
+  options: GetDocsForSitemapOptions,
+): Promise<MetadataRoute.Sitemap> => {
+  const result = await getPaginatedDocsForSitemap(options)
+
+  return result.docs.flatMap((doc) =>
+    doc.url
+      ? [
+          {
+            ...(doc.lastModified ? { lastModified: doc.lastModified } : {}),
+            url: doc.url,
+          },
+        ]
+      : [],
+  )
 }

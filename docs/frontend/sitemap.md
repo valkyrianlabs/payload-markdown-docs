@@ -15,7 +15,7 @@ Use `getDocsForSitemap` from the `/next` export when a Next App Router site has
 a dynamic `src/app/sitemap.ts` file.
 
 The helper reads published docs sets, resolves group paths, prepends `siteUrl`,
-and returns Payload-style paginated docs with `url` and `lastModified` fields.
+and returns a ready-to-use `MetadataRoute.Sitemap` array.
 
 ```ts
 import type { MetadataRoute } from 'next'
@@ -29,21 +29,10 @@ const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://example.com'
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const payload = await getPayload({ config })
-  const docs = await getDocsForSitemap({
+  return getDocsForSitemap({
     payload,
     siteUrl,
   })
-
-  return docs.docs.flatMap((doc) =>
-    doc.url
-      ? [
-          {
-            lastModified: doc.lastModified ?? undefined,
-            url: doc.url,
-          },
-        ]
-      : [],
-  )
 }
 ```
 
@@ -73,16 +62,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     {
       url: siteUrl,
     },
-    ...docs.docs.flatMap((doc) =>
-      doc.url
-        ? [
-            {
-              lastModified: doc.lastModified ?? undefined,
-              url: doc.url,
-            },
-          ]
-        : [],
-    ),
+    ...docs,
   ]
 }
 ```
@@ -120,4 +100,20 @@ const docs = await getDocsForSitemap({
   payload,
   siteUrl,
 })
+```
+
+## Paginated Result
+
+Use `getPaginatedDocsForSitemap` when the app needs the original Payload-style
+paginated result instead of the mapped Next sitemap array.
+
+```ts
+import { getPaginatedDocsForSitemap } from '@valkyrianlabs/payload-markdown-docs/next'
+
+const result = await getPaginatedDocsForSitemap({
+  payload,
+  siteUrl,
+})
+
+// result.docs: Array<{ url?: string | null; lastModified?: string | null }>
 ```

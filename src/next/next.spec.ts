@@ -20,7 +20,7 @@ import { PayloadMarkdownDocsNavbar } from './PayloadMarkdownDocsNavbar.js'
 import { PayloadMarkdownDocsPage } from './PayloadMarkdownDocsPage.js'
 import { getPayloadMarkdownDocsRoutePath, resolvePayloadMarkdownDocsRoute } from './route.js'
 import { buildPayloadMarkdownDocsSidebar, getPayloadMarkdownDocsSidebar } from './sidebar.js'
-import { getDocsForSitemap } from './sitemap.js'
+import { getDocsForSitemap, getPaginatedDocsForSitemap } from './sitemap.js'
 
 const cacheMocks = vi.hoisted(() => ({
   unstableCache: vi.fn((callback: (...args: unknown[]) => Promise<unknown>) => callback),
@@ -539,7 +539,7 @@ describe('Payload Markdown Docs route adapter', () => {
       ],
     })
 
-    const result = await getDocsForSitemap({
+    const result = await getPaginatedDocsForSitemap({
       cacheKey: ['custom-sitemap-docs'],
       payload,
       siteUrl: 'https://example.com/base/',
@@ -580,6 +580,32 @@ describe('Payload Markdown Docs route adapter', () => {
         tags: ['custom-sitemap'],
       },
     )
+  })
+
+  it('returns ready-to-use Next sitemap entries', async () => {
+    const payload = createPayloadMock({
+      docsGroups: [docsGroup],
+      docsSets: [
+        {
+          ...docsSet,
+          _status: 'published',
+          group: docsGroup.id,
+          updatedAt: '2026-05-14T12:00:00.000Z',
+        },
+      ],
+    })
+
+    const result = await getDocsForSitemap({
+      payload,
+      siteUrl: 'https://example.com',
+    })
+
+    expect(result).toEqual([
+      {
+        lastModified: '2026-05-14T12:00:00.000Z',
+        url: 'https://example.com/plugins/payload-markdown',
+      },
+    ])
   })
 })
 
