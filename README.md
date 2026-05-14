@@ -506,18 +506,18 @@ const docsLinks = await getPayloadMarkdownDocsLinks({ payload })
 The canonical agent artifacts are normal files under `skills/`. `push` syncs
 them as static assets by convention, along with top-level `/llms.txt` and
 `/llms-full.txt` when present. Synced assets are stored separately from docs
-records and can be exposed by the package response helpers or any site route
-that reads the stored asset by route.
+records. The plugin registers public Payload endpoints for the standard asset
+routes, so consuming apps do not need to import custom route handlers just to
+serve synced AI files.
 
 Useful stable paths include:
 
 ```txt
 /llms.txt
 /llms-full.txt
-/skills/payload-markdown-docs/codex/SKILL.md
-/skills/payload-markdown-docs/claude/SKILL.md
-/plugins/payload-markdown-docs/skills/codex/
-/plugins/payload-markdown-docs/skills/claude/
+/plugins/payload-markdown-docs/skills/codex/SKILL.md
+/plugins/payload-markdown-docs/skills/claude/SKILL.md
+/plugins/payload-markdown-docs/skills/codex/reference/workflow.md
 ```
 
 Synced AI/static assets are included by the docs sitemap helpers by default.

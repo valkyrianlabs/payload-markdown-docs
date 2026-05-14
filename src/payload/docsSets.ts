@@ -1,6 +1,11 @@
 import type { PayloadMarkdownDocsAuthToggle } from '../types.js'
 
-import { deriveDocsSetRouteBase, joinRouteSegments, normalizeRoutePath } from '../routing/index.js'
+import {
+  deriveDocsSetRouteBase,
+  isRouteDescendant,
+  joinRouteSegments,
+  normalizeRoutePath,
+} from '../routing/index.js'
 
 export type DocsSetPayloadOperations = {
   find: (args: {
@@ -337,4 +342,46 @@ export const findDocsSetByRouteBase = async ({
       }),
     )
     .find((docsSet) => docsSet?.routeBase === normalizedRouteBase)
+}
+
+export const findDocsSetByRoutePrefix = async ({
+  collectionSlug,
+  docsGroupsCollectionSlug,
+  payload,
+  route,
+}: {
+  collectionSlug: string
+  docsGroupsCollectionSlug: string
+  payload: DocsSetPayloadOperations
+  route: string
+}): Promise<ResolvedDocsSet | undefined> => {
+  const [result, groupsById] = await Promise.all([
+    payload.find({
+      collection: collectionSlug,
+      depth: 0,
+      draft: false,
+      limit: 1000,
+      overrideAccess: true,
+    }),
+    getGroupsById({
+      collectionSlug: docsGroupsCollectionSlug,
+      payload,
+    }),
+  ])
+  const normalizedRoute = normalizeRoutePath(route)
+
+  return result.docs
+    .map((doc) =>
+      toResolvedDocsSet({
+        doc,
+        groupsById,
+      }),
+    )
+    .filter(
+      (docsSet): docsSet is ResolvedDocsSet =>
+        docsSet !== undefined &&
+        (docsSet.routeBase === normalizedRoute ||
+          isRouteDescendant(docsSet.routeBase, normalizedRoute)),
+    )
+    .sort((first, second) => second.routeBase.length - first.routeBase.length)[0]
 }

@@ -29,7 +29,7 @@ import {
   DEFAULT_PAGES_COLLECTION_SLUG,
   DEFAULT_PAGES_ROUTE_FIELD,
 } from './constants.js'
-import { createSyncEndpoint } from './endpoints/index.js'
+import { createDocsAssetsEndpoints, createSyncEndpoint } from './endpoints/index.js'
 
 type ResolvedCollectionOptions = {
   docsAssetsCollectionSlug: string
@@ -347,6 +347,13 @@ export const payloadMarkdownDocs =
           },
           syncRunsCollectionSlug,
           syncRunsEnabled,
+        }),
+        ...createDocsAssetsEndpoints({
+          docsAssetsCollectionSlug,
+          docsAssetsEnabled,
+          docsGroupsCollectionSlug,
+          docsSetsCollectionSlug,
+          docsSetsEnabled,
         }),
       ],
     }

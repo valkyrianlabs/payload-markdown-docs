@@ -69,8 +69,14 @@ import {
   verifyGitHubOidcToken,
 } from '../security/index.js'
 import { planDocsAssetsSync, planDocsSync, validateDocsManifest } from '../sync/index.js'
+import {
+  DOCS_ASSETS_STORAGE_UNAVAILABLE_MESSAGE,
+  getErrorMessage,
+  isDocsAssetsStorageUnavailableError,
+} from './assetsStorage.js'
 
 export type DocsSyncEndpointErrorCode =
+  | 'assets_storage_unavailable'
   | 'audit_unavailable'
   | 'auth_disabled'
   | 'body_hash_mismatch'
@@ -263,6 +269,13 @@ const errorResponse = (
       ok: false,
     },
     status,
+  )
+
+const docsAssetsStorageUnavailableResponse = (): Response =>
+  errorResponse(
+    'assets_storage_unavailable',
+    DOCS_ASSETS_STORAGE_UNAVAILABLE_MESSAGE,
+    500,
   )
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -638,10 +651,8 @@ const getRouteCollisionIssues = async ({
   payload: RouteCollisionPayloadOperations
   routeBase: string
 }) => {
-  const desiredRoutes = [
-    ...manifest.files.map((file) => file.route),
-    ...manifest.assets.flatMap((asset) => (asset.route ? [asset.route] : [])),
-  ]
+  const desiredAssetRoutes = manifest.assets.flatMap((asset) => (asset.route ? [asset.route] : []))
+  const desiredRoutes = [...manifest.files.map((file) => file.route), ...desiredAssetRoutes]
   const duplicateDesiredRouteCollisions = findDuplicateDesiredRouteCollisions(desiredRoutes)
   const existingDocsRouteCollisions = options.docsEnabled
     ? await findExistingDocsRouteCollisions({
@@ -654,7 +665,7 @@ const getRouteCollisionIssues = async ({
       })
     : []
   const existingAssetRouteCollisions =
-    options.docsAssetsEnabled === true
+    options.docsAssetsEnabled === true && desiredAssetRoutes.length > 0
       ? await findExistingAssetRouteCollisions({
           collectionSlug: options.docsAssetsCollectionSlug ?? DEFAULT_DOCS_ASSETS_COLLECTION_SLUG,
           docsSetId: docsSet?.id,
@@ -1188,13 +1199,23 @@ const createSyncEndpointHandler =
       return lifecyclePolicyError
     }
 
-    const routeCollisions = await getRouteCollisionIssues({
-      docsSet: sourceResolution.source.docsSet,
-      manifest: validation.data,
-      options,
-      payload: req.payload as unknown as RouteCollisionPayloadOperations,
-      routeBase: sourceResolution.source.routeBase,
-    })
+    let routeCollisions
+
+    try {
+      routeCollisions = await getRouteCollisionIssues({
+        docsSet: sourceResolution.source.docsSet,
+        manifest: validation.data,
+        options,
+        payload: req.payload as unknown as RouteCollisionPayloadOperations,
+        routeBase: sourceResolution.source.routeBase,
+      })
+    } catch (error) {
+      if (validation.data.assets.length > 0 && isDocsAssetsStorageUnavailableError(error)) {
+        return docsAssetsStorageUnavailableResponse()
+      }
+
+      throw error
+    }
 
     if (routeCollisions.length > 0) {
       return errorResponse(
@@ -1265,14 +1286,26 @@ const createSyncEndpointHandler =
     })
     const docsAssetsCollectionSlug =
       options.docsAssetsCollectionSlug ?? DEFAULT_DOCS_ASSETS_COLLECTION_SLUG
-    const existingPayloadAssets = options.docsAssetsEnabled === true
-      ? await findExistingPayloadDocsAssetRecords({
+    const shouldSyncAssets = options.docsAssetsEnabled === true && validation.data.assets.length > 0
+    let existingPayloadAssets: Awaited<ReturnType<typeof findExistingPayloadDocsAssetRecords>> = []
+
+    if (shouldSyncAssets) {
+      try {
+        existingPayloadAssets = await findExistingPayloadDocsAssetRecords({
           collectionSlug: docsAssetsCollectionSlug,
           docsSetId: sourceResolution.source.docsSet?.id,
           payload: req.payload as unknown as ExistingAssetsPayloadOperations,
           sourceId: validation.data.source.id,
         })
-      : []
+      } catch (error) {
+        if (isDocsAssetsStorageUnavailableError(error)) {
+          return docsAssetsStorageUnavailableResponse()
+        }
+
+        throw error
+      }
+    }
+
     const existingAssets = existingPayloadAssets.map(toExistingAssetRecord)
     const assetPlan = planDocsAssetsSync({
       deleteBehavior: effectiveDeleteBehavior,
@@ -1406,7 +1439,7 @@ const createSyncEndpointHandler =
           )
         }
 
-        if (options.docsAssetsEnabled === true) {
+        if (shouldSyncAssets) {
           const applyAssetsResult = await applyDocsAssetsSync({
             collectionSlug: docsAssetsCollectionSlug,
             deleteBehavior: effectiveDeleteBehavior,
@@ -1506,7 +1539,7 @@ const createSyncEndpointHandlerWithErrorBoundary =
       return errorResponse(
         'sync_endpoint_failed',
         error instanceof Error
-          ? `Sync endpoint failed: ${error.message}`
+          ? `Sync endpoint failed: ${getErrorMessage(error)}`
           : 'Sync endpoint failed.',
         500,
       )

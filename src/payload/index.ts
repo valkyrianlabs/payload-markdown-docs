@@ -15,6 +15,7 @@ export { findDocsKeyById } from './docsKeys.js'
 export type { DocsKeyPayloadOperations, ResolvedDocsKey } from './docsKeys.js'
 export {
   findDocsSetByRouteBase,
+  findDocsSetByRoutePrefix,
   findDocsSetBySlug,
   isEd25519AuthEnabled,
   isGitHubOidcAuthEnabled,

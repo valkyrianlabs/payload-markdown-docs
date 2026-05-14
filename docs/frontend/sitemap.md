@@ -145,27 +145,17 @@ the public route your site owns.
 
 ## Serving Synced Assets
 
-If the consuming app owns top-level route handlers, use the asset response
-helpers from the `/next` export. They look up synced asset records by public
-route and return the stored content type.
+The plugin registers Payload-owned GET endpoints for synced AI/static assets:
 
-```ts
-import config from '@payload-config'
-import { createPayloadMarkdownDocsLlmsResponse } from '@valkyrianlabs/payload-markdown-docs/next'
-import { getPayload } from 'payload'
+- `/llms.txt`
+- `/llms-full.txt`
+- `<docsSet.routeBase>/skills/<agent>/<path...>`
 
-export async function GET() {
-  const payload = await getPayload({ config })
-
-  return createPayloadMarkdownDocsLlmsResponse({
-    path: '/llms.txt',
-    payload,
-  })
-}
-```
-
-Use the same helper shape for `/llms-full.txt` and docs-set skill routes such
-as `/plugins/payload-markdown-docs/skills/codex/SKILL.md`.
+For example, a docs set served at `/plugins/payload-markdown-docs` exposes
+`/plugins/payload-markdown-docs/skills/codex/SKILL.md` after the skill asset is
+synced. Consuming apps should not need to import custom route handlers for the
+standard routes. If those routes return an asset schema error, migrate the
+Payload database so the `payload-markdown-docs-assets` collection table exists.
 
 ## Cache Keys And Tags
 

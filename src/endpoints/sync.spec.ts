@@ -86,6 +86,7 @@ const filterDocsByEquals = (docs: unknown[], where: unknown, field: string): unk
 }
 
 const createMockPayload = ({
+  assetsFindError,
   docsGroups = [],
   docsKeys,
   docsSets = [],
@@ -102,6 +103,7 @@ const createMockPayload = ({
   pages = [],
   replayNonce = false,
 }: {
+  assetsFindError?: Error
   docsGroups?: unknown[]
   docsKeys?: unknown[]
   docsSets?: unknown[]
@@ -137,6 +139,10 @@ const createMockPayload = ({
     }
 
     if (collection === DEFAULT_DOCS_ASSETS_COLLECTION_SLUG) {
+      if (assetsFindError) {
+        return Promise.reject(assetsFindError)
+      }
+
       return Promise.resolve({
         docs: existingAssets,
       })
@@ -823,6 +829,81 @@ describe('sync endpoint dry-run handling', () => {
       code: 'sync_endpoint_failed',
       message: 'Sync endpoint failed: database unavailable',
     })
+  })
+
+  it('does not require docs asset storage for docs-only manifests', async () => {
+    const { privateKey, publicKey } = keyPair()
+    const body = JSON.stringify(createManifest())
+    const payload = createMockPayload({
+      assetsFindError: new Error('Failed query: relation "payload_markdown_docs_assets" does not exist'),
+    })
+
+    const { json, response } = await callEndpoint({
+      body,
+      headers: signBody({
+        body,
+        privateKey,
+      }),
+      payload,
+      publicKey: publicKey.toString(),
+    })
+
+    expect(response.status).toBe(200)
+    expect(json).toMatchObject({
+      ok: true,
+    })
+    expect(payload.find).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: DEFAULT_DOCS_ASSETS_COLLECTION_SLUG,
+      }),
+    )
+  })
+
+  it('returns a migration hint when docs asset storage is missing for asset manifests', async () => {
+    const { privateKey, publicKey } = keyPair()
+    const body = JSON.stringify(
+      buildDocsManifest({
+        assets: [
+          {
+            content: '# Main Docs\n',
+            contentType: 'text/plain; charset=utf-8',
+            kind: 'llms',
+            path: 'llms.txt',
+            route: '/llms.txt',
+          },
+        ],
+        files: [
+          {
+            content: '# Home\n',
+            path: 'index.md',
+          },
+        ],
+        repository: 'valkyrianlabs/payload-markdown',
+        sourceId: 'main-docs',
+      }),
+    )
+    const payload = createMockPayload({
+      assetsFindError: new Error(
+        'Failed query: select count(*) from "payload_markdown_docs_assets"',
+      ),
+    })
+
+    const { json, response } = await callEndpoint({
+      body,
+      headers: signBody({
+        body,
+        privateKey,
+      }),
+      payload,
+      publicKey: publicKey.toString(),
+    })
+
+    expect(response.status).toBe(500)
+    expect(json.error).toMatchObject({
+      code: 'assets_storage_unavailable',
+    })
+    expect(JSON.stringify(json.error)).toContain('Run Payload database migrations')
+    expect(JSON.stringify(json.error)).toContain(DEFAULT_DOCS_ASSETS_COLLECTION_SLUG)
   })
 
   it('rejects sync mode when writes are not enabled', async () => {
