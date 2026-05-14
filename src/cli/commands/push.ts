@@ -25,6 +25,9 @@ type ServerPushResponse = {
     code?: string
     message?: string
   }
+  errors?: Array<{
+    message?: string
+  }>
   ok?: boolean
   publishRequested?: boolean
   summary?: {
@@ -291,9 +294,39 @@ const getPushCommandOptions = async (
   }
 }
 
-const formatServerFailure = ({ body, status }: { body: unknown; status: number }): string => {
+const trimResponseText = (text: string): string => {
+  const trimmed = text.trim()
+
+  if (trimmed.length <= 1000) {
+    return trimmed
+  }
+
+  return `${trimmed.slice(0, 1000)}...`
+}
+
+const formatServerFailure = ({
+  body,
+  status,
+  text,
+}: {
+  body: unknown
+  status: number
+  text?: string
+}): string => {
   if (isServerPushResponse(body) && body.error?.message) {
     return `${body.error.message}\n`
+  }
+
+  if (isServerPushResponse(body) && body.errors?.some((error) => error.message)) {
+    return `Sync request failed with HTTP status ${status}.\n\n${body.errors
+      .flatMap((error) => (error.message ? [`- ${error.message}`] : []))
+      .join('\n')}\n`
+  }
+
+  const responseText = text ? trimResponseText(text) : ''
+
+  if (responseText) {
+    return `Sync request failed with HTTP status ${status}.\n\nResponse body:\n${responseText}\n`
   }
 
   return `Sync request failed with HTTP status ${status}.\n`
@@ -423,6 +456,7 @@ export const runPushCommand = async (
       stderr: formatServerFailure({
         body: response.body,
         status: response.status,
+        text: response.text,
       }),
     }
   }

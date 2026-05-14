@@ -545,6 +545,35 @@ describe('push command', () => {
     expect(result.stderr).toContain('Use either --dry-run or --sync')
   })
 
+  it('accepts publish package disable flags for push', () => {
+    const parsed = parseCliArgs([
+      'push',
+      '--endpoint',
+      endpoint,
+      '--key-id',
+      'github-actions-main',
+      '--private-key-file',
+      '.docs-sync/docs-sync-private.pem',
+      '--no-docs',
+      '--no-skills',
+      '--no-llms',
+      '--no-llms-full',
+    ])
+
+    expect(parsed).toMatchObject({
+      args: {
+        command: 'push',
+        flags: {
+          'no-docs': true,
+          'no-llms': true,
+          'no-llms-full': true,
+          'no-skills': true,
+        },
+      },
+      ok: true,
+    })
+  })
+
   it('requires endpoint, key id, and one private key source', async () => {
     const root = await createDocsRoot()
     const { privateKey } = keyPair()
@@ -917,11 +946,27 @@ describe('push command', () => {
         text: 'Internal Server Error',
       }),
     )
+    const payloadError = await runPushCommand(parsed.args, () =>
+      Promise.resolve({
+        body: {
+          errors: [
+            {
+              message: 'Something went wrong.',
+            },
+          ],
+        },
+        ok: false,
+        status: 500,
+        text: '{"errors":[{"message":"Something went wrong."}]}',
+      }),
+    )
 
     expect(serverError.exitCode).toBe(1)
     expect(serverError.stderr).toContain('Invalid sync request signature.')
     expect(httpError.exitCode).toBe(1)
     expect(httpError.stderr).toContain('HTTP status 500')
+    expect(payloadError.exitCode).toBe(1)
+    expect(payloadError.stderr).toContain('Something went wrong.')
   })
 
   it('prints JSON output and does not print private keys or document bodies by default', async () => {

@@ -802,6 +802,29 @@ describe('sync endpoint dry-run handling', () => {
     expect(json.error).toMatchObject({ code: 'source_not_allowed' })
   })
 
+  it('returns structured errors for unexpected endpoint failures', async () => {
+    const { privateKey, publicKey } = keyPair()
+    const body = JSON.stringify(createManifest())
+    const payload = createMockPayload()
+    payload.find.mockRejectedValueOnce(new Error('database unavailable'))
+
+    const { json, response } = await callEndpoint({
+      body,
+      headers: signBody({
+        body,
+        privateKey,
+      }),
+      payload,
+      publicKey: publicKey.toString(),
+    })
+
+    expect(response.status).toBe(500)
+    expect(json.error).toMatchObject({
+      code: 'sync_endpoint_failed',
+      message: 'Sync endpoint failed: database unavailable',
+    })
+  })
+
   it('rejects sync mode when writes are not enabled', async () => {
     const { privateKey, publicKey } = keyPair()
     const body = JSON.stringify(createManifest({ mode: 'sync' }))

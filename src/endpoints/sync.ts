@@ -106,6 +106,7 @@ export type DocsSyncEndpointErrorCode =
   | 'route_collision'
   | 'source_not_allowed'
   | 'sync_apply_failed'
+  | 'sync_endpoint_failed'
   | 'sync_mode_not_implemented'
   | 'sync_writes_disabled'
   | 'unknown_key'
@@ -1475,7 +1476,11 @@ const createSyncEndpointHandler =
           warnings,
         })
 
-        return errorResponse('sync_apply_failed', 'Sync apply failed.', 500)
+        return errorResponse(
+          'sync_apply_failed',
+          error instanceof Error ? `Sync apply failed: ${error.message}` : 'Sync apply failed.',
+          500,
+        )
       }
     }
 
@@ -1492,8 +1497,24 @@ const createSyncEndpointHandler =
     })
   }
 
+const createSyncEndpointHandlerWithErrorBoundary =
+  (options: CreateSyncEndpointOptions) =>
+  async (req: PayloadRequest): Promise<Response> => {
+    try {
+      return await createSyncEndpointHandler(options)(req)
+    } catch (error) {
+      return errorResponse(
+        'sync_endpoint_failed',
+        error instanceof Error
+          ? `Sync endpoint failed: ${error.message}`
+          : 'Sync endpoint failed.',
+        500,
+      )
+    }
+  }
+
 export const createSyncEndpoint = (options: CreateSyncEndpointOptions): Endpoint => ({
-  handler: createSyncEndpointHandler(options),
+  handler: createSyncEndpointHandlerWithErrorBoundary(options),
   method: 'post',
   path: options.endpointPath,
 })
