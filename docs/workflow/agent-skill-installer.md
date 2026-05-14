@@ -99,6 +99,8 @@ Those directories are safe to publish through the docs site. After
 standard routes:
 
 ```text
+/plugins/payload-markdown-docs/llms.txt
+/plugins/payload-markdown-docs/skills/codex
 /plugins/payload-markdown-docs/skills/codex/SKILL.md
 /plugins/payload-markdown-docs/skills/claude/SKILL.md
 /plugins/payload-markdown-docs/skills/codex/reference/workflow.md

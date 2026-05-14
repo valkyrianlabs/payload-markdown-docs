@@ -149,10 +149,14 @@ The plugin registers Payload-owned GET endpoints for synced AI/static assets:
 
 - `/llms.txt`
 - `/llms-full.txt`
+- `<docsSet.routeBase>/llms.txt`
+- `<docsSet.routeBase>/llms-full.txt`
 - `<docsSet.routeBase>/skills/<agent>/<path...>`
 
 For example, a docs set served at `/plugins/payload-markdown-docs` exposes
-`/plugins/payload-markdown-docs/skills/codex/SKILL.md` after the skill asset is
+`/plugins/payload-markdown-docs/llms.txt`,
+`/plugins/payload-markdown-docs/skills/codex`, and
+`/plugins/payload-markdown-docs/skills/codex/SKILL.md` after the assets are
 synced. Consuming apps should not need to import custom route handlers for the
 standard routes. If those routes return an asset schema error, migrate the
 Payload database so the `payload-markdown-docs-assets` collection table exists.

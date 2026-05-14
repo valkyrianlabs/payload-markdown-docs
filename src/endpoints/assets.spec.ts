@@ -124,6 +124,14 @@ describe('docs asset endpoints', () => {
           root: true,
         }),
         expect.objectContaining({
+          path: '/:routeBase*/llms.txt',
+          root: true,
+        }),
+        expect.objectContaining({
+          path: '/:routeBase*/llms-full.txt',
+          root: true,
+        }),
+        expect.objectContaining({
           path: '/:routeBase*/skills/:agent/:assetPath*',
           root: true,
         }),
@@ -159,6 +167,57 @@ describe('docs asset endpoints', () => {
     expect(response?.status).toBe(200)
     expect(response?.headers.get('content-type')).toContain('text/plain')
     expect(await response?.text()).toBe('# Main Docs\n')
+  })
+
+  it('serves docs-set llms.txt aliases from synced asset storage', async () => {
+    const endpoint = createDocsAssetsEndpoints({}).find(
+      (item) => item.path === '/:routeBase*/llms.txt',
+    )
+    const payload = createMockPayload({
+      assets: [
+        {
+          id: 'asset-1',
+          content: '# Payload Markdown Docs\n',
+          contentType: 'text/plain; charset=utf-8',
+          docsSet: 'docs-set-1',
+          kind: 'llms',
+          route: '/llms.txt',
+          sourceId: 'payload-markdown-docs',
+          sourcePath: 'llms.txt',
+          sync: {
+            archived: false,
+            sourceId: 'payload-markdown-docs',
+          },
+        },
+      ],
+      docsGroups: [
+        {
+          id: 'docs-group-1',
+          slug: 'plugins',
+        },
+      ],
+      docsSets: [
+        {
+          id: 'docs-set-1',
+          slug: 'payload-markdown-docs',
+          group: 'docs-group-1',
+        },
+      ],
+    })
+
+    const response = await endpoint?.handler(
+      createRequest({
+        payload,
+        routeParams: {
+          routeBase: ['plugins', 'payload-markdown-docs'],
+        },
+        url: 'https://example.com/plugins/payload-markdown-docs/llms.txt',
+      }),
+    )
+
+    expect(response?.status).toBe(200)
+    expect(response?.headers.get('content-type')).toContain('text/plain')
+    expect(await response?.text()).toBe('# Payload Markdown Docs\n')
   })
 
   it('serves skill assets under the matched docs set route base', async () => {
@@ -203,6 +262,55 @@ describe('docs asset endpoints', () => {
           routeBase: ['plugins', 'payload-markdown-docs'],
         },
         url: 'https://example.com/plugins/payload-markdown-docs/skills/codex/SKILL.md',
+      }),
+    )
+
+    expect(response?.status).toBe(200)
+    expect(response?.headers.get('content-type')).toContain('text/markdown')
+    expect(await response?.text()).toBe('# Codex Skill\n')
+  })
+
+  it('serves skill directory requests as the agent SKILL.md file', async () => {
+    const endpoint = createDocsAssetsEndpoints({}).find((item) =>
+      item.path.includes('/skills/'),
+    )
+    const payload = createMockPayload({
+      assets: [
+        {
+          id: 'asset-1',
+          content: '# Codex Skill\n',
+          contentType: 'text/markdown; charset=utf-8',
+          kind: 'skill',
+          route: '/plugins/payload-markdown-docs/skills/codex/SKILL.md',
+          sourcePath: 'skills/payload-markdown-docs/codex/SKILL.md',
+          sync: {
+            archived: false,
+          },
+        },
+      ],
+      docsGroups: [
+        {
+          id: 'docs-group-1',
+          slug: 'plugins',
+        },
+      ],
+      docsSets: [
+        {
+          id: 'docs-set-1',
+          slug: 'payload-markdown-docs',
+          group: 'docs-group-1',
+        },
+      ],
+    })
+
+    const response = await endpoint?.handler(
+      createRequest({
+        payload,
+        routeParams: {
+          agent: 'codex',
+          routeBase: ['plugins', 'payload-markdown-docs'],
+        },
+        url: 'https://example.com/plugins/payload-markdown-docs/skills/codex',
       }),
     )
 

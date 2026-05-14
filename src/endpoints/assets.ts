@@ -1,6 +1,6 @@
 import type { Endpoint, PayloadRequest } from 'payload'
 
-import type { DocsSetPayloadOperations } from '../payload/index.js'
+import type { DocsSetPayloadOperations, ResolvedDocsSet } from '../payload/index.js'
 
 import {
   DEFAULT_DOCS_ASSETS_COLLECTION_SLUG,
@@ -90,9 +90,10 @@ const getSkillRequestPath = (req: PayloadRequest): string => {
   const routeBase = toStringArray(routeParams?.routeBase)
   const agent = typeof routeParams?.agent === 'string' ? routeParams.agent : undefined
   const assetPath = toStringArray(routeParams?.assetPath)
+  const resolvedAssetPath = assetPath.length > 0 ? assetPath : ['SKILL.md']
 
-  if (agent && assetPath.length > 0) {
-    return joinRouteSegments(...routeBase, 'skills', agent, ...assetPath)
+  if (agent) {
+    return joinRouteSegments(...routeBase, 'skills', agent, ...resolvedAssetPath)
   }
 
   return getRequestPath(req)
@@ -174,6 +175,64 @@ const resolveAssetByRoute = async ({
   })[0]
 }
 
+const resolveAssetByDocsSet = async ({
+  collectionSlug,
+  docsSet,
+  kind,
+  payload,
+}: {
+  collectionSlug: string
+  docsSet: ResolvedDocsSet
+  kind: 'llms' | 'llms-full'
+  payload: AssetEndpointPayloadOperations
+}): Promise<ServedDocsAsset | undefined> => {
+  const result = await payload.find({
+    collection: collectionSlug,
+    depth: 0,
+    limit: 1,
+    overrideAccess: true,
+    where: {
+      and: [
+        {
+          kind: {
+            equals: kind,
+          },
+        },
+        {
+          or: [
+            {
+              docsSet: {
+                equals: docsSet.id,
+              },
+            },
+            {
+              sourceId: {
+                equals: docsSet.slug,
+              },
+            },
+            {
+              'sync.sourceId': {
+                equals: docsSet.slug,
+              },
+            },
+          ],
+        },
+        {
+          'sync.archived': {
+            not_equals: true,
+          },
+        },
+      ],
+    },
+  })
+
+  return result.docs.flatMap((doc) => {
+    const asset = toServedDocsAsset(doc)
+
+    return asset ? [asset] : []
+  })[0]
+}
+
 const createAssetResponse = (asset: ServedDocsAsset): Response =>
   new Response(asset.content, {
     headers: {
@@ -214,6 +273,54 @@ const createRootAssetEndpoint = ({
         })
 
         return asset?.kind === kind ? createAssetResponse(asset) : notFoundResponse()
+      } catch (error) {
+        if (isDocsAssetsStorageUnavailableError(error)) {
+          return docsAssetsStorageUnavailableResponse()
+        }
+
+        throw error
+      }
+    },
+    path,
+  })
+
+const createDocsSetLlmsEndpoint = ({
+  collectionSlug,
+  docsGroupsCollectionSlug,
+  docsSetsCollectionSlug,
+  kind,
+  path,
+}: {
+  collectionSlug: string
+  docsGroupsCollectionSlug: string
+  docsSetsCollectionSlug: string
+  kind: 'llms' | 'llms-full'
+  path: string
+}): Endpoint =>
+  createRootGetEndpoint({
+    handler: async (req) => {
+      const route = getRequestPath(req)
+
+      try {
+        const docsSet = await findDocsSetByRoutePrefix({
+          collectionSlug: docsSetsCollectionSlug,
+          docsGroupsCollectionSlug,
+          payload: req.payload as unknown as DocsSetPayloadOperations,
+          route,
+        })
+
+        if (!docsSet) {
+          return notFoundResponse()
+        }
+
+        const asset = await resolveAssetByDocsSet({
+          collectionSlug,
+          docsSet,
+          kind,
+          payload: req.payload as unknown as AssetEndpointPayloadOperations,
+        })
+
+        return asset ? createAssetResponse(asset) : notFoundResponse()
       } catch (error) {
         if (isDocsAssetsStorageUnavailableError(error)) {
           return docsAssetsStorageUnavailableResponse()
@@ -301,6 +408,20 @@ export const createDocsAssetsEndpoints = ({
     }),
     ...(docsSetsEnabled
       ? [
+          createDocsSetLlmsEndpoint({
+            collectionSlug: docsAssetsCollectionSlug,
+            docsGroupsCollectionSlug,
+            docsSetsCollectionSlug,
+            kind: 'llms',
+            path: '/:routeBase*/llms.txt',
+          }),
+          createDocsSetLlmsEndpoint({
+            collectionSlug: docsAssetsCollectionSlug,
+            docsGroupsCollectionSlug,
+            docsSetsCollectionSlug,
+            kind: 'llms-full',
+            path: '/:routeBase*/llms-full.txt',
+          }),
           createSkillAssetEndpoint({
             collectionSlug: docsAssetsCollectionSlug,
             docsGroupsCollectionSlug,
