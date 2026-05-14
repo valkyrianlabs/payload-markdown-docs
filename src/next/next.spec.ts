@@ -20,6 +20,15 @@ import { PayloadMarkdownDocsNavbar } from './PayloadMarkdownDocsNavbar.js'
 import { PayloadMarkdownDocsPage } from './PayloadMarkdownDocsPage.js'
 import { getPayloadMarkdownDocsRoutePath, resolvePayloadMarkdownDocsRoute } from './route.js'
 import { buildPayloadMarkdownDocsSidebar, getPayloadMarkdownDocsSidebar } from './sidebar.js'
+import { getDocsForSitemap } from './sitemap.js'
+
+const cacheMocks = vi.hoisted(() => ({
+  unstableCache: vi.fn((callback: (...args: unknown[]) => Promise<unknown>) => callback),
+}))
+
+vi.mock('next/cache', () => ({
+  unstable_cache: cacheMocks.unstableCache,
+}))
 
 vi.mock('@valkyrianlabs/payload-markdown/server', () => ({
   MarkdownRenderer: ({ markdown }: { markdown?: string }) => markdown ?? null,
@@ -492,6 +501,84 @@ describe('Payload Markdown Docs route adapter', () => {
         collection: 'docs-sets',
         draft: true,
       }),
+    )
+  })
+
+  it('builds sitemap docs with resolved group URLs and last modified dates', async () => {
+    cacheMocks.unstableCache.mockClear()
+
+    const childGroup = {
+      id: 'group-2',
+      slug: 'cms',
+      parent: docsGroup.id,
+      title: 'CMS',
+    }
+    const payload = createPayloadMock({
+      docsGroups: [docsGroup, childGroup],
+      docsSets: [
+        {
+          ...docsSet,
+          _status: 'published',
+          group: childGroup.id,
+          updatedAt: '2026-05-14T12:00:00.000Z',
+        },
+        {
+          id: 'set-2',
+          slug: 'guides',
+          _status: 'published',
+          title: 'Guides',
+          updatedAt: '2026-05-13T12:00:00.000Z',
+        },
+        {
+          id: 'set-draft',
+          slug: 'draft-docs',
+          _status: 'draft',
+          title: 'Draft Docs',
+          updatedAt: '2026-05-12T12:00:00.000Z',
+        },
+      ],
+    })
+
+    const result = await getDocsForSitemap({
+      cacheKey: ['custom-sitemap-docs'],
+      payload,
+      siteUrl: 'https://example.com/base/',
+      tags: ['custom-sitemap'],
+    })
+
+    expect(result.docs).toEqual([
+      {
+        lastModified: '2026-05-13T12:00:00.000Z',
+        url: 'https://example.com/base/guides',
+      },
+      {
+        lastModified: '2026-05-14T12:00:00.000Z',
+        url: 'https://example.com/base/plugins/cms/payload-markdown',
+      },
+    ])
+    expect(payload.find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: 'docs-sets',
+        limit: 10000,
+        overrideAccess: true,
+        select: {
+          slug: true,
+          group: true,
+          updatedAt: true,
+        },
+        where: {
+          _status: {
+            equals: 'published',
+          },
+        },
+      }),
+    )
+    expect(cacheMocks.unstableCache).toHaveBeenCalledWith(
+      expect.any(Function),
+      ['custom-sitemap-docs'],
+      {
+        tags: ['custom-sitemap'],
+      },
     )
   })
 })
