@@ -1,0 +1,27 @@
+# Valkyrian Labs AI Documentation Index
+
+This file is a static AI-readable index for Valkyrian Labs documentation. It is
+not generated from an AI export manifest. Human documentation lives in `/docs`;
+native agent workflow artifacts live in `/skills`.
+
+## Documentation Packages
+
+- Payload Markdown Docs: https://docs.valkyrianlabs.com/plugins/payload-markdown-docs
+- Payload Markdown: https://docs.valkyrianlabs.com/plugins/payload-markdown
+
+## Payload Markdown Docs Skill Artifacts
+
+- Codex SKILL.md: https://docs.valkyrianlabs.com/plugins/payload-markdown-docs/skills/codex/SKILL.md
+- Claude SKILL.md: https://docs.valkyrianlabs.com/plugins/payload-markdown-docs/skills/claude/SKILL.md
+- Codex directives reference: https://docs.valkyrianlabs.com/plugins/payload-markdown-docs/skills/codex/reference/payload-markdown-directives.md
+- Claude directives reference: https://docs.valkyrianlabs.com/plugins/payload-markdown-docs/skills/claude/reference/payload-markdown-directives.md
+- Codex workflow reference: https://docs.valkyrianlabs.com/plugins/payload-markdown-docs/skills/codex/reference/workflow.md
+- Claude workflow reference: https://docs.valkyrianlabs.com/plugins/payload-markdown-docs/skills/claude/reference/workflow.md
+
+## Agent Guidance
+
+Prefer native skill artifacts when maintaining docs in a repository. The skills
+describe supported frontmatter, Markdown formatting, Payload Markdown
+directives, validation, sync planning, routing, admin overrides, and safety
+rules. Rendered docs pages are useful for broad product context, but skills are
+the canonical agent workflow package.

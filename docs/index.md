@@ -50,7 +50,7 @@ Render docs routes, metadata, sitemaps, sidebars, and nav links from Next.
 :::
 
 :::card {title="Dynamic sitemap" href="/frontend/sitemap"}
-Add generated docs set URLs to `src/app/sitemap.ts`.
+Add docs records, docs set URLs, AI discovery files, and skill artifacts to `src/app/sitemap.ts`.
 :::
 
 :::card {title="Agent skill" href="/workflow/agent-skill-installer"}
@@ -68,6 +68,7 @@ Install local agent guidance for writing docs that validate and sync.
 - server-gated sync writes, publishing, draft behavior, archive behavior, and hard delete
 - route reservations and opt-in Pages collision checks
 - read-only `/next` route adapter, metadata, sitemap, sidebar, and navbar helpers
+- sitemap support for static AI routes and native skill artifacts
 - Docs Set Admin Manager with generated doc review and draft publish action
 - local Codex and Claude skill installer
 - canonical agent skill artifacts under `/skills`

@@ -103,6 +103,14 @@ Those directories are safe to expose from a website later, for example:
 /plugins/payload-markdown-docs/skills/claude/
 ```
 
+Include exposed skill artifacts in `sitemap.xml` with the sitemap helper
+`additionalRoutes` option. Pair that with top-level `/llms.txt` and
+`/llms-full.txt` routes so crawlers can discover the static AI entrypoints while
+agents can consume the native skill files directly.
+
+`sitemap.xml` is crawler discovery, `llms.txt` is an AI-readable entrypoint, and
+skills are native workflow artifacts.
+
 ## Options
 
 ```bash

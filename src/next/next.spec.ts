@@ -19,7 +19,11 @@ import { PayloadMarkdownDocsNavbar } from './PayloadMarkdownDocsNavbar.js'
 import { PayloadMarkdownDocsPage } from './PayloadMarkdownDocsPage.js'
 import { getPayloadMarkdownDocsRoutePath, resolvePayloadMarkdownDocsRoute } from './route.js'
 import { buildPayloadMarkdownDocsSidebar, getPayloadMarkdownDocsSidebar } from './sidebar.js'
-import { getDocsForSitemap, getPaginatedDocsForSitemap } from './sitemap.js'
+import {
+  getDocsForSitemap,
+  getPaginatedDocsForSitemap,
+  getPayloadMarkdownDocsAiSitemapRoutes,
+} from './sitemap.js'
 
 const cacheMocks = vi.hoisted(() => ({
   unstableCache: vi.fn((callback: (...args: unknown[]) => Promise<unknown>) => callback),
@@ -583,6 +587,152 @@ describe('Payload Markdown Docs route adapter', () => {
       {
         lastModified: '2026-05-14T12:00:00.000Z',
         url: 'https://example.com/plugins/payload-markdown',
+      },
+    ])
+  })
+
+  it('includes additional routes in paginated sitemap docs', async () => {
+    const payload = createPayloadMock({})
+
+    const result = await getPaginatedDocsForSitemap({
+      additionalRoutes: [
+        {
+          lastModified: new Date('2026-05-14T12:00:00.000Z'),
+          path: 'llms.txt',
+        },
+        {
+          path: '/llms-full.txt',
+        },
+        {
+          lastModified: '2026-05-13T12:00:00.000Z',
+          url: 'https://static.example.com/agent-index.txt',
+        },
+        {
+          path: '   ',
+        },
+        {
+          url: '',
+        },
+      ],
+      payload,
+      siteUrl: 'https://example.com/docs/',
+    })
+
+    expect(result.docs).toEqual([
+      {
+        lastModified: null,
+        url: 'https://example.com/docs/llms-full.txt',
+      },
+      {
+        lastModified: '2026-05-14T12:00:00.000Z',
+        url: 'https://example.com/docs/llms.txt',
+      },
+      {
+        lastModified: '2026-05-13T12:00:00.000Z',
+        url: 'https://static.example.com/agent-index.txt',
+      },
+    ])
+  })
+
+  it('includes additional routes in Next sitemap entries and keeps latest duplicates', async () => {
+    const payload = createPayloadMock({
+      docsGroups: [docsGroup],
+      docsSets: [
+        {
+          ...docsSet,
+          _status: 'published',
+          group: docsGroup.id,
+          updatedAt: '2026-05-10T12:00:00.000Z',
+        },
+      ],
+    })
+
+    const result = await getDocsForSitemap({
+      additionalRoutes: [
+        {
+          lastModified: '2026-05-15T12:00:00.000Z',
+          path: '/plugins/payload-markdown',
+        },
+        ...getPayloadMarkdownDocsAiSitemapRoutes({
+          includeLlmsFull: true,
+          skills: [
+            {
+              agents: ['codex', 'claude'],
+              basePath: '/plugins/payload-markdown-docs/skills',
+              lastModified: '2026-05-14T12:00:00.000Z',
+            },
+          ],
+        }),
+      ],
+      payload,
+      recursive: false,
+      siteUrl: 'https://example.com',
+    })
+
+    expect(result).toEqual([
+      {
+        url: 'https://example.com/llms-full.txt',
+      },
+      {
+        url: 'https://example.com/llms.txt',
+      },
+      {
+        lastModified: '2026-05-15T12:00:00.000Z',
+        url: 'https://example.com/plugins/payload-markdown',
+      },
+      {
+        lastModified: '2026-05-14T12:00:00.000Z',
+        url: 'https://example.com/plugins/payload-markdown-docs/skills/claude/SKILL.md',
+      },
+      {
+        lastModified: '2026-05-14T12:00:00.000Z',
+        url: 'https://example.com/plugins/payload-markdown-docs/skills/codex/SKILL.md',
+      },
+    ])
+  })
+
+  it('builds common AI sitemap routes for llms files and skill artifacts', () => {
+    const routes = getPayloadMarkdownDocsAiSitemapRoutes({
+      includeLlmsFull: true,
+      skills: [
+        {
+          agents: ['codex', 'claude'],
+          basePath: '/plugins/payload-markdown-docs/skills',
+          files: ['SKILL.md', 'reference/formatting.md'],
+          lastModified: '2026-05-14T12:00:00.000Z',
+        },
+        {
+          agents: ['codex'],
+          basePath: '/skills/payload-markdown-docs',
+        },
+      ],
+    })
+
+    expect(routes).toEqual([
+      {
+        path: '/llms.txt',
+      },
+      {
+        path: '/llms-full.txt',
+      },
+      {
+        lastModified: '2026-05-14T12:00:00.000Z',
+        path: '/plugins/payload-markdown-docs/skills/codex/SKILL.md',
+      },
+      {
+        lastModified: '2026-05-14T12:00:00.000Z',
+        path: '/plugins/payload-markdown-docs/skills/codex/reference/formatting.md',
+      },
+      {
+        lastModified: '2026-05-14T12:00:00.000Z',
+        path: '/plugins/payload-markdown-docs/skills/claude/SKILL.md',
+      },
+      {
+        lastModified: '2026-05-14T12:00:00.000Z',
+        path: '/plugins/payload-markdown-docs/skills/claude/reference/formatting.md',
+      },
+      {
+        path: '/skills/payload-markdown-docs/codex/SKILL.md',
       },
     ])
   })

@@ -113,6 +113,7 @@ pushes them. Payload stores and renders them. Your site owns the final output.
 - Ed25519 signed local publishing for advanced on-demand workflows.
 - Payload admin collections for docs sets, groups, trusted owners, and keys.
 - Next.js helpers for resolving and rendering docs routes.
+- Next.js sitemap helpers that can include docs records, AI discovery files, and skill artifacts.
 - Drop-in docs navbar and headless navigation helpers.
 - Local CLI commands for validation, manifest generation, and sync planning.
 - Rendering powered by `@valkyrianlabs/payload-markdown`.
@@ -502,14 +503,40 @@ const docsLinks = await getPayloadMarkdownDocsLinks({ payload })
 ## Serve Agent Skills
 
 The canonical agent artifacts are normal files under `skills/`, so a website can
-serve them directly later. Useful stable paths include:
+serve them directly later. This repository also includes source files for
+top-level `/llms.txt` and `/llms-full.txt`; copy them to `public/` or serve them
+with route handlers in the consuming docs website.
+
+Useful stable paths include:
 
 ```txt
+/llms.txt
+/llms-full.txt
 /skills/payload-markdown-docs/codex/SKILL.md
 /skills/payload-markdown-docs/claude/SKILL.md
 /plugins/payload-markdown-docs/skills/codex/
 /plugins/payload-markdown-docs/skills/claude/
 ```
+
+Add AI/static artifacts to the docs sitemap with `additionalRoutes`:
+
+```ts
+import { getDocsForSitemap } from '@valkyrianlabs/payload-markdown-docs/next'
+
+const sitemap = await getDocsForSitemap({
+  payload,
+  siteUrl,
+  additionalRoutes: [
+    { path: '/llms.txt' },
+    { path: '/llms-full.txt' },
+    { path: '/plugins/payload-markdown-docs/skills/codex/SKILL.md' },
+    { path: '/plugins/payload-markdown-docs/skills/claude/SKILL.md' },
+  ],
+})
+```
+
+`sitemap.xml` is crawler discovery. `llms.txt` is an AI-readable entrypoint.
+Skills are native agent workflow artifacts.
 
 The source split is intentional: `/docs` contains human documentation, while
 `/skills` contains agent-native workflow packages.
