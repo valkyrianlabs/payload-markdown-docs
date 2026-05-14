@@ -493,6 +493,24 @@ describe('docs dry sync planning', () => {
     expect(plan.unchanged).toHaveLength(0)
   })
 
+  test('plans route-only updates when the resolved route base changes', () => {
+    const sameFile = desired.files.find((file) => file.path === 'same.md')
+    const plan = planDocsSync({
+      desired,
+      existing: [
+        {
+          route: '/old-docs/same',
+          sourceHash: sameFile?.sha256,
+          sourcePath: 'same.md',
+        },
+      ],
+    })
+
+    expect(plan.update).toHaveLength(1)
+    expect(plan.update[0]?.reason).toBe('Existing route differs from desired route.')
+    expect(plan.unchanged).toHaveLength(0)
+  })
+
   test('ignores missing existing docs when deleteBehavior is ignore', () => {
     const plan = planDocsSync({
       deleteBehavior: 'ignore',

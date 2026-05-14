@@ -79,5 +79,6 @@ export type {
   PayloadMarkdownDocsPagesRoutingConfig,
   PayloadMarkdownDocsRoutingConfig,
   PayloadMarkdownDocsSyncConfig,
+  PayloadMarkdownDocsSyncRevalidateConfig,
   PayloadMarkdownDocsTargetConfig,
 } from './types.js'

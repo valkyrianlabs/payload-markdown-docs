@@ -1161,7 +1161,7 @@ describe('sync endpoint dry-run handling', () => {
         {
           id: 'doc-1',
           content: '# Home\n',
-          route: '/docs',
+          route: '/main-docs',
           sourceHash: sha256Hex('# Home\n'),
           sourcePath: 'index.md',
           sync: {

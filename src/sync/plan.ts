@@ -83,8 +83,10 @@ export const planDocsSync = ({
 
     const desiredStatus = desired.publish ? 'published' : 'draft'
     const hasStatusMismatch = current.status !== undefined && current.status !== desiredStatus
+    const hasSourceHashMismatch = current.sourceHash !== desiredFile.sha256
+    const hasRouteMismatch = current.route !== desiredFile.route
 
-    if (current.sourceHash === desiredFile.sha256 && !hasStatusMismatch) {
+    if (!hasSourceHashMismatch && !hasStatusMismatch && !hasRouteMismatch) {
       plan.unchanged.push({
         current,
         desired: desiredFile,
@@ -99,7 +101,9 @@ export const planDocsSync = ({
       desired: desiredFile,
       reason: hasStatusMismatch
         ? 'Existing draft status differs from desired publish state.'
-        : 'Existing source hash differs from desired source hash.',
+        : hasSourceHashMismatch
+          ? 'Existing source hash differs from desired source hash.'
+          : 'Existing route differs from desired route.',
       sourcePath: desiredFile.path,
     })
   }

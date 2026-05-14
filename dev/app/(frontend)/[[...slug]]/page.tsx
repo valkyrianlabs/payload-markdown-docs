@@ -12,6 +12,8 @@ type PageProps = {
   }>
 }
 
+export const dynamic = 'force-dynamic'
+
 const Page = async ({ params }: PageProps) => {
   const { slug = [] } = await params
 

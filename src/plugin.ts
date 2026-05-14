@@ -312,6 +312,7 @@ export const payloadMarkdownDocs =
           noncesCollectionSlug,
           noncesEnabled,
           requireDryRunBeforeApply: pluginOptions.sync?.requireDryRunBeforeApply,
+          revalidate: pluginOptions.sync?.revalidate,
           routing: {
             pages: {
               allowBridgePages: pluginOptions.routing?.pages?.allowBridgePages ?? true,

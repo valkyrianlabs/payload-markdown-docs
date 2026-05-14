@@ -19,7 +19,10 @@ import type {
   PlannedDocChange,
   ValidatedDocsManifest,
 } from '../sync/index.js'
-import type { PayloadMarkdownDocsAuthConfig } from '../types.js'
+import type {
+  PayloadMarkdownDocsAuthConfig,
+  PayloadMarkdownDocsSyncRevalidateConfig,
+} from '../types.js'
 
 import {
   DEFAULT_MAX_BODY_BYTES,
@@ -124,6 +127,7 @@ export type CreateSyncEndpointOptions = {
   nonceTtlSeconds?: number
   oidcFetchJson?: FetchJson
   requireDryRunBeforeApply?: boolean
+  revalidate?: false | PayloadMarkdownDocsSyncRevalidateConfig
   routing?: {
     pages?: {
       allowBridgePages: boolean
@@ -338,6 +342,130 @@ const serializeChanges = (plan: ReturnType<typeof planDocsSync>) => ({
 
 const getTotalManifestBytes = (manifest: ValidatedDocsManifest): number =>
   manifest.files.reduce((total, file) => total + Buffer.byteLength(file.content, 'utf8'), 0)
+
+const DEFAULT_REVALIDATE_TAGS = [
+  'payload-markdown-docs',
+  'payload-markdown-docs:docs',
+  'sitemap',
+  'sitemap:docs',
+]
+
+type NextCacheModule = {
+  revalidatePath?: (path: string, type?: 'layout' | 'page') => void
+  revalidateTag?: (tag: string, profile?: { expire?: number } | string) => void
+}
+
+const importNextCache = async (): Promise<NextCacheModule | undefined> => {
+  try {
+    return (await import('next/cache')) as unknown as NextCacheModule
+  } catch {
+    return undefined
+  }
+}
+
+const getRevalidationTags = ({
+  revalidate,
+  sourceId,
+}: {
+  revalidate?: false | PayloadMarkdownDocsSyncRevalidateConfig
+  sourceId: string
+}): string[] => {
+  if (revalidate === false) {
+    return []
+  }
+
+  const configuredTags = typeof revalidate === 'object' ? revalidate.tags : undefined
+  const tags = configuredTags ?? [...DEFAULT_REVALIDATE_TAGS, `payload-markdown-docs:${sourceId}`]
+
+  return [...new Set(tags.map((tag) => tag.trim()).filter(Boolean))]
+}
+
+const getRevalidationPaths = ({
+  manifest,
+  plan,
+  routeBase,
+}: {
+  manifest: ValidatedDocsManifest
+  plan: ReturnType<typeof planDocsSync>
+  routeBase: string
+}): string[] => {
+  const paths = new Set<string>()
+
+  for (const file of manifest.files) {
+    paths.add(file.route)
+  }
+
+  for (const change of [...plan.archive, ...plan.delete, ...plan.draft, ...plan.update]) {
+    if (change.current?.route) {
+      paths.add(change.current.route)
+    }
+
+    if (change.desired?.route) {
+      paths.add(change.desired.route)
+    }
+  }
+
+  if (manifest.aiExport) {
+    paths.add(manifest.aiExport.output ?? `${routeBase}.md`)
+  }
+
+  return [...paths].filter((path) => path.startsWith('/'))
+}
+
+const revalidateDocsSyncCache = async ({
+  manifest,
+  options,
+  plan,
+  routeBase,
+}: {
+  manifest: ValidatedDocsManifest
+  options: CreateSyncEndpointOptions
+  plan: ReturnType<typeof planDocsSync>
+  routeBase: string
+}): Promise<void> => {
+  if (options.revalidate === false) {
+    return
+  }
+
+  const nextCache = await importNextCache()
+
+  if (!nextCache) {
+    return
+  }
+
+  const tags = getRevalidationTags({
+    revalidate: options.revalidate,
+    sourceId: manifest.source.id,
+  })
+
+  for (const tag of tags) {
+    try {
+      nextCache.revalidateTag?.(tag, 'max')
+    } catch {
+      // Revalidation is best effort so sync writes are not rolled back by cache runtime limits.
+    }
+  }
+
+  const shouldRevalidatePaths =
+    options.revalidate === undefined ||
+    (typeof options.revalidate === 'object' && options.revalidate.paths !== false)
+
+  if (!shouldRevalidatePaths) {
+    return
+  }
+
+  for (const path of getRevalidationPaths({
+    manifest,
+    plan,
+    routeBase,
+  })) {
+    try {
+      nextCache.revalidatePath?.(path)
+    } catch {
+      // Revalidation is best effort so sync writes are not rolled back by cache runtime limits.
+    }
+  }
+}
 
 const getPlannedConflictChanges = ({
   existing,
@@ -1144,6 +1272,13 @@ const createSyncEndpointHandler =
             syncRunId,
           })
         }
+
+        await revalidateDocsSyncCache({
+          manifest: validation.data,
+          options,
+          plan,
+          routeBase: sourceResolution.source.routeBase,
+        })
       } catch (error) {
         await updateSyncRunAudit({
           collectionSlug: options.syncRunsCollectionSlug,

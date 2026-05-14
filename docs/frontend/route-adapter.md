@@ -23,6 +23,8 @@ import {
   resolvePayloadMarkdownDocsRoute,
 } from '@valkyrianlabs/payload-markdown-docs/next'
 
+export const dynamic = 'force-dynamic'
+
 export default async function Page({
   params,
 }: {
@@ -51,6 +53,11 @@ In a real app, replace `notFound()` with your normal Pages collection lookup whe
 :::callout {variant="info" title="Read-only"}
 The route adapter reads generated docs records, docs sets, and docs groups. It does not create Pages, mutate Pages, or sync docs.
 :::
+
+Production App Router pages can otherwise cache generated docs output. The sync
+endpoint revalidates generated docs paths after successful writes, but
+`dynamic = 'force-dynamic'` is the simplest option when the app prefers always
+fresh docs reads.
 
 ## Resolution Order
 
