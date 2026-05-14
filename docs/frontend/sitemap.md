@@ -14,8 +14,9 @@ tags:
 Use `getDocsForSitemap` from the `/next` export when a Next App Router site has
 a dynamic `src/app/sitemap.ts` file.
 
-The helper reads published docs sets, resolves group paths, prepends `siteUrl`,
-and returns a ready-to-use `MetadataRoute.Sitemap` array.
+The helper reads published docs sets, resolves group paths, includes the
+generated docs records inside each set, prepends `siteUrl`, and returns a
+ready-to-use `MetadataRoute.Sitemap` array.
 
 ```ts
 import type { MetadataRoute } from 'next'
@@ -84,16 +85,31 @@ const docs = await getDocsForSitemap({
 Defaults:
 
 - `cacheKey`: `sitemap-docs-v1`
+- `recursive`: `true`
 - `tags`: `sitemap`, `sitemap:docs`
+
+## Recursive Docs
+
+By default, docs set indexes and generated child docs are included in the
+sitemap. Disable recursion only when the app intentionally wants the base docs
+set URLs.
+
+```ts
+const docs = await getDocsForSitemap({
+  payload,
+  recursive: false,
+  siteUrl,
+})
+```
 
 ## Custom Collection Slugs
 
-If the plugin uses custom docs group or docs set collection slugs, pass them
-through `collections`.
+If the plugin uses custom collection slugs, pass them through `collections`.
 
 ```ts
 const docs = await getDocsForSitemap({
   collections: {
+    docs: 'knowledge-docs',
     docsGroups: 'knowledge-groups',
     docsSets: 'knowledge-sets',
   },

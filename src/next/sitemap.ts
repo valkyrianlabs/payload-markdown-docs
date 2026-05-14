@@ -6,11 +6,13 @@ import { unstable_cache } from 'next/cache'
 import type { PayloadMarkdownDocsCollectionSlugs, PayloadMarkdownDocsReadPayload } from './types.js'
 
 import {
+  DEFAULT_DOCS_COLLECTION_SLUG,
   DEFAULT_DOCS_GROUPS_COLLECTION_SLUG,
   DEFAULT_DOCS_SETS_COLLECTION_SLUG,
+  DEFAULT_MARKDOWN_FIELD_NAME,
 } from '../constants.js'
-import { deriveDocsSetRouteBase, joinRouteSegments } from '../routing/index.js'
-import { getRelationshipId, isRecord } from './records.js'
+import { deriveDocsSetRouteBase, isRouteDescendant, joinRouteSegments } from '../routing/index.js'
+import { getRelationshipId, isRecord, isVisibleDocsRecord, toResolvedDocsRecord } from './records.js'
 
 export type PayloadMarkdownDocsSitemapDoc = {
   lastModified?: null | string
@@ -19,10 +21,11 @@ export type PayloadMarkdownDocsSitemapDoc = {
 
 export type GetPaginatedDocsForSitemapOptions = {
   cacheKey?: string | string[]
-  collections?: Pick<PayloadMarkdownDocsCollectionSlugs, 'docsGroups' | 'docsSets'>
+  collections?: PayloadMarkdownDocsCollectionSlugs
   fetchLimit?: number
   overrideAccess?: boolean
   payload: PayloadMarkdownDocsReadPayload
+  recursive?: boolean
   siteUrl: string
   tags?: string[]
 }
@@ -95,7 +98,13 @@ const getGroupRoutePath = ({
   return joinRouteSegments(parentRoutePath, slug)
 }
 
-const toSitemapDoc = ({
+type DocsSetSitemapEntry = {
+  docsSetId?: string
+  routePath: string
+  sitemapDoc: PayloadMarkdownDocsSitemapDoc
+}
+
+const toDocsSetSitemapEntry = ({
   doc,
   groupsById,
   siteUrl,
@@ -103,7 +112,7 @@ const toSitemapDoc = ({
   doc: unknown
   groupsById: Map<string, unknown>
   siteUrl: string
-}): PayloadMarkdownDocsSitemapDoc | undefined => {
+}): DocsSetSitemapEntry | undefined => {
   if (!isRecord(doc)) {
     return undefined
   }
@@ -123,12 +132,129 @@ const toSitemapDoc = ({
   })
 
   return {
+    docsSetId: getRelationshipId(doc),
+    routePath,
+    sitemapDoc: {
+      lastModified: getOptionalString(doc, 'updatedAt') ?? null,
+      url: getSitemapUrl({
+        routePath,
+        siteUrl,
+      }),
+    },
+  }
+}
+
+const belongsToDocsSetRoute = ({
+  docsSetRoutePaths,
+  routePath,
+}: {
+  docsSetRoutePaths: string[]
+  routePath: string
+}): boolean =>
+  docsSetRoutePaths.some(
+    (docsSetRoutePath) =>
+      routePath === docsSetRoutePath || isRouteDescendant(docsSetRoutePath, routePath),
+  )
+
+const toRecursiveSitemapDoc = ({
+  doc,
+  docsSetIds,
+  docsSetRoutePaths,
+  siteUrl,
+}: {
+  doc: unknown
+  docsSetIds: Set<string>
+  docsSetRoutePaths: string[]
+  siteUrl: string
+}): PayloadMarkdownDocsSitemapDoc | undefined => {
+  if (!isRecord(doc)) {
+    return undefined
+  }
+
+  const record = toResolvedDocsRecord({
+    doc,
+    markdownField: DEFAULT_MARKDOWN_FIELD_NAME,
+  })
+
+  if (
+    !record ||
+    !isVisibleDocsRecord({
+      record,
+    })
+  ) {
+    return undefined
+  }
+
+  if (record.docsSetId) {
+    if (!docsSetIds.has(record.docsSetId)) {
+      return undefined
+    }
+  } else if (
+    !belongsToDocsSetRoute({
+      docsSetRoutePaths,
+      routePath: record.route,
+    })
+  ) {
+    return undefined
+  }
+
+  return {
     lastModified: getOptionalString(doc, 'updatedAt') ?? null,
     url: getSitemapUrl({
-      routePath,
+      routePath: record.route,
       siteUrl,
     }),
   }
+}
+
+const getLatestLastModified = (
+  first?: null | string,
+  second?: null | string,
+): null | string => {
+  if (!first) {
+    return second ?? null
+  }
+
+  if (!second) {
+    return first
+  }
+
+  const firstTime = Date.parse(first)
+  const secondTime = Date.parse(second)
+
+  if (Number.isNaN(firstTime) || Number.isNaN(secondTime)) {
+    return first > second ? first : second
+  }
+
+  return firstTime > secondTime ? first : second
+}
+
+const dedupeAndSortSitemapDocs = (
+  docs: PayloadMarkdownDocsSitemapDoc[],
+): PayloadMarkdownDocsSitemapDoc[] => {
+  const docsByUrl = new Map<string, PayloadMarkdownDocsSitemapDoc>()
+
+  for (const doc of docs) {
+    if (!doc.url) {
+      continue
+    }
+
+    const existing = docsByUrl.get(doc.url)
+
+    docsByUrl.set(
+      doc.url,
+      existing
+        ? {
+            lastModified: getLatestLastModified(existing.lastModified, doc.lastModified),
+            url: doc.url,
+          }
+        : doc,
+    )
+  }
+
+  return [...docsByUrl.values()].sort((first, second) =>
+    (first.url ?? '').localeCompare(second.url ?? ''),
+  )
 }
 
 const getDocsForSitemapUncached = async ({
@@ -136,21 +262,24 @@ const getDocsForSitemapUncached = async ({
   fetchLimit = 10000,
   overrideAccess = true,
   payload,
+  recursive = true,
   siteUrl,
 }: {
   payload: PayloadMarkdownDocsReadPayload
 } & GetPaginatedDocsForSitemapCacheOptions): Promise<
   PaginatedDocs<PayloadMarkdownDocsSitemapDoc>
 > => {
+  const docsCollectionSlug = collections?.docs ?? DEFAULT_DOCS_COLLECTION_SLUG
   const docsGroupsCollectionSlug = collections?.docsGroups ?? DEFAULT_DOCS_GROUPS_COLLECTION_SLUG
   const docsSetsCollectionSlug = collections?.docsSets ?? DEFAULT_DOCS_SETS_COLLECTION_SLUG
-  const [docsSetsResult, docsGroupsResult] = await Promise.all([
+  const [docsSetsResult, docsGroupsResult, docsResult] = await Promise.all([
     payload.find({
       collection: docsSetsCollectionSlug,
       depth: 0,
       limit: fetchLimit,
       overrideAccess,
       select: {
+        id: true,
         slug: true,
         group: true,
         updatedAt: true,
@@ -172,6 +301,24 @@ const getDocsForSitemapUncached = async ({
         parent: true,
       },
     }),
+    recursive
+      ? payload.find({
+          collection: docsCollectionSlug,
+          depth: 0,
+          draft: false,
+          limit: fetchLimit,
+          overrideAccess,
+          select: {
+            id: true,
+            docsSet: true,
+            route: true,
+            sourcePath: true,
+            sync: true,
+            title: true,
+            updatedAt: true,
+          },
+        })
+      : Promise.resolve(undefined),
   ])
   const groupsById = new Map(
     docsGroupsResult.docs.flatMap((group) => {
@@ -184,21 +331,48 @@ const getDocsForSitemapUncached = async ({
       return id ? [[id, group]] : []
     }),
   )
-  const docs = docsSetsResult.docs
+  const docsSetEntries = docsSetsResult.docs
     .flatMap((doc) => {
-      const sitemapDoc = toSitemapDoc({
+      const entry = toDocsSetSitemapEntry({
         doc,
         groupsById,
         siteUrl,
       })
 
-      return sitemapDoc ? [sitemapDoc] : []
+      return entry ? [entry] : []
     })
-    .sort((first, second) => (first.url ?? '').localeCompare(second.url ?? ''))
+  const docsSetIds = new Set(
+    docsSetEntries.flatMap((entry) => (entry.docsSetId ? [entry.docsSetId] : [])),
+  )
+  const docsSetRoutePaths = docsSetEntries.map((entry) => entry.routePath)
+  const recursiveDocs =
+    docsResult?.docs.flatMap((doc) => {
+      const sitemapDoc = toRecursiveSitemapDoc({
+        doc,
+        docsSetIds,
+        docsSetRoutePaths,
+        siteUrl,
+      })
+
+      return sitemapDoc ? [sitemapDoc] : []
+    }) ?? []
+  const docs = dedupeAndSortSitemapDocs([
+    ...docsSetEntries.map((entry) => entry.sitemapDoc),
+    ...recursiveDocs,
+  ])
 
   return {
     ...docsSetsResult,
     docs,
+    hasNextPage: false,
+    hasPrevPage: false,
+    limit: docs.length,
+    nextPage: null,
+    page: 1,
+    pagingCounter: docs.length > 0 ? 1 : 0,
+    prevPage: null,
+    totalDocs: docs.length,
+    totalPages: docs.length > 0 ? 1 : 0,
   }
 }
 

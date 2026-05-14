@@ -562,6 +562,7 @@ describe('Payload Markdown Docs route adapter', () => {
         limit: 10000,
         overrideAccess: true,
         select: {
+          id: true,
           slug: true,
           group: true,
           updatedAt: true,
@@ -606,6 +607,122 @@ describe('Payload Markdown Docs route adapter', () => {
         url: 'https://example.com/plugins/payload-markdown',
       },
     ])
+  })
+
+  it('includes generated docs records recursively by default', async () => {
+    const payload = createPayloadMock({
+      docs: [
+        createDoc({
+          id: 'doc-index',
+          _status: 'published',
+          docsSet: docsSet.id,
+          route: '/plugins/payload-markdown',
+          sourcePath: 'index.md',
+          title: 'Overview',
+          updatedAt: '2026-05-15T12:00:00.000Z',
+        }),
+        createDoc({
+          id: 'doc-install',
+          _status: 'published',
+          docsSet: docsSet.id,
+          route: '/plugins/payload-markdown/getting-started/installation',
+          sourcePath: 'getting-started/installation.md',
+          title: 'Installation',
+          updatedAt: '2026-05-14T12:00:00.000Z',
+        }),
+        createDoc({
+          id: 'doc-archived',
+          _status: 'published',
+          docsSet: docsSet.id,
+          route: '/plugins/payload-markdown/archived',
+          sourcePath: 'archived.md',
+          sync: {
+            archived: true,
+          },
+          title: 'Archived',
+          updatedAt: '2026-05-13T12:00:00.000Z',
+        }),
+        createDoc({
+          id: 'doc-ai',
+          _status: 'published',
+          docsSet: docsSet.id,
+          route: '/plugins/payload-markdown/index.ai.yml',
+          sourcePath: 'index.ai.yml',
+          title: 'AI Manifest',
+          updatedAt: '2026-05-13T12:00:00.000Z',
+        }),
+        createDoc({
+          id: 'doc-draft',
+          _status: 'draft',
+          docsSet: docsSet.id,
+          route: '/plugins/payload-markdown/draft',
+          sourcePath: 'draft.md',
+          title: 'Draft',
+          updatedAt: '2026-05-13T12:00:00.000Z',
+        }),
+      ],
+      docsGroups: [docsGroup],
+      docsSets: [
+        {
+          ...docsSet,
+          _status: 'published',
+          group: docsGroup.id,
+          updatedAt: '2026-05-14T11:00:00.000Z',
+        },
+      ],
+    })
+
+    const result = await getPaginatedDocsForSitemap({
+      payload,
+      siteUrl: 'https://example.com',
+    })
+
+    expect(result.docs).toEqual([
+      {
+        lastModified: '2026-05-15T12:00:00.000Z',
+        url: 'https://example.com/plugins/payload-markdown',
+      },
+      {
+        lastModified: '2026-05-14T12:00:00.000Z',
+        url: 'https://example.com/plugins/payload-markdown/getting-started/installation',
+      },
+    ])
+  })
+
+  it('can return only docs set base routes when recursion is disabled', async () => {
+    const payload = createPayloadMock({
+      docs: [
+        createDoc({
+          docsSet: docsSet.id,
+          route: '/plugins/payload-markdown/getting-started/installation',
+          sourcePath: 'getting-started/installation.md',
+          updatedAt: '2026-05-14T12:00:00.000Z',
+        }),
+      ],
+      docsGroups: [docsGroup],
+      docsSets: [
+        {
+          ...docsSet,
+          _status: 'published',
+          group: docsGroup.id,
+          updatedAt: '2026-05-14T11:00:00.000Z',
+        },
+      ],
+    })
+
+    const result = await getDocsForSitemap({
+      payload,
+      recursive: false,
+      siteUrl: 'https://example.com',
+    })
+
+    expect(result).toEqual([
+      {
+        lastModified: '2026-05-14T11:00:00.000Z',
+        url: 'https://example.com/plugins/payload-markdown',
+      },
+    ])
+    expect(payload.find).not.toHaveBeenCalledWith(expect.objectContaining({ collection: 'docs' }))
   })
 })
 
