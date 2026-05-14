@@ -38,7 +38,9 @@ order:
   - ./workflow/agent-skill-installer.md
   - ./frontend/route-adapter.md
   - ./frontend/metadata.md
+  - ./frontend/sitemap.md
   - ./frontend/sidebar.md
+  - ./frontend/navbar.md
   - ./admin/docs-set-manager.md
   - ./admin/overrides.md
   - ./reference/cli.md

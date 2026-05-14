@@ -61,7 +61,8 @@ The helper resolves:
 3. docs group index routes when `serveIndex` is enabled
 4. `null` for normal fallback routes
 
-See [metadata](/frontend/metadata) and [sidebar](/frontend/sidebar).
+See [metadata](/frontend/metadata), [dynamic sitemap](/frontend/sitemap), and
+[sidebar](/frontend/sidebar).
 
 ## Raw Markdown Export
 

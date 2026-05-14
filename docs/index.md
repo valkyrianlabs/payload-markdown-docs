@@ -40,8 +40,12 @@ Configure the plugin, generate keys, validate local docs, and run the first sign
 Understand the docs groups, docs sets, generated docs records, signed endpoint, and route adapter.
 :::
 
-:::card {title="Route adapter" href="/frontend/route-adapter"}
-Render docs from your Next route layer without creating one Payload Page per Markdown file.
+:::card {title="Frontend helpers" href="/frontend/route-adapter"}
+Render docs routes, metadata, sitemaps, sidebars, and nav links from Next.
+:::
+
+:::card {title="Dynamic sitemap" href="/frontend/sitemap"}
+Add generated docs set URLs to `src/app/sitemap.ts`.
 :::
 
 :::card {title="Agent skill" href="/workflow/agent-skill-installer"}
@@ -58,7 +62,7 @@ Install local agent guidance for writing docs that validate and sync.
 - CLI commands for `validate`, `manifest`, `plan`, `keygen`, and signed `push`
 - server-gated sync writes, publishing, draft behavior, archive behavior, and hard delete
 - route reservations and opt-in Pages collision checks
-- read-only `/next` route adapter, metadata helper, and sidebar helper
+- read-only `/next` route adapter, metadata, sitemap, sidebar, and navbar helpers
 - AI-facing raw Markdown export helper for `text/markdown` route handlers
 - Docs Set Admin Manager with generated doc review and draft publish action
 - local agent skill installer

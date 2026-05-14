@@ -269,7 +269,7 @@ Implemented for this workflow:
 - signed sync endpoint
 - GitHub Actions OIDC auth
 - local CLI validation, manifest, plan, keygen, and push
-- native route adapter and frontend rendering helpers
+- native route adapter, dynamic sitemap helper, and frontend rendering helpers
 - docs set admin manager
 - agent skill installer
 - sync writes behind `sync.allowWrites`
