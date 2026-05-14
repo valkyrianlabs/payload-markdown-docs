@@ -46,7 +46,7 @@ state.
 
 ## Meson
 
-Add Phase 3 dependencies through Meson only when Phase 3 starts:
+Phase 3 has started. The native Meson build now detects these dependencies:
 
 ```meson
 curl_dep = dependency('libcurl', required: true)

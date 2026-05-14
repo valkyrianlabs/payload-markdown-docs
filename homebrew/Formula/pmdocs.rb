@@ -10,10 +10,12 @@ class Pmdocs < Formula
 
   depends_on "cli11" => :build
   depends_on "cmake" => :build
+  depends_on "curl"
   depends_on "doctest" => :build
   depends_on "meson" => :build
   depends_on "nlohmann-json" => :build
   depends_on "ninja" => :build
+  depends_on "openssl@3"
   depends_on "pkgconf" => :build
 
   def install

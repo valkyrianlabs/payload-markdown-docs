@@ -32,7 +32,7 @@ Release checklist:
 4. Copy `homebrew/Formula/pmdocs.rb` into `valkyrianlabs/homebrew-tap/Formula/pmdocs.rb`.
 5. Replace the `url` and `sha256` placeholders.
 6. Confirm the formula dependencies are available: `meson`, `ninja`, `pkgconf`,
-   `cmake`, `cli11`, `nlohmann-json`, and `doctest`.
+   `cmake`, `cli11`, `curl`, `openssl@3`, `nlohmann-json`, and `doctest`.
 7. Test the formula before publishing:
 
    ```bash

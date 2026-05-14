@@ -38,10 +38,28 @@ if not doctest_dep.found()
   error('doctest dependency not found. Install doctest/doctest-dev.')
 endif
 
+curl_dep = dependency('libcurl', required: false)
+if not curl_dep.found()
+  curl_dep = dependency('CURL', method: 'cmake', required: false)
+endif
+if not curl_dep.found()
+  error('libcurl dependency not found. Install libcurl4-openssl-dev on Debian/Ubuntu or curl on Homebrew.')
+endif
+
+openssl_dep = dependency('openssl', version: '>=3.0', required: false)
+if not openssl_dep.found()
+  openssl_dep = dependency('OpenSSL', version: '>=3.0', method: 'cmake', required: false)
+endif
+if not openssl_dep.found()
+  error('OpenSSL 3 dependency not found. Install libssl-dev on Debian/Ubuntu or openssl@3 on Homebrew.')
+endif
+
 pmdocs_include_dirs = include_directories('include')
 pmdocs_deps = [
   cli11_dep,
+  curl_dep,
   nlohmann_json_dep,
+  openssl_dep,
 ]
 
 pmdocs_sources = files(
@@ -60,7 +78,6 @@ pmdocs_lib = static_library(
 pmdocs_exe = executable(
   'pmdocs',
   files('src/main.cpp'),
-  dependencies: pmdocs_deps,
   include_directories: pmdocs_include_dirs,
   link_with: pmdocs_lib,
   install: true,
@@ -69,7 +86,10 @@ pmdocs_exe = executable(
 pmdocs_test_exe = executable(
   'pmdocs_tests',
   files('tests/cli_tests.cpp'),
-  dependencies: pmdocs_deps + [doctest_dep],
+  dependencies: [
+    doctest_dep,
+    nlohmann_json_dep,
+  ],
   include_directories: pmdocs_include_dirs,
   link_with: pmdocs_lib,
 )
@@ -106,7 +126,9 @@ endif
 summary(
   {
     'CLI11': cli11_dep.found(),
+    'libcurl': curl_dep.version(),
     'nlohmann_json': nlohmann_json_dep.found(),
+    'OpenSSL': openssl_dep.version(),
     'doctest': doctest_dep.found(),
     'native_cli_parity_tests': get_option('native_cli_parity_tests'),
   },
