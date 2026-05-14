@@ -15,7 +15,7 @@ const requiredDirectives = [
   ':::card',
 ]
 
-const markdownLinkRegex = /\[[^\]]+\]\(([^)]+)\)/g
+const markdownLinkRegex = /\[[^\]]+]\(([^)]+)\)/g
 
 describe('dogfood docs assets', () => {
   it('validates the root docs tree as a docs manifest', async () => {

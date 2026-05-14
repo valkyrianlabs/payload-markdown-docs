@@ -136,13 +136,7 @@ export const isVisibleDocsSet = ({
 }: {
   docsSet: ResolvedPayloadMarkdownDocsSet
   includeDrafts?: boolean
-}): boolean => {
-  if (!includeDrafts && docsSet.status === 'draft') {
-    return false
-  }
-
-  return true
-}
+}): boolean => !(!includeDrafts && docsSet.status === 'draft');
 
 export const toResolvedDocsGroup = (doc: unknown): ResolvedPayloadMarkdownDocsGroup | undefined => {
   if (!isRecord(doc)) {
@@ -219,13 +213,6 @@ export const isVisibleDocsRecord = ({
   includeDrafts?: boolean
   record: ResolvedPayloadMarkdownDocsRecord
 }): boolean => {
-  if (record.archived) {
-    return false
-  }
-
-  if (!includeDrafts && record.status === 'draft') {
-    return false
-  }
-
-  return true
+  if (record.archived) return false
+  return !(!includeDrafts && record.status === 'draft');
 }

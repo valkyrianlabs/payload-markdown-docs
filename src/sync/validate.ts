@@ -363,7 +363,7 @@ export const validateDocsManifest = (
   issues.push(...deleteBehaviorValidation.issues)
 
   const publish =
-    manifest.publish === undefined ? false : manifest.publish === true ? true : false
+    manifest.publish === undefined ? false : manifest.publish === true
 
   if (manifest.publish !== undefined && typeof manifest.publish !== 'boolean') {
     issues.push(
