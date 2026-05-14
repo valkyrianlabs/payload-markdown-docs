@@ -4,10 +4,16 @@ on:
   pull_request:
     paths:
       - 'docs/**'
+      - 'skills/**'
+      - 'llms.txt'
+      - 'llms-full.txt'
   push:
     branches: [main]
     paths:
       - 'docs/**'
+      - 'skills/**'
+      - 'llms.txt'
+      - 'llms-full.txt'
 
 permissions:
   id-token: write
@@ -32,14 +38,14 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       - name: Validate docs
-        run: pnpm exec payload-markdown-docs validate ./docs --source main-docs
+        run: pnpm exec payload-markdown-docs validate --source main-docs
 
       - name: Dry-run docs sync
         if: github.event_name == 'pull_request'
         # Advanced workflow restrictions are optional. By default, any workflow
         # from a trusted owner/repository on the docs set branch is accepted.
         run: |
-          pnpm exec payload-markdown-docs push ./docs \
+          pnpm exec payload-markdown-docs push \
             --endpoint "$DOCS_SYNC_ENDPOINT" \
             --source main-docs \
             --github-oidc \
@@ -52,11 +58,10 @@ jobs:
         # Requires sync.allowWrites: true, sync.allowPublish: true,
         # and target.enableDrafts: true on the Payload server.
         run: |
-          pnpm exec payload-markdown-docs push ./docs \
+          pnpm exec payload-markdown-docs push \
             --endpoint "$DOCS_SYNC_ENDPOINT" \
             --source main-docs \
             --github-oidc \
-            --sync \
             --publish
         env:
           DOCS_SYNC_ENDPOINT: ${{ secrets.DOCS_SYNC_ENDPOINT }}

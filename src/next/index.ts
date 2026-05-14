@@ -1,4 +1,14 @@
 export {
+  createPayloadMarkdownDocsAssetResponse,
+  createPayloadMarkdownDocsLlmsResponse,
+  createPayloadMarkdownDocsSkillAssetResponse,
+  resolvePayloadMarkdownDocsAssetRoute,
+} from './assets.js'
+export type {
+  ResolvedPayloadMarkdownDocsAsset,
+  ResolvePayloadMarkdownDocsAssetRouteOptions,
+} from './assets.js'
+export {
   appendPayloadMarkdownDocsHeaderNavItems,
   getPayloadMarkdownDocsHeaderNavItems,
   getPayloadMarkdownDocsLinks,

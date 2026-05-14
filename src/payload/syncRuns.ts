@@ -4,6 +4,11 @@ export type SyncRunStatus = 'failed' | 'pending' | 'success'
 
 export type SyncRunSummary = {
   archive: number
+  assetArchive?: number
+  assetCreate?: number
+  assetDelete?: number
+  assetUnchanged?: number
+  assetUpdate?: number
   create: number
   delete: number
   draft: number

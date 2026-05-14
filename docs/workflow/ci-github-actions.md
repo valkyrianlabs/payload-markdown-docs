@@ -51,11 +51,11 @@ See `examples/github-actions/publish-docs.yml` in this repository.
 Important commands:
 
 ```bash
-pnpm exec payload-markdown-docs validate ./docs --source main-docs
+pnpm exec payload-markdown-docs validate --source main-docs
 ```
 
 ```bash
-pnpm exec payload-markdown-docs push ./docs \
+pnpm exec payload-markdown-docs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
   --source main-docs \
   --github-oidc \
@@ -63,11 +63,10 @@ pnpm exec payload-markdown-docs push ./docs \
 ```
 
 ```bash
-pnpm exec payload-markdown-docs push ./docs \
+pnpm exec payload-markdown-docs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
   --source main-docs \
   --github-oidc \
-  --sync \
   --publish
 ```
 

@@ -60,7 +60,7 @@ permissions:
 ## Push With OIDC
 
 ```bash
-pnpm exec payload-markdown-docs push ./docs \
+pnpm exec payload-markdown-docs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
   --source main-docs \
   --github-oidc \
@@ -68,11 +68,10 @@ pnpm exec payload-markdown-docs push ./docs \
 ```
 
 ```bash
-pnpm exec payload-markdown-docs push ./docs \
+pnpm exec payload-markdown-docs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
   --source main-docs \
   --github-oidc \
-  --sync \
   --publish
 ```
 

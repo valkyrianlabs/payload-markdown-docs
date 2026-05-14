@@ -4,7 +4,7 @@ import {
   buildDocsManifest,
   validateDocsManifest,
 } from '../../sync/index.js'
-import { walkDocsFiles } from '../filesystem.js'
+import { collectPublishPackage } from '../filesystem.js'
 import { formatIssues, printJson } from '../format.js'
 import { getFlagBoolean } from '../parseArgs.js'
 import { getDocsCommandOptions } from './validate.js'
@@ -18,14 +18,22 @@ export const runManifestCommand = async (
     return options
   }
 
-  const files = await walkDocsFiles({
-    root: options.docsRoot,
-  })
+  let publishPackage
+
+  try {
+    publishPackage = await collectPublishPackage(options)
+  } catch (error) {
+    return {
+      exitCode: 1,
+      stderr: error instanceof Error ? `${error.message}\n` : 'Could not read publish package.\n',
+    }
+  }
 
   const manifest = buildDocsManifest({
+    assets: publishPackage.assets,
     branch: options.branch,
     commit: options.commit,
-    files,
+    files: publishPackage.files,
     repository: options.repository,
     sourceId: options.sourceId,
   })

@@ -39,10 +39,21 @@ export type DocsCommandOptions = {
   branch?: string
   commit?: string
   docsRoot: string
+  docsRootExplicit: boolean
+  includeDocs: boolean
+  includeLlms: boolean
+  includeLlmsFull: boolean
+  includeSkills: boolean
+  llmsFullPath: string
+  llmsFullPathExplicit: boolean
+  llmsPath: string
+  llmsPathExplicit: boolean
   maxFileBytes?: number
   maxFiles?: number
   maxTotalBytes?: number
   repository?: string
+  skillsRoot: string
+  skillsRootExplicit: boolean
   sourceId: string
 }
 

@@ -48,11 +48,10 @@ Remove these from docs set records, plugin config, scripts, and docs:
 Use:
 
 ```bash
-payload-markdown-docs push ./docs \
+payload-markdown-docs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
   --source main-docs \
-  --github-oidc \
-  --sync
+  --github-oidc
 ```
 
 Do not pass route or OIDC audience flags. In GitHub Actions, `--source` can be

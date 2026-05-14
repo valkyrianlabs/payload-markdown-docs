@@ -8,6 +8,7 @@ import type {
   ResolvedPayloadMarkdownDocsSet,
 } from './types.js'
 
+import { createPayloadMarkdownDocsAssetResponse } from './assets.js'
 import {
   appendPayloadMarkdownDocsHeaderNavItems,
   getPayloadMarkdownDocsHeaderNavItems,
@@ -39,6 +40,7 @@ vi.mock('@valkyrianlabs/payload-markdown/server', () => ({
 
 type TestPayloadData = {
   docs?: Record<string, unknown>[]
+  docsAssets?: Record<string, unknown>[]
   docsGroups?: Record<string, unknown>[]
   docsSets?: Record<string, unknown>[]
 }
@@ -136,6 +138,7 @@ const matchesWhere = (doc: Record<string, unknown>, where: unknown): boolean => 
 
 const createPayloadMock = ({
   docs = [],
+  docsAssets = [],
   docsGroups = [],
   docsSets = [],
 }: TestPayloadData): {
@@ -145,6 +148,7 @@ const createPayloadMock = ({
     docs,
     'docs-groups': docsGroups,
     'docs-sets': docsSets,
+    'payload-markdown-docs-assets': docsAssets,
   }
 
   return {
@@ -842,6 +846,147 @@ describe('Payload Markdown Docs route adapter', () => {
       },
     ])
     expect(payload.find).not.toHaveBeenCalledWith(expect.objectContaining({ collection: 'docs' }))
+  })
+
+  it('includes stored llms and skill assets in sitemap output by default', async () => {
+    const payload = createPayloadMock({
+      docsAssets: [
+        {
+          id: 'asset-llms',
+          route: '/llms.txt',
+          sync: {
+            archived: false,
+          },
+          updatedAt: '2026-05-16T12:00:00.000Z',
+        },
+        {
+          id: 'asset-skill',
+          route: '/plugins/payload-markdown/skills/codex/SKILL.md',
+          sync: {
+            archived: false,
+          },
+          updatedAt: '2026-05-15T12:00:00.000Z',
+        },
+        {
+          id: 'asset-archived',
+          route: '/llms-full.txt',
+          sync: {
+            archived: true,
+          },
+          updatedAt: '2026-05-14T12:00:00.000Z',
+        },
+      ],
+    })
+
+    const result = await getDocsForSitemap({
+      payload,
+      siteUrl: 'https://example.com',
+    })
+
+    expect(result).toEqual([
+      {
+        lastModified: '2026-05-16T12:00:00.000Z',
+        url: 'https://example.com/llms.txt',
+      },
+      {
+        lastModified: '2026-05-15T12:00:00.000Z',
+        url: 'https://example.com/plugins/payload-markdown/skills/codex/SKILL.md',
+      },
+    ])
+  })
+
+  it('can disable stored asset sitemap entries', async () => {
+    const payload = createPayloadMock({
+      docsAssets: [
+        {
+          id: 'asset-llms',
+          route: '/llms.txt',
+          sync: {
+            archived: false,
+          },
+        },
+      ],
+    })
+
+    const result = await getDocsForSitemap({
+      includeAssets: false,
+      payload,
+      siteUrl: 'https://example.com',
+    })
+
+    expect(result).toEqual([])
+  })
+})
+
+describe('Payload Markdown Docs asset response helpers', () => {
+  it('serves llms and skill assets with their stored content type', async () => {
+    const payload = createPayloadMock({
+      docsAssets: [
+        {
+          id: 'asset-llms',
+          content: '# Main Docs\n',
+          contentType: 'text/plain; charset=utf-8',
+          kind: 'llms',
+          route: '/llms.txt',
+          sourcePath: 'llms.txt',
+          sync: {
+            archived: false,
+          },
+        },
+        {
+          id: 'asset-skill',
+          content: '# Skill\n',
+          contentType: 'text/markdown; charset=utf-8',
+          kind: 'skill',
+          route: '/plugins/payload-markdown/skills/codex/SKILL.md',
+          sourcePath: 'skills/payload-markdown/codex/SKILL.md',
+          sync: {
+            archived: false,
+          },
+        },
+      ],
+    })
+
+    const llmsResponse = await createPayloadMarkdownDocsAssetResponse({
+      path: '/llms.txt',
+      payload,
+    })
+    const skillResponse = await createPayloadMarkdownDocsAssetResponse({
+      path: '/plugins/payload-markdown/skills/codex/SKILL.md',
+      payload,
+    })
+
+    expect(llmsResponse.status).toBe(200)
+    expect(llmsResponse.headers.get('Content-Type')).toBe('text/plain; charset=utf-8')
+    expect(await llmsResponse.text()).toBe('# Main Docs\n')
+    expect(skillResponse.status).toBe(200)
+    expect(skillResponse.headers.get('Content-Type')).toBe('text/markdown; charset=utf-8')
+    expect(await skillResponse.text()).toBe('# Skill\n')
+  })
+
+  it('returns 404 for archived assets', async () => {
+    const payload = createPayloadMock({
+      docsAssets: [
+        {
+          id: 'asset-llms',
+          content: '# Main Docs\n',
+          contentType: 'text/plain; charset=utf-8',
+          kind: 'llms',
+          route: '/llms.txt',
+          sourcePath: 'llms.txt',
+          sync: {
+            archived: true,
+          },
+        },
+      ],
+    })
+
+    const response = await createPayloadMarkdownDocsAssetResponse({
+      path: '/llms.txt',
+      payload,
+    })
+
+    expect(response.status).toBe(404)
   })
 })
 

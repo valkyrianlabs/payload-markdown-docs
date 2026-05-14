@@ -1,5 +1,12 @@
+export { applyDocsAssetsSync } from './applyDocsAssetsSync.js'
+export type {
+  ApplyDocsAssetsSyncPayloadOperations,
+  ApplyDocsAssetsSyncResult,
+} from './applyDocsAssetsSync.js'
 export { applyDocsSync, assertApplyDeleteBehaviorSupported } from './applyDocsSync.js'
 export type { ApplyDocsSyncPayloadOperations, ApplyDocsSyncResult } from './applyDocsSync.js'
+export { findDocsAssetsSyncConflicts } from './assetsConflicts.js'
+export { buildAssetArchiveData, buildAssetData } from './assetsData.js'
 export { findDocsSyncConflicts } from './docsConflicts.js'
 export type { DocsSyncConflict, DocsSyncConflictReason } from './docsConflicts.js'
 export { buildArchiveData, buildDocsData, getDocsDepth } from './docsData.js'
@@ -16,12 +23,21 @@ export {
 export type { DocsSetPayloadOperations, ResolvedDocsSet } from './docsSets.js'
 export { findTrustedGitHubSources } from './docsTrusted.js'
 export type { DocsTrustedPayloadOperations } from './docsTrusted.js'
+export {
+  findExistingPayloadDocsAssetRecords,
+  toExistingAssetRecord,
+} from './existingAssets.js'
+export type {
+  ExistingAssetsPayloadOperations,
+  ExistingPayloadDocsAssetRecord,
+} from './existingAssets.js'
 export { findExistingDocsRecords } from './existingDocs.js'
 export { findExistingPayloadDocsRecords, toExistingDocsRecord } from './existingDocs.js'
 export type { ExistingDocsPayloadOperations, ExistingPayloadDocsRecord } from './existingDocs.js'
 export {
   findConfiguredPagesRouteCollisions,
   findDuplicateDesiredRouteCollisions,
+  findExistingAssetRouteCollisions,
   findExistingDocsRouteCollisions,
 } from './routeCollisions.js'
 export type { DocsRouteCollisionIssue, RouteCollisionPayloadOperations } from './routeCollisions.js'

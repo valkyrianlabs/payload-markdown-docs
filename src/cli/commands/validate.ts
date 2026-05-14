@@ -10,7 +10,7 @@ import {
   buildDocsManifest,
   validateDocsManifest,
 } from '../../sync/index.js'
-import { walkDocsFiles } from '../filesystem.js'
+import { collectPublishPackage } from '../filesystem.js'
 import { formatValidationSummary, printJson } from '../format.js'
 import {
   getFlagBoolean,
@@ -37,14 +37,9 @@ const getDefaultSourceId = (docsRoot: string): string =>
 export const getDocsCommandOptions = (
   args: ParsedCliArgs,
 ): CliResult | DocsCommandOptions => {
-  const docsRoot = args.positionals[0]
-
-  if (!docsRoot) {
-    return {
-      exitCode: 1,
-      stderr: `Command "${args.command}" requires a docs root path.\n`,
-    }
-  }
+  const positionalDocsRoot = args.positionals[0]
+  const docsFlag = getFlagString(args, 'docs')
+  const docsRoot = docsFlag ?? positionalDocsRoot ?? './docs'
 
   const maxFiles = parseIntegerFlag(args, 'max-files')
   const maxFileBytes = parseIntegerFlag(args, 'max-file-bytes')
@@ -60,10 +55,21 @@ export const getDocsCommandOptions = (
     branch: getFlagString(args, 'branch'),
     commit: getFlagString(args, 'commit'),
     docsRoot,
+    docsRootExplicit: Boolean(docsFlag ?? positionalDocsRoot),
+    includeDocs: !getFlagBoolean(args, 'no-docs'),
+    includeLlms: !getFlagBoolean(args, 'no-llms'),
+    includeLlmsFull: !getFlagBoolean(args, 'no-llms-full'),
+    includeSkills: !getFlagBoolean(args, 'no-skills'),
+    llmsFullPath: getFlagString(args, 'llms-full') ?? './llms-full.txt',
+    llmsFullPathExplicit: getFlagString(args, 'llms-full') !== undefined,
+    llmsPath: getFlagString(args, 'llms') ?? './llms.txt',
+    llmsPathExplicit: getFlagString(args, 'llms') !== undefined,
     maxFileBytes: typeof maxFileBytes === 'number' ? maxFileBytes : undefined,
     maxFiles: typeof maxFiles === 'number' ? maxFiles : undefined,
     maxTotalBytes: typeof maxTotalBytes === 'number' ? maxTotalBytes : undefined,
     repository: getFlagString(args, 'repository'),
+    skillsRoot: getFlagString(args, 'skills') ?? './skills',
+    skillsRootExplicit: getFlagString(args, 'skills') !== undefined,
     sourceId: getFlagString(args, 'source') ?? getDefaultSourceId(docsRoot),
   }
 }
@@ -77,14 +83,22 @@ export const runValidateCommand = async (
     return options
   }
 
-  const files = await walkDocsFiles({
-    root: options.docsRoot,
-  })
+  let publishPackage
+
+  try {
+    publishPackage = await collectPublishPackage(options)
+  } catch (error) {
+    return {
+      exitCode: 1,
+      stderr: error instanceof Error ? `${error.message}\n` : 'Could not read publish package.\n',
+    }
+  }
 
   const manifest = buildDocsManifest({
+    assets: publishPackage.assets,
     branch: options.branch,
     commit: options.commit,
-    files,
+    files: publishPackage.files,
     repository: options.repository,
     sourceId: options.sourceId,
   })
@@ -99,7 +113,8 @@ export const runValidateCommand = async (
     return {
       exitCode: validation.ok ? 0 : 1,
       stdout: printJson({
-        fileCount: files.length,
+        fileCount: publishPackage.files.length,
+        package: publishPackage.summary,
         root: options.docsRoot,
         sourceId: options.sourceId,
         validation,
@@ -110,7 +125,8 @@ export const runValidateCommand = async (
   return {
     exitCode: validation.ok ? 0 : 1,
     stdout: formatValidationSummary({
-      fileCount: files.length,
+      fileCount: publishPackage.files.length,
+      packageSummary: publishPackage.summary,
       root: options.docsRoot,
       sourceId: options.sourceId,
       validation,

@@ -141,6 +141,68 @@ export const findExistingDocsRouteCollisions = async ({
   })
 }
 
+export const findExistingAssetRouteCollisions = async ({
+  collectionSlug,
+  docsSetId,
+  payload,
+  routes,
+  sourceId,
+}: {
+  collectionSlug: string
+  docsSetId?: number | string
+  payload: RouteCollisionPayloadOperations
+  routes: string[]
+  sourceId: string
+}): Promise<DocsRouteCollisionIssue[]> => {
+  const normalizedRoutes = [...new Set(routes.map(normalizeRoutePath))]
+
+  if (normalizedRoutes.length === 0) {
+    return []
+  }
+
+  const result = await payload.find({
+    collection: collectionSlug,
+    depth: 0,
+    limit: 1000,
+    overrideAccess: true,
+    where: {
+      route: {
+        in: normalizedRoutes,
+      },
+    },
+  })
+
+  return result.docs.flatMap((doc) => {
+    if (!isRecord(doc) || typeof doc.route !== 'string') {
+      return []
+    }
+
+    const sync = isRecord(doc.sync) ? doc.sync : undefined
+
+    if (sync?.archived === true) {
+      return []
+    }
+
+    const existingDocsSetId = getRelationshipId(doc.docsSet)
+    const existingSourceId = getNestedString(doc, 'sync.sourceId')
+    const sameOwner = docsSetId
+      ? existingDocsSetId === String(docsSetId) ||
+        (!existingDocsSetId && existingSourceId === sourceId)
+      : !existingDocsSetId && existingSourceId === sourceId
+
+    if (sameOwner) {
+      return []
+    }
+
+    return [
+      {
+        reason: 'existing_asset_route_collision',
+        route: normalizeRoutePath(doc.route),
+      },
+    ]
+  })
+}
+
 export const findConfiguredPagesRouteCollisions = async ({
   allowBridgePages,
   bridgeField,

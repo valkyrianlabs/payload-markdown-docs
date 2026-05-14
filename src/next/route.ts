@@ -30,7 +30,9 @@ import {
 } from './records.js'
 import { getPayloadMarkdownDocsSidebar } from './sidebar.js'
 
-type ResolvedCollectionSlugs = Required<PayloadMarkdownDocsCollectionSlugs>
+type ResolvedCollectionSlugs = Required<
+  Pick<PayloadMarkdownDocsCollectionSlugs, 'docs' | 'docsGroups' | 'docsSets'>
+>
 
 const resolveCollectionSlugs = (
   collections?: PayloadMarkdownDocsCollectionSlugs,

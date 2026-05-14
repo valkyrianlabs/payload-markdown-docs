@@ -2,9 +2,12 @@ import { describe, expect, test } from 'vitest'
 
 import {
   buildDocsManifest,
+  deriveAssetRouteFromSourcePath,
   deriveRouteFromSourcePath,
+  normalizeAssetPath,
   normalizeDocsPath,
   parseDocsFrontmatter,
+  planDocsAssetsSync,
   planDocsSync,
   sha256Hex,
   validateDocsManifest,
@@ -83,6 +86,30 @@ describe('docs path normalization', () => {
   })
 })
 
+describe('asset path normalization', () => {
+  test('accepts text and skill artifact paths without frontmatter rules', () => {
+    expect(normalizeAssetPath('llms.txt')).toMatchObject({
+      ok: true,
+      path: 'llms.txt',
+    })
+    expect(normalizeAssetPath('skills/main-docs/codex/SKILL.md')).toMatchObject({
+      ok: true,
+      path: 'skills/main-docs/codex/SKILL.md',
+    })
+  })
+
+  test('rejects unsafe asset paths', () => {
+    expect(normalizeAssetPath('/llms.txt')).toMatchObject({
+      code: 'invalid_path',
+      ok: false,
+    })
+    expect(normalizeAssetPath('../secret.txt')).toMatchObject({
+      code: 'path_traversal',
+      ok: false,
+    })
+  })
+})
+
 describe('docs route derivation', () => {
   test('routes index.md to route base', () => {
     expect(
@@ -122,6 +149,35 @@ describe('docs route derivation', () => {
   })
 })
 
+describe('asset route derivation', () => {
+  test('derives root llms routes and docs-set skill routes', () => {
+    expect(
+      deriveAssetRouteFromSourcePath({
+        kind: 'llms',
+        routeBase: '/plugins/main-docs',
+        sourceId: 'main-docs',
+        sourcePath: 'llms.txt',
+      }),
+    ).toBe('/llms.txt')
+    expect(
+      deriveAssetRouteFromSourcePath({
+        kind: 'llms-full',
+        routeBase: '/plugins/main-docs',
+        sourceId: 'main-docs',
+        sourcePath: 'llms-full.txt',
+      }),
+    ).toBe('/llms-full.txt')
+    expect(
+      deriveAssetRouteFromSourcePath({
+        kind: 'skill',
+        routeBase: '/plugins/main-docs',
+        sourceId: 'main-docs',
+        sourcePath: 'skills/main-docs/codex/reference/workflow.md',
+      }),
+    ).toBe('/plugins/main-docs/skills/codex/reference/workflow.md')
+  })
+})
+
 describe('docs hashing and manifest building', () => {
   test('computes stable SHA-256 hex hashes', () => {
     expect(sha256Hex('hello')).toBe(
@@ -141,6 +197,23 @@ describe('docs hashing and manifest building', () => {
     })
 
     expect(manifest.files[0]?.sha256).toBe(sha256Hex('# Install\n'))
+  })
+
+  test('buildDocsManifest inserts asset hashes', () => {
+    const manifest = buildDocsManifest({
+      assets: [
+        {
+          content: '# Payload Markdown Docs\n',
+          contentType: 'text/markdown; charset=utf-8',
+          kind: 'skill',
+          path: 'skills/main-docs/codex/SKILL.md',
+        },
+      ],
+      files: [],
+      sourceId: 'main-docs',
+    })
+
+    expect(manifest.assets?.[0]?.sha256).toBe(sha256Hex('# Payload Markdown Docs\n'))
   })
 })
 
@@ -258,6 +331,55 @@ slug: setup
     )
   })
 
+  test('validates llms and skill assets without parsing frontmatter', () => {
+    const result = validateDocsManifest(
+      {
+        assets: [
+          {
+            content: 'Site index',
+            contentType: 'text/plain; charset=utf-8',
+            kind: 'llms',
+            path: 'llms.txt',
+          },
+          {
+            content: '# Skill\n\nNo frontmatter required.',
+            contentType: 'text/markdown; charset=utf-8',
+            kind: 'skill',
+            path: 'skills/main-docs/codex/SKILL.md',
+          },
+        ],
+        files: [],
+        source: {
+          id: 'main-docs',
+        },
+        version: 1,
+      },
+      {
+        allowedSourceIds: ['main-docs'],
+        routeBase: '/plugins/main-docs',
+      },
+    )
+
+    expect(result.ok).toBe(true)
+
+    if (!result.ok) {
+      return
+    }
+
+    expect(result.data.assets).toMatchObject([
+      {
+        kind: 'llms',
+        path: 'llms.txt',
+        route: '/llms.txt',
+      },
+      {
+        kind: 'skill',
+        path: 'skills/main-docs/codex/SKILL.md',
+        route: '/plugins/main-docs/skills/codex/SKILL.md',
+      },
+    ])
+  })
+
   test('title falls back to filename when there is no frontmatter title or H1', () => {
     const data = expectValidManifest({
       files: [
@@ -311,6 +433,45 @@ slug: setup
       expect.objectContaining({
         code: 'duplicate_path',
         path: 'intro.md',
+      }),
+    )
+  })
+
+  test('rejects duplicate asset paths and invalid asset hashes', () => {
+    const result = validateDocsManifest({
+      assets: [
+        {
+          content: 'A',
+          contentType: 'text/plain; charset=utf-8',
+          kind: 'llms',
+          path: './llms.txt',
+          sha256: 'bad',
+        },
+        {
+          content: 'B',
+          contentType: 'text/plain; charset=utf-8',
+          kind: 'llms',
+          path: 'llms.txt',
+        },
+      ],
+      files: [],
+      source: {
+        id: 'main-docs',
+      },
+      version: 1,
+    })
+
+    expect(result.ok).toBe(false)
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({
+        code: 'invalid_hash',
+        path: 'llms.txt',
+      }),
+    )
+    expect(result.issues).toContainEqual(
+      expect.objectContaining({
+        code: 'duplicate_asset_path',
+        path: 'llms.txt',
       }),
     )
   })
@@ -574,5 +735,55 @@ describe('docs dry sync planning', () => {
         path: 'duplicate.md',
       }),
     )
+  })
+})
+
+describe('asset sync planning', () => {
+  const desired = expectValidManifest({
+    assets: [
+      {
+        content: 'Root AI index',
+        contentType: 'text/plain; charset=utf-8',
+        kind: 'llms',
+        path: 'llms.txt',
+      },
+      {
+        content: '# Skill\n',
+        contentType: 'text/markdown; charset=utf-8',
+        kind: 'skill',
+        path: 'skills/main-docs/codex/SKILL.md',
+      },
+    ],
+    files: [],
+    source: {
+      id: 'main-docs',
+    },
+    version: 1,
+  })
+
+  test('plans assets separately from docs records', () => {
+    const skill = desired.assets.find((asset) => asset.kind === 'skill')
+    const plan = planDocsAssetsSync({
+      desired,
+      existing: [
+        {
+          contentType: skill?.contentType ?? 'text/markdown; charset=utf-8',
+          kind: 'skill',
+          route: skill?.route,
+          sourceHash: skill?.sha256,
+          sourcePath: 'skills/main-docs/codex/SKILL.md',
+        },
+        {
+          contentType: 'text/plain; charset=utf-8',
+          kind: 'static',
+          route: '/old.txt',
+          sourcePath: 'old.txt',
+        },
+      ],
+    })
+
+    expect(plan.create).toHaveLength(1)
+    expect(plan.unchanged).toHaveLength(1)
+    expect(plan.archive).toHaveLength(1)
   })
 })

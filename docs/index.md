@@ -99,7 +99,7 @@ Run `payload-markdown-docs validate ./docs --source main-docs`.
 
 ### Push safely
 
-Use `push --dry-run` on pull requests and `push --sync --publish` only when the server config allows writes and publishing.
+Use `push --dry-run` on pull requests and `push --publish` on main when the server config allows writes and publishing.
 
 :::
 

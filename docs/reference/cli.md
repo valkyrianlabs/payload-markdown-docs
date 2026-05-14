@@ -19,23 +19,26 @@ The package exposes the `payload-markdown-docs` binary.
 ## validate
 
 ```bash
-payload-markdown-docs validate ./docs --source main-docs
+payload-markdown-docs validate --source main-docs
 ```
 
-Validates local Markdown files by building and validating an in-memory manifest.
+Validates the conventional docs package by building and validating an in-memory
+manifest. By default this includes Markdown docs from `./docs`, skill artifacts
+from `./skills/<source>`, and root `llms.txt` files when present.
 
 ## manifest
 
 ```bash
-payload-markdown-docs manifest ./docs --source main-docs --pretty
+payload-markdown-docs manifest --source main-docs --pretty
 ```
 
-Prints manifest JSON.
+Prints manifest JSON. Docs records remain under `files`; static AI-facing
+artifacts such as skills and `llms.txt` are emitted under `assets`.
 
 ## plan
 
 ```bash
-payload-markdown-docs plan ./docs --source main-docs
+payload-markdown-docs plan --source main-docs
 ```
 
 Plans against an optional local existing-records JSON file. Without
@@ -56,7 +59,17 @@ keys when the matching `ssh-ed25519 ...` public key is stored in Keys.
 Ed25519:
 
 ```bash
-payload-markdown-docs push ./docs \
+payload-markdown-docs push \
+  --endpoint "$DOCS_SYNC_ENDPOINT" \
+  --source main-docs \
+  --key-id local-docs \
+  --private-key-env DOCS_SYNC_PRIVATE_KEY
+```
+
+Explicit dry-run:
+
+```bash
+payload-markdown-docs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
   --source main-docs \
   --key-id local-docs \
@@ -67,14 +80,14 @@ payload-markdown-docs push ./docs \
 GitHub OIDC:
 
 ```bash
-payload-markdown-docs push ./docs \
+payload-markdown-docs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
   --source main-docs \
-  --github-oidc \
-  --sync
+  --github-oidc
 ```
 
-`push` supports `--dry-run`, `--sync`, and `--publish`. Dry-run is the default.
+`push` defaults to sync mode. `--dry-run` submits a validation-only request.
+`--sync` is still accepted for compatibility but is no longer required.
 Publishing and writes remain server-owned.
 
 OIDC-specific flags:
@@ -120,6 +133,14 @@ package manager commands.
 
 :::details {title="Common flags"}
 - `--source <id>`
+- `--docs <path>`
+- `--skills <path>`
+- `--llms <path>`
+- `--llms-full <path>`
+- `--no-docs`
+- `--no-skills`
+- `--no-llms`
+- `--no-llms-full`
 - `--repository <repo>`
 - `--branch <branch>`
 - `--commit <sha>`

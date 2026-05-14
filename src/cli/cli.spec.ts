@@ -165,7 +165,7 @@ describe('parseCliArgs', () => {
     const result = await runCli(['validate', '--help'])
 
     expect(result.exitCode).toBe(0)
-    expect(result.stdout).toContain('payload-markdown-docs validate <docs-root>')
+    expect(result.stdout).toContain('payload-markdown-docs validate [docs-root]')
   })
 })
 
@@ -240,6 +240,71 @@ describe('manifest command', () => {
     expect(manifest.version).toBe(1)
     expect(manifest.source?.id).toBe('main-docs')
     expect(manifest.files).toHaveLength(1)
+  })
+
+  it('includes llms files and skills as manifest assets', async () => {
+    const root = await createTempRoot()
+    await writeTempFile(root, 'docs/index.md', '# Home\n')
+    await writeTempFile(root, 'skills/main-docs/codex/SKILL.md', '# Codex skill\n')
+    await writeTempFile(root, 'llms.txt', '# Main Docs\n')
+    await writeTempFile(root, 'llms-full.txt', '# Full Main Docs\n')
+
+    const result = await runCli([
+      'manifest',
+      '--docs',
+      path.join(root, 'docs'),
+      '--skills',
+      path.join(root, 'skills'),
+      '--llms',
+      path.join(root, 'llms.txt'),
+      '--llms-full',
+      path.join(root, 'llms-full.txt'),
+      '--source',
+      'main-docs',
+    ])
+    const manifest = JSON.parse(result.stdout ?? '{}') as {
+      assets?: Array<{ kind?: string; path?: string; route?: string }>
+      files?: unknown[]
+    }
+
+    expect(result.exitCode).toBe(0)
+    expect(manifest.files).toHaveLength(1)
+    expect(manifest.assets).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'llms',
+          path: 'llms.txt',
+          route: '/llms.txt',
+        }),
+        expect.objectContaining({
+          kind: 'llms-full',
+          path: 'llms-full.txt',
+          route: '/llms-full.txt',
+        }),
+        expect.objectContaining({
+          kind: 'skill',
+          path: 'skills/main-docs/codex/SKILL.md',
+        }),
+      ]),
+    )
+  })
+
+  it('fails for explicitly missing optional asset roots', async () => {
+    const root = await createTempRoot()
+    await writeTempFile(root, 'index.md', '# Home\n')
+
+    const missingSkills = await runCli([
+      'manifest',
+      root,
+      '--skills',
+      path.join(root, 'missing-skills'),
+    ])
+    const missingLlms = await runCli(['manifest', root, '--llms', path.join(root, 'missing.txt')])
+
+    expect(missingSkills.exitCode).toBe(1)
+    expect(missingSkills.stderr).toContain('Skills root does not exist')
+    expect(missingLlms.exitCode).toBe(1)
+    expect(missingLlms.stderr).toContain('llms.txt file does not exist')
   })
 
   it('supports pretty output', async () => {
@@ -342,11 +407,13 @@ describe('plan command', () => {
 
     const result = await runCli(['plan', root, '--json'])
     const plan = JSON.parse(result.stdout ?? '{}') as {
-      create?: unknown[]
+      docs?: {
+        create?: unknown[]
+      }
     }
 
     expect(result.exitCode).toBe(0)
-    expect(plan.create).toHaveLength(1)
+    expect(plan.docs?.create).toHaveLength(1)
   })
 })
 
@@ -410,7 +477,7 @@ describe('push command', () => {
     }
   }
 
-  it('defaults to dry-run and signs a JSON manifest body', async () => {
+  it('defaults to sync and signs a JSON manifest body', async () => {
     const root = await createDocsRoot()
     const { requests, result } = await pushArgs(root)
     const request = requests[0]
@@ -420,8 +487,8 @@ describe('push command', () => {
     }
 
     expect(result.exitCode).toBe(0)
-    expect(result.stdout).toContain('Mode: dry-run')
-    expect(manifest.mode).toBe('dry-run')
+    expect(result.stdout).toContain('Mode: sync')
+    expect(manifest.mode).toBe('sync')
     expect(manifest.files).toHaveLength(1)
     expect(request?.url).toBe(endpoint)
     expect(request?.headers).toMatchObject({
@@ -441,6 +508,41 @@ describe('push command', () => {
     expect(result.exitCode).toBe(0)
     expect(result.stdout).toContain('Mode: sync')
     expect(manifest.mode).toBe('sync')
+  })
+
+  it('sends dry-run mode only when --dry-run is used', async () => {
+    const root = await createDocsRoot()
+    const { requests, result } = await pushArgs(root, ['--dry-run'])
+    const manifest = JSON.parse(requests[0]?.body ?? '{}') as {
+      mode?: string
+    }
+
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout).toContain('Mode: dry-run')
+    expect(manifest.mode).toBe('dry-run')
+  })
+
+  it('rejects --dry-run with --sync', async () => {
+    const root = await createDocsRoot()
+    const { privateKey } = keyPair()
+    const privateKeyPath = path.join(root, 'docs-sync-private.pem')
+    await writeFile(privateKeyPath, privateKey.toString(), 'utf8')
+
+    const result = await runCli([
+      'push',
+      root,
+      '--endpoint',
+      endpoint,
+      '--key-id',
+      'github-actions-main',
+      '--private-key-file',
+      privateKeyPath,
+      '--dry-run',
+      '--sync',
+    ])
+
+    expect(result.exitCode).toBe(1)
+    expect(result.stderr).toContain('Use either --dry-run or --sync')
   })
 
   it('requires endpoint, key id, and one private key source', async () => {
@@ -761,7 +863,7 @@ describe('push command', () => {
 
     expect(publishDryRunResult.exitCode).toBe(0)
     expect(publishDryRunManifest).toMatchObject({
-      mode: 'dry-run',
+      mode: 'sync',
       publish: true,
     })
     expect(publishSyncResult.exitCode).toBe(0)
@@ -834,7 +936,7 @@ describe('push command', () => {
     const humanResult = await pushArgs(root)
 
     expect(result.exitCode).toBe(0)
-    expect(output.mode).toBe('dry-run')
+    expect(output.mode).toBe('sync')
     expect(output.response?.ok).toBe(true)
     expect(humanResult.result.stdout).not.toContain(privateKey.trim())
     expect(humanResult.result.stdout).not.toContain('Do not leak this body.')

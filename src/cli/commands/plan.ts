@@ -8,10 +8,11 @@ import type { CliResult, ParsedCliArgs } from '../types.js'
 
 import {
   buildDocsManifest,
+  planDocsAssetsSync,
   planDocsSync,
   validateDocsManifest,
 } from '../../sync/index.js'
-import { walkDocsFiles } from '../filesystem.js'
+import { collectPublishPackage } from '../filesystem.js'
 import { formatIssues, formatPlanSummary, printJson } from '../format.js'
 import { getFlagBoolean, getFlagString } from '../parseArgs.js'
 import { getDocsCommandOptions } from './validate.js'
@@ -96,16 +97,24 @@ export const runPlanCommand = async (args: ParsedCliArgs): Promise<CliResult> =>
     return existing
   }
 
-  const files = await walkDocsFiles({
-    root: options.docsRoot,
-  })
+  let publishPackage
+
+  try {
+    publishPackage = await collectPublishPackage(options)
+  } catch (error) {
+    return {
+      exitCode: 1,
+      stderr: error instanceof Error ? `${error.message}\n` : 'Could not read publish package.\n',
+    }
+  }
 
   const deleteBehavior = deleteBehaviorFlag as DocsDeleteBehavior | undefined
   const manifest = buildDocsManifest({
+    assets: publishPackage.assets,
     branch: options.branch,
     commit: options.commit,
     deleteBehavior,
-    files,
+    files: publishPackage.files,
     repository: options.repository,
     sourceId: options.sourceId,
   })
@@ -128,16 +137,31 @@ export const runPlanCommand = async (args: ParsedCliArgs): Promise<CliResult> =>
     desired: validation.data,
     existing,
   })
+  const assetPlan = planDocsAssetsSync({
+    deleteBehavior,
+    desired: validation.data,
+    existing: [],
+  })
 
   if (getFlagBoolean(args, 'json')) {
     return {
       exitCode: 0,
-      stdout: printJson(plan, getFlagBoolean(args, 'pretty')),
+      stdout: printJson(
+        {
+          assets: assetPlan,
+          docs: plan,
+          package: publishPackage.summary,
+        },
+        getFlagBoolean(args, 'pretty'),
+      ),
     }
   }
 
   return {
     exitCode: 0,
-    stdout: formatPlanSummary(plan),
+    stdout: formatPlanSummary(plan, {
+      assetPlan,
+      packageSummary: publishPackage.summary,
+    }),
   }
 }

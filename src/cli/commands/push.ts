@@ -6,7 +6,7 @@ import type { CliResult, ParsedCliArgs, PushCommandOptions } from '../types.js'
 
 import { DocsSyncKeyError, signDocsSyncRequest } from '../../security/index.js'
 import { buildDocsManifest, sha256Hex, validateDocsManifest } from '../../sync/index.js'
-import { walkDocsFiles } from '../filesystem.js'
+import { collectPublishPackage } from '../filesystem.js'
 import { formatIssues, formatPushSummary, printJson } from '../format.js'
 import { getJson, postJson } from '../http.js'
 import { getFlagBoolean, getFlagString } from '../parseArgs.js'
@@ -29,6 +29,11 @@ type ServerPushResponse = {
   publishRequested?: boolean
   summary?: {
     archive?: number
+    assetArchive?: number
+    assetCreate?: number
+    assetDelete?: number
+    assetUnchanged?: number
+    assetUpdate?: number
     create?: number
     delete?: number
     draft?: number
@@ -232,7 +237,7 @@ const getPushCommandOptions = async (
     }
   }
 
-  const mode: PushCommandOptions['mode'] = getFlagBoolean(args, 'sync') ? 'sync' : 'dry-run'
+  const mode: PushCommandOptions['mode'] = getFlagBoolean(args, 'dry-run') ? 'dry-run' : 'sync'
   const baseOptions = {
     ...docsOptions,
     deleteBehavior: deleteBehaviorFlag as DocsDeleteBehavior | undefined,
@@ -305,15 +310,23 @@ export const runPushCommand = async (
     return options
   }
 
-  const files = await walkDocsFiles({
-    root: options.docsRoot,
-  })
+  let publishPackage
+
+  try {
+    publishPackage = await collectPublishPackage(options)
+  } catch (error) {
+    return {
+      exitCode: 1,
+      stderr: error instanceof Error ? `${error.message}\n` : 'Could not read publish package.\n',
+    }
+  }
 
   const manifest = buildDocsManifest({
+    assets: publishPackage.assets,
     branch: options.branch,
     commit: options.commit,
     deleteBehavior: options.deleteBehavior ?? 'archive',
-    files,
+    files: publishPackage.files,
     mode: options.mode,
     publish: options.publish,
     repository: options.repository,
@@ -394,6 +407,7 @@ export const runPushCommand = async (
         {
           endpoint: options.endpoint,
           mode: options.mode,
+          package: publishPackage.summary,
           response: response.body,
           sourceId: options.sourceId,
           status: response.status,

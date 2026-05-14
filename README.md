@@ -316,20 +316,23 @@ steps:
 
   - run: pnpm install --frozen-lockfile
 
-  - run: pnpm exec payload-markdown-docs validate ./docs
+  - run: pnpm exec payload-markdown-docs validate --source payload-markdown-docs
 
   - run: |
-      pnpm exec payload-markdown-docs push ./docs \
+      pnpm exec payload-markdown-docs push \
         --endpoint "$DOCS_SYNC_ENDPOINT" \
         --repository "$GITHUB_REPOSITORY" \
         --branch "$GITHUB_REF_NAME" \
         --commit "$GITHUB_SHA" \
         --github-oidc \
-        --sync \
         --publish
 ```
 
-`--sync` requires:
+`push` defaults to sync mode and publishes the conventional package layout:
+human docs from `./docs`, native skill artifacts from `./skills/<source>`, and
+root AI discovery files from `./llms.txt` and `./llms-full.txt` when present.
+
+Sync writes require:
 
 ```ts
 sync: {
@@ -374,23 +377,21 @@ Docs Globals > Keys
 Then push with the private key:
 
 ```bash
-pnpm exec payload-markdown-docs push ./docs \
+pnpm exec payload-markdown-docs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
   --source payload-markdown-docs \
   --key-id local-docs \
-  --private-key-file .docs-sync/docs-sync-private.pem \
-  --sync
+  --private-key-file .docs-sync/docs-sync-private.pem
 ```
 
 For immediate publishing:
 
 ```bash
-pnpm exec payload-markdown-docs push ./docs \
+pnpm exec payload-markdown-docs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
   --source payload-markdown-docs \
   --key-id local-docs \
   --private-key-file .docs-sync/docs-sync-private.pem \
-  --sync \
   --publish
 ```
 
@@ -502,10 +503,11 @@ const docsLinks = await getPayloadMarkdownDocsLinks({ payload })
 
 ## Serve Agent Skills
 
-The canonical agent artifacts are normal files under `skills/`, so a website can
-serve them directly later. This repository also includes source files for
-top-level `/llms.txt` and `/llms-full.txt`; copy them to `public/` or serve them
-with route handlers in the consuming docs website.
+The canonical agent artifacts are normal files under `skills/`. `push` syncs
+them as static assets by convention, along with top-level `/llms.txt` and
+`/llms-full.txt` when present. Synced assets are stored separately from docs
+records and can be exposed by the package response helpers or any site route
+that reads the stored asset by route.
 
 Useful stable paths include:
 
@@ -518,7 +520,8 @@ Useful stable paths include:
 /plugins/payload-markdown-docs/skills/claude/
 ```
 
-Add AI/static artifacts to the docs sitemap with `additionalRoutes`:
+Synced AI/static assets are included by the docs sitemap helpers by default.
+Use `additionalRoutes` for static routes that are not synced:
 
 ```ts
 import { getDocsForSitemap } from '@valkyrianlabs/payload-markdown-docs/next'

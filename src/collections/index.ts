@@ -1,5 +1,7 @@
 export { createDocsCollection } from './docs.js'
 export type { CreateDocsCollectionOptions } from './docs.js'
+export { createDocsAssetsCollection } from './docsAssets.js'
+export type { CreateDocsAssetsCollectionOptions } from './docsAssets.js'
 export { createDocsGroupsCollection } from './docsGroups.js'
 export type { CreateDocsGroupsCollectionOptions } from './docsGroups.js'
 export { createDocsKeysCollection } from './docsKeys.js'

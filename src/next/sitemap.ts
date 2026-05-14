@@ -6,6 +6,7 @@ import { unstable_cache } from 'next/cache'
 import type { PayloadMarkdownDocsCollectionSlugs, PayloadMarkdownDocsReadPayload } from './types.js'
 
 import {
+  DEFAULT_DOCS_ASSETS_COLLECTION_SLUG,
   DEFAULT_DOCS_COLLECTION_SLUG,
   DEFAULT_DOCS_GROUPS_COLLECTION_SLUG,
   DEFAULT_DOCS_SETS_COLLECTION_SLUG,
@@ -48,6 +49,7 @@ export type GetPaginatedDocsForSitemapOptions = {
   cacheKey?: string | string[]
   collections?: PayloadMarkdownDocsCollectionSlugs
   fetchLimit?: number
+  includeAssets?: boolean
   overrideAccess?: boolean
   payload: PayloadMarkdownDocsReadPayload
   recursive?: boolean
@@ -332,6 +334,32 @@ const toRecursiveSitemapDoc = ({
   }
 }
 
+const toAssetSitemapDoc = ({
+  doc,
+  siteUrl,
+}: {
+  doc: unknown
+  siteUrl: string
+}): PayloadMarkdownDocsSitemapDoc | undefined => {
+  if (!isRecord(doc) || typeof doc.route !== 'string' || doc.route.trim() === '') {
+    return undefined
+  }
+
+  const sync = isRecord(doc.sync) ? doc.sync : undefined
+
+  if (sync?.archived === true) {
+    return undefined
+  }
+
+  return {
+    lastModified: getOptionalString(doc, 'updatedAt') ?? null,
+    url: getSitemapUrl({
+      routePath: normalizeRoutePath(doc.route),
+      siteUrl,
+    }),
+  }
+}
+
 const getLatestLastModified = (
   first?: null | string,
   second?: null | string,
@@ -386,6 +414,7 @@ const getDocsForSitemapUncached = async ({
   additionalRoutes = [],
   collections,
   fetchLimit = 10000,
+  includeAssets = true,
   overrideAccess = true,
   payload,
   recursive = true,
@@ -396,6 +425,8 @@ const getDocsForSitemapUncached = async ({
   PaginatedDocs<PayloadMarkdownDocsSitemapDoc>
 > => {
   const docsCollectionSlug = collections?.docs ?? DEFAULT_DOCS_COLLECTION_SLUG
+  const docsAssetsCollectionSlug =
+    collections?.docsAssets ?? DEFAULT_DOCS_ASSETS_COLLECTION_SLUG
   const docsGroupsCollectionSlug = collections?.docsGroups ?? DEFAULT_DOCS_GROUPS_COLLECTION_SLUG
   const docsSetsCollectionSlug = collections?.docsSets ?? DEFAULT_DOCS_SETS_COLLECTION_SLUG
   const [docsSetsResult, docsGroupsResult, docsResult] = await Promise.all([
@@ -482,9 +513,44 @@ const getDocsForSitemapUncached = async ({
 
       return sitemapDoc ? [sitemapDoc] : []
     }) ?? []
+  const assetDocs = includeAssets
+    ? await (async () => {
+        try {
+          const assetsResult = await payload.find({
+            collection: docsAssetsCollectionSlug,
+            depth: 0,
+            limit: fetchLimit,
+            overrideAccess,
+            select: {
+              id: true,
+              route: true,
+              sync: true,
+              updatedAt: true,
+            },
+            where: {
+              'sync.archived': {
+                not_equals: true,
+              },
+            },
+          })
+
+          return assetsResult.docs.flatMap((doc) => {
+            const sitemapDoc = toAssetSitemapDoc({
+              doc,
+              siteUrl,
+            })
+
+            return sitemapDoc ? [sitemapDoc] : []
+          })
+        } catch {
+          return []
+        }
+      })()
+    : []
   const docs = dedupeAndSortSitemapDocs([
     ...docsSetEntries.map((entry) => entry.sitemapDoc),
     ...recursiveDocs,
+    ...assetDocs,
     ...additionalRoutes.flatMap((route) => {
       const sitemapDoc = toAdditionalSitemapDoc({
         route,

@@ -33,6 +33,7 @@ export type PayloadMarkdownDocsCollectionConfig = {
 
 export type PayloadMarkdownDocsCollectionsConfig = {
   docs?: PayloadMarkdownDocsCollectionConfig
+  docsAssets?: PayloadMarkdownDocsCollectionConfig
   docsGroups?: PayloadMarkdownDocsCollectionConfig
   docsKeys?: PayloadMarkdownDocsCollectionConfig
   docsSets?: PayloadMarkdownDocsCollectionConfig

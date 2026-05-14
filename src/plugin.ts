@@ -3,6 +3,7 @@ import type { Config, Plugin } from 'payload'
 import type { PayloadMarkdownDocsConfig } from './types.js'
 
 import {
+  createDocsAssetsCollection,
   createDocsCollection,
   createDocsGroupsCollection,
   createDocsKeysCollection,
@@ -12,6 +13,7 @@ import {
   createSyncRunsCollection,
 } from './collections/index.js'
 import {
+  DEFAULT_DOCS_ASSETS_COLLECTION_SLUG,
   DEFAULT_DOCS_COLLECTION_SLUG,
   DEFAULT_DOCS_GROUPS_COLLECTION_SLUG,
   DEFAULT_DOCS_KEYS_COLLECTION_SLUG,
@@ -30,6 +32,8 @@ import {
 import { createSyncEndpoint } from './endpoints/index.js'
 
 type ResolvedCollectionOptions = {
+  docsAssetsCollectionSlug: string
+  docsAssetsEnabled: boolean
   docsCollectionSlug: string
   docsEnabled: boolean
   docsGroupsCollectionSlug: string
@@ -98,6 +102,9 @@ const resolveCollectionOptions = (
   }
 
   return {
+    docsAssetsCollectionSlug:
+      pluginOptions.collections?.docsAssets?.slug ?? DEFAULT_DOCS_ASSETS_COLLECTION_SLUG,
+    docsAssetsEnabled: pluginOptions.collections?.docsAssets?.enabled !== false,
     docsCollectionSlug:
       docsSlugFromTarget ?? docsSlugFromCollections ?? DEFAULT_DOCS_COLLECTION_SLUG,
     docsEnabled: pluginOptions.collections?.docs?.enabled !== false,
@@ -171,6 +178,8 @@ export const payloadMarkdownDocs =
     }
 
     const {
+      docsAssetsCollectionSlug,
+      docsAssetsEnabled,
       docsCollectionSlug,
       docsEnabled,
       docsGroupsCollectionSlug,
@@ -190,6 +199,8 @@ export const payloadMarkdownDocs =
       syncRunsEnabled,
     } = resolveCollectionOptions(pluginOptions)
     assertCollectionOptionCompatibility({
+      docsAssetsCollectionSlug,
+      docsAssetsEnabled,
       docsCollectionSlug,
       docsEnabled,
       docsGroupsCollectionSlug,
@@ -217,6 +228,7 @@ export const payloadMarkdownDocs =
       ...(docsSetsEnabled ? [docsSetsCollectionSlug] : []),
       ...(docsKeysEnabled ? [docsKeysCollectionSlug] : []),
       ...(docsTrustedEnabled ? [docsTrustedCollectionSlug] : []),
+      ...(docsAssetsEnabled ? [docsAssetsCollectionSlug] : []),
       ...(docsEnabled ? [docsCollectionSlug] : []),
       ...(syncRunsEnabled ? [syncRunsCollectionSlug] : []),
       ...(noncesEnabled ? [noncesCollectionSlug] : []),
@@ -253,6 +265,15 @@ export const payloadMarkdownDocs =
         ? [
             createDocsTrustedCollection({
               slug: docsTrustedCollectionSlug,
+            }),
+          ]
+        : []),
+      ...(docsAssetsEnabled
+        ? [
+            createDocsAssetsCollection({
+              slug: docsAssetsCollectionSlug,
+              docsSetsCollectionSlug: docsSetsEnabled ? docsSetsCollectionSlug : undefined,
+              syncRunsCollectionSlug: syncRunsEnabled ? syncRunsCollectionSlug : undefined,
             }),
           ]
         : []),
@@ -296,6 +317,8 @@ export const payloadMarkdownDocs =
           allowWrites: pluginOptions.sync?.allowWrites,
           auth: pluginOptions.auth,
           deleteBehavior: pluginOptions.sync?.deleteBehavior,
+          docsAssetsCollectionSlug,
+          docsAssetsEnabled,
           docsCollectionSlug,
           docsEnabled,
           docsEnableDrafts: enableDrafts,

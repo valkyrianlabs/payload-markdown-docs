@@ -19,14 +19,26 @@ const commands = new Set<CliCommandName>([
 const docsValueFlags = new Set([
   'branch',
   'commit',
+  'docs',
+  'llms',
+  'llms-full',
   'max-file-bytes',
   'max-files',
   'max-total-bytes',
   'repository',
+  'skills',
   'source',
 ])
 
-const docsBooleanFlags = new Set(['help', 'json', 'pretty'])
+const docsBooleanFlags = new Set([
+  'help',
+  'json',
+  'no-docs',
+  'no-llms',
+  'no-llms-full',
+  'no-skills',
+  'pretty',
+])
 const planValueFlags = new Set(['delete-behavior', 'existing', ...docsValueFlags])
 const pushValueFlags = new Set([
   'delete-behavior',

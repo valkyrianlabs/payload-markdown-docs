@@ -17,18 +17,18 @@ import { getFlagString, parseCliArgs } from './parseArgs.js'
 const helpText = `payload-markdown-docs
 
 Usage:
-  payload-markdown-docs validate <docs-root> [options]
-  payload-markdown-docs manifest <docs-root> [options]
-  payload-markdown-docs plan <docs-root> [options]
-  payload-markdown-docs push <docs-root> [options]
+  payload-markdown-docs validate [docs-root] [options]
+  payload-markdown-docs manifest [docs-root] [options]
+  payload-markdown-docs plan [docs-root] [options]
+  payload-markdown-docs push [docs-root] [options]
   payload-markdown-docs keygen [options]
   payload-markdown-docs install skill --agent codex [options]
 
 Commands:
-  validate   Validate a local Markdown docs directory.
-  manifest   Print a JSON docs manifest for a local Markdown docs directory.
-  plan       Build a dry sync plan against optional existing docs records.
-  push       Sign and upload a docs manifest to a Payload sync endpoint.
+  validate   Validate a local docs package.
+  manifest   Print a JSON docs package manifest.
+  plan       Build a sync plan against optional existing docs records.
+  push       Sign and upload a docs package manifest to a Payload sync endpoint.
   keygen     Generate Ed25519 keys for signed sync.
   install    Install local AI-agent guidance for docs maintenance.
 `
@@ -66,9 +66,17 @@ Options:
   --force                Overwrite existing key files when used with --out.
   --help                 Show this help.
 `,
-  manifest: `payload-markdown-docs manifest <docs-root>
+  manifest: `payload-markdown-docs manifest [docs-root]
 
 Options:
+  --docs <path>             Docs source root. Defaults to ./docs.
+  --skills <path>           Skills source root. Defaults to ./skills.
+  --llms <path>             llms.txt path. Defaults to ./llms.txt.
+  --llms-full <path>        llms-full.txt path. Defaults to ./llms-full.txt.
+  --no-docs                 Exclude Markdown docs records.
+  --no-skills               Exclude skill artifacts.
+  --no-llms                 Exclude llms.txt.
+  --no-llms-full            Exclude llms-full.txt.
   --source <id>              Docs set slug. Defaults to the GitHub repository name in GitHub Actions, otherwise local-docs.
   --repository <repo>        Source repository metadata.
   --branch <branch>          Source branch metadata.
@@ -79,9 +87,17 @@ Options:
   --max-total-bytes <number> Maximum total Markdown bytes.
   --help                     Show this help.
 `,
-  plan: `payload-markdown-docs plan <docs-root>
+  plan: `payload-markdown-docs plan [docs-root]
 
 Options:
+  --docs <path>             Docs source root. Defaults to ./docs.
+  --skills <path>           Skills source root. Defaults to ./skills.
+  --llms <path>             llms.txt path. Defaults to ./llms.txt.
+  --llms-full <path>        llms-full.txt path. Defaults to ./llms-full.txt.
+  --no-docs                 Exclude Markdown docs records.
+  --no-skills               Exclude skill artifacts.
+  --no-llms                 Exclude llms.txt.
+  --no-llms-full            Exclude llms-full.txt.
   --existing <path>          JSON array of existing docs records.
   --delete-behavior <value>  archive, delete, draft, or ignore.
   --json                     Print full plan JSON.
@@ -95,17 +111,25 @@ Options:
   --max-total-bytes <number> Maximum total Markdown bytes.
   --help                     Show this help.
 `,
-  push: `payload-markdown-docs push <docs-root>
+  push: `payload-markdown-docs push [docs-root]
 
 Options:
+  --docs <path>             Docs source root. Defaults to ./docs.
+  --skills <path>           Skills source root. Defaults to ./skills.
+  --llms <path>             llms.txt path. Defaults to ./llms.txt.
+  --llms-full <path>        llms-full.txt path. Defaults to ./llms-full.txt.
+  --no-docs                 Exclude Markdown docs records.
+  --no-skills               Exclude skill artifacts.
+  --no-llms                 Exclude llms.txt.
+  --no-llms-full            Exclude llms-full.txt.
   --endpoint <url>           Full Payload sync endpoint URL.
   --key-id <id>              Server-configured Ed25519 key id.
   --private-key-file <path>  Private key file from keygen, or an unencrypted OpenSSH Ed25519 key.
   --private-key-env <name>   Environment variable containing the private key.
   --github-oidc              Use GitHub Actions OIDC bearer auth instead of Ed25519.
   --oidc-token-env <name>    Environment variable containing an already-fetched OIDC token.
-  --dry-run                  Upload as dry-run mode. This is the default.
-  --sync                     Upload as sync mode. Requires server sync.allowWrites.
+  --dry-run                  Validate and submit a dry-run request without applying writes.
+  --sync                     Deprecated compatibility flag. Sync is the default.
   --publish                  Request published output. Server must allow publishing.
   --delete-behavior <value>  archive, delete, draft, or ignore. Defaults to archive.
   --json                     Print structured JSON output.
@@ -121,17 +145,25 @@ Options:
 
 Examples:
   Ed25519:
-    payload-markdown-docs push ./docs --endpoint "$DOCS_SYNC_ENDPOINT" --source main-docs --key-id github-actions-main --private-key-env DOCS_SYNC_PRIVATE_KEY --sync
+    payload-markdown-docs push --endpoint "$DOCS_SYNC_ENDPOINT" --source main-docs --key-id github-actions-main --private-key-env DOCS_SYNC_PRIVATE_KEY
 
   GitHub OIDC:
-    payload-markdown-docs push ./docs --endpoint "$DOCS_SYNC_ENDPOINT" --github-oidc --sync
+    payload-markdown-docs push --endpoint "$DOCS_SYNC_ENDPOINT" --source main-docs --github-oidc
 
 GitHub OIDC requires workflow permissions: id-token: write and contents: read.
 Hard delete requires explicit server sync.allowHardDelete. Existing collection and block targets are not supported yet.
 `,
-  validate: `payload-markdown-docs validate <docs-root>
+  validate: `payload-markdown-docs validate [docs-root]
 
 Options:
+  --docs <path>             Docs source root. Defaults to ./docs.
+  --skills <path>           Skills source root. Defaults to ./skills.
+  --llms <path>             llms.txt path. Defaults to ./llms.txt.
+  --llms-full <path>        llms-full.txt path. Defaults to ./llms-full.txt.
+  --no-docs                 Exclude Markdown docs records.
+  --no-skills               Exclude skill artifacts.
+  --no-llms                 Exclude llms.txt.
+  --no-llms-full            Exclude llms-full.txt.
   --json                     Print validation JSON.
   --pretty                   Pretty-print JSON output.
   --source <id>              Docs set slug. Defaults to the GitHub repository name in GitHub Actions, otherwise local-docs.

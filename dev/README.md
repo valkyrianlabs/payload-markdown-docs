@@ -111,8 +111,7 @@ pnpm cli push ./dev/docs-fixtures/basic \
   --endpoint "http://localhost:3000/api/payload-markdown-docs/sync" \
   --source payload-markdown-docs \
   --key-id dev-local \
-  --private-key-file dev/.docs-sync/docs-sync-private.pem \
-  --sync
+  --private-key-file dev/.docs-sync/docs-sync-private.pem
 ```
 
 Apply and publish:
@@ -123,7 +122,6 @@ pnpm cli push ./dev/docs-fixtures/publishing \
   --source payload-markdown-docs \
   --key-id dev-local \
   --private-key-file dev/.docs-sync/docs-sync-private.pem \
-  --sync \
   --publish
 ```
 
@@ -155,7 +153,7 @@ Check:
 - The docs set edit view shows the read-only Generated Docs manager.
 - Generated docs records are hidden from the main sidebar; open them from the Generated Docs manager links.
 - Docs sync runs and nonces are hidden from the main sidebar.
-- After `push --sync --publish`, the frontend route renders:
+- After `push --publish`, the frontend route renders:
 
 ```text
 http://localhost:3000/plugins/payload-markdown-docs
@@ -170,8 +168,8 @@ http://localhost:3000/plugins/payload-markdown-docs/configuration/sync
 
 Draft and publish behavior:
 
-- Run `push --sync` without `--publish`; generated records should be drafts and the frontend route should not resolve them.
-- Run `push --sync --publish`; generated records should be published and the frontend route should render them.
+- Run `push` without `--publish`; generated records should be drafts and the frontend route should not resolve them.
+- Run `push --publish`; generated records should be published and the frontend route should render them.
 
 Archived docs:
 

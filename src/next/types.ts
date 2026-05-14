@@ -6,6 +6,7 @@ export type PayloadMarkdownDocsReadPayload = Pick<Payload, 'find'>
 
 export type PayloadMarkdownDocsCollectionSlugs = {
   docs?: CollectionSlug
+  docsAssets?: CollectionSlug
   docsGroups?: CollectionSlug
   docsSets?: CollectionSlug
 }

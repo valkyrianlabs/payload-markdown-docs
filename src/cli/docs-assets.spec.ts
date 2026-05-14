@@ -15,7 +15,7 @@ const requiredDirectives = [
   ':::card',
 ]
 
-const markdownLinkRegex = /\[[^\]]+]\(([^)]+)\)/g
+const markdownLinkRegex = /\[[^\]]+\]\(([^)]+)\)/g
 
 describe('dogfood docs assets', () => {
   it('validates the root docs tree as a docs manifest', async () => {
@@ -135,11 +135,11 @@ describe('GitHub Actions workflow docs asset', () => {
   it('uses supported commands and documents PR dry-run plus main publish sync', async () => {
     const workflow = await readFile(workflowPath, 'utf8')
 
-    expect(workflow).toContain('pnpm exec payload-markdown-docs validate ./docs --source main-docs')
+    expect(workflow).toContain('pnpm exec payload-markdown-docs validate --source main-docs')
     expect(workflow).toContain('if: github.event_name == \'pull_request\'')
     expect(workflow).toContain('--dry-run')
     expect(workflow).toContain('github.ref == \'refs/heads/main\'')
-    expect(workflow).toContain('--sync')
+    expect(workflow).not.toContain('--sync')
     expect(workflow).toContain('--publish')
     expect(workflow).toContain('DOCS_SYNC_ENDPOINT')
     expect(workflow).toContain('id-token: write')

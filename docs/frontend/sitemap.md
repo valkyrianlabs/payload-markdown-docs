@@ -15,8 +15,9 @@ Use `getDocsForSitemap` from the `/next` export when a Next App Router site has
 a dynamic `src/app/sitemap.ts` file.
 
 The helper reads published docs sets, resolves group paths, includes the
-generated docs records inside each set, prepends `siteUrl`, merges optional
-static routes, and returns a ready-to-use `MetadataRoute.Sitemap` array.
+generated docs records inside each set, includes synced static assets by
+default, prepends `siteUrl`, merges optional static routes, and returns a
+ready-to-use `MetadataRoute.Sitemap` array.
 
 ```ts
 import type { MetadataRoute } from 'next'
@@ -86,10 +87,10 @@ once, the newest `lastModified` value is kept. Output remains sorted by URL.
 - `llms.txt` is an AI-readable entrypoint.
 - native skills are agent workflow artifacts.
 
-This package includes source files for top-level `/llms.txt` and
-`/llms-full.txt`. Route serving belongs to the consuming Next app: copy those
-files into `public/`, or add route handlers that return their contents. Include
-them in the sitemap with `additionalRoutes`.
+When `payload-markdown-docs push` syncs assets, `getDocsForSitemap` includes
+stored `/llms.txt`, `/llms-full.txt`, and skill artifact routes by default. Set
+`includeAssets: false` only when the site wants to manage those entries
+manually. For static files that are not synced, keep using `additionalRoutes`.
 
 Use `getPayloadMarkdownDocsAiSitemapRoutes` to build common AI/static routes:
 
@@ -141,6 +142,30 @@ Skill artifacts can be hosted under plugin docs routes, such as
 `/plugins/payload-markdown-docs/skills/codex/SKILL.md`, or under a top-level
 route such as `/skills/payload-markdown-docs/codex/SKILL.md`. Set `basePath` to
 the public route your site owns.
+
+## Serving Synced Assets
+
+If the consuming app owns top-level route handlers, use the asset response
+helpers from the `/next` export. They look up synced asset records by public
+route and return the stored content type.
+
+```ts
+import config from '@payload-config'
+import { createPayloadMarkdownDocsLlmsResponse } from '@valkyrianlabs/payload-markdown-docs/next'
+import { getPayload } from 'payload'
+
+export async function GET() {
+  const payload = await getPayload({ config })
+
+  return createPayloadMarkdownDocsLlmsResponse({
+    path: '/llms.txt',
+    payload,
+  })
+}
+```
+
+Use the same helper shape for `/llms-full.txt` and docs-set skill routes such
+as `/plugins/payload-markdown-docs/skills/codex/SKILL.md`.
 
 ## Cache Keys And Tags
 

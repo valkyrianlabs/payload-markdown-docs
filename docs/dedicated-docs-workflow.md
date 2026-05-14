@@ -123,7 +123,7 @@ pnpm exec payload-markdown-docs plan ./docs --source main-docs
 Use dry-run before applying changes:
 
 ```bash
-pnpm exec payload-markdown-docs push ./docs \
+pnpm exec payload-markdown-docs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
   --source main-docs \
   --key-id github-actions-main \
@@ -140,15 +140,14 @@ without changing docs records.
 Apply docs changes only after server config enables writes:
 
 ```bash
-pnpm exec payload-markdown-docs push ./docs \
+pnpm exec payload-markdown-docs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
   --source main-docs \
   --key-id github-actions-main \
-  --private-key-env DOCS_SYNC_PRIVATE_KEY \
-  --sync
+  --private-key-env DOCS_SYNC_PRIVATE_KEY
 ```
 
-`--sync` requires:
+Sync writes require:
 
 ```ts
 sync: {
@@ -163,12 +162,11 @@ The server can create, update, reactivate, archive, draft, or hard-delete dedica
 Publishing is a request from the client and a server-owned decision.
 
 ```bash
-pnpm exec payload-markdown-docs push ./docs \
+pnpm exec payload-markdown-docs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
   --source main-docs \
   --key-id github-actions-main \
   --private-key-env DOCS_SYNC_PRIVATE_KEY \
-  --sync \
   --publish
 ```
 

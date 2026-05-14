@@ -58,23 +58,22 @@ pnpm exec payload-markdown-docs validate ./docs --source main-docs
 ## Generate A Manifest
 
 ```bash
-pnpm exec payload-markdown-docs manifest ./docs --source main-docs --pretty
+pnpm exec payload-markdown-docs manifest --source main-docs --pretty
 ```
 
 ## Preview A Plan
 
 ```bash
-pnpm exec payload-markdown-docs plan ./docs --source main-docs
+pnpm exec payload-markdown-docs plan --source main-docs
 ```
 
 ## Push From GitHub Actions
 
 ```bash
-pnpm exec payload-markdown-docs push ./docs \
+pnpm exec payload-markdown-docs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
   --source main-docs \
-  --github-oidc \
-  --sync
+  --github-oidc
 ```
 
 When the docs set slug matches the repository name, `--source` can be omitted in

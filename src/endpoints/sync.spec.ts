@@ -4,6 +4,7 @@ import { generateKeyPairSync, randomUUID, sign } from 'node:crypto'
 import { describe, expect, it, vi } from 'vitest'
 
 import {
+  DEFAULT_DOCS_ASSETS_COLLECTION_SLUG,
   DEFAULT_DOCS_GROUPS_COLLECTION_SLUG,
   DEFAULT_DOCS_KEYS_COLLECTION_SLUG,
   DEFAULT_DOCS_SETS_COLLECTION_SLUG,
@@ -96,6 +97,7 @@ const createMockPayload = ({
       title: 'Valkyrian Labs',
     },
   ],
+  existingAssets = [],
   existingDocs = [],
   pages = [],
   replayNonce = false,
@@ -104,6 +106,7 @@ const createMockPayload = ({
   docsKeys?: unknown[]
   docsSets?: unknown[]
   docsTrusted?: unknown[]
+  existingAssets?: unknown[]
   existingDocs?: unknown[]
   pages?: unknown[]
   replayNonce?: boolean
@@ -130,6 +133,12 @@ const createMockPayload = ({
     if (collection === 'docs') {
       return Promise.resolve({
         docs: existingDocs,
+      })
+    }
+
+    if (collection === DEFAULT_DOCS_ASSETS_COLLECTION_SLUG) {
+      return Promise.resolve({
+        docs: existingAssets,
       })
     }
 
@@ -359,6 +368,8 @@ const createEndpointForTests = ({
       ed25519: true,
     },
     deleteBehavior,
+    docsAssetsCollectionSlug: DEFAULT_DOCS_ASSETS_COLLECTION_SLUG,
+    docsAssetsEnabled: true,
     docsCollectionSlug: 'docs',
     docsEnabled: true,
     docsEnableDrafts,
@@ -1482,6 +1493,75 @@ describe('sync endpoint dry-run handling', () => {
       }),
     )
     expect(JSON.stringify(json)).not.toContain('# Home')
+  })
+
+  it('applies sync mode by creating llms and skill asset records', async () => {
+    const { privateKey, publicKey } = keyPair()
+    const body = JSON.stringify(
+      buildDocsManifest({
+        assets: [
+          {
+            content: '# Main Docs\n',
+            contentType: 'text/plain; charset=utf-8',
+            kind: 'llms',
+            path: 'llms.txt',
+            route: '/llms.txt',
+          },
+          {
+            content: '# Codex Skill\n',
+            contentType: 'text/markdown; charset=utf-8',
+            kind: 'skill',
+            path: 'skills/main-docs/codex/SKILL.md',
+          },
+        ],
+        files: [
+          {
+            content: '# Home\n',
+            path: 'index.md',
+          },
+        ],
+        mode: 'sync',
+        sourceId: 'main-docs',
+      }),
+    )
+    const payload = createMockPayload()
+    const { json, response } = await callEndpoint({
+      body,
+      endpointOptions: {
+        allowWrites: true,
+      },
+      headers: signBody({
+        body,
+        privateKey,
+      }),
+      payload,
+      publicKey: publicKey.toString(),
+    })
+
+    expect(response.status).toBe(200)
+    expect(json.summary).toMatchObject({
+      assetCreate: 2,
+    })
+    expect(payload.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: DEFAULT_DOCS_ASSETS_COLLECTION_SLUG,
+        data: expect.objectContaining({
+          kind: 'llms',
+          route: '/llms.txt',
+          sourcePath: 'llms.txt',
+        }),
+      }),
+    )
+    expect(payload.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: DEFAULT_DOCS_ASSETS_COLLECTION_SLUG,
+        data: expect.objectContaining({
+          kind: 'skill',
+          route: '/main-docs/skills/codex/SKILL.md',
+          sourcePath: 'skills/main-docs/codex/SKILL.md',
+        }),
+      }),
+    )
   })
 
   it('resolves docs sets by slug and derives the docs set route base', async () => {

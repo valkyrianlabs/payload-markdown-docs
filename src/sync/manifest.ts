@@ -19,7 +19,19 @@ export type DocsManifestFile = {
   sha256?: string
 }
 
+export type DocsManifestAssetKind = 'llms' | 'llms-full' | 'skill' | 'static'
+
+export type DocsManifestAsset = {
+  content: string
+  contentType: string
+  kind: DocsManifestAssetKind
+  path: string
+  route?: string
+  sha256?: string
+}
+
 export type DocsManifest = {
+  assets?: DocsManifestAsset[]
   deleteBehavior?: DocsDeleteBehavior
   files: DocsManifestFile[]
   mode?: DocsSyncMode
@@ -37,7 +49,17 @@ export type ValidatedDocsManifestFile = {
   title: string
 }
 
+export type ValidatedDocsManifestAsset = {
+  content: string
+  contentType: string
+  kind: DocsManifestAssetKind
+  path: string
+  route?: string
+  sha256: string
+}
+
 export type ValidatedDocsManifest = {
+  assets: ValidatedDocsManifestAsset[]
   deleteBehavior: DocsDeleteBehavior
   files: ValidatedDocsManifestFile[]
   mode: DocsSyncMode
@@ -51,7 +73,16 @@ export type DocsManifestInputFile = {
   path: string
 }
 
+export type DocsManifestInputAsset = {
+  content: string
+  contentType: string
+  kind: DocsManifestAssetKind
+  path: string
+  route?: string
+}
+
 export const buildDocsManifest = ({
+  assets = [],
   branch,
   commit,
   deleteBehavior,
@@ -61,6 +92,7 @@ export const buildDocsManifest = ({
   repository,
   sourceId,
 }: {
+  assets?: DocsManifestInputAsset[]
   branch?: string
   commit?: string
   deleteBehavior?: DocsDeleteBehavior
@@ -70,6 +102,10 @@ export const buildDocsManifest = ({
   repository?: string
   sourceId: string
 }): DocsManifest => ({
+  assets: assets.map((asset) => ({
+    ...asset,
+    sha256: sha256Hex(asset.content),
+  })),
   deleteBehavior,
   files: files.map((file) => ({
     ...file,

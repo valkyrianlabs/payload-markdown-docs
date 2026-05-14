@@ -13,18 +13,30 @@ export { buildDocsManifest } from './manifest.js'
 export type {
   DocsDeleteBehavior,
   DocsManifest,
+  DocsManifestAsset,
+  DocsManifestAssetKind,
   DocsManifestFile,
+  DocsManifestInputAsset,
   DocsManifestInputFile,
   DocsManifestSource,
   DocsSyncMode,
   ValidatedDocsManifest,
+  ValidatedDocsManifestAsset,
   ValidatedDocsManifestFile,
 } from './manifest.js'
-export { deriveRouteFromSourcePath, normalizeDocsPath } from './paths.js'
-export { planDocsSync } from './plan.js'
+export {
+  deriveAssetRouteFromSourcePath,
+  deriveRouteFromSourcePath,
+  normalizeAssetPath,
+  normalizeDocsPath,
+} from './paths.js'
+export { planDocsAssetsSync, planDocsSync } from './plan.js'
 export type {
+  DocsAssetsSyncPlan,
   DocsSyncPlan,
+  ExistingAssetRecord,
   ExistingDocsRecord,
+  PlannedAssetChange,
   PlannedDocChange,
 } from './plan.js'
 export { validateDocsManifest } from './validate.js'

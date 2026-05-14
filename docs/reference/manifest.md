@@ -22,7 +22,7 @@ The sync protocol uses JSON manifest uploads, not ZIP files.
     "branch": "main",
     "repository": "valkyrianlabs/payload-markdown-docs"
   },
-  "mode": "dry-run",
+  "mode": "sync",
   "deleteBehavior": "archive",
   "publish": false,
   "files": [
@@ -30,6 +30,24 @@ The sync protocol uses JSON manifest uploads, not ZIP files.
       "path": "getting-started/installation.md",
       "sha256": "...",
       "content": "# Installation\n\n..."
+    }
+  ],
+  "assets": [
+    {
+      "kind": "llms",
+      "path": "llms.txt",
+      "route": "/llms.txt",
+      "contentType": "text/plain; charset=utf-8",
+      "sha256": "...",
+      "content": "# Main Docs\n\n..."
+    },
+    {
+      "kind": "skill",
+      "path": "skills/main-docs/codex/SKILL.md",
+      "route": "/plugins/main-docs/skills/codex/SKILL.md",
+      "contentType": "text/markdown; charset=utf-8",
+      "sha256": "...",
+      "content": "# Skill\n\n..."
     }
   ]
 }
@@ -45,6 +63,24 @@ The sync protocol uses JSON manifest uploads, not ZIP files.
 - declared SHA-256 must match content
 - frontmatter must use the supported subset
 - file count and size limits are enforced
+
+## Static Assets
+
+`files` are docs records and use frontmatter, title resolution, and route
+derivation. `assets` are static AI-facing artifacts and are stored separately.
+They do not require frontmatter and are not parsed as docs pages.
+
+Supported asset kinds:
+
+- `llms`
+- `llms-full`
+- `skill`
+- `static`
+
+`llms` and `llms-full` assets use root routes `/llms.txt` and
+`/llms-full.txt`. Skill routes are derived from the docs set route base, so
+`skills/main-docs/codex/SKILL.md` serves under
+`<docsSet.routeBase>/skills/codex/SKILL.md`.
 
 :::callout {variant="info" title="No target config in the manifest"}
 The manifest does not include target collection, target fields, route base, publish authority, or hard-delete authority.

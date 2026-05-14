@@ -213,6 +213,9 @@ export const isVisibleDocsRecord = ({
   includeDrafts?: boolean
   record: ResolvedPayloadMarkdownDocsRecord
 }): boolean => {
-  if (record.archived) return false
+  if (record.archived) {
+    return false
+  }
+
   return !(!includeDrafts && record.status === 'draft');
 }

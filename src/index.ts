@@ -1,4 +1,5 @@
 export {
+  DEFAULT_DOCS_ASSETS_COLLECTION_SLUG,
   DEFAULT_DOCS_COLLECTION_SLUG,
   DEFAULT_DOCS_GROUPS_COLLECTION_SLUG,
   DEFAULT_DOCS_KEYS_COLLECTION_SLUG,
@@ -40,10 +41,13 @@ export { signDocsSyncRequest } from './security/index.js'
 export type { SignDocsSyncRequestOptions, SignedDocsSyncRequest } from './security/index.js'
 export {
   buildDocsManifest,
+  deriveAssetRouteFromSourcePath,
   deriveRouteFromSourcePath,
   inferTitleFromMarkdown,
+  normalizeAssetPath,
   normalizeDocsPath,
   parseDocsFrontmatter,
+  planDocsAssetsSync,
   planDocsSync,
   resolveDocsTitle,
   sha256Hex,
@@ -51,10 +55,14 @@ export {
   validateDocsManifest,
 } from './sync/index.js'
 export type {
+  DocsAssetsSyncPlan,
   DocsDeleteBehavior,
   DocsFrontmatter,
   DocsManifest,
+  DocsManifestAsset,
+  DocsManifestAssetKind,
   DocsManifestFile,
+  DocsManifestInputAsset,
   DocsManifestInputFile,
   DocsManifestSource,
   DocsSyncMode,
@@ -63,10 +71,13 @@ export type {
   DocsValidationIssue,
   DocsValidationOptions,
   DocsValidationResult,
+  ExistingAssetRecord,
   ExistingDocsRecord,
   ParseDocsFrontmatterResult,
+  PlannedAssetChange,
   PlannedDocChange,
   ValidatedDocsManifest,
+  ValidatedDocsManifestAsset,
   ValidatedDocsManifestFile,
 } from './sync/index.js'
 export type {

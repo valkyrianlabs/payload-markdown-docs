@@ -21,7 +21,7 @@ Two auth modes are supported:
 ## Dry Run
 
 ```bash
-pnpm exec payload-markdown-docs push ./docs \
+pnpm exec payload-markdown-docs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
   --source main-docs \
   --key-id github-actions-main \
@@ -29,17 +29,17 @@ pnpm exec payload-markdown-docs push ./docs \
   --dry-run
 ```
 
-Dry-run is the default when neither `--dry-run` nor `--sync` is provided.
+Dry-run is an explicit validation-only mode. Without `--dry-run`, `push`
+defaults to sync mode.
 
 ## Sync
 
 ```bash
-pnpm exec payload-markdown-docs push ./docs \
+pnpm exec payload-markdown-docs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
   --source main-docs \
   --key-id github-actions-main \
-  --private-key-env DOCS_SYNC_PRIVATE_KEY \
-  --sync
+  --private-key-env DOCS_SYNC_PRIVATE_KEY
 ```
 
 Sync mode requires `sync.allowWrites: true` on the server.
@@ -68,11 +68,10 @@ PKCS#8/SPKI public keys from `keygen` or `ssh-ed25519 ...` OpenSSH public keys.
 ## GitHub OIDC
 
 ```bash
-pnpm exec payload-markdown-docs push ./docs \
+pnpm exec payload-markdown-docs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
   --source main-docs \
-  --github-oidc \
-  --sync
+  --github-oidc
 ```
 
 In OIDC mode, the CLI sends:

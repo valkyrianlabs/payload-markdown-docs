@@ -1,3 +1,4 @@
+export const DEFAULT_DOCS_ASSETS_COLLECTION_SLUG = 'payload-markdown-docs-assets'
 export const DEFAULT_DOCS_COLLECTION_SLUG = 'docs'
 export const DEFAULT_DOCS_GROUPS_COLLECTION_SLUG = 'docs-groups'
 export const DEFAULT_DOCS_KEYS_COLLECTION_SLUG = 'docs-keys'

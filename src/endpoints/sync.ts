@@ -1,10 +1,12 @@
 import type { Endpoint, PayloadRequest } from 'payload'
 
 import type {
+  ApplyDocsAssetsSyncPayloadOperations,
   ApplyDocsSyncPayloadOperations,
   DocsKeyPayloadOperations,
   DocsSetPayloadOperations,
   DocsTrustedPayloadOperations,
+  ExistingAssetsPayloadOperations,
   ExistingDocsPayloadOperations,
   ExistingPayloadDocsRecord,
   ResolvedDocsSet,
@@ -16,6 +18,7 @@ import type {
   DocsDeleteBehavior,
   DocsManifest,
   DocsValidationIssue,
+  PlannedAssetChange,
   PlannedDocChange,
   ValidatedDocsManifest,
 } from '../sync/index.js'
@@ -25,25 +28,31 @@ import type {
 } from '../types.js'
 
 import {
+  DEFAULT_DOCS_ASSETS_COLLECTION_SLUG,
   DEFAULT_MAX_BODY_BYTES,
   DEFAULT_MAX_SKEW_SECONDS,
   DEFAULT_NONCE_TTL_SECONDS,
 } from '../constants.js'
 import {
+  applyDocsAssetsSync,
   applyDocsSync,
   assertApplyDeleteBehaviorSupported,
   createSyncRunAudit,
   findConfiguredPagesRouteCollisions,
+  findDocsAssetsSyncConflicts,
   findDocsKeyById,
   findDocsSetBySlug,
   findDocsSyncConflicts,
   findDuplicateDesiredRouteCollisions,
+  findExistingAssetRouteCollisions,
   findExistingDocsRouteCollisions,
+  findExistingPayloadDocsAssetRecords,
   findExistingPayloadDocsRecords,
   findTrustedGitHubSources,
   getRecordId,
   isEd25519AuthEnabled,
   isGitHubOidcAuthEnabled,
+  toExistingAssetRecord,
   toExistingDocsRecord,
   updateDocsSetAfterSync,
   updateSyncRunAudit,
@@ -59,7 +68,7 @@ import {
   verifyEd25519Signature,
   verifyGitHubOidcToken,
 } from '../security/index.js'
-import { planDocsSync, validateDocsManifest } from '../sync/index.js'
+import { planDocsAssetsSync, planDocsSync, validateDocsManifest } from '../sync/index.js'
 
 export type DocsSyncEndpointErrorCode =
   | 'audit_unavailable'
@@ -107,6 +116,8 @@ export type CreateSyncEndpointOptions = {
   allowWrites?: boolean
   auth?: PayloadMarkdownDocsAuthConfig
   deleteBehavior?: DocsDeleteBehavior
+  docsAssetsCollectionSlug?: string
+  docsAssetsEnabled?: boolean
   docsCollectionSlug: string
   docsEnabled: boolean
   docsEnableDrafts: boolean
@@ -174,7 +185,32 @@ type SerializedChange = {
   sourcePath: string
 }
 
+type SerializedAssetChange = {
+  current?: {
+    archived?: boolean
+    contentType: string
+    kind: string
+    route?: string
+    sourceHash?: string
+  }
+  desired?: {
+    contentType: string
+    kind: string
+    route?: string
+    sha256: string
+  }
+  reason: string
+  sourcePath: string
+}
+
 type SyncSuccessResponse = {
+  assetChanges: {
+    archive: SerializedAssetChange[]
+    create: SerializedAssetChange[]
+    delete: SerializedAssetChange[]
+    unchanged: SerializedAssetChange[]
+    update: SerializedAssetChange[]
+  }
   changes: {
     archive: SerializedChange[]
     create: SerializedChange[]
@@ -189,6 +225,11 @@ type SyncSuccessResponse = {
   publishRequested: boolean
   summary: {
     archive: number
+    assetArchive: number
+    assetCreate: number
+    assetDelete: number
+    assetUnchanged: number
+    assetUpdate: number
     create: number
     delete: number
     draft: number
@@ -311,6 +352,14 @@ const summarizePlan = (plan: ReturnType<typeof planDocsSync>) => ({
   warnings: plan.warnings.length,
 })
 
+const summarizeAssetPlan = (plan: ReturnType<typeof planDocsAssetsSync>) => ({
+  assetArchive: plan.archive.length,
+  assetCreate: plan.create.length,
+  assetDelete: plan.delete.length,
+  assetUnchanged: plan.unchanged.length,
+  assetUpdate: plan.update.length,
+})
+
 const serializeChange = (change: PlannedDocChange): SerializedChange => ({
   current: change.current
     ? {
@@ -340,8 +389,41 @@ const serializeChanges = (plan: ReturnType<typeof planDocsSync>) => ({
   update: plan.update.map(serializeChange),
 })
 
+const serializeAssetChange = (change: PlannedAssetChange): SerializedAssetChange => ({
+  current: change.current
+    ? {
+        archived: change.current.archived,
+        contentType: change.current.contentType,
+        kind: change.current.kind,
+        route: change.current.route,
+        sourceHash: change.current.sourceHash,
+      }
+    : undefined,
+  desired: change.desired
+    ? {
+        contentType: change.desired.contentType,
+        kind: change.desired.kind,
+        route: change.desired.route,
+        sha256: change.desired.sha256,
+      }
+    : undefined,
+  reason: change.reason,
+  sourcePath: change.sourcePath,
+})
+
+const serializeAssetChanges = (plan: ReturnType<typeof planDocsAssetsSync>) => ({
+  archive: plan.archive.map(serializeAssetChange),
+  create: plan.create.map(serializeAssetChange),
+  delete: plan.delete.map(serializeAssetChange),
+  unchanged: plan.unchanged.map(serializeAssetChange),
+  update: plan.update.map(serializeAssetChange),
+})
+
 const getTotalManifestBytes = (manifest: ValidatedDocsManifest): number =>
-  manifest.files.reduce((total, file) => total + Buffer.byteLength(file.content, 'utf8'), 0)
+  [...manifest.files, ...manifest.assets].reduce(
+    (total, file) => total + Buffer.byteLength(file.content, 'utf8'),
+    0,
+  )
 
 const DEFAULT_REVALIDATE_TAGS = [
   'payload-markdown-docs',
@@ -381,9 +463,11 @@ const getRevalidationTags = ({
 }
 
 const getRevalidationPaths = ({
+  assetPlan,
   manifest,
   plan,
 }: {
+  assetPlan: ReturnType<typeof planDocsAssetsSync>
   manifest: ValidatedDocsManifest
   plan: ReturnType<typeof planDocsSync>
 }): string[] => {
@@ -393,7 +477,23 @@ const getRevalidationPaths = ({
     paths.add(file.route)
   }
 
+  for (const asset of manifest.assets) {
+    if (asset.route) {
+      paths.add(asset.route)
+    }
+  }
+
   for (const change of [...plan.archive, ...plan.delete, ...plan.draft, ...plan.update]) {
+    if (change.current?.route) {
+      paths.add(change.current.route)
+    }
+
+    if (change.desired?.route) {
+      paths.add(change.desired.route)
+    }
+  }
+
+  for (const change of [...assetPlan.archive, ...assetPlan.delete, ...assetPlan.update]) {
     if (change.current?.route) {
       paths.add(change.current.route)
     }
@@ -407,10 +507,12 @@ const getRevalidationPaths = ({
 }
 
 const revalidateDocsSyncCache = async ({
+  assetPlan,
   manifest,
   options,
   plan,
 }: {
+  assetPlan: ReturnType<typeof planDocsAssetsSync>
   manifest: ValidatedDocsManifest
   options: CreateSyncEndpointOptions
   plan: ReturnType<typeof planDocsSync>
@@ -447,6 +549,7 @@ const revalidateDocsSyncCache = async ({
   }
 
   for (const path of getRevalidationPaths({
+    assetPlan,
     manifest,
     plan,
   })) {
@@ -474,6 +577,12 @@ const getPlannedConflictChanges = ({
 
   return [...plan.update, ...plan.archive, ...plan.draft, ...plan.delete, ...archivedUnchanged]
 }
+
+const getPlannedAssetConflictChanges = ({
+  plan,
+}: {
+  plan: ReturnType<typeof planDocsAssetsSync>
+}): PlannedAssetChange[] => [...plan.update, ...plan.archive, ...plan.delete]
 
 const getLifecyclePolicyError = ({
   deleteBehavior,
@@ -528,7 +637,10 @@ const getRouteCollisionIssues = async ({
   payload: RouteCollisionPayloadOperations
   routeBase: string
 }) => {
-  const desiredRoutes = manifest.files.map((file) => file.route)
+  const desiredRoutes = [
+    ...manifest.files.map((file) => file.route),
+    ...manifest.assets.flatMap((asset) => (asset.route ? [asset.route] : [])),
+  ]
   const duplicateDesiredRouteCollisions = findDuplicateDesiredRouteCollisions(desiredRoutes)
   const existingDocsRouteCollisions = options.docsEnabled
     ? await findExistingDocsRouteCollisions({
@@ -540,6 +652,16 @@ const getRouteCollisionIssues = async ({
         sourceId: manifest.source.id,
       })
     : []
+  const existingAssetRouteCollisions =
+    options.docsAssetsEnabled === true
+      ? await findExistingAssetRouteCollisions({
+          collectionSlug: options.docsAssetsCollectionSlug ?? DEFAULT_DOCS_ASSETS_COLLECTION_SLUG,
+          docsSetId: docsSet?.id,
+          payload,
+          routes: desiredRoutes,
+          sourceId: manifest.source.id,
+        })
+      : []
   const pageRouteCollisions =
     options.routing?.pages?.enabled === true
       ? await findConfiguredPagesRouteCollisions({
@@ -555,6 +677,7 @@ const getRouteCollisionIssues = async ({
   return [
     ...duplicateDesiredRouteCollisions,
     ...existingDocsRouteCollisions,
+    ...existingAssetRouteCollisions,
     ...pageRouteCollisions,
   ]
 }
@@ -1139,8 +1262,28 @@ const createSyncEndpointHandler =
       desired: validation.data,
       existing: existingDocs,
     })
-    const summary = summarizePlan(plan)
-    const warnings = [...validation.warnings, ...plan.warnings]
+    const docsAssetsCollectionSlug =
+      options.docsAssetsCollectionSlug ?? DEFAULT_DOCS_ASSETS_COLLECTION_SLUG
+    const existingPayloadAssets = options.docsAssetsEnabled === true
+      ? await findExistingPayloadDocsAssetRecords({
+          collectionSlug: docsAssetsCollectionSlug,
+          docsSetId: sourceResolution.source.docsSet?.id,
+          payload: req.payload as unknown as ExistingAssetsPayloadOperations,
+          sourceId: validation.data.source.id,
+        })
+      : []
+    const existingAssets = existingPayloadAssets.map(toExistingAssetRecord)
+    const assetPlan = planDocsAssetsSync({
+      deleteBehavior: effectiveDeleteBehavior,
+      desired: validation.data,
+      existing: existingAssets,
+    })
+    const warnings = [...validation.warnings, ...plan.warnings, ...assetPlan.warnings]
+    const summary = {
+      ...summarizePlan(plan),
+      ...summarizeAssetPlan(assetPlan),
+      warnings: warnings.length,
+    }
     if (isSyncMode) {
       const existingBySourcePath = new Map(
         existingPayloadDocs.map((record) => [record.sourcePath, record]),
@@ -1160,6 +1303,27 @@ const createSyncEndpointHandler =
           409,
           {
             conflicts,
+          },
+        )
+      }
+
+      const existingAssetsBySourcePath = new Map(
+        existingPayloadAssets.map((record) => [record.sourcePath, record]),
+      )
+      const assetConflicts = findDocsAssetsSyncConflicts({
+        existingBySourcePath: existingAssetsBySourcePath,
+        plannedChanges: getPlannedAssetConflictChanges({
+          plan: assetPlan,
+        }),
+      })
+
+      if (assetConflicts.length > 0) {
+        return errorResponse(
+          'manual_edit_conflict',
+          'One or more docs assets were modified outside the docs sync workflow.',
+          409,
+          {
+            conflicts: assetConflicts,
           },
         )
       }
@@ -1188,7 +1352,7 @@ const createSyncEndpointHandler =
         completedAt: isSyncMode ? startedAt : (options.getNow?.() ?? new Date()),
         deleteBehavior: effectiveDeleteBehavior,
         errors: [],
-        fileCount: validation.data.files.length,
+        fileCount: validation.data.files.length + validation.data.assets.length,
         keyId: authentication.identity.keyId,
         mode: isSyncMode ? 'sync' : 'dry-run',
         payload: req.payload as unknown as SyncRunsPayloadOperations,
@@ -1241,6 +1405,31 @@ const createSyncEndpointHandler =
           )
         }
 
+        if (options.docsAssetsEnabled === true) {
+          const applyAssetsResult = await applyDocsAssetsSync({
+            collectionSlug: docsAssetsCollectionSlug,
+            deleteBehavior: effectiveDeleteBehavior,
+            docsSetId: sourceResolution.source.docsSet?.id,
+            existing: existingPayloadAssets,
+            manifest: validation.data,
+            now: options.getNow?.() ?? new Date(),
+            payload: req.payload as unknown as ApplyDocsAssetsSyncPayloadOperations,
+            plan: assetPlan,
+            syncRunId,
+          })
+
+          if (!applyAssetsResult.ok) {
+            return errorResponse(
+              'manual_edit_conflict',
+              'One or more docs assets were modified outside the docs sync workflow.',
+              409,
+              {
+                conflicts: applyAssetsResult.conflicts,
+              },
+            )
+          }
+        }
+
         await updateSyncRunAudit({
           collectionSlug: options.syncRunsCollectionSlug,
           completedAt: options.getNow?.() ?? new Date(),
@@ -1264,6 +1453,7 @@ const createSyncEndpointHandler =
         }
 
         await revalidateDocsSyncCache({
+          assetPlan,
           manifest: validation.data,
           options,
           plan,
@@ -1290,6 +1480,7 @@ const createSyncEndpointHandler =
     }
 
     return jsonResponse({
+      assetChanges: serializeAssetChanges(assetPlan),
       changes: serializeChanges(plan),
       deleteBehavior: effectiveDeleteBehavior,
       dryRun: !isSyncMode,

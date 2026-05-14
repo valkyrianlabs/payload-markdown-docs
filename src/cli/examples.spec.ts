@@ -65,11 +65,11 @@ describe('GitHub Actions docs workflow example', () => {
   it('documents validate, pull request dry-run, and main publish sync commands', async () => {
     const workflow = await readFile(workflowPath, 'utf8')
 
-    expect(workflow).toContain('pnpm exec payload-markdown-docs validate ./docs --source main-docs')
+    expect(workflow).toContain('pnpm exec payload-markdown-docs validate --source main-docs')
     expect(workflow).toContain('if: github.event_name == \'pull_request\'')
     expect(workflow).toContain('--dry-run')
     expect(workflow).toContain('github.ref == \'refs/heads/main\'')
-    expect(workflow).toContain('--sync')
+    expect(workflow).not.toContain('--sync')
     expect(workflow).toContain('--publish')
     expect(workflow).toContain('DOCS_SYNC_ENDPOINT')
     expect(workflow).toContain('id-token: write')
