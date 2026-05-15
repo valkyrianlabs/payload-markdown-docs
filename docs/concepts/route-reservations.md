@@ -30,7 +30,17 @@ Docs set: /plugins/payload-markdown-docs
 Doc: /plugins/payload-markdown-docs/workflow/signed-push
 ```
 
-The docs set owns `/plugins/payload-markdown-docs` and descendants. A normal Page at `/plugins` can still exist if the group does not serve an index.
+With `routeMode: "docs-root"`, the docs set owns
+`/plugins/payload-markdown-docs` and descendants. A normal Page at `/plugins`
+can still exist if the group uses `pageMode: "custom"` or legacy
+`serveIndex: false`.
+
+With `routeMode: "product-nested"`, the docs set owns
+`/plugins/payload-markdown-docs/docs` and descendants. The parent
+`/plugins/payload-markdown-docs` route can be owned by Pages or the host app.
+
+With `pageMode: "auto"`, a group claims its route, such as `/plugins`, for a
+generated card index. With `pageMode: "custom"`, the group route is not claimed.
 
 ## Pages Collision Checks
 

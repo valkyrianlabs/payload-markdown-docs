@@ -39,13 +39,19 @@ export type PayloadMarkdownDocsHeroImage = {
   width?: number
 }
 
+export type PayloadMarkdownDocsGroupPageMode = 'auto' | 'custom'
+
+export type PayloadMarkdownDocsRouteMode = 'docs-root' | 'product-nested'
+
 export type ResolvedPayloadMarkdownDocsSet = {
   defaults?: PayloadMarkdownDocsDefaults
   description?: string
   id: string
   navTitle?: string
   order: number
+  productRoute: string
   routeBase: string
+  routeMode: PayloadMarkdownDocsRouteMode
   slug?: string
   status?: 'draft' | 'published'
   title: string
@@ -56,6 +62,8 @@ export type ResolvedPayloadMarkdownDocsGroup = {
   id: string
   navTitle?: string
   order: number
+  pageMode: PayloadMarkdownDocsGroupPageMode
+  pageModeSource: 'explicit' | 'legacyDefault' | 'legacyServeIndex'
   routePath: string
   serveIndex: boolean
   slug?: string
@@ -93,6 +101,13 @@ export type PayloadMarkdownDocsSidebarItem = {
 
 export type ResolvedPayloadMarkdownDocsRoute =
   | {
+      childGroups: ResolvedPayloadMarkdownDocsGroup[]
+      docsSets: ResolvedPayloadMarkdownDocsSet[]
+      group: ResolvedPayloadMarkdownDocsGroup
+      route: string
+      type: 'docsGroupIndex'
+    }
+  | {
       doc: ResolvedPayloadMarkdownDocsRecord
       docsSet: ResolvedPayloadMarkdownDocsSet
       route: string
@@ -105,12 +120,6 @@ export type ResolvedPayloadMarkdownDocsRoute =
       route: string
       sidebar: PayloadMarkdownDocsSidebarItem[]
       type: 'docsSetIndex'
-    }
-  | {
-      docsSets: ResolvedPayloadMarkdownDocsSet[]
-      group: ResolvedPayloadMarkdownDocsGroup
-      route: string
-      type: 'docsGroupIndex'
     }
 
 export type PayloadMarkdownDocsMetadata = {

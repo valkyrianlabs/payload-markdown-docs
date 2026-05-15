@@ -680,6 +680,16 @@ const getRouteCollisionIssues = async ({
           allowBridgePages: options.routing.pages.allowBridgePages,
           bridgeField: options.routing.pages.bridgeField,
           collectionSlug: options.routing.pages.collection,
+          docsGroupRoutes:
+            docsSet?.groupRoutePath && docsSet.groupPageMode === 'auto'
+              ? [
+                  {
+                    ownerId: docsSet.groupId,
+                    pageMode: docsSet.groupPageMode,
+                    routePath: docsSet.groupRoutePath,
+                  },
+                ]
+              : [],
           docsSetRouteBase: routeBase,
           payload,
           routeField: options.routing.pages.routeField,

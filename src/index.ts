@@ -24,6 +24,9 @@ export {
 } from './constants.js'
 export { payloadMarkdownDocs } from './plugin.js'
 export {
+  DEFAULT_DOCS_SET_ROUTE_MODE,
+  DEFAULT_PRODUCT_NESTED_DOCS_SEGMENT,
+  deriveDocsSetProductRoutePath,
   deriveDocsSetRouteBase,
   findPageRouteCollisions,
   findRouteReservationCollisions,
@@ -36,6 +39,7 @@ export type {
   DocsRouteCollisionReason,
   DocsRouteReservation,
   DocsRouteReservationOwnerType,
+  DocsSetRouteMode,
 } from './routing/index.js'
 export { signDocsSyncRequest } from './security/index.js'
 export type { SignDocsSyncRequestOptions, SignedDocsSyncRequest } from './security/index.js'

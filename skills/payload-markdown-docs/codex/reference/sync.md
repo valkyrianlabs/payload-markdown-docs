@@ -5,7 +5,7 @@ The sync workflow is authenticated and server-owned.
 Important concepts:
 
 - `source.id` maps to a Payload Admin docs set.
-- The docs set slug and optional group determine the route base.
+- The docs set slug, optional group, and `routeMode` determine the route base.
 - Human docs are manifest `files`.
 - Skills are manifest `assets`; AI discovery files are generated from synced
   docs and skills unless custom static fallback assets are explicitly provided.

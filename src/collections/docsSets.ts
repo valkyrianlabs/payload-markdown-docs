@@ -41,6 +41,25 @@ export const createDocsSetsCollection = ({
       relationTo: docsGroupsCollectionSlug,
     },
     {
+      name: 'routeMode',
+      type: 'select',
+      admin: {
+        description:
+          'docs-root serves docs at the docs set route. product-nested serves docs under /docs so the parent route can be used as a product page.',
+      },
+      defaultValue: 'docs-root',
+      options: [
+        {
+          label: 'Docs root',
+          value: 'docs-root',
+        },
+        {
+          label: 'Product nested',
+          value: 'product-nested',
+        },
+      ],
+    },
+    {
       name: 'branch',
       type: 'text',
       admin: {

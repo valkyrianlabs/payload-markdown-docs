@@ -21,6 +21,7 @@ For a typical docs set, configure:
 - `title`
 - `slug`
 - `group`, optional
+- `routeMode`, default `docs-root`
 - `branch`, default `main`
 - `allowPullRequests`, default off
 - `description`, optional
@@ -38,6 +39,14 @@ branch: main
 ```
 
 This resolves to `/plugins/payload-markdown-docs`.
+
+Use `routeMode: product-nested` when the docs should live below `/docs` so the
+host app can own the product route:
+
+```text
+/plugins/payload-markdown-docs
+/plugins/payload-markdown-docs/docs
+```
 
 ## Advanced Security
 

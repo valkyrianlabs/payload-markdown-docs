@@ -166,6 +166,7 @@ const getDocsSetRouteBase = ({
       groupId: getRelationshipId(docsSet.group),
       groupsById,
     }),
+    routeMode: docsSet.routeMode,
   })
 }
 

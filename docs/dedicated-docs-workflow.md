@@ -279,7 +279,9 @@ export default async function Page({ params }: { params: Promise<{ slug?: string
 }
 ```
 
-The route adapter can resolve exact docs records, docs set index routes, and docs group index routes where `serveIndex` is enabled. It returns `null` for normal Page routes so your app can fall back to existing Page rendering.
+The route adapter can resolve exact docs records, docs set index routes, and
+docs group index routes where `pageMode` is `auto`. It returns `null` for
+normal Page routes so your app can fall back to existing Page rendering.
 
 ## Docs Set Admin Manager
 

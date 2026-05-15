@@ -6,18 +6,10 @@ import { unstable_cache } from 'next/cache'
 import type { PayloadMarkdownDocsCollectionSlugs, PayloadMarkdownDocsReadPayload } from './types.js'
 
 import {
-  DEFAULT_DOCS_ASSETS_COLLECTION_SLUG,
-  DEFAULT_DOCS_COLLECTION_SLUG,
-  DEFAULT_DOCS_GROUPS_COLLECTION_SLUG,
-  DEFAULT_DOCS_SETS_COLLECTION_SLUG,
+  DEFAULT_DOCS_ASSETS_COLLECTION_SLUG, DEFAULT_DOCS_COLLECTION_SLUG, DEFAULT_DOCS_GROUPS_COLLECTION_SLUG, DEFAULT_DOCS_SETS_COLLECTION_SLUG,
   DEFAULT_MARKDOWN_FIELD_NAME,
 } from '../constants.js'
-import {
-  deriveDocsSetRouteBase,
-  isRouteDescendant,
-  joinRouteSegments,
-  normalizeRoutePath,
-} from '../routing/index.js'
+import { deriveDocsSetRouteBase, isRouteDescendant, joinRouteSegments, normalizeRoutePath, } from '../routing/index.js'
 import { getRelationshipId, isRecord, isVisibleDocsRecord, toResolvedDocsRecord } from './records.js'
 
 export type PayloadMarkdownDocsSitemapDoc = {
@@ -256,6 +248,7 @@ const toDocsSetSitemapEntry = ({
       groupId: getRelationshipId(doc.group),
       groupsById,
     }),
+    routeMode: doc.routeMode === 'product-nested' ? 'product-nested' : 'docs-root',
   })
 
   return {
@@ -519,6 +512,7 @@ const getDocsForSitemapUncached = async ({
         id: true,
         slug: true,
         group: true,
+        routeMode: true,
         updatedAt: true,
       },
       where: {
@@ -622,13 +616,11 @@ const getDocsForSitemapUncached = async ({
           })
 
           return assetsResult.docs.flatMap((doc) => {
-            const sitemapDocs = toAssetSitemapDocs({
+            return toAssetSitemapDocs({
               doc,
               docsSetRouteById,
               siteUrl,
             })
-
-            return sitemapDocs
           })
         } catch {
           return []

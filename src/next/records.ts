@@ -1,13 +1,20 @@
 import type {
   PayloadMarkdownDocsDefaults,
+  PayloadMarkdownDocsGroupPageMode,
   PayloadMarkdownDocsHeroImage,
   PayloadMarkdownDocsOverrides,
+  PayloadMarkdownDocsRouteMode,
   ResolvedPayloadMarkdownDocsGroup,
   ResolvedPayloadMarkdownDocsRecord,
   ResolvedPayloadMarkdownDocsSet,
 } from './types.js'
 
-import { deriveDocsSetRouteBase, normalizeRoutePath } from '../routing/index.js'
+import {
+  DEFAULT_DOCS_SET_ROUTE_MODE,
+  deriveDocsSetProductRoutePath,
+  deriveDocsSetRouteBase,
+  normalizeRoutePath,
+} from '../routing/index.js'
 
 export const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -115,6 +122,41 @@ const toHeroImage = (value: unknown): PayloadMarkdownDocsHeroImage | undefined =
   }) as PayloadMarkdownDocsHeroImage
 }
 
+const getRouteMode = (value: unknown): PayloadMarkdownDocsRouteMode =>
+  value === 'product-nested' || value === 'docs-root'
+    ? value
+    : DEFAULT_DOCS_SET_ROUTE_MODE
+
+const getPageMode = ({
+  pageMode,
+  serveIndex,
+}: {
+  pageMode: unknown
+  serveIndex?: boolean
+}): {
+  mode: PayloadMarkdownDocsGroupPageMode
+  source: ResolvedPayloadMarkdownDocsGroup['pageModeSource']
+} => {
+  if (pageMode === 'auto' || pageMode === 'custom') {
+    return {
+      mode: pageMode,
+      source: 'explicit',
+    }
+  }
+
+  if (serveIndex === true) {
+    return {
+      mode: 'auto',
+      source: 'legacyServeIndex',
+    }
+  }
+
+  return {
+    mode: 'custom',
+    source: 'legacyDefault',
+  }
+}
+
 export const toResolvedDocsSet = (doc: unknown): ResolvedPayloadMarkdownDocsSet | undefined => {
   if (!isRecord(doc)) {
     return undefined
@@ -129,6 +171,11 @@ export const toResolvedDocsSet = (doc: unknown): ResolvedPayloadMarkdownDocsSet 
     return undefined
   }
 
+  const routeMode = getRouteMode(doc.routeMode)
+  const productRoute = deriveDocsSetProductRoutePath({
+    docsSetSlug: slug ?? id,
+  })
+
   return {
     id,
     slug,
@@ -136,12 +183,15 @@ export const toResolvedDocsSet = (doc: unknown): ResolvedPayloadMarkdownDocsSet 
     description: getOptionalString(doc, 'description'),
     navTitle: getOptionalString(doc, 'navTitle'),
     order: getOptionalNumber(doc, 'order') ?? 0,
+    productRoute,
     routeBase: normalizeRoutePath(
       routeBase ??
         deriveDocsSetRouteBase({
           docsSetSlug: slug ?? id,
+          routeMode,
         }),
     ),
+    routeMode,
     status: doc._status === 'draft' || doc._status === 'published' ? doc._status : undefined,
     title,
   }
@@ -169,14 +219,22 @@ export const toResolvedDocsGroup = (doc: unknown): ResolvedPayloadMarkdownDocsGr
     return undefined
   }
 
+  const serveIndex = getOptionalBoolean(doc, 'serveIndex') ?? false
+  const pageMode = getPageMode({
+    pageMode: doc.pageMode,
+    serveIndex,
+  })
+
   return {
     id,
     slug,
     description: getOptionalString(doc, 'description'),
     navTitle: getOptionalString(doc, 'navTitle'),
     order: getOptionalNumber(doc, 'order') ?? 0,
+    pageMode: pageMode.mode,
+    pageModeSource: pageMode.source,
     routePath: normalizeRoutePath(routePath ?? `/${slug}`),
-    serveIndex: getOptionalBoolean(doc, 'serveIndex') ?? false,
+    serveIndex: pageMode.mode === 'auto',
     title,
   }
 }

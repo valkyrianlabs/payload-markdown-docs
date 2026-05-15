@@ -1,6 +1,7 @@
 export type RawDocsSetRecord = {
   group?: { id?: number | string } | null | number | string
   id?: number | string
+  routeMode?: 'docs-root' | 'product-nested'
   slug?: string
   sync?: {
     docsCount?: null | number

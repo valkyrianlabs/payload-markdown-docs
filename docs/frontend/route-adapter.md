@@ -65,7 +65,7 @@ The helper resolves:
 
 1. exact generated docs records
 2. docs set index routes
-3. docs group index routes when `serveIndex` is enabled
+3. docs group index routes when `pageMode` is `auto`
 4. `null` for normal fallback routes
 
 See [metadata](/frontend/metadata), [dynamic sitemap](/frontend/sitemap), and
