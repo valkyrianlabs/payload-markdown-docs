@@ -28,13 +28,14 @@ The request may ask. The Payload plugin decides.
 
 Run `payload-markdown-docs validate`.
 
-### Dry-run
+### Plan
 
-Run `payload-markdown-docs push --dry-run`.
+Run `payload-markdown-docs plan`.
 
 ### Sync
 
-Run `payload-markdown-docs push --sync` only when the server allows writes.
+Run `payload-markdown-docs push` only when the user asks for upload and the
+server allows writes. Use `--dry-run` only for an explicit dry-run.
 
 :::
 

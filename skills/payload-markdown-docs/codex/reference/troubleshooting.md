@@ -51,3 +51,10 @@ Use only supported fields and simple YAML.
 ## Non-root-relative link
 
 Internal docs links should look like `/workflow/signed-push`, not `workflow/signed-push` or a production URL.
+
+## Public asset route 404
+
+If `/api/llms.txt` works but `/llms.txt` or docs-set skill URLs return HTML 404,
+the consuming Next app is missing committed public asset route files. Run
+`payload-markdown-docs install routes --payload-app "src/app/(payload)"`,
+commit the generated files, deploy them, and purge any cached 404 responses.

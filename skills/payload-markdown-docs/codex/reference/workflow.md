@@ -14,25 +14,48 @@ Use this workflow when editing docs source files.
 Validation:
 
 ```bash
-{{packageManager}} exec payload-markdown-docs validate {{docsRoot}} --source main-docs
+{{packageManager}} exec payload-markdown-docs validate --source main-docs
 ```
 
 Plan:
 
 ```bash
-{{packageManager}} exec payload-markdown-docs plan {{docsRoot}} --source main-docs
+{{packageManager}} exec payload-markdown-docs plan --source main-docs
 ```
 
-Dry-run upload with GitHub OIDC:
+Use `--docs {{docsRoot}}` only when the docs source is not the conventional
+`./docs` directory.
+
+Sync with GitHub OIDC:
 
 ```bash
-{{packageManager}} exec payload-markdown-docs push {{docsRoot}} \
+{{packageManager}} exec payload-markdown-docs push \
+  --endpoint "$DOCS_SYNC_ENDPOINT" \
+  --source main-docs \
+  --github-oidc
+```
+
+Explicit dry-run:
+
+```bash
+{{packageManager}} exec payload-markdown-docs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
   --source main-docs \
   --github-oidc \
   --dry-run
 ```
 
-Use Ed25519 key flags only when the project is not using GitHub OIDC.
+Use Ed25519 key flags only when the project is not using GitHub OIDC:
+
+```bash
+{{packageManager}} exec payload-markdown-docs push \
+  --endpoint "$DOCS_SYNC_ENDPOINT" \
+  --source main-docs \
+  --key-id github-actions-main \
+  --private-key-env DOCS_SYNC_PRIVATE_KEY
+```
+
+Use `--publish` only when the user explicitly asks for published output and the
+server supports publishing.
 
 Do not directly edit generated Payload docs records unless the user specifically asks for Payload-side overrides.

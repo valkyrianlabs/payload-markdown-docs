@@ -10,8 +10,8 @@ tags:
 
 # Quick Start
 
-This quick start assumes your Markdown lives in `./docs` and your docs set slug
-is `main-docs`.
+This quick start assumes the conventional docs package layout and a docs set
+slug of `main-docs`.
 
 :::toc {title="On this page" depth="3" theme="compact"}
 :::
@@ -33,6 +33,24 @@ In `Docs Globals > Trusted`, create:
 The set slug is the manifest source. The route base is derived from the
 optional group and the set slug.
 
+## Source Layout
+
+```text
+docs/
+  index.md
+skills/
+  main-docs/
+    codex/
+      SKILL.md
+    claude/
+      SKILL.md
+llms.txt
+llms-full.txt
+```
+
+Markdown docs become manifest `files`. Skills and root AI discovery files become
+manifest `assets`, so skill files do not need docs frontmatter.
+
 ## Install An Agent Skill
 
 In the docs set target application, install a local agent skill so Codex or
@@ -49,10 +67,23 @@ or updates `AGENTS.md`. The Claude installer writes
 `.claude/skills/payload-markdown-docs/` and does not modify `AGENTS.md` by
 default. Neither install syncs docs, calls Payload, or publishes content.
 
+## Install Public Asset Routes
+
+If the consuming Next app should serve `/llms.txt`, `/llms-full.txt`, or
+docs-set skill URLs outside `/api`, commit the generated route files:
+
+```bash
+pnpm exec payload-markdown-docs install routes --payload-app "src/app/(payload)"
+```
+
+Those route files delegate to the plugin-owned asset handlers. Without them, a
+frontend catch-all can return HTML 404 pages even when `/api/...` asset URLs
+work.
+
 ## Validate Local Docs
 
 ```bash
-pnpm exec payload-markdown-docs validate ./docs --source main-docs
+pnpm exec payload-markdown-docs validate --source main-docs
 ```
 
 ## Generate A Manifest

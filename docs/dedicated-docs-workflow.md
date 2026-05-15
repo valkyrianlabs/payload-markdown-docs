@@ -11,7 +11,9 @@ tags:
 
 # Dedicated Docs Sync Workflow
 
-This guide covers the default workflow for syncing a Git-backed `docs/` folder into Payload-managed docs sets and generated docs records.
+This guide covers the default workflow for syncing a Git-backed docs package
+into Payload-managed docs sets, generated docs records, and static AI-facing
+asset records.
 
 The client sends docs content. Payload docs sets decide the source slug and
 branch; global Keys and Trusted records decide which credentials are allowed.
@@ -74,7 +76,7 @@ The docs set edit view includes a generated docs manager. Use it to review gener
 
 ## Docs Source Tree
 
-Keep project documentation in a local Markdown tree:
+Keep project documentation in the conventional local package layout:
 
 ```text
 docs/
@@ -83,14 +85,24 @@ docs/
     installation.md
   configuration/
     sync.md
+skills/
+  main-docs/
+    codex/
+      SKILL.md
+    claude/
+      SKILL.md
+llms.txt
+llms-full.txt
 ```
 
 Supported files are `.md` only. Paths must be relative, must not contain
 traversal, and must remain inside the docs root passed to the CLI.
 
 Agent workflow packs are separate from human docs. Keep native skill artifacts
-under `skills/payload-markdown-docs/<agent>/` or install them into the target
-project with `payload-markdown-docs install skill --agent codex|claude`.
+under `skills/<source>/<agent>/` or install them into the target project with
+`payload-markdown-docs install skill --agent codex|claude`. During manifest
+generation, human docs become `files`; skills, `llms.txt`, and `llms-full.txt`
+become `assets`.
 
 ## Key Generation
 
@@ -111,9 +123,9 @@ Use the generated keys this way:
 Validate the docs tree before any upload:
 
 ```bash
-pnpm exec payload-markdown-docs validate ./docs --source main-docs
-pnpm exec payload-markdown-docs manifest ./docs --source main-docs --pretty
-pnpm exec payload-markdown-docs plan ./docs --source main-docs
+pnpm exec payload-markdown-docs validate --source main-docs
+pnpm exec payload-markdown-docs manifest --source main-docs --pretty
+pnpm exec payload-markdown-docs plan --source main-docs
 ```
 
 `validate` catches path, frontmatter, hash, and manifest issues. `manifest` prints the JSON payload that will be signed. `plan` shows what would be created, updated, archived, drafted, deleted, or left unchanged against an optional existing-record input.
@@ -156,6 +168,30 @@ sync: {
 ```
 
 The server can create, update, reactivate, archive, draft, or hard-delete dedicated docs records according to server-owned config. It checks for manual edit conflicts before writing and records sync-run audit data.
+
+## Public AI Asset Routes
+
+Docs records render through the route adapter. Raw AI-facing assets use asset
+route handlers and committed Next route files.
+
+```bash
+pnpm exec payload-markdown-docs install routes --payload-app "src/app/(payload)"
+```
+
+The generated files must be committed and deployed. They expose public canonical
+routes outside `/api`, including:
+
+```text
+/llms.txt
+/llms-full.txt
+/<docsSet.routeBase>/llms.txt
+/<docsSet.routeBase>/llms-full.txt
+/<docsSet.routeBase>/skills/<agent>
+/<docsSet.routeBase>/skills/<agent>/SKILL.md
+```
+
+If public asset route files are missing, `/api/...` asset URLs can work while
+the public URLs return rendered HTML 404 responses from the frontend catch-all.
 
 ## Publish
 
@@ -272,6 +308,8 @@ Implemented for this workflow:
 - GitHub Actions OIDC auth
 - local CLI validation, manifest, plan, keygen, and push
 - native route adapter, dynamic sitemap helper, and frontend rendering helpers
+- static asset storage for skills, `llms.txt`, and `llms-full.txt`
+- public asset route file installer for Next App Router apps
 - docs set admin manager
 - agent skill installer
 - sync writes behind `sync.allowWrites`

@@ -38,7 +38,7 @@ The package is built around `@valkyrianlabs/payload-markdown`. That package owns
 :::cards {columns="3" cardTheme="glass"}
 
 :::card {title="Quick start" href="/getting-started/quick-start"}
-Configure the plugin, generate keys, validate local docs, and run the first signed dry-run.
+Configure the plugin, validate the docs package, install public asset routes, and run the first sync.
 :::
 
 :::card {title="Architecture" href="/concepts/architecture"}
@@ -68,6 +68,8 @@ Install local agent guidance for writing docs that validate and sync.
 - server-gated sync writes, publishing, draft behavior, archive behavior, and hard delete
 - route reservations and opt-in Pages collision checks
 - read-only `/next` route adapter, metadata, sitemap, sidebar, and navbar helpers
+- static asset storage for skills, `llms.txt`, and `llms-full.txt`
+- public asset route installer for Next App Router apps
 - sitemap support for static AI routes and native skill artifacts
 - Docs Set Admin Manager with generated doc review and draft publish action
 - local Codex and Claude skill installer

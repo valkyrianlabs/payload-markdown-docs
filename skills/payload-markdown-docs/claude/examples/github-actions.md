@@ -7,10 +7,16 @@ on:
   pull_request:
     paths:
       - 'docs/**'
+      - 'skills/**'
+      - 'llms.txt'
+      - 'llms-full.txt'
   push:
     branches: [main]
     paths:
       - 'docs/**'
+      - 'skills/**'
+      - 'llms.txt'
+      - 'llms-full.txt'
 
 permissions:
   id-token: write
@@ -34,13 +40,13 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - name: Validate docs
-        run: pnpm exec payload-markdown-docs validate ./docs --source main-docs
+      - name: Validate docs package
+        run: pnpm exec payload-markdown-docs validate --source main-docs
 
-      - name: Dry-run docs sync
+      - name: Dry-run docs package sync
         if: github.event_name == 'pull_request'
         run: |
-          pnpm exec payload-markdown-docs push ./docs \
+          pnpm exec payload-markdown-docs push \
             --endpoint "$DOCS_SYNC_ENDPOINT" \
             --source main-docs \
             --github-oidc \
@@ -48,14 +54,13 @@ jobs:
         env:
           DOCS_SYNC_ENDPOINT: ${{ secrets.DOCS_SYNC_ENDPOINT }}
 
-      - name: Publish docs
+      - name: Publish docs package
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
-          pnpm exec payload-markdown-docs push ./docs \
+          pnpm exec payload-markdown-docs push \
             --endpoint "$DOCS_SYNC_ENDPOINT" \
             --source main-docs \
             --github-oidc \
-            --sync \
             --publish
         env:
           DOCS_SYNC_ENDPOINT: ${{ secrets.DOCS_SYNC_ENDPOINT }}

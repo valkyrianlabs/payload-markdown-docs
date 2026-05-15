@@ -54,6 +54,17 @@ Important commands:
 pnpm exec payload-markdown-docs validate --source main-docs
 ```
 
+Main-branch sync defaults to sync mode:
+
+```bash
+pnpm exec payload-markdown-docs push \
+  --endpoint "$DOCS_SYNC_ENDPOINT" \
+  --source main-docs \
+  --github-oidc
+```
+
+Pull request dry-run is explicit:
+
 ```bash
 pnpm exec payload-markdown-docs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \

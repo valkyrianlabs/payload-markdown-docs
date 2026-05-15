@@ -8,16 +8,37 @@ description: Use this skill when maintaining Git-backed documentation for a proj
 Use this skill in Codex when maintaining Git-backed documentation for a project
 that uses `@valkyrianlabs/payload-markdown-docs`.
 
-The docs source lives in `{{docsRoot}}` unless the user says otherwise. Edit
-repo-local Markdown source files first. Treat generated Payload docs records as
-server-owned output, not as source of truth.
+Edit repo-local source files first. Treat generated Payload docs records and
+synced static assets as server-owned output, not as source of truth.
 
 This skill may be installed at `.agents/skills/payload-markdown-docs` by the CLI
 or served from the package `skills/payload-markdown-docs/codex` directory.
 
-## Core Rules
+## Current Model
 
-- Keep human docs in repo-local `.md` files.
+- Human docs records live in `./docs`.
+- Native agent skill assets live in `./skills/<source>/<agent>/`.
+- Root AI discovery assets live at `./llms.txt` and `./llms-full.txt`.
+- `validate`, `manifest`, `plan`, and `push` read that conventional package
+  layout by default.
+- Manifest `files` are docs records.
+- Manifest `assets` are skill files, `llms.txt`, `llms-full.txt`, and other
+  static AI-facing files.
+- Skill files are not docs records and do not need docs frontmatter.
+- `push` defaults to sync mode. Use `--dry-run` only for an explicit dry-run.
+- `--sync` is a compatibility flag, not a required primary flag.
+- `--publish` is separate from sync mode and only requests published output.
+- Server config owns writes, publishing, drafts, hard delete, auth, and route
+  collision behavior.
+- Public raw asset URLs require committed Next route files from
+  `payload-markdown-docs install routes`.
+- `/api/...` asset URLs are implementation/internal fallback URLs, not public
+  canonical docs URLs.
+
+## Authoring Rules
+
+- Keep human docs in repo-local `.md` files under `./docs` unless configured
+  otherwise.
 - Do not introduce MDX unless a future project config explicitly enables it.
 - Prefer plain Markdown structure before using directives.
 - Use supported frontmatter only.
@@ -28,7 +49,6 @@ or served from the package `skills/payload-markdown-docs/codex` directory.
 - Run validation before finishing docs edits.
 - Run plan when sync behavior, route changes, publishing, archive behavior, or
   delete behavior matters.
-- Treat sync, publishing, drafts, and hard delete as CMS/server-owned decisions.
 - Do not directly mutate generated Payload records unless the user explicitly
   asks for admin-side overrides.
 - Do not invent directives, frontmatter fields, CLI flags, sync modes, runtime
@@ -47,34 +67,62 @@ or served from the package `skills/payload-markdown-docs/codex` directory.
 ## Default Workflow
 
 ```bash
-{{packageManager}} exec payload-markdown-docs validate {{docsRoot}} --source main-docs
-{{packageManager}} exec payload-markdown-docs plan {{docsRoot}} --source main-docs
+{{packageManager}} exec payload-markdown-docs validate --source main-docs
+{{packageManager}} exec payload-markdown-docs plan --source main-docs
 ```
 
+If the project does not use the conventional `./docs` location, add
+`--docs {{docsRoot}}`.
+
 Only push when the user asks for an upload and provides endpoint/auth context.
-Prefer GitHub OIDC in GitHub Actions:
+GitHub OIDC sync:
 
 ```bash
-{{packageManager}} exec payload-markdown-docs push {{docsRoot}} \
+{{packageManager}} exec payload-markdown-docs push \
+  --endpoint "$DOCS_SYNC_ENDPOINT" \
+  --source main-docs \
+  --github-oidc
+```
+
+Explicit dry-run:
+
+```bash
+{{packageManager}} exec payload-markdown-docs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
   --source main-docs \
   --github-oidc \
   --dry-run
 ```
 
-Ed25519 signed sync is still supported for non-GitHub CI or local workflows:
+Ed25519 sync:
 
 ```bash
-{{packageManager}} exec payload-markdown-docs push {{docsRoot}} \
+{{packageManager}} exec payload-markdown-docs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
   --source main-docs \
   --key-id github-actions-main \
-  --private-key-env DOCS_SYNC_PRIVATE_KEY \
-  --sync
+  --private-key-env DOCS_SYNC_PRIVATE_KEY
+```
+
+Publishing request, only when the user explicitly wants published output:
+
+```bash
+{{packageManager}} exec payload-markdown-docs push \
+  --endpoint "$DOCS_SYNC_ENDPOINT" \
+  --source main-docs \
+  --github-oidc \
+  --publish
 ```
 
 Sync writes require `sync.allowWrites: true`. Publishing additionally requires
 `sync.allowPublish: true` and a draft-enabled docs collection.
+
+Install public raw asset route files in a Next app when the user needs
+`/llms.txt`, `/llms-full.txt`, or docs-set skill URLs to work outside `/api`:
+
+```bash
+{{packageManager}} exec payload-markdown-docs install routes --payload-app "src/app/(payload)"
+```
 
 ## References
 

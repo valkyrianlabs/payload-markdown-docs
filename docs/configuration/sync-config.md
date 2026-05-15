@@ -57,8 +57,9 @@ When `--publish` is not requested, synced generated docs are written as drafts.
 ## Cache Revalidation
 
 After a successful sync, the endpoint attempts to revalidate generated docs
-paths and common docs sitemap tags through `next/cache`. This keeps production
-App Router pages from serving stale generated docs after `push --publish`.
+paths, synced asset routes, and common docs sitemap tags through `next/cache`.
+This keeps production App Router pages from serving stale generated docs or raw
+AI assets after `push --publish`.
 
 Disable path revalidation or provide app-specific tags when needed.
 

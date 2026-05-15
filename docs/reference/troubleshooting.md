@@ -73,6 +73,25 @@ The generated docs route conflicts with another docs route or an opt-in Pages co
 
 A generated docs record changed outside the docs sync workflow. The sync aborts before writes to avoid overwriting human edits.
 
+## Public `/llms.txt` Or Skill Route 404
+
+If `/api/llms.txt` or `/api/<docsSet.routeBase>/skills/...` works but the
+public route outside `/api` returns HTML 404, the consuming Next app is missing
+the public asset route files. Run:
+
+```bash
+pnpm exec payload-markdown-docs install routes --payload-app "src/app/(payload)"
+```
+
+Commit and deploy the generated files, then purge any cached 404 responses.
+
+## Asset Schema Missing
+
+If an asset route or sync response says the docs assets schema is missing, the
+`payload-markdown-docs-assets` collection table has not been created yet. Run
+the Payload migration/dev flow against that database before syncing or serving
+static docs assets.
+
 ## Postgres In Tests
 
 The dev integration tests use PostgreSQL. In restricted sandboxes, Vitest may need permission to connect to the local test database.

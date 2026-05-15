@@ -228,12 +228,11 @@ jobs:
           node ./dist/cli/index.js validate ./docs \
             --source payload-markdown-docs
 
-          node ./dist/cli/index.js push ./docs \
+          node ./dist/cli/index.js push \
             --endpoint "https://docs.valkyrianlabs.com/api/payload-markdown-docs/sync" \
             --source payload-markdown-docs \
             --repository "$GITHUB_REPOSITORY" \
             --branch "$GITHUB_REF_NAME" \
             --commit "$GITHUB_SHA" \
             --github-oidc \
-            --sync \
             --publish

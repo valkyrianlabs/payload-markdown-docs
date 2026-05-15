@@ -73,17 +73,24 @@ See [metadata](/frontend/metadata), [dynamic sitemap](/frontend/sitemap), and
 
 ## Agent Skill Files
 
-The route adapter is for rendered human docs. Native agent skill artifacts live
-outside the generated docs records under `skills/payload-markdown-docs/<agent>/`.
-When `payload-markdown-docs push` syncs those files, the plugin stores them as
-static assets and serves them through plugin-owned endpoints such as
+The route adapter is for rendered human docs pages. It does not serve raw
+`.txt` or `.md` AI assets.
+
+Native agent skill artifacts live outside generated docs records under
+`skills/<source>/<agent>/`. When `payload-markdown-docs push` syncs those files,
+the plugin stores them as static assets and serves them through asset handlers
+such as
 `/plugins/payload-markdown-docs/skills/codex`,
 `/plugins/payload-markdown-docs/skills/codex/SKILL.md`, and
 `/plugins/payload-markdown-docs/skills/claude`.
 
-If those public URLs are handled by your frontend catch-all, install the exact
-Next route files that delegate to the plugin asset handlers:
+In a Next App Router app, public raw asset URLs need filesystem route files that
+delegate to the asset handlers:
 
 ```bash
 pnpm exec payload-markdown-docs install routes --payload-app "src/app/(payload)"
 ```
+
+If public asset route files are missing, the frontend catch-all may return
+rendered 404 HTML even though `/api/...` asset URLs work. The `/api/...` routes
+are implementation/internal fallback routes, not the public canonical URLs.

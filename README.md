@@ -8,7 +8,8 @@
 &nbsp;
 [![license](https://img.shields.io/npm/l/@valkyrianlabs/payload-markdown-docs)](https://github.com/valkyrianlabs/payload-markdown-docs?tab=MIT-1-ov-file)
 
-> ⚠️ This plugin is still in early-release as of v0.7.3 on 5/10/26. It is fully functional but missing a few planned v1 features like group parent slug level card grids of collections in that group for better UX, along with a fully thought-out navigation solution that natively incorporates with Payload website starter variants CMSLink. A fully featured stable v1.0.0 is anticipated in the coming days, by 5/17/26 at the very latest.
+> ⚠️ This plugin is still in early release as of v0.9.7. It is functional, but
+> v1 polish is still in progress.
 
 AI-first Markdown documentation generation, sync, and publishing for Payload CMS.
 
@@ -98,6 +99,7 @@ This package answers those questions with a boringly powerful primitive:
 ```txt
 human docs in /docs
 agent workflow packs in /skills
+root AI discovery in /llms.txt and /llms-full.txt
 ```
 
 Your docs live in the repo. The CLI validates them. GitHub Actions or Ed25519
@@ -109,6 +111,7 @@ pushes them. Payload stores and renders them. Your site owns the final output.
 - Codex and Claude skill installer for repo-local agent guidance.
 - Plain Markdown source of truth in `/docs`.
 - Native skill artifacts in `/skills/payload-markdown-docs/<agent>/`.
+- Root AI discovery files in `/llms.txt` and `/llms-full.txt`.
 - GitHub Actions publishing with OIDC.
 - Ed25519 signed local publishing for advanced on-demand workflows.
 - Payload admin collections for docs sets, groups, trusted owners, and keys.
@@ -168,6 +171,10 @@ The sync endpoint is:
 /api/payload-markdown-docs/sync
 ```
 
+The sync endpoint is an implementation endpoint. Public raw AI asset URLs such
+as `/llms.txt` and `/plugins/<docs-set>/skills/<agent>` require committed Next
+route files; install those once with `payload-markdown-docs install routes`.
+
 ## Create Admin Records
 
 Create a docs set:
@@ -212,6 +219,14 @@ docs/
     ci-github-actions.md
   reference/
     cli.md
+skills/
+  payload-markdown-docs/
+    codex/
+      SKILL.md
+    claude/
+      SKILL.md
+llms.txt
+llms-full.txt
 ```
 
 The Markdown files are the source of truth. Native agent workflow packs live
@@ -266,13 +281,13 @@ pipeline.
 Before syncing, validate the docs tree:
 
 ```bash
-pnpm exec payload-markdown-docs validate ./docs --source payload-markdown-docs
+pnpm exec payload-markdown-docs validate --source payload-markdown-docs
 ```
 
 Generate a manifest:
 
 ```bash
-pnpm exec payload-markdown-docs manifest ./docs \
+pnpm exec payload-markdown-docs manifest \
   --source payload-markdown-docs \
   --pretty
 ```
@@ -280,13 +295,13 @@ pnpm exec payload-markdown-docs manifest ./docs \
 Preview the sync plan:
 
 ```bash
-pnpm exec payload-markdown-docs plan ./docs --source payload-markdown-docs
+pnpm exec payload-markdown-docs plan --source payload-markdown-docs
 ```
 
 From this package source checkout, use the local source CLI instead:
 
 ```bash
-pnpm cli validate ./docs --source payload-markdown-docs
+pnpm cli validate --source payload-markdown-docs
 ```
 
 In GitHub Actions, `--source` can be omitted when the docs set slug matches the
@@ -501,17 +516,16 @@ const docsLinks = await getPayloadMarkdownDocsLinks({ payload })
 // [{ label: 'Payload Markdown Docs', url: '/plugins/payload-markdown-docs' }]
 ```
 
-## Serve Agent Skills
+## Serve Raw AI Assets
 
 The canonical agent artifacts are normal files under `skills/`. `push` syncs
 them as static assets by convention, along with top-level `/llms.txt` and
 `/llms-full.txt` when present. Synced assets are stored separately from docs
-records. The plugin registers public Payload endpoints for the standard asset
-routes.
+records. Skill files are not docs records and do not need docs frontmatter.
 
-Payload's current Next REST route only dispatches requests that enter the
-Payload route layer. If your frontend catch-all owns root URLs, install the
-exact public Next route files once:
+Payload owns the asset storage and handlers, but a Next App Router site still
+needs filesystem route files so public root URLs reach those handlers instead
+of the frontend catch-all. Install the exact public Next route files once:
 
 ```bash
 pnpm exec payload-markdown-docs install routes --payload-app "src/app/(payload)"
@@ -520,6 +534,9 @@ pnpm exec payload-markdown-docs install routes --payload-app "src/app/(payload)"
 Use `--payload-app "app/(payload)"` for apps without `src/`. The route files
 delegate to the plugin-owned asset handlers and prevent `/llms.txt` and skill
 URLs from being swallowed by a frontend catch-all.
+
+The `/api/...` asset URLs are implementation/internal fallback URLs. They are
+useful for debugging, but the public canonical routes are outside `/api`.
 
 When `push` includes `llms.txt`, `llms-full.txt`, or skill assets, the CLI warns
 if those public route files are missing from the current app. Use

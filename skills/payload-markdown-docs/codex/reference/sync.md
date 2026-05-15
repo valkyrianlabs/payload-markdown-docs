@@ -6,8 +6,11 @@ Important concepts:
 
 - `source.id` maps to a Payload Admin docs set.
 - The docs set slug and optional group determine the route base.
+- Human docs are manifest `files`.
+- Skills, `llms.txt`, and `llms-full.txt` are manifest `assets`.
 - Global Keys and Trusted records own reusable authentication trust.
 - The manifest does not choose target collections or fields.
+- CLI `push` defaults to sync mode; `--dry-run` is the explicit validation-only mode.
 - `sync.allowWrites: true` is required for `mode: "sync"`.
 - `sync.allowPublish: true` and `target.enableDrafts: true` are required for publishing.
 - `sync.allowHardDelete: true` is required for hard delete.

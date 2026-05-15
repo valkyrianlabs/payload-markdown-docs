@@ -1,8 +1,8 @@
 # Valkyrian Labs AI Documentation Index
 
-This file is a static AI-readable index for Valkyrian Labs documentation. It is
-not generated from an AI export manifest. Human documentation lives in `/docs`;
-native agent workflow artifacts live in `/skills`.
+This file is a static AI-readable index for Valkyrian Labs documentation. Human
+documentation lives in `/docs`; native agent workflow artifacts live in
+`/skills`.
 
 ## Documentation Packages
 

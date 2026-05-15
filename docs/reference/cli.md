@@ -24,7 +24,8 @@ payload-markdown-docs validate --source main-docs
 
 Validates the conventional docs package by building and validating an in-memory
 manifest. By default this includes Markdown docs from `./docs`, skill artifacts
-from `./skills/<source>`, and root `llms.txt` files when present.
+from `./skills/<source>`, and root `llms.txt` / `llms-full.txt` files when
+present.
 
 ## manifest
 
@@ -55,6 +56,12 @@ Generates Ed25519 PEM keys for signed sync. Add the public key to
 keys when the matching `ssh-ed25519 ...` public key is stored in Keys.
 
 ## push
+
+`push` uploads the conventional docs package by default:
+
+- docs from `./docs` as manifest `files`
+- skills from `./skills/<source>` as manifest `assets`
+- `./llms.txt` and `./llms-full.txt` as manifest `assets` when present
 
 Ed25519:
 
@@ -88,7 +95,30 @@ payload-markdown-docs push \
 
 `push` defaults to sync mode. `--dry-run` submits a validation-only request.
 `--sync` is still accepted for compatibility but is no longer required.
-Publishing and writes remain server-owned.
+`--publish` is separate from sync mode and requests published output. Publishing
+and writes remain server-owned.
+
+If assets are included and public Next asset route files are missing from the
+current working tree, `push` prints a warning. Add `--strict-routes` in CI to
+turn that warning into a failure.
+
+Common push flags:
+
+- `--endpoint <url>`
+- `--source <id>`
+- `--docs <path>`
+- `--skills <path>`
+- `--llms <path>`
+- `--llms-full <path>`
+- `--no-docs`
+- `--no-skills`
+- `--no-llms`
+- `--no-llms-full`
+- `--dry-run`
+- `--sync`
+- `--strict-routes`
+- `--publish`
+- `--delete-behavior <archive|delete|draft|ignore>`
 
 OIDC-specific flags:
 
@@ -131,6 +161,35 @@ Useful flags:
 The installer writes Markdown guidance files only. It does not sync docs or run
 package manager commands.
 
+## install routes
+
+```bash
+payload-markdown-docs install routes --payload-app "src/app/(payload)"
+```
+
+Installs public Next App Router files that delegate raw AI asset requests to the
+plugin-owned asset handlers. Commit and deploy these files when a site should
+serve canonical public routes outside `/api`:
+
+```text
+/llms.txt
+/llms-full.txt
+/plugins/<docs-set>/llms.txt
+/plugins/<docs-set>/llms-full.txt
+/plugins/<docs-set>/skills/<agent>
+/plugins/<docs-set>/skills/<agent>/SKILL.md
+```
+
+Useful flags:
+
+- `--payload-app <path>`
+- `--force`
+- `--dry-run`
+
+`install routes` does not publish assets. It only creates Next route files.
+`install skill` does not publish assets either; it only installs local agent
+guidance.
+
 :::details {title="Common flags"}
 - `--source <id>`
 - `--docs <path>`
@@ -144,6 +203,7 @@ package manager commands.
 - `--repository <repo>`
 - `--branch <branch>`
 - `--commit <sha>`
+- `--strict-routes`
 - `--json`
 - `--pretty`
 - `--max-files <number>`

@@ -225,9 +225,12 @@ describe('install skill command', () => {
     const skill = await readInstalledFile(out, 'SKILL.md')
 
     expect(result.exitCode).toBe(0)
-    expect(skill).toContain('npm exec payload-markdown-docs validate ./content/docs')
-    expect(skill).toContain('npm exec payload-markdown-docs plan ./content/docs')
-    expect(skill).toContain('npm exec payload-markdown-docs push ./content/docs')
+    expect(skill).toContain('npm exec payload-markdown-docs validate --source main-docs')
+    expect(skill).toContain('npm exec payload-markdown-docs plan --source main-docs')
+    expect(skill).toContain('--docs ./content/docs')
+    expect(skill).toContain('npm exec payload-markdown-docs push \\')
+    expect(skill).not.toContain('payload-markdown-docs push ./content/docs')
+    expect(skill).toContain('`--sync` is a compatibility flag')
     expect(skill).not.toContain('./content/docs/index.ai.yml')
     await expect(readInstalledFile(root, 'AGENTS.md')).rejects.toThrow()
   })
@@ -484,7 +487,7 @@ describe('install skill command', () => {
     )
 
     expect(result.exitCode).toBe(0)
-    expect(skill).toContain('yarn exec payload-markdown-docs validate ./docs')
+    expect(skill).toContain('yarn exec payload-markdown-docs validate --source main-docs')
   })
 
   it('validates target, agent, package manager, and help behavior', async () => {
