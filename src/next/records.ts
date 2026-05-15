@@ -41,6 +41,23 @@ const getOptionalNumber = (doc: Record<string, unknown>, key: string): number | 
 const getOptionalBoolean = (doc: Record<string, unknown>, key: string): boolean | undefined =>
   typeof doc[key] === 'boolean' ? doc[key] : undefined
 
+const getOptionalStringArray = (
+  doc: Record<string, unknown>,
+  key: string,
+): string[] | undefined => {
+  const value = doc[key]
+
+  if (!Array.isArray(value)) {
+    return undefined
+  }
+
+  const items = value.flatMap((item) =>
+    typeof item === 'string' && item.trim() !== '' ? [item.trim()] : [],
+  )
+
+  return items.length > 0 ? items : undefined
+}
+
 const cleanObject = <T extends Record<string, unknown>>(input: T): Partial<T> =>
   Object.fromEntries(
     Object.entries(input).filter(([, value]) => value !== undefined && value !== null),
@@ -191,6 +208,7 @@ export const toResolvedDocsRecord = ({
     id,
     archived: getOptionalBoolean(sync ?? {}, 'archived') ?? false,
     content: typeof doc[markdownField] === 'string' ? doc[markdownField] : undefined,
+    dependencies: getOptionalStringArray(doc, 'dependencies'),
     depth: getOptionalNumber(doc, 'depth') ?? 0,
     description: getOptionalString(doc, 'description'),
     docsSetId: getRelationshipId(doc.docsSet),

@@ -3,6 +3,7 @@ import type { DocsValidationIssue } from './validate.js'
 import { normalizeDocsPath } from './paths.js'
 
 export type DocsFrontmatter = {
+  dependencies?: string[]
   description?: string
   draft?: boolean
   navTitle?: string
@@ -22,6 +23,7 @@ export type ParseDocsFrontmatterResult = {
 }
 
 const knownFrontmatterFields = new Set([
+  'dependencies',
   'description',
   'draft',
   'navTitle',
@@ -33,7 +35,7 @@ const knownFrontmatterFields = new Set([
   'title',
 ])
 
-const arrayFrontmatterFields = new Set(['redirectFrom', 'tags'])
+const arrayFrontmatterFields = new Set(['dependencies', 'redirectFrom', 'tags'])
 
 const stripQuotes = (value: string): string => {
   const trimmed = value.trim()
@@ -199,7 +201,7 @@ export const parseDocsFrontmatter = (
 
   const frontmatter: DocsFrontmatter = {}
   const frontmatterLines = lines.slice(1, closingIndex)
-  let currentArrayKey: 'redirectFrom' | 'tags' | undefined
+  let currentArrayKey: 'dependencies' | 'redirectFrom' | 'tags' | undefined
 
   for (const line of frontmatterLines) {
     if (line.trim() === '') {
@@ -263,7 +265,7 @@ export const parseDocsFrontmatter = (
         continue
       }
 
-      currentArrayKey = key as 'redirectFrom' | 'tags'
+      currentArrayKey = key as 'dependencies' | 'redirectFrom' | 'tags'
       frontmatter[currentArrayKey] = []
       continue
     }

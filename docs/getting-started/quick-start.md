@@ -44,12 +44,11 @@ skills/
       SKILL.md
     claude/
       SKILL.md
-llms.txt
-llms-full.txt
 ```
 
-Markdown docs become manifest `files`. Skills and root AI discovery files become
-manifest `assets`, so skill files do not need docs frontmatter.
+Markdown docs become manifest `files`. Skills become manifest `assets`, so skill
+files do not need docs frontmatter. AI discovery files are generated from synced
+docs, docs set metadata, dependencies, and skills.
 
 ## Install An Agent Skill
 
@@ -70,8 +69,9 @@ Neither install syncs docs, calls Payload, or publishes content.
 
 ## Install Public Asset Routes
 
-If the consuming Next app should serve `/llms.txt`, `/llms-full.txt`, or
-docs-set skill URLs outside `/api`, commit the generated route files:
+If the consuming Next app should serve generated `/llms.txt`, `/llms-full.txt`,
+docs-set `llms` files, or skill URLs outside `/api`, commit the generated route
+files:
 
 ```bash
 pnpm exec payload-markdown-docs install routes --payload-app "src/app/(payload)"

@@ -14,6 +14,7 @@ export type DocsSetPayloadOperations = {
     draft?: boolean
     limit?: number
     overrideAccess?: boolean
+    sort?: string
     where?: unknown
   }) => Promise<{
     docs: unknown[]
@@ -43,10 +44,12 @@ export type ResolvedDocsSet = {
   }
   allowPullRequests: boolean
   branch: string
+  description?: string
   groupId?: string
   id: PayloadRecordId
   routeBase: string
   slug: string
+  title: string
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -234,6 +237,7 @@ const toResolvedDocsSet = ({
     slug,
     allowPullRequests: doc.allowPullRequests === true,
     branch: getString(doc.branch) ?? 'main',
+    description: getString(doc.description),
     groupId,
     routeBase: normalizeRoutePath(
       deriveDocsSetRouteBase({
@@ -241,6 +245,7 @@ const toResolvedDocsSet = ({
         groupRoutePath: group?.routePath,
       }),
     ),
+    title: getString(doc.title) ?? slug,
   }
 }
 
@@ -384,4 +389,39 @@ export const findDocsSetByRoutePrefix = async ({
           isRouteDescendant(docsSet.routeBase, normalizedRoute)),
     )
     .sort((first, second) => second.routeBase.length - first.routeBase.length)[0]
+}
+
+export const findAllDocsSets = async ({
+  collectionSlug,
+  docsGroupsCollectionSlug,
+  payload,
+}: {
+  collectionSlug: string
+  docsGroupsCollectionSlug: string
+  payload: DocsSetPayloadOperations
+}): Promise<ResolvedDocsSet[]> => {
+  const [result, groupsById] = await Promise.all([
+    payload.find({
+      collection: collectionSlug,
+      depth: 0,
+      draft: false,
+      limit: 1000,
+      overrideAccess: true,
+    }),
+    getGroupsById({
+      collectionSlug: docsGroupsCollectionSlug,
+      payload,
+    }),
+  ])
+
+  return result.docs
+    .flatMap((doc) => {
+      const docsSet = toResolvedDocsSet({
+        doc,
+        groupsById,
+      })
+
+      return docsSet ? [docsSet] : []
+    })
+    .sort((first, second) => first.routeBase.localeCompare(second.routeBase))
 }

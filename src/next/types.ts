@@ -65,6 +65,7 @@ export type ResolvedPayloadMarkdownDocsGroup = {
 export type ResolvedPayloadMarkdownDocsRecord = {
   archived: boolean
   content?: string
+  dependencies?: string[]
   depth: number
   description?: string
   docsSetId?: string

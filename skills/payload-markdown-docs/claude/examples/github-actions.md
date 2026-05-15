@@ -8,15 +8,11 @@ on:
     paths:
       - 'docs/**'
       - 'skills/**'
-      - 'llms.txt'
-      - 'llms-full.txt'
   push:
     branches: [main]
     paths:
       - 'docs/**'
       - 'skills/**'
-      - 'llms.txt'
-      - 'llms-full.txt'
 
 permissions:
   id-token: write

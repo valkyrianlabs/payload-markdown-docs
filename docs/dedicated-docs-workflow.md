@@ -12,8 +12,8 @@ tags:
 # Dedicated Docs Sync Workflow
 
 This guide covers the default workflow for syncing a Git-backed docs package
-into Payload-managed docs sets, generated docs records, and static AI-facing
-asset records.
+into Payload-managed docs sets, generated docs records, generated AI discovery
+files, and native agent skill asset records.
 
 The client sends docs content. Payload docs sets decide the source slug and
 branch; global Keys and Trusted records decide which credentials are allowed.
@@ -91,8 +91,6 @@ skills/
       SKILL.md
     claude/
       SKILL.md
-llms.txt
-llms-full.txt
 ```
 
 Supported files are `.md` only. Paths must be relative, must not contain
@@ -101,8 +99,9 @@ traversal, and must remain inside the docs root passed to the CLI.
 Agent workflow packs are separate from human docs. Keep native skill artifacts
 under `skills/<source>/<agent>/` or install them into the target project with
 `payload-markdown-docs install skill --agent codex|claude`. During manifest
-generation, human docs become `files`; skills, `llms.txt`, and `llms-full.txt`
-become `assets`.
+generation, human docs become `files` and skills become `assets`. AI discovery
+files are generated at request time from synced docs, docs set metadata,
+dependencies, and skills.
 
 ## Key Generation
 
@@ -308,7 +307,8 @@ Implemented for this workflow:
 - GitHub Actions OIDC auth
 - local CLI validation, manifest, plan, keygen, and push
 - native route adapter, dynamic sitemap helper, and frontend rendering helpers
-- static asset storage for skills, `llms.txt`, and `llms-full.txt`
+- generated root and docs-set AI discovery files
+- static asset storage for skills and optional custom assets
 - public asset route file installer for Next App Router apps
 - docs set admin manager
 - agent skill installer

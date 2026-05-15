@@ -131,8 +131,8 @@ sync docs, install public routes, or call Payload.
 ## Publishing Skill Assets
 
 Those directories are safe to publish through the docs site. After
-`payload-markdown-docs push` syncs them as assets, the plugin serves the
-standard routes:
+`payload-markdown-docs push` syncs them as assets, the plugin serves standard
+skill routes and generated docs-set AI discovery routes:
 
 ```text
 /plugins/payload-markdown-docs/llms.txt
@@ -164,9 +164,9 @@ URLs can work while public `/llms.txt` and `/skills` URLs return HTML 404 pages.
 
 Include exposed skill artifacts in `sitemap.xml` with stored asset sitemap
 coverage or the sitemap helper `additionalRoutes` option. The plugin also owns
-top-level `/llms.txt` and `/llms-full.txt` asset handlers so crawlers can
-discover the static AI entrypoints while agents can consume the native skill
-files directly through public route files.
+top-level `/llms.txt` and `/llms-full.txt` handlers generated from synced docs,
+docs set metadata, dependencies, and skills, while agents can consume native
+skill files directly through public route files.
 
 `sitemap.xml` is crawler discovery, `llms.txt` is an AI-readable entrypoint, and
 skills are native workflow artifacts.

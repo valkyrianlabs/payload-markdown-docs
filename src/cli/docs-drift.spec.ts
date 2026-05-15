@@ -7,8 +7,6 @@ const auditedRoots = [
   'README.md',
   'docs',
   'examples',
-  'llms-full.txt',
-  'llms.txt',
   'skills',
 ]
 

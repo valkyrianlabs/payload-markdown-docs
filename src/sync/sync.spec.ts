@@ -249,10 +249,13 @@ redirectFrom:
   - /docs/install
 tags:
   - getting-started
+dependencies:
+  - "@valkyrianlabs/payload-markdown"
 ---
 
 # Install`)
 
+    expect(parsed.frontmatter.dependencies).toEqual(['@valkyrianlabs/payload-markdown'])
     expect(parsed.frontmatter.redirectFrom).toEqual(['/docs/install'])
     expect(parsed.frontmatter.tags).toEqual(['getting-started'])
   })

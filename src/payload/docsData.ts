@@ -50,6 +50,7 @@ export const buildDocsData = ({
 
   return {
     ...(draftStatus ? { _status: draftStatus } : {}),
+    dependencies: desired.frontmatter.dependencies ?? [],
     depth: getDocsDepth(desired.path),
     description: desired.frontmatter.description,
     ...(docsSetId ? { docsSet: docsSetId } : {}),

@@ -22,6 +22,8 @@ order: 10
 status: published
 tags:
   - getting-started
+dependencies:
+  - "@valkyrianlabs/payload-markdown"
 redirectFrom:
   - /docs/install
 ---
@@ -36,6 +38,7 @@ redirectFrom:
 - `status`
 - `slug`
 - `tags`
+- `dependencies`
 - `redirectFrom`
 - `draft`
 
@@ -43,13 +46,16 @@ redirectFrom:
 
 - `status` must be `draft` or `published`
 - `order` must be a number
-- `tags` and `redirectFrom` must use list item syntax
+- `tags`, `dependencies`, and `redirectFrom` must use list item syntax
 - `slug` may contain letters, numbers, and hyphens
 - unknown fields produce warnings
 - nested YAML objects are not supported
 - arrays must be written as block lists, not inline arrays
 - `draft` must be `true` or `false`
 - `title`, `navTitle`, `description`, and `slug` are plain strings
+- `dependencies` should use fully qualified package names; the generated
+  `llms` endpoints strip npm scopes when matching a dependency to another docs
+  set slug
 
 ## Formatting Expectations
 

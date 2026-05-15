@@ -14,6 +14,7 @@ export type { BuildDocsDataInput, DocsDraftStatus } from './docsData.js'
 export { findDocsKeyById } from './docsKeys.js'
 export type { DocsKeyPayloadOperations, ResolvedDocsKey } from './docsKeys.js'
 export {
+  findAllDocsSets,
   findDocsSetByRouteBase,
   findDocsSetByRoutePrefix,
   findDocsSetBySlug,

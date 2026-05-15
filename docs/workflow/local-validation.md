@@ -44,9 +44,10 @@ docs set slug, and manifest shape.
 pnpm exec payload-markdown-docs manifest --source main-docs --pretty
 ```
 
-The manifest is JSON. Human docs are emitted as `files`; skills, `llms.txt`,
-and `llms-full.txt` are emitted as `assets`. It includes content and SHA-256
-hashes, but it does not include server-owned target collection or field names.
+The manifest is JSON. Human docs are emitted as `files`; skills and optional
+custom static fallback files are emitted as `assets`. It includes content and
+SHA-256 hashes, but it does not include server-owned target collection or field
+names.
 
 ## Plan
 

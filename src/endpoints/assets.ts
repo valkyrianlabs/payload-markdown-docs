@@ -4,8 +4,10 @@ import type { DocsSetPayloadOperations, ResolvedDocsSet } from '../payload/index
 
 import {
   DEFAULT_DOCS_ASSETS_COLLECTION_SLUG,
+  DEFAULT_DOCS_COLLECTION_SLUG,
   DEFAULT_DOCS_GROUPS_COLLECTION_SLUG,
   DEFAULT_DOCS_SETS_COLLECTION_SLUG,
+  DEFAULT_MARKDOWN_FIELD_NAME,
 } from '../constants.js'
 import { findDocsSetByRoutePrefix } from '../payload/index.js'
 import { joinRouteSegments, normalizeRoutePath } from '../routing/index.js'
@@ -13,13 +15,17 @@ import {
   DOCS_ASSETS_STORAGE_UNAVAILABLE_MESSAGE,
   isDocsAssetsStorageUnavailableError,
 } from './assetsStorage.js'
+import { createLlmsResponse, generateDocsSetLlms, generateRootLlms } from './llms.js'
 
 export type CreateDocsAssetsEndpointsOptions = {
   docsAssetsCollectionSlug?: string
   docsAssetsEnabled?: boolean
+  docsCollectionSlug?: string
+  docsEnabled?: boolean
   docsGroupsCollectionSlug?: string
   docsSetsCollectionSlug?: string
   docsSetsEnabled?: boolean
+  markdownFieldName?: string
 }
 
 type AssetEndpointPayloadOperations = {
@@ -29,6 +35,7 @@ type AssetEndpointPayloadOperations = {
     draft?: boolean
     limit?: number
     overrideAccess?: boolean
+    sort?: string
     where?: unknown
   }) => Promise<{
     docs: unknown[]
@@ -259,19 +266,50 @@ const createRootGetEndpoint = ({
 
 const createRootAssetEndpoint = ({
   collectionSlug,
+  docsCollectionSlug,
+  docsEnabled,
+  docsGroupsCollectionSlug,
+  docsSetsCollectionSlug,
+  docsSetsEnabled,
   kind,
+  markdownFieldName,
   path,
 }: {
   collectionSlug: string
+  docsCollectionSlug: string
+  docsEnabled: boolean
+  docsGroupsCollectionSlug: string
+  docsSetsCollectionSlug: string
+  docsSetsEnabled: boolean
   kind: 'llms' | 'llms-full'
+  markdownFieldName: string
   path: string
 }): Endpoint =>
   createRootGetEndpoint({
     handler: async (req) => {
       try {
+        const payload = req.payload as unknown as AssetEndpointPayloadOperations
+
+        if (docsEnabled && docsSetsEnabled) {
+          const generatedContent = await generateRootLlms({
+            docsAssetsCollectionSlug: collectionSlug,
+            docsCollectionSlug,
+            docsGroupsCollectionSlug,
+            docsSetsCollectionSlug,
+            kind,
+            markdownFieldName,
+            payload,
+            req,
+          })
+
+          if (generatedContent) {
+            return createLlmsResponse(generatedContent)
+          }
+        }
+
         const asset = await resolveAssetByRoute({
           collectionSlug,
-          payload: req.payload as unknown as AssetEndpointPayloadOperations,
+          payload,
           route: path,
         })
 
@@ -289,26 +327,33 @@ const createRootAssetEndpoint = ({
 
 const createDocsSetLlmsEndpoint = ({
   collectionSlug,
+  docsCollectionSlug,
+  docsEnabled,
   docsGroupsCollectionSlug,
   docsSetsCollectionSlug,
   kind,
+  markdownFieldName,
   path,
 }: {
   collectionSlug: string
+  docsCollectionSlug: string
+  docsEnabled: boolean
   docsGroupsCollectionSlug: string
   docsSetsCollectionSlug: string
   kind: 'llms' | 'llms-full'
+  markdownFieldName: string
   path: string
 }): Endpoint =>
   createRootGetEndpoint({
     handler: async (req) => {
       const route = getRequestPath(req)
+      const payload = req.payload as unknown as AssetEndpointPayloadOperations
 
       try {
         const docsSet = await findDocsSetByRoutePrefix({
           collectionSlug: docsSetsCollectionSlug,
           docsGroupsCollectionSlug,
-          payload: req.payload as unknown as DocsSetPayloadOperations,
+          payload: payload as DocsSetPayloadOperations,
           route,
         })
 
@@ -316,11 +361,29 @@ const createDocsSetLlmsEndpoint = ({
           return notFoundResponse()
         }
 
+        if (docsEnabled) {
+          const generatedContent = await generateDocsSetLlms({
+            docsAssetsCollectionSlug: collectionSlug,
+            docsCollectionSlug,
+            docsGroupsCollectionSlug,
+            docsSet,
+            docsSetsCollectionSlug,
+            kind,
+            markdownFieldName,
+            payload,
+            req,
+          })
+
+          if (generatedContent) {
+            return createLlmsResponse(generatedContent)
+          }
+        }
+
         const asset = await resolveAssetByDocsSet({
           collectionSlug,
           docsSet,
           kind,
-          payload: req.payload as unknown as AssetEndpointPayloadOperations,
+          payload,
         })
 
         return asset ? createAssetResponse(asset) : notFoundResponse()
@@ -390,9 +453,12 @@ const createSkillAssetEndpoint = ({
 export const createDocsAssetsEndpoints = ({
   docsAssetsCollectionSlug = DEFAULT_DOCS_ASSETS_COLLECTION_SLUG,
   docsAssetsEnabled = true,
+  docsCollectionSlug = DEFAULT_DOCS_COLLECTION_SLUG,
+  docsEnabled = true,
   docsGroupsCollectionSlug = DEFAULT_DOCS_GROUPS_COLLECTION_SLUG,
   docsSetsCollectionSlug = DEFAULT_DOCS_SETS_COLLECTION_SLUG,
   docsSetsEnabled = true,
+  markdownFieldName = DEFAULT_MARKDOWN_FIELD_NAME,
 }: CreateDocsAssetsEndpointsOptions): Endpoint[] => {
   if (!docsAssetsEnabled) {
     return []
@@ -401,28 +467,46 @@ export const createDocsAssetsEndpoints = ({
   return [
     createRootAssetEndpoint({
       collectionSlug: docsAssetsCollectionSlug,
+      docsCollectionSlug,
+      docsEnabled,
+      docsGroupsCollectionSlug,
+      docsSetsCollectionSlug,
+      docsSetsEnabled,
       kind: 'llms',
+      markdownFieldName,
       path: '/llms.txt',
     }),
     createRootAssetEndpoint({
       collectionSlug: docsAssetsCollectionSlug,
+      docsCollectionSlug,
+      docsEnabled,
+      docsGroupsCollectionSlug,
+      docsSetsCollectionSlug,
+      docsSetsEnabled,
       kind: 'llms-full',
+      markdownFieldName,
       path: '/llms-full.txt',
     }),
     ...(docsSetsEnabled
       ? [
           createDocsSetLlmsEndpoint({
             collectionSlug: docsAssetsCollectionSlug,
+            docsCollectionSlug,
+            docsEnabled,
             docsGroupsCollectionSlug,
             docsSetsCollectionSlug,
             kind: 'llms',
+            markdownFieldName,
             path: '/:routeBase*/llms.txt',
           }),
           createDocsSetLlmsEndpoint({
             collectionSlug: docsAssetsCollectionSlug,
+            docsCollectionSlug,
+            docsEnabled,
             docsGroupsCollectionSlug,
             docsSetsCollectionSlug,
             kind: 'llms-full',
+            markdownFieldName,
             path: '/:routeBase*/llms-full.txt',
           }),
           createSkillAssetEndpoint({

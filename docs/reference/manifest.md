@@ -34,14 +34,6 @@ The sync protocol uses JSON manifest uploads, not ZIP files.
   ],
   "assets": [
     {
-      "kind": "llms",
-      "path": "llms.txt",
-      "route": "/llms.txt",
-      "contentType": "text/plain; charset=utf-8",
-      "sha256": "...",
-      "content": "# Main Docs\n\n..."
-    },
-    {
       "kind": "skill",
       "path": "skills/main-docs/codex/SKILL.md",
       "route": "/plugins/main-docs/skills/codex/SKILL.md",
@@ -67,8 +59,9 @@ The sync protocol uses JSON manifest uploads, not ZIP files.
 ## Static Assets
 
 `files` are docs records and use frontmatter, title resolution, and route
-derivation. `assets` are static AI-facing artifacts and are stored separately.
-They do not require frontmatter and are not parsed as docs pages.
+derivation. `assets` are native skill artifacts and optional static fallback
+artifacts stored separately. They do not require frontmatter and are not parsed
+as docs pages.
 
 Supported asset kinds:
 
@@ -77,8 +70,10 @@ Supported asset kinds:
 - `skill`
 - `static`
 
-`llms` and `llms-full` assets use root routes `/llms.txt` and
-`/llms-full.txt`. Skill routes are derived from the docs set route base, so
+`llms` and `llms-full` assets are optional custom static fallback files. By
+default, `/llms.txt`, `/llms-full.txt`, and docs-set `llms` files are generated
+by the plugin from synced docs, docs set metadata, dependencies, and skills.
+Skill routes are derived from the docs set route base, so
 `skills/main-docs/codex/SKILL.md` serves under
 `<docsSet.routeBase>/skills/codex/SKILL.md`.
 

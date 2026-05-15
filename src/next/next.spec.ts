@@ -538,8 +538,32 @@ describe('Payload Markdown Docs route adapter', () => {
         url: 'https://example.com/base/guides',
       },
       {
+        lastModified: '2026-05-13T12:00:00.000Z',
+        url: 'https://example.com/base/guides/llms-full.txt',
+      },
+      {
+        lastModified: '2026-05-13T12:00:00.000Z',
+        url: 'https://example.com/base/guides/llms.txt',
+      },
+      {
+        lastModified: '2026-05-14T12:00:00.000Z',
+        url: 'https://example.com/base/llms-full.txt',
+      },
+      {
+        lastModified: '2026-05-14T12:00:00.000Z',
+        url: 'https://example.com/base/llms.txt',
+      },
+      {
         lastModified: '2026-05-14T12:00:00.000Z',
         url: 'https://example.com/base/plugins/cms/payload-markdown',
+      },
+      {
+        lastModified: '2026-05-14T12:00:00.000Z',
+        url: 'https://example.com/base/plugins/cms/payload-markdown/llms-full.txt',
+      },
+      {
+        lastModified: '2026-05-14T12:00:00.000Z',
+        url: 'https://example.com/base/plugins/cms/payload-markdown/llms.txt',
       },
     ])
     expect(payload.find).toHaveBeenCalledWith(
@@ -590,7 +614,23 @@ describe('Payload Markdown Docs route adapter', () => {
     expect(result).toEqual([
       {
         lastModified: '2026-05-14T12:00:00.000Z',
+        url: 'https://example.com/llms-full.txt',
+      },
+      {
+        lastModified: '2026-05-14T12:00:00.000Z',
+        url: 'https://example.com/llms.txt',
+      },
+      {
+        lastModified: '2026-05-14T12:00:00.000Z',
         url: 'https://example.com/plugins/payload-markdown',
+      },
+      {
+        lastModified: '2026-05-14T12:00:00.000Z',
+        url: 'https://example.com/plugins/payload-markdown/llms-full.txt',
+      },
+      {
+        lastModified: '2026-05-14T12:00:00.000Z',
+        url: 'https://example.com/plugins/payload-markdown/llms.txt',
       },
     ])
   })
@@ -675,9 +715,11 @@ describe('Payload Markdown Docs route adapter', () => {
 
     expect(result).toEqual([
       {
+        lastModified: '2026-05-10T12:00:00.000Z',
         url: 'https://example.com/llms-full.txt',
       },
       {
+        lastModified: '2026-05-10T12:00:00.000Z',
         url: 'https://example.com/llms.txt',
       },
       {
@@ -691,6 +733,14 @@ describe('Payload Markdown Docs route adapter', () => {
       {
         lastModified: '2026-05-14T12:00:00.000Z',
         url: 'https://example.com/plugins/payload-markdown-docs/skills/codex/SKILL.md',
+      },
+      {
+        lastModified: '2026-05-10T12:00:00.000Z',
+        url: 'https://example.com/plugins/payload-markdown/llms-full.txt',
+      },
+      {
+        lastModified: '2026-05-10T12:00:00.000Z',
+        url: 'https://example.com/plugins/payload-markdown/llms.txt',
       },
     ])
   })
@@ -802,12 +852,28 @@ describe('Payload Markdown Docs route adapter', () => {
 
     expect(result.docs).toEqual([
       {
+        lastModified: '2026-05-14T11:00:00.000Z',
+        url: 'https://example.com/llms-full.txt',
+      },
+      {
+        lastModified: '2026-05-14T11:00:00.000Z',
+        url: 'https://example.com/llms.txt',
+      },
+      {
         lastModified: '2026-05-15T12:00:00.000Z',
         url: 'https://example.com/plugins/payload-markdown',
       },
       {
         lastModified: '2026-05-14T12:00:00.000Z',
         url: 'https://example.com/plugins/payload-markdown/getting-started/installation',
+      },
+      {
+        lastModified: '2026-05-14T11:00:00.000Z',
+        url: 'https://example.com/plugins/payload-markdown/llms-full.txt',
+      },
+      {
+        lastModified: '2026-05-14T11:00:00.000Z',
+        url: 'https://example.com/plugins/payload-markdown/llms.txt',
       },
     ])
   })
@@ -842,7 +908,23 @@ describe('Payload Markdown Docs route adapter', () => {
     expect(result).toEqual([
       {
         lastModified: '2026-05-14T11:00:00.000Z',
+        url: 'https://example.com/llms-full.txt',
+      },
+      {
+        lastModified: '2026-05-14T11:00:00.000Z',
+        url: 'https://example.com/llms.txt',
+      },
+      {
+        lastModified: '2026-05-14T11:00:00.000Z',
         url: 'https://example.com/plugins/payload-markdown',
+      },
+      {
+        lastModified: '2026-05-14T11:00:00.000Z',
+        url: 'https://example.com/plugins/payload-markdown/llms-full.txt',
+      },
+      {
+        lastModified: '2026-05-14T11:00:00.000Z',
+        url: 'https://example.com/plugins/payload-markdown/llms.txt',
       },
     ])
     expect(payload.find).not.toHaveBeenCalledWith(expect.objectContaining({ collection: 'docs' }))
@@ -898,12 +980,20 @@ describe('Payload Markdown Docs route adapter', () => {
 
     expect(result).toEqual([
       {
+        lastModified: sitemapDocsSet.updatedAt,
+        url: 'https://example.com/llms-full.txt',
+      },
+      {
         lastModified: '2026-05-16T12:00:00.000Z',
         url: 'https://example.com/llms.txt',
       },
       {
         lastModified: sitemapDocsSet.updatedAt,
         url: 'https://example.com/plugins/payload-markdown',
+      },
+      {
+        lastModified: sitemapDocsSet.updatedAt,
+        url: 'https://example.com/plugins/payload-markdown/llms-full.txt',
       },
       {
         lastModified: '2026-05-16T12:00:00.000Z',
