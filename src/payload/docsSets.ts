@@ -385,11 +385,13 @@ export const findDocsSetByRouteBase = async ({
 export const findDocsSetByRoutePrefix = async ({
   collectionSlug,
   docsGroupsCollectionSlug,
+  includeProductRoute = false,
   payload,
   route,
 }: {
   collectionSlug: string
   docsGroupsCollectionSlug: string
+  includeProductRoute?: boolean
   payload: DocsSetPayloadOperations
   route: string
 }): Promise<ResolvedDocsSet | undefined> => {
@@ -419,9 +421,18 @@ export const findDocsSetByRoutePrefix = async ({
       (docsSet): docsSet is ResolvedDocsSet =>
         docsSet !== undefined &&
         (docsSet.routeBase === normalizedRoute ||
-          isRouteDescendant(docsSet.routeBase, normalizedRoute)),
+          isRouteDescendant(docsSet.routeBase, normalizedRoute) ||
+          (includeProductRoute &&
+            docsSet.routeMode === 'product-nested' &&
+            (docsSet.productRoute === normalizedRoute ||
+              isRouteDescendant(docsSet.productRoute, normalizedRoute)))),
     )
-    .sort((first, second) => second.routeBase.length - first.routeBase.length)[0]
+    .sort((first, second) => {
+      const firstRoute = includeProductRoute ? first.productRoute : first.routeBase
+      const secondRoute = includeProductRoute ? second.productRoute : second.routeBase
+
+      return secondRoute.length - firstRoute.length
+    })[0]
 }
 
 export const findAllDocsSets = async ({

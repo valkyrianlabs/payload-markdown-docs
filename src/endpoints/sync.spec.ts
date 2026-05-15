@@ -1831,6 +1831,83 @@ describe('sync endpoint dry-run handling', () => {
     )
   })
 
+  it('keeps product-nested skill assets beside docs instead of under the docs segment', async () => {
+    const { privateKey, publicKey } = keyPair()
+    const body = JSON.stringify(
+      buildDocsManifest({
+        assets: [
+          {
+            content: '# Codex Skill\n',
+            contentType: 'text/markdown; charset=utf-8',
+            kind: 'skill',
+            path: 'skills/main-docs/codex/SKILL.md',
+          },
+        ],
+        files: [
+          {
+            content: '# Home\n',
+            path: 'index.md',
+          },
+        ],
+        mode: 'sync',
+        sourceId: 'main-docs',
+      }),
+    )
+    const payload = createMockPayload({
+      docsGroups: [
+        {
+          id: 'docs-group-1',
+          slug: 'plugins',
+        },
+      ],
+      docsSets: [
+        {
+          id: 'docs-set-1',
+          slug: 'main-docs',
+          branch: 'main',
+          group: 'docs-group-1',
+          routeMode: 'product-nested',
+        },
+      ],
+    })
+    const { json, response } = await callEndpoint({
+      body,
+      endpointOptions: {
+        allowWrites: true,
+        docsSetsEnabled: true,
+      },
+      headers: signBody({
+        body,
+        privateKey,
+      }),
+      payload,
+      publicKey: publicKey.toString(),
+    })
+
+    expect(response.status).toBe(200)
+    expect(json.summary).toMatchObject({
+      assetCreate: 1,
+      create: 1,
+    })
+    expect(payload.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: 'docs',
+        data: expect.objectContaining({
+          route: '/plugins/main-docs/docs',
+        }),
+      }),
+    )
+    expect(payload.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: DEFAULT_DOCS_ASSETS_COLLECTION_SLUG,
+        data: expect.objectContaining({
+          kind: 'skill',
+          route: '/plugins/main-docs/skills/codex/SKILL.md',
+        }),
+      }),
+    )
+  })
+
   it('rejects duplicate routes outside the resolved docs set', async () => {
     const { privateKey, publicKey } = keyPair()
     const body = JSON.stringify(createManifest({ mode: 'sync' }))

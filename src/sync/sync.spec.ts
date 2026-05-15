@@ -383,6 +383,45 @@ slug: setup
     ])
   })
 
+  test('routes skill assets from assetRouteBase when docs use a nested route base', () => {
+    const result = validateDocsManifest(
+      {
+        assets: [
+          {
+            content: '# Skill\n',
+            contentType: 'text/markdown; charset=utf-8',
+            kind: 'skill',
+            path: 'skills/main-docs/codex/SKILL.md',
+          },
+        ],
+        files: [
+          {
+            content: '# Home\n',
+            path: 'index.md',
+          },
+        ],
+        source: {
+          id: 'main-docs',
+        },
+        version: 1,
+      },
+      {
+        allowedSourceIds: ['main-docs'],
+        assetRouteBase: '/plugins/main-docs',
+        routeBase: '/plugins/main-docs/docs',
+      },
+    )
+
+    expect(result.ok).toBe(true)
+
+    if (!result.ok) {
+      return
+    }
+
+    expect(result.data.files[0]?.route).toBe('/plugins/main-docs/docs')
+    expect(result.data.assets[0]?.route).toBe('/plugins/main-docs/skills/codex/SKILL.md')
+  })
+
   test('title falls back to filename when there is no frontmatter title or H1', () => {
     const data = expectValidManifest({
       files: [

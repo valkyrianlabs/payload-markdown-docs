@@ -415,6 +415,7 @@ const createSkillAssetEndpoint = ({
         const docsSet = await findDocsSetByRoutePrefix({
           collectionSlug: docsSetsCollectionSlug,
           docsGroupsCollectionSlug,
+          includeProductRoute: true,
           payload: req.payload as unknown as DocsSetPayloadOperations,
           route,
         })
@@ -423,9 +424,11 @@ const createSkillAssetEndpoint = ({
           return notFoundResponse()
         }
 
+        const skillRouteBase =
+          docsSet.routeMode === 'product-nested' ? docsSet.productRoute : docsSet.routeBase
         const routeRemainder = getRouteRemainder({
           route,
-          routeBase: docsSet.routeBase,
+          routeBase: skillRouteBase,
         })
 
         if (!routeRemainder?.startsWith('/skills/')) {

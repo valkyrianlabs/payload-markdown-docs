@@ -292,6 +292,7 @@ const parseManifestBody = (rawBody: string): DocsManifest | undefined => {
 }
 
 type ResolvedSyncSource = {
+  assetRouteBase: string
   docsSet: ResolvedDocsSet
   routeBase: string
   sourceId: string
@@ -340,6 +341,7 @@ const resolveSyncSource = async ({
   if (docsSet) {
     return {
       source: {
+        assetRouteBase: docsSet.productRoute,
         docsSet,
         routeBase: docsSet.routeBase,
         sourceId,
@@ -1190,6 +1192,7 @@ const createSyncEndpointHandler =
 
     const validation = validateDocsManifest(manifest, {
       allowedSourceIds: [sourceResolution.source.sourceId],
+      assetRouteBase: sourceResolution.source.assetRouteBase,
       maxTotalBytes: maxBodyBytes,
       routeBase: sourceResolution.source.routeBase,
     })

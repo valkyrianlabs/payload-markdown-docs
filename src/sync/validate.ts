@@ -71,6 +71,7 @@ export type DocsValidationResult<T = unknown> =
 
 export type DocsValidationOptions = {
   allowedSourceIds?: string[]
+  assetRouteBase?: string
   maxAssets?: number
   maxFileBytes?: number
   maxFiles?: number
@@ -331,13 +332,13 @@ const validateManifestFile = ({
 
 const validateManifestAsset = ({
   asset,
+  assetRouteBase,
   maxFileBytes,
-  routeBase,
   sourceId,
 }: {
   asset: unknown
+  assetRouteBase: string
   maxFileBytes: number
-  routeBase: string
   sourceId?: string
 }): {
   assetBytes: number
@@ -457,7 +458,7 @@ const validateManifestAsset = ({
       route: deriveAssetRouteFromSourcePath({
         kind,
         route,
-        routeBase,
+        routeBase: assetRouteBase,
         sourceId,
         sourcePath: normalizedPath.path,
       }),
@@ -478,6 +479,7 @@ export const validateDocsManifest = (
   const maxFiles = options.maxFiles ?? DEFAULT_MAX_DOCS_FILES
   const maxTotalBytes = options.maxTotalBytes ?? DEFAULT_MAX_DOCS_TOTAL_BYTES
   const routeBase = options.routeBase ?? DEFAULT_DOCS_ROUTE_BASE
+  const assetRouteBase = options.assetRouteBase ?? routeBase
 
   if (!isRecord(manifest)) {
     return {
@@ -618,8 +620,8 @@ export const validateDocsManifest = (
   for (const asset of assets ?? []) {
     const assetValidation = validateManifestAsset({
       asset,
+      assetRouteBase,
       maxFileBytes,
-      routeBase,
       sourceId: sourceValidation.source?.id,
     })
 
