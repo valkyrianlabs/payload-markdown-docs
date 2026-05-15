@@ -64,14 +64,6 @@ export const createDocsGroupsCollection = ({
         },
       ],
     },
-    {
-      name: 'serveIndex',
-      type: 'checkbox',
-      admin: {
-        description: 'Legacy field. Use pageMode for new docs groups.',
-      },
-      defaultValue: false,
-    },
   ],
   labels: {
     plural: 'Groups',

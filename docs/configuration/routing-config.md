@@ -66,8 +66,7 @@ New docs groups default to `pageMode: "auto"`, which lets the docs plugin render
 a generated group landing page, such as `/plugins`, with cards for direct child
 groups and docs sets.
 
-Use `pageMode: "custom"` when the site owns the group route manually. Existing
-records without `pageMode` keep legacy `serveIndex` behavior.
+Use `pageMode: "custom"` when the site owns the group route manually.
 
 ## Bridge Pages
 

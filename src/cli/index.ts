@@ -37,15 +37,11 @@ Commands:
 const commandHelp: Record<Exclude<CliCommandName, 'help'>, string> = {
   install: `payload-markdown-docs install skill --agent codex
 
-Aliases:
-  payload-markdown-docs install ai-skill --codex
-  payload-markdown-docs install ai-skill --agent claude
+Targets:
   payload-markdown-docs install skill --agent codex
   payload-markdown-docs install skill --agent claude
   payload-markdown-docs install skill --claude
   payload-markdown-docs install routes
-  payload-markdown-docs install asset-routes
-  payload-markdown-docs install ai-routes
 
 Options:
   --codex                         Install the Codex skill pack.
@@ -137,7 +133,6 @@ Options:
   --github-oidc              Use GitHub Actions OIDC bearer auth instead of Ed25519.
   --oidc-token-env <name>    Environment variable containing an already-fetched OIDC token.
   --dry-run                  Validate and submit a dry-run request without applying writes.
-  --sync                     Deprecated compatibility flag. Sync is the default.
   --strict-routes            Fail when assets are included but public Next asset route files are missing.
   --publish                  Request published output. Server must allow publishing.
   --delete-behavior <value>  archive, delete, draft, or ignore. Defaults to archive.

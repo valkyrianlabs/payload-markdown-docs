@@ -11,9 +11,10 @@ tags:
 
 # Marketing Blocks
 
-`payload-markdown-docs` exports optional Payload Blocks and `/next` render
-components for building product pages, group landing pages, docs previews, and
-skill download CTAs around generated docs routes.
+`payload-markdown-docs/blocks` exports optional Payload Blocks and field
+helpers. `/next` exports the matching render components for building product
+pages, group landing pages, docs previews, and skill download CTAs around
+generated docs routes.
 
 The blocks are opt-in. Generated docs routes keep working the same way.
 
@@ -27,7 +28,7 @@ import {
   DocsCalloutBlock,
   DocsCTABlock,
   DocsPreviewBlock,
-} from '@valkyrianlabs/payload-markdown-docs'
+} from '@valkyrianlabs/payload-markdown-docs/blocks'
 
 export const Pages: CollectionConfig = {
   slug: 'pages',
@@ -48,7 +49,7 @@ import {
   backgroundMediaFields,
   ctaButtonsField,
   skillCTAFields,
-} from '@valkyrianlabs/payload-markdown-docs'
+} from '@valkyrianlabs/payload-markdown-docs/blocks'
 ```
 
 ## Global Auto Install

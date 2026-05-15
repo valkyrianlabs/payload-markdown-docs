@@ -7,6 +7,9 @@ import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 import type { PayloadMarkdownDocsConfig } from '../dist'
 
 import {
+  payloadMarkdownDocs,
+} from '../dist'
+import {
   DEFAULT_DOCS_COLLECTION_SLUG,
   DEFAULT_DOCS_GROUPS_COLLECTION_SLUG,
   DEFAULT_DOCS_KEYS_COLLECTION_SLUG,
@@ -17,8 +20,7 @@ import {
   DEFAULT_MARKDOWN_FIELD_NAME,
   DOCS_GLOBALS_ADMIN_GROUP,
   DOCS_SET_MANAGER_COMPONENT,
-  payloadMarkdownDocs,
-} from '../dist'
+} from '../src/constants.js'
 
 type NamedField = {
   admin?: {
@@ -368,7 +370,7 @@ describe('payloadMarkdownDocs collection wiring', () => {
       DEFAULT_DOCS_GROUPS_COLLECTION_SLUG,
     )
     expect(getField(docsGroupsCollection, 'routePath')).toBeUndefined()
-    expect(getField(docsGroupsCollection, 'serveIndex')?.type).toBe('checkbox')
+    expect(getField(docsGroupsCollection, 'serveIndex')).toBeUndefined()
     expect(docsGroupsCollection?.admin?.group).toBe(DOCS_GLOBALS_ADMIN_GROUP)
   })
 
@@ -378,6 +380,7 @@ describe('payloadMarkdownDocs collection wiring', () => {
     } as unknown as Config)
     const docsSetsCollection = getCollection(transformedConfig, DEFAULT_DOCS_SETS_COLLECTION_SLUG)
     const advancedSecurityField = getGroupField(docsSetsCollection, 'advancedSecurity')
+    const openGraphField = getGroupField(docsSetsCollection, 'openGraph')
     const syncField = getGroupField(docsSetsCollection, 'sync')
 
     expect(getField(docsSetsCollection, 'title')?.type).toBe('text')
@@ -390,6 +393,15 @@ describe('payloadMarkdownDocs collection wiring', () => {
     expect(getField(docsSetsCollection, 'branch')?.type).toBe('text')
     expect(getField(docsSetsCollection, 'allowPullRequests')?.type).toBe('checkbox')
     expect(getField(docsSetsCollection, 'routeBase')).toBeUndefined()
+    expect(openGraphField?.fields?.map((field) => field.name)).toEqual([
+      'title',
+      'description',
+      'image',
+    ])
+    expect(openGraphField?.fields?.find((field) => field.name === 'image')).toMatchObject({
+      type: 'upload',
+      relationTo: 'media',
+    })
     expect(getField(docsSetsCollection, 'publishedAt')).toMatchObject({
       type: 'date',
       admin: {

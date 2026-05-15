@@ -22,7 +22,6 @@ import {
 import {
   appendPayloadMarkdownDocsHeaderNavItems,
   getPayloadMarkdownDocsHeaderNavItems,
-  getPayloadMarkdownDocsLinks,
   getPayloadMarkdownDocsNavItems,
 } from './links.js'
 import { getPayloadMarkdownDocsMetadata } from './metadata.js'
@@ -68,7 +67,6 @@ const docsGroup = {
   slug: 'plugins',
   description: 'Plugin documentation.',
   order: 0,
-  serveIndex: true,
   title: 'Plugins',
 }
 
@@ -331,6 +329,54 @@ describe('Payload Markdown Docs route adapter', () => {
     expect(resolved?.type === 'docsSetIndex' ? resolved.doc : undefined).toBeUndefined()
   })
 
+  it('normalizes docs set OpenGraph metadata on resolved routes', async () => {
+    const payload = createPayloadMock({
+      docs: [],
+      docsSets: [
+        {
+          ...docsSet,
+          openGraph: {
+            description: 'Social description.',
+            image: {
+              relationTo: 'media',
+              value: {
+                id: 'media-1',
+                alt: 'Social preview',
+                height: 630,
+                url: '/media/social.png',
+                width: 1200,
+              },
+            },
+            title: 'Social title',
+          },
+        },
+      ],
+    })
+
+    const resolved = await resolvePayloadMarkdownDocsRoute({
+      path: '/payload-markdown',
+      payload,
+    })
+
+    expect(resolved).toMatchObject({
+      type: 'docsSetIndex',
+      docsSet: {
+        openGraph: {
+          description: 'Social description.',
+          image: {
+            id: 'media-1',
+            alt: 'Social preview',
+            height: 630,
+            relationTo: 'media',
+            url: '/media/social.png',
+            width: 1200,
+          },
+          title: 'Social title',
+        },
+      },
+    })
+  })
+
   it('resolves product-nested docs under the docs segment', async () => {
     const productDocsSet = {
       ...docsSet,
@@ -404,7 +450,7 @@ describe('Payload Markdown Docs route adapter', () => {
     ).resolves.toBeNull()
   })
 
-  it('resolves docs group routes when pageMode is auto or legacy serveIndex is true', async () => {
+  it('resolves docs group routes when pageMode is auto', async () => {
     const childGroup = {
       id: 'group-guides',
       slug: 'guides',
@@ -448,32 +494,11 @@ describe('Payload Markdown Docs route adapter', () => {
       ],
     })
 
-    await expect(
-      resolvePayloadMarkdownDocsRoute({
-        path: '/plugins',
-        payload: createPayloadMock({
-          docsGroups: [
-            {
-              ...docsGroup,
-              pageMode: undefined,
-              serveIndex: true,
-            },
-          ],
-        }),
-      }),
-    ).resolves.toMatchObject({
-      type: 'docsGroupIndex',
-      group: {
-        pageMode: 'auto',
-      },
-    })
-
     const disabledPayload = createPayloadMock({
       docsGroups: [
         {
           ...docsGroup,
-          pageMode: undefined,
-          serveIndex: false,
+          pageMode: 'custom',
         },
       ],
     })
@@ -1603,7 +1628,6 @@ describe('Payload Markdown Docs link helpers', () => {
           id: 'group-api',
           slug: 'api',
           order: 0,
-          serveIndex: true,
           title: 'API',
         },
       ],
@@ -1670,41 +1694,12 @@ describe('Payload Markdown Docs link helpers', () => {
     ])
   })
 
-  it('preserves legacy group nav fallback only when pageMode is missing', async () => {
-    const payload = createPayloadMock({
-      docsGroups: [
-        {
-          ...docsGroup,
-          pageMode: undefined,
-          serveIndex: false,
-        },
-      ],
-      docsSets: [
-        {
-          ...docsSet,
-          group: docsGroup,
-        },
-      ],
-    })
-
-    await expect(getPayloadMarkdownDocsHeaderNavItems({ payload })).resolves.toEqual([
-      expect.objectContaining({
-        link: {
-          type: 'custom',
-          label: 'Plugins',
-          url: '/plugins/payload-markdown',
-        },
-      }),
-    ])
-  })
-
   it('links explicit custom groups to the custom group route', async () => {
     const payload = createPayloadMock({
       docsGroups: [
         {
           ...docsGroup,
           pageMode: 'custom',
-          serveIndex: false,
         },
       ],
       docsSets: [
@@ -1842,40 +1837,6 @@ describe('Payload Markdown Docs link helpers', () => {
       }),
     ])
     expect(existingItems).toEqual([{ link: { type: 'custom', label: 'Home', url: '/' } }])
-  })
-
-  it('returns Header/CMSLink-compatible docs set links with derived group routes', async () => {
-    const payload = createPayloadMock({
-      docsGroups: [docsGroup],
-      docsSets: [
-        {
-          ...docsSet,
-          group: docsGroup,
-          navTitle: 'Docs',
-        },
-        {
-          id: 'api-set',
-          slug: 'api',
-          order: 20,
-          title: 'API',
-        },
-      ],
-    })
-
-    await expect(
-      getPayloadMarkdownDocsLinks({
-        payload,
-      }),
-    ).resolves.toEqual([
-      {
-        label: 'Docs',
-        url: '/plugins/payload-markdown',
-      },
-      {
-        label: 'API',
-        url: '/api',
-      },
-    ])
   })
 
   it('renders a drop-in navbar with override classes and exact active state', async () => {
@@ -2063,9 +2024,7 @@ describe('Payload Markdown Docs page component', () => {
               description: 'Guides and tutorials.',
               order: 0,
               pageMode: 'auto',
-              pageModeSource: 'explicit',
               routePath: '/plugins/guides',
-              serveIndex: true,
               title: 'Guides',
             },
           ],
@@ -2082,9 +2041,7 @@ describe('Payload Markdown Docs page component', () => {
             description: 'Plugin documentation.',
             order: 0,
             pageMode: 'auto',
-            pageModeSource: 'explicit',
             routePath: '/plugins',
-            serveIndex: true,
             title: 'Plugins',
           },
           route: '/plugins',
@@ -2211,21 +2168,186 @@ describe('Payload Markdown Docs metadata helpers', () => {
 
     expect(metadata).toEqual({
       description: 'Install docs.',
+      openGraph: {
+        description: 'Install docs.',
+        title: 'Installation',
+      },
       title: 'Installation',
+      twitter: {
+        description: 'Install docs.',
+        title: 'Installation',
+      },
     })
   })
 
-  it('uses docs set metadata for docs set shell routes', () => {
+  it('uses docs set OpenGraph metadata for docs set shell routes', () => {
     const metadata = getPayloadMarkdownDocsMetadata({
       type: 'docsSetIndex',
-      docsSet: resolvedDocsSet,
+      docsSet: {
+        ...resolvedDocsSet,
+        openGraph: {
+          description: 'OpenGraph docs set description.',
+          image: {
+            id: 'media-1',
+            alt: 'OpenGraph preview',
+            height: 630,
+            relationTo: 'media',
+            url: '/media/docs-og.png',
+            width: 1200,
+          },
+          title: 'OpenGraph Payload Markdown',
+        },
+      },
+      route: '/payload-markdown',
+      sidebar: [],
+    })
+
+    expect(metadata).toEqual({
+      description: 'OpenGraph docs set description.',
+      openGraph: {
+        description: 'OpenGraph docs set description.',
+        images: [
+          {
+            alt: 'OpenGraph preview',
+            height: 630,
+            url: '/media/docs-og.png',
+            width: 1200,
+          },
+        ],
+        title: 'OpenGraph Payload Markdown',
+      },
+      title: 'OpenGraph Payload Markdown',
+      twitter: {
+        card: 'summary_large_image',
+        description: 'OpenGraph docs set description.',
+        images: [
+          {
+            alt: 'OpenGraph preview',
+            height: 630,
+            url: '/media/docs-og.png',
+            width: 1200,
+          },
+        ],
+        title: 'OpenGraph Payload Markdown',
+      },
+    })
+  })
+
+  it('lets docs pages inherit the docs set OpenGraph image while overriding title and description', () => {
+    const metadata = getPayloadMarkdownDocsMetadata({
+      type: 'doc',
+      doc: resolvedRecord(),
+      docsSet: {
+        ...resolvedDocsSet,
+        openGraph: {
+          description: 'OpenGraph docs set description.',
+          image: {
+            alt: 'OpenGraph preview',
+            height: 630,
+            url: '/media/docs-og.png',
+            width: 1200,
+          },
+          title: 'OpenGraph Payload Markdown',
+        },
+      },
+      route: '/payload-markdown/getting-started/installation',
+      sidebar: [],
+    })
+
+    expect(metadata).toEqual({
+      description: 'Install docs.',
+      openGraph: {
+        description: 'Install docs.',
+        images: [
+          {
+            alt: 'OpenGraph preview',
+            height: 630,
+            url: '/media/docs-og.png',
+            width: 1200,
+          },
+        ],
+        title: 'Installation',
+      },
+      title: 'Installation',
+      twitter: {
+        card: 'summary_large_image',
+        description: 'Install docs.',
+        images: [
+          {
+            alt: 'OpenGraph preview',
+            height: 630,
+            url: '/media/docs-og.png',
+            width: 1200,
+          },
+        ],
+        title: 'Installation',
+      },
+    })
+  })
+
+  it('keeps metadata compact when docs set fields are empty', () => {
+    const metadata = getPayloadMarkdownDocsMetadata({
+      type: 'docsSetIndex',
+      docsSet: {
+        ...resolvedDocsSet,
+        description: undefined,
+        navTitle: undefined,
+        openGraph: undefined,
+        title: '',
+      },
+      route: '/payload-markdown',
+      sidebar: [],
+    })
+
+    expect(metadata).toEqual({})
+  })
+
+  it('does not render docs set OpenGraph images in the page component', async () => {
+    const markup = renderToStaticMarkup(
+      await PayloadMarkdownDocsPage({
+        resolved: {
+          type: 'docsSetIndex',
+          docsSet: {
+            ...resolvedDocsSet,
+            openGraph: {
+              image: {
+                alt: 'OpenGraph preview',
+                url: '/media/docs-og.png',
+              },
+            },
+          },
+          route: '/payload-markdown',
+          sidebar: [],
+        },
+      }),
+    )
+
+    expect(markup).not.toContain('/media/docs-og.png')
+    expect(markup).not.toContain('data-payload-markdown-docs-hero')
+  })
+
+  it('uses docs set nav title before title when OpenGraph title is empty', () => {
+    const metadata = getPayloadMarkdownDocsMetadata({
+      type: 'docsSetIndex',
+      docsSet: {
+        ...resolvedDocsSet,
+        navTitle: 'Docs Nav',
+      },
       route: '/payload-markdown',
       sidebar: [],
     })
 
     expect(metadata).toEqual({
       description: 'Docs set description.',
-      title: 'Payload Markdown',
+      openGraph: {
+        description: 'Docs set description.',
+        title: 'Docs Nav',
+      },
+      title: 'Docs Nav',
+      twitter: {
+        description: 'Docs set description.',
+        title: 'Docs Nav',
+      },
     })
   })
 
@@ -2239,9 +2361,7 @@ describe('Payload Markdown Docs metadata helpers', () => {
         description: 'Plugin documentation.',
         order: 0,
         pageMode: 'auto',
-        pageModeSource: 'explicit',
         routePath: '/plugins',
-        serveIndex: true,
         title: 'Plugins',
       },
       route: '/plugins',
@@ -2249,7 +2369,15 @@ describe('Payload Markdown Docs metadata helpers', () => {
 
     expect(metadata).toEqual({
       description: 'Plugin documentation.',
+      openGraph: {
+        description: 'Plugin documentation.',
+        title: 'Plugins',
+      },
       title: 'Plugins',
+      twitter: {
+        description: 'Plugin documentation.',
+        title: 'Plugins',
+      },
     })
   })
 })
@@ -2269,6 +2397,14 @@ describe('Payload Markdown Docs /next package export', () => {
     expect(packageJson.exports['./next']).toMatchObject({
       import: './dist/next/index.js',
       types: './dist/next/index.d.ts',
+    })
+    expect(packageJson.exports['./admin']).toMatchObject({
+      import: './dist/admin/index.js',
+      types: './dist/admin/index.d.ts',
+    })
+    expect(packageJson.exports['./blocks']).toMatchObject({
+      import: './dist/blocks/index.js',
+      types: './dist/blocks/index.d.ts',
     })
   })
 })

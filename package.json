@@ -29,6 +29,11 @@
       "import": "./dist/admin/index.js",
       "default": "./dist/admin/index.js"
     },
+    "./blocks": {
+      "types": "./dist/blocks/index.d.ts",
+      "import": "./dist/blocks/index.js",
+      "default": "./dist/blocks/index.js"
+    },
     "./next": {
       "types": "./dist/next/index.d.ts",
       "import": "./dist/next/index.js",

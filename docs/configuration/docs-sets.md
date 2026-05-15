@@ -25,6 +25,7 @@ For a typical docs set, configure:
 - `branch`, default `main`
 - `allowPullRequests`, default off
 - `description`, optional
+- `openGraph`, optional social preview metadata
 
 The `slug` is also the manifest source and the GitHub OIDC audience. The
 route base is derived from the optional group route plus the set slug.
@@ -47,6 +48,18 @@ host app can own the product route:
 /plugins/payload-markdown-docs
 /plugins/payload-markdown-docs/docs
 ```
+
+## OpenGraph Preview
+
+The `openGraph` group stores standard social preview metadata:
+
+- `title`
+- `description`
+- `image`
+
+The image uses the configured/default Payload media collection. OpenGraph data
+feeds metadata helpers only; it does not render a hero or banner in
+`PayloadMarkdownDocsPage`.
 
 ## Advanced Security
 

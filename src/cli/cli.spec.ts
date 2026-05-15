@@ -500,18 +500,6 @@ describe('push command', () => {
     expect(request?.headers['X-VL-MD-DOCS-Signature']).toEqual(expect.any(String))
   })
 
-  it('sends sync mode when --sync is used', async () => {
-    const root = await createDocsRoot()
-    const { requests, result } = await pushArgs(root, ['--sync'])
-    const manifest = JSON.parse(requests[0]?.body ?? '{}') as {
-      mode?: string
-    }
-
-    expect(result.exitCode).toBe(0)
-    expect(result.stdout).toContain('Mode: sync')
-    expect(manifest.mode).toBe('sync')
-  })
-
   it('sends dry-run mode only when --dry-run is used', async () => {
     const root = await createDocsRoot()
     const { requests, result } = await pushArgs(root, ['--dry-run'])
@@ -666,7 +654,7 @@ describe('push command', () => {
     expect(requests).toHaveLength(1)
   })
 
-  it('rejects --dry-run with --sync', async () => {
+  it('rejects the removed --sync flag', async () => {
     const root = await createDocsRoot()
     const { privateKey } = keyPair()
     const privateKeyPath = path.join(root, 'docs-sync-private.pem')
@@ -681,12 +669,11 @@ describe('push command', () => {
       'github-actions-main',
       '--private-key-file',
       privateKeyPath,
-      '--dry-run',
       '--sync',
     ])
 
     expect(result.exitCode).toBe(1)
-    expect(result.stderr).toContain('Use either --dry-run or --sync')
+    expect(result.stderr).toContain('Unknown flag "--sync" for push')
   })
 
   it('accepts publish package disable flags for push', () => {
@@ -1019,14 +1006,13 @@ describe('push command', () => {
       publish?: boolean
     }
     const { requests: publishSyncRequests, result: publishSyncResult } =
-      await pushArgs(root, ['--sync', '--publish', '--delete-behavior', 'draft'])
+      await pushArgs(root, ['--publish', '--delete-behavior', 'draft'])
     const publishSyncManifest = JSON.parse(publishSyncRequests[0]?.body ?? '{}') as {
       deleteBehavior?: string
       mode?: string
       publish?: boolean
     }
     const { requests: deleteRequests, result: deleteResult } = await pushArgs(root, [
-      '--sync',
       '--delete-behavior',
       'delete',
     ])

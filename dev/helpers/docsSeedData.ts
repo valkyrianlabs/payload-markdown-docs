@@ -21,7 +21,6 @@ export const buildDevDocsGroupSeedData = () => ({
   description: 'Dev docs namespace for plugin documentation.',
   navTitle: 'Plugins',
   order: 0,
-  serveIndex: false,
   title: 'Plugins',
 })
 

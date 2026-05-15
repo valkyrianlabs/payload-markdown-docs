@@ -61,7 +61,6 @@ const pushBooleanFlags = new Set([
   'pretty',
   'publish',
   'strict-routes',
-  'sync',
 ])
 const installValueFlags = new Set([
   'agent',

@@ -122,14 +122,12 @@ export const createDocsGroupRouteReservation = ({
   ownerId,
   pageMode,
   routePath,
-  serveIndex,
 }: {
   ownerId?: string
   pageMode?: 'auto' | 'custom'
   routePath: string
-  serveIndex?: boolean
 }): DocsRouteReservation => {
-  const ownsRoute = pageMode ? pageMode === 'auto' : serveIndex === true
+  const ownsRoute = pageMode !== 'custom'
 
   return {
     ownerId,
@@ -151,7 +149,6 @@ export const findPageRouteCollisions = ({
     ownerId?: string
     pageMode?: 'auto' | 'custom'
     routePath: string
-    serveIndex?: boolean
   }[]
   docsSetRouteBase: string
   pages: {
@@ -169,7 +166,6 @@ export const findPageRouteCollisions = ({
         ownerId: group.ownerId,
         pageMode: group.pageMode,
         routePath: group.routePath,
-        serveIndex: group.serveIndex,
       }),
     ),
     ...pages.map((page) => ({

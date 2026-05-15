@@ -2,12 +2,13 @@ import type { Block, CollectionConfig, Config, Field } from 'payload'
 
 import { describe, expect, it } from 'vitest'
 
-import { DocsCTABlock, DocsPreviewBlock } from '../blocks/index.js'
 import {
   ctaButtonsField,
+  DocsCTABlock,
+  DocsPreviewBlock,
   DocsBannerBlock as PublicDocsBannerBlock,
   DocsCalloutBlock as PublicDocsCalloutBlock,
-} from '../index.js'
+} from '../blocks/index.js'
 import { payloadMarkdownDocs } from '../plugin.js'
 import { installBlocksIntoCollection } from './blocks.js'
 import {

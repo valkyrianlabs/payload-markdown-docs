@@ -219,7 +219,6 @@ export const findConfiguredPagesRouteCollisions = async ({
     ownerId?: string
     pageMode?: 'auto' | 'custom'
     routePath: string
-    serveIndex?: boolean
   }[]
   docsSetRouteBase: string
   payload: RouteCollisionPayloadOperations

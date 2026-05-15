@@ -70,7 +70,6 @@ describe('dev harness docs and scripts', () => {
       'dev-local',
       '--private-key-file',
       'dev/.docs-sync/docs-sync-private.pem',
-      '--sync',
       '--publish',
     ])
 

@@ -1,4 +1,4 @@
-import type { CollectionConfig } from 'payload'
+import type { CollectionConfig, Field } from 'payload'
 
 import { DOCS_GLOBALS_ADMIN_GROUP, DOCS_SET_MANAGER_COMPONENT } from '../constants.js'
 import { populatePublishedAt } from '../payload/populatePublishedAt.js'
@@ -6,14 +6,41 @@ import { populatePublishedAt } from '../payload/populatePublishedAt.js'
 export type CreateDocsSetsCollectionOptions = {
   docsCollectionSlug?: string
   docsGroupsCollectionSlug: string
+  openGraphMediaCollectionSlugs: string[]
   slug: string
   syncRunsCollectionSlug?: string
+}
+
+const createOpenGraphImageField = (relationToSlugs: string[]): Field => {
+  const fieldBase = {
+    name: 'image',
+    type: 'upload' as const,
+    admin: {
+      description: 'Social preview image used for OpenGraph and Twitter cards.',
+    },
+    displayPreview: true,
+    label: 'Image',
+    maxDepth: 1,
+  }
+
+  if (relationToSlugs.length === 1) {
+    return {
+      ...fieldBase,
+      relationTo: relationToSlugs[0] ?? 'media',
+    }
+  }
+
+  return {
+    ...fieldBase,
+    relationTo: relationToSlugs,
+  }
 }
 
 export const createDocsSetsCollection = ({
   slug,
   docsCollectionSlug,
   docsGroupsCollectionSlug,
+  openGraphMediaCollectionSlugs,
   syncRunsCollectionSlug,
 }: CreateDocsSetsCollectionOptions): CollectionConfig => ({
   slug,
@@ -79,6 +106,25 @@ export const createDocsSetsCollection = ({
     {
       name: 'description',
       type: 'textarea',
+    },
+    {
+      name: 'openGraph',
+      type: 'group',
+      admin: {
+        description: 'Social preview metadata for this docs set.',
+      },
+      fields: [
+        {
+          name: 'title',
+          type: 'text',
+        },
+        {
+          name: 'description',
+          type: 'textarea',
+        },
+        createOpenGraphImageField(openGraphMediaCollectionSlugs),
+      ],
+      label: 'OpenGraph preview',
     },
     {
       name: 'publishedAt',

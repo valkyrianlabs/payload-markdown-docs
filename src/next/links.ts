@@ -17,11 +17,6 @@ import {
   toResolvedDocsSet,
 } from './records.js'
 
-export type PayloadMarkdownDocsLink = {
-  label: string
-  url: string
-}
-
 export type PayloadMarkdownDocsNavItemType = 'docsGroup' | 'docsSet'
 
 export type PayloadMarkdownDocsNavItem = {
@@ -48,13 +43,6 @@ export type GetPayloadMarkdownDocsNavItemsOptions = {
   overrideAccess?: boolean
   payload: PayloadMarkdownDocsReadPayload
 } & PayloadMarkdownDocsNavCapacityOptions
-
-export type GetPayloadMarkdownDocsLinksOptions = {
-  collections?: Pick<PayloadMarkdownDocsCollectionSlugs, 'docsGroups' | 'docsSets'>
-  includeDrafts?: boolean
-  overrideAccess?: boolean
-  payload: PayloadMarkdownDocsReadPayload
-}
 
 export type PayloadMarkdownDocsHeaderNavLink =
   | {
@@ -304,7 +292,7 @@ export const getPayloadMarkdownDocsNavItems = async ({
       label: group.navTitle ?? group.title,
       order: group.order,
       route: routePath,
-      ...(group.pageModeSource === 'legacyDefault' ? {} : { url: routePath }),
+      url: routePath,
     }
   }
 
@@ -319,84 +307,6 @@ export const getPayloadMarkdownDocsNavItems = async ({
     ]),
     capacityOptions,
   )
-}
-
-export const getPayloadMarkdownDocsLinks = async ({
-  collections,
-  includeDrafts = false,
-  overrideAccess = true,
-  payload,
-}: GetPayloadMarkdownDocsLinksOptions): Promise<PayloadMarkdownDocsLink[]> => {
-  const docsGroupsCollectionSlug = collections?.docsGroups ?? DEFAULT_DOCS_GROUPS_COLLECTION_SLUG
-  const docsSetsCollectionSlug = collections?.docsSets ?? DEFAULT_DOCS_SETS_COLLECTION_SLUG
-  const [docsSetsResult, docsGroupsResult] = await Promise.all([
-    payload.find({
-      collection: docsSetsCollectionSlug,
-      depth: 0,
-      draft: includeDrafts,
-      limit: 1000,
-      overrideAccess,
-    }),
-    payload.find({
-      collection: docsGroupsCollectionSlug,
-      depth: 0,
-      limit: 1000,
-      overrideAccess,
-    }),
-  ])
-  const groupsById = new Map(
-    docsGroupsResult.docs.flatMap((group) => {
-      if (!isRecord(group)) {
-        return []
-      }
-
-      const id = getRelationshipId(group)
-
-      return id ? [[id, group]] : []
-    }),
-  )
-
-  return docsSetsResult.docs
-    .flatMap((doc) => {
-      const docsSet = toResolvedDocsSet(doc)
-
-      if (!docsSet?.slug || !isRecord(doc) || !isVisibleDocsSet({ docsSet, includeDrafts })) {
-        return []
-      }
-
-      const groupRoutePath = getGroupRoutePath({
-        groupId: getRelationshipId(doc.group),
-        groupsById,
-      })
-      const routeBase = deriveDocsSetRouteBase({
-        docsSetSlug: docsSet.slug,
-        groupRoutePath,
-        routeMode: docsSet.routeMode,
-      })
-      const productRoute = deriveDocsSetProductRoutePath({
-        docsSetSlug: docsSet.slug,
-        groupRoutePath,
-      })
-
-      return [
-        {
-          label: docsSet.navTitle ?? docsSet.title,
-          order: docsSet.order,
-          url: docsSet.routeMode === 'product-nested' ? productRoute : routeBase,
-        },
-      ]
-    })
-    .sort((first, second) => {
-      if (first.order !== second.order) {
-        return first.order - second.order
-      }
-
-      return first.label.localeCompare(second.label)
-    })
-    .map(({ label, url }) => ({
-      label,
-      url,
-    }))
 }
 
 const toHeaderLink = ({

@@ -39,6 +39,21 @@ export type PayloadMarkdownDocsHeroImage = {
   width?: number
 }
 
+export type PayloadMarkdownDocsOpenGraphImage = {
+  alt?: string
+  height?: number
+  id?: string
+  relationTo?: string
+  url: string
+  width?: number
+}
+
+export type PayloadMarkdownDocsOpenGraph = {
+  description?: string
+  image?: PayloadMarkdownDocsOpenGraphImage
+  title?: string
+}
+
 export type PayloadMarkdownDocsGroupPageMode = 'auto' | 'custom'
 
 export type PayloadMarkdownDocsRouteMode = 'docs-root' | 'product-nested'
@@ -48,6 +63,7 @@ export type ResolvedPayloadMarkdownDocsSet = {
   description?: string
   id: string
   navTitle?: string
+  openGraph?: PayloadMarkdownDocsOpenGraph
   order: number
   productRoute: string
   routeBase: string
@@ -63,9 +79,7 @@ export type ResolvedPayloadMarkdownDocsGroup = {
   navTitle?: string
   order: number
   pageMode: PayloadMarkdownDocsGroupPageMode
-  pageModeSource: 'explicit' | 'legacyDefault' | 'legacyServeIndex'
   routePath: string
-  serveIndex: boolean
   slug?: string
   title: string
 }
@@ -122,7 +136,25 @@ export type ResolvedPayloadMarkdownDocsRoute =
       type: 'docsSetIndex'
     }
 
+export type PayloadMarkdownDocsMetadataImage = {
+  alt?: string
+  height?: number
+  url: string
+  width?: number
+}
+
 export type PayloadMarkdownDocsMetadata = {
   description?: string
+  openGraph?: {
+    description?: string
+    images?: PayloadMarkdownDocsMetadataImage[]
+    title?: string
+  }
   title?: string
+  twitter?: {
+    card?: 'summary' | 'summary_large_image'
+    description?: string
+    images?: PayloadMarkdownDocsMetadataImage[]
+    title?: string
+  }
 }
