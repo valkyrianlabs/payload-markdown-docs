@@ -3,6 +3,7 @@ import path from 'node:path'
 
 import type { CliResult, ParsedCliArgs } from '../types.js'
 
+import { assetRouteScaffoldFiles, payloadAppDirCandidates } from '../assetRoutes.js'
 import { getFlagBoolean, getFlagString } from '../parseArgs.js'
 
 type AgentTarget = 'claude' | 'codex'
@@ -46,27 +47,6 @@ const defaultSkillOutputPaths: Record<AgentTarget, string> = {
   codex: '.agents/skills/payload-markdown-docs',
 }
 const agentsFilePath = 'AGENTS.md'
-const payloadAppDirCandidates = ['src/app/(payload)', 'app/(payload)', 'dev/app/(payload)']
-const assetRouteFiles = [
-  'llms.txt/route.ts',
-  'llms-full.txt/route.ts',
-  'plugins/[docsSetSlug]/llms.txt/route.ts',
-  'plugins/[docsSetSlug]/llms-full.txt/route.ts',
-  'plugins/[docsSetSlug]/skills/[agent]/[[...assetPath]]/route.ts',
-  '[docsSetSlug]/llms.txt/route.ts',
-  '[docsSetSlug]/llms-full.txt/route.ts',
-  '[docsSetSlug]/skills/[agent]/[[...assetPath]]/route.ts',
-]
-
-const assetRouteFileContent = `import config from '@payload-config'
-import { createPayloadMarkdownDocsAssetRouteHandler } from '@valkyrianlabs/payload-markdown-docs/next'
-
-export const GET = createPayloadMarkdownDocsAssetRouteHandler({
-  config,
-})
-
-export const dynamic = 'force-dynamic'
-`
 
 const fileExists = async (filePath: string): Promise<boolean> => {
   try {
@@ -376,10 +356,10 @@ const createAssetRoutePlan = ({
 }: Pick<InstallAssetRoutesOptions, 'payloadAppDir'>): PlannedInstallFile[] => {
   const absolutePayloadAppDir = path.resolve(payloadAppDir)
 
-  return assetRouteFiles.map((relativePath) => ({
-    content: assetRouteFileContent,
-    path: path.join(absolutePayloadAppDir, relativePath),
-    relativePath: path.posix.join(payloadAppDir.replaceAll(path.sep, '/'), relativePath),
+  return assetRouteScaffoldFiles.map((file) => ({
+    content: file.content,
+    path: path.join(absolutePayloadAppDir, file.relativePath),
+    relativePath: path.posix.join(payloadAppDir.replaceAll(path.sep, '/'), file.relativePath),
   }))
 }
 
@@ -408,6 +388,11 @@ const formatInstalledAssetRoutes = ({
     '- /plugins/<docs-set-slug>/llms-full.txt',
     '- /plugins/<docs-set-slug>/skills/<agent>',
     '- /plugins/<docs-set-slug>/skills/<agent>/SKILL.md',
+    '',
+    'IMPORTANT:',
+    'These files must be committed to your Next app repository.',
+    'Payload config endpoints alone cannot create public Next filesystem routes.',
+    'If you deploy without these files, /llms.txt and /skills routes will 404.',
   ]
 
   return `${lines.join('\n')}\n`

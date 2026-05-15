@@ -67,6 +67,7 @@ export type PushCommandOptions = {
   endpoint: string
   mode: 'dry-run' | 'sync'
   publish: boolean
+  strictRoutes: boolean
 } & (
   | {
       authMode: 'ed25519'

@@ -137,6 +137,7 @@ Options:
   --oidc-token-env <name>    Environment variable containing an already-fetched OIDC token.
   --dry-run                  Validate and submit a dry-run request without applying writes.
   --sync                     Deprecated compatibility flag. Sync is the default.
+  --strict-routes            Fail when assets are included but public Next asset route files are missing.
   --publish                  Request published output. Server must allow publishing.
   --delete-behavior <value>  archive, delete, draft, or ignore. Defaults to archive.
   --json                     Print structured JSON output.

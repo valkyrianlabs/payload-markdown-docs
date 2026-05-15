@@ -21,6 +21,7 @@ import { runCli } from './index.js'
 import { parseCliArgs } from './parseArgs.js'
 
 const tempRoots: string[] = []
+const originalCwd = process.cwd()
 
 const createTempRoot = async (): Promise<string> => {
   const root = path.join(tmpdir(), `payload-markdown-docs-${randomUUID()}`)
@@ -64,6 +65,7 @@ const createDocsRoot = async (): Promise<string> => {
 }
 
 afterEach(async () => {
+  process.chdir(originalCwd)
   await Promise.all(
     tempRoots.splice(0).map((root) =>
       rm(root, {
@@ -520,6 +522,148 @@ describe('push command', () => {
     expect(result.exitCode).toBe(0)
     expect(result.stdout).toContain('Mode: dry-run')
     expect(manifest.mode).toBe('dry-run')
+  })
+
+  it('warns when asset files are pushed without public asset route files', async () => {
+    const project = await createTempRoot()
+    const docsRoot = path.join(project, 'docs')
+    const { privateKey } = keyPair()
+    const privateKeyPath = path.join(project, 'docs-sync-private.pem')
+    const requests: Parameters<HttpPostJson>[0][] = []
+    const httpPost: HttpPostJson = (request) => {
+      requests.push(request)
+
+      return Promise.resolve({
+        body: {
+          ok: true,
+          summary: {},
+        },
+        ok: true,
+        status: 200,
+        text: '{"ok":true}',
+      })
+    }
+
+    await writeTempFile(project, 'docs/index.md', '# Home\n')
+    await writeTempFile(project, 'llms.txt', '# LLMs\n')
+    await writeFile(privateKeyPath, privateKey.toString(), 'utf8')
+    process.chdir(project)
+
+    const parsed = parseCliArgs([
+      'push',
+      '--docs',
+      docsRoot,
+      '--endpoint',
+      endpoint,
+      '--key-id',
+      'github-actions-main',
+      '--private-key-file',
+      privateKeyPath,
+    ])
+
+    if (!parsed.ok) {
+      throw new Error(parsed.error)
+    }
+
+    const result = await runPushCommand(parsed.args, httpPost)
+    const manifest = JSON.parse(requests[0]?.body ?? '{}') as {
+      assets?: unknown[]
+    }
+
+    expect(result.exitCode).toBe(0)
+    expect(result.stderr).toContain('Assets were included in the manifest')
+    expect(result.stderr).toContain('payload-markdown-docs install routes')
+    expect(manifest.assets).toHaveLength(1)
+  })
+
+  it('fails with --strict-routes when asset route files are missing', async () => {
+    const project = await createTempRoot()
+    const docsRoot = path.join(project, 'docs')
+    const { privateKey } = keyPair()
+    const privateKeyPath = path.join(project, 'docs-sync-private.pem')
+
+    await writeTempFile(project, 'docs/index.md', '# Home\n')
+    await writeTempFile(project, 'llms.txt', '# LLMs\n')
+    await writeFile(privateKeyPath, privateKey.toString(), 'utf8')
+    process.chdir(project)
+
+    const result = await runCli([
+      'push',
+      '--docs',
+      docsRoot,
+      '--endpoint',
+      endpoint,
+      '--key-id',
+      'github-actions-main',
+      '--private-key-file',
+      privateKeyPath,
+      '--strict-routes',
+    ])
+
+    expect(result.exitCode).toBe(1)
+    expect(result.stderr).toContain('public asset route files were not found')
+    expect(result.stderr).toContain('/llms.txt and /skills routes will 404')
+  })
+
+  it('passes --strict-routes when public asset route files exist', async () => {
+    const project = await createTempRoot()
+    const docsRoot = path.join(project, 'docs')
+    const { privateKey } = keyPair()
+    const privateKeyPath = path.join(project, 'docs-sync-private.pem')
+    const requests: Parameters<HttpPostJson>[0][] = []
+    const httpPost: HttpPostJson = (request) => {
+      requests.push(request)
+
+      return Promise.resolve({
+        body: {
+          ok: true,
+          summary: {},
+        },
+        ok: true,
+        status: 200,
+        text: '{"ok":true}',
+      })
+    }
+
+    await writeTempFile(project, 'docs/index.md', '# Home\n')
+    await writeTempFile(project, 'llms.txt', '# LLMs\n')
+    await writeFile(privateKeyPath, privateKey.toString(), 'utf8')
+    process.chdir(project)
+
+    const installRoutes = await runCli(['install', 'routes', '--payload-app', 'src/app/(payload)'])
+
+    expect(installRoutes.exitCode).toBe(1)
+
+    await mkdir(path.join(project, 'src/app/(payload)'), {
+      recursive: true,
+    })
+
+    const installedRoutes = await runCli(['install', 'routes', '--payload-app', 'src/app/(payload)'])
+
+    expect(installedRoutes.exitCode).toBe(0)
+
+    const parsed = parseCliArgs([
+      'push',
+      '--docs',
+      docsRoot,
+      '--endpoint',
+      endpoint,
+      '--key-id',
+      'github-actions-main',
+      '--private-key-file',
+      privateKeyPath,
+      '--strict-routes',
+    ])
+
+    if (!parsed.ok) {
+      throw new Error(parsed.error)
+    }
+
+    const result = await runPushCommand(parsed.args, httpPost)
+
+    expect(result.exitCode).toBe(0)
+    expect(result.stderr).toBeUndefined()
+    expect(requests).toHaveLength(1)
   })
 
   it('rejects --dry-run with --sync', async () => {

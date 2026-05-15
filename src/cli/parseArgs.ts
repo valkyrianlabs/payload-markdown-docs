@@ -60,6 +60,7 @@ const pushBooleanFlags = new Set([
   'no-skills',
   'pretty',
   'publish',
+  'strict-routes',
   'sync',
 ])
 const installValueFlags = new Set([

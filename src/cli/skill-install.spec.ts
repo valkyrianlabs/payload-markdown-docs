@@ -11,6 +11,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 
+import { assetRouteScaffoldFiles } from './assetRoutes.js'
 import { isCliEntrypoint, runCli } from './index.js'
 
 const originalCwd = process.cwd()
@@ -29,14 +30,7 @@ const skillFiles = [
   'reference/workflow.md',
 ]
 const assetRouteFiles = [
-  'llms.txt/route.ts',
-  'llms-full.txt/route.ts',
-  'plugins/[docsSetSlug]/llms.txt/route.ts',
-  'plugins/[docsSetSlug]/llms-full.txt/route.ts',
-  'plugins/[docsSetSlug]/skills/[agent]/[[...assetPath]]/route.ts',
-  '[docsSetSlug]/llms.txt/route.ts',
-  '[docsSetSlug]/llms-full.txt/route.ts',
-  '[docsSetSlug]/skills/[agent]/[[...assetPath]]/route.ts',
+  ...assetRouteScaffoldFiles.map((file) => file.relativePath),
 ]
 
 const createTempRoot = async (): Promise<string> => {
@@ -327,13 +321,29 @@ describe('install skill command', () => {
     expect(result.exitCode).toBe(0)
     expect(result.stdout).toContain('/llms.txt')
     expect(result.stdout).toContain('/plugins/<docs-set-slug>/skills/<agent>')
+    expect(result.stdout).toContain('IMPORTANT:')
+    expect(result.stdout).toContain('These files must be committed')
     expect(await listFiles(payloadApp)).toEqual([...assetRouteFiles].sort())
 
-    const route = await readInstalledFile(root, 'src/app/(payload)/llms.txt/route.ts')
+    const sharedRoute = await readInstalledFile(
+      root,
+      'src/app/(payload)/payloadMarkdownDocsAssetRoute.ts',
+    )
+    const rootRoute = await readInstalledFile(root, 'src/app/(payload)/llms.txt/route.ts')
+    const nestedRoute = await readInstalledFile(
+      root,
+      'src/app/(payload)/plugins/[docsSetSlug]/skills/[agent]/[[...assetPath]]/route.ts',
+    )
 
-    expect(route).toContain("import config from '@payload-config'")
-    expect(route).toContain('createPayloadMarkdownDocsAssetRouteHandler')
-    expect(route).toContain("dynamic = 'force-dynamic'")
+    expect(sharedRoute).toContain("import config from '@payload-config'")
+    expect(sharedRoute).toContain('createPayloadMarkdownDocsAssetRouteHandler')
+    expect(sharedRoute).toContain("@valkyrianlabs/payload-markdown-docs/next")
+    expect(sharedRoute).not.toContain('../../../dist/next')
+    expect(rootRoute).toContain("export { GET } from '../payloadMarkdownDocsAssetRoute'")
+    expect(rootRoute).toContain("dynamic = 'force-dynamic'")
+    expect(nestedRoute).toContain(
+      "export { GET } from '../../../../../payloadMarkdownDocsAssetRoute'",
+    )
 
     const unchanged = await runCli(['install', 'asset-routes'])
 
@@ -394,6 +404,26 @@ describe('install skill command', () => {
     expect(implicit.stderr).toContain('Could not find a Payload app route group')
     expect(explicit.exitCode).toBe(1)
     expect(explicit.stderr).toContain('Payload app route group does not exist')
+  })
+
+  it('keeps the dev harness route shape aligned with the consuming-app scaffold', async () => {
+    const devPayloadApp = path.resolve('dev/app/(payload)')
+    const devFiles = await listFiles(devPayloadApp)
+
+    expect(devFiles.filter((file) => assetRouteFiles.includes(file))).toEqual(
+      [...assetRouteFiles].sort(),
+    )
+
+    const devSharedRoute = await readFile(
+      path.join(devPayloadApp, 'payloadMarkdownDocsAssetRoute.ts'),
+      'utf8',
+    )
+    const scaffoldSharedRoute = assetRouteScaffoldFiles.find(
+      (file) => file.relativePath === 'payloadMarkdownDocsAssetRoute.ts',
+    )?.content
+
+    expect(devSharedRoute).toContain('../../../dist/next')
+    expect(scaffoldSharedRoute).toContain('@valkyrianlabs/payload-markdown-docs/next')
   })
 
   it('does not write bundled skill files outside the target directory', async () => {

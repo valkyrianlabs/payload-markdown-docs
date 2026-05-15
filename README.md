@@ -521,6 +521,11 @@ Use `--payload-app "app/(payload)"` for apps without `src/`. The route files
 delegate to the plugin-owned asset handlers and prevent `/llms.txt` and skill
 URLs from being swallowed by a frontend catch-all.
 
+When `push` includes `llms.txt`, `llms-full.txt`, or skill assets, the CLI warns
+if those public route files are missing from the current app. Use
+`--strict-routes` in CI to fail the publish before deploying assets that would
+only be reachable under `/api`.
+
 Useful stable paths include:
 
 ```txt

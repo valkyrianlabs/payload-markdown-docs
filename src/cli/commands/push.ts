@@ -6,6 +6,7 @@ import type { CliResult, ParsedCliArgs, PushCommandOptions } from '../types.js'
 
 import { DocsSyncKeyError, signDocsSyncRequest } from '../../security/index.js'
 import { buildDocsManifest, sha256Hex, validateDocsManifest } from '../../sync/index.js'
+import { findPayloadAppDirWithAssetRoutes } from '../assetRoutes.js'
 import { collectPublishPackage } from '../filesystem.js'
 import { formatIssues, formatPushSummary, printJson } from '../format.js'
 import { getJson, postJson } from '../http.js'
@@ -18,6 +19,12 @@ const supportedPushDeleteBehaviors = new Set<DocsDeleteBehavior>([
   'draft',
   'ignore',
 ])
+
+const missingAssetRoutesWarning =
+  'Assets were included in the manifest, but public asset route files were not found.\n' +
+  'Run:\n' +
+  'payload-markdown-docs install routes --payload-app "src/app/(payload)"\n' +
+  'Without these route files, public /llms.txt and /skills routes will 404 outside /api.\n'
 
 type ServerPushResponse = {
   deleteBehavior?: string
@@ -247,6 +254,7 @@ const getPushCommandOptions = async (
     endpoint,
     mode,
     publish: getFlagBoolean(args, 'publish'),
+    strictRoutes: getFlagBoolean(args, 'strict-routes'),
   }
 
   if (getFlagBoolean(args, 'github-oidc')) {
@@ -379,6 +387,23 @@ export const runPushCommand = async (
     }
   }
 
+  let routeWarning = ''
+
+  if (manifest.assets && manifest.assets.length > 0) {
+    const routeAppDir = await findPayloadAppDirWithAssetRoutes()
+
+    if (!routeAppDir) {
+      if (options.strictRoutes) {
+        return {
+          exitCode: 1,
+          stderr: missingAssetRoutesWarning,
+        }
+      }
+
+      routeWarning = missingAssetRoutesWarning
+    }
+  }
+
   const body = JSON.stringify(manifest)
   let signedRequest:
     | {
@@ -436,6 +461,7 @@ export const runPushCommand = async (
     return {
       exitCode:
         response.ok && isServerPushResponse(response.body) && response.body.ok === true ? 0 : 1,
+      stderr: routeWarning || undefined,
       stdout: printJson(
         {
           endpoint: options.endpoint,
@@ -453,16 +479,17 @@ export const runPushCommand = async (
   if (!response.ok || !isServerPushResponse(response.body) || response.body.ok !== true) {
     return {
       exitCode: 1,
-      stderr: formatServerFailure({
+      stderr: `${routeWarning}${formatServerFailure({
         body: response.body,
         status: response.status,
         text: response.text,
-      }),
+      })}`,
     }
   }
 
   return {
     exitCode: 0,
+    stderr: routeWarning || undefined,
     stdout: formatPushSummary({
       endpoint: options.endpoint,
       mode: options.mode,
