@@ -10,6 +10,16 @@ import type {
 
 import { createPayloadMarkdownDocsAssetResponse } from './assets.js'
 import {
+  DocsBanner,
+  DocsCallout,
+  DocsCTA,
+  DocsNativeHero,
+  DocsPreview,
+  DocsProductHero,
+  SkillCTAGroup,
+  SkillTabs,
+} from './index.js'
+import {
   appendPayloadMarkdownDocsHeaderNavItems,
   getPayloadMarkdownDocsHeaderNavItems,
   getPayloadMarkdownDocsLinks,
@@ -2058,6 +2068,103 @@ describe('Payload Markdown Docs page component', () => {
     expect(markup).toContain('Docs set description.')
     expect(markup).toContain('Documentation')
     expect(markup).toContain('margin-top:6rem')
+  })
+})
+
+describe('Payload Markdown Docs marketing components', () => {
+  it('exports renderable docs marketing blocks from /next', () => {
+    const ctaMarkup = renderToStaticMarkup(
+      DocsCTA({
+        docsUrl: '/payload-markdown/docs',
+        heading: 'Read the docs',
+      }),
+    )
+    const previewMarkup = renderToStaticMarkup(
+      DocsPreview({
+        heading: 'Explore docs',
+        items: [
+          {
+            excerpt: 'Install the package.',
+            href: '/payload-markdown/docs/install',
+            title: 'Installation',
+          },
+        ],
+      }),
+    )
+    const calloutMarkup = renderToStaticMarkup(
+      DocsCallout({
+        excerpt: 'Configuration reference.',
+        heading: 'Need options?',
+        manualHref: '/payload-markdown/docs/configuration',
+      }),
+    )
+    const bannerMarkup = renderToStaticMarkup(
+      DocsBanner({
+        ctaButtons: [
+          {
+            href: '/payload-markdown/docs',
+            label: 'Open docs',
+          },
+        ],
+        heading: 'Ship with documentation',
+      }),
+    )
+
+    expect(ctaMarkup).toContain('Read the docs')
+    expect(ctaMarkup).toContain('href="/payload-markdown/docs"')
+    expect(previewMarkup).toContain('Installation')
+    expect(calloutMarkup).toContain('Configuration reference.')
+    expect(bannerMarkup).toContain('Open docs')
+  })
+
+  it('exports renderable heroes and skill CTAs from /next', () => {
+    const productHeroMarkup = renderToStaticMarkup(
+      DocsProductHero({
+        description: 'Guides, API references, and agent skills.',
+        heading: 'Payload Markdown Docs',
+        primaryAction: {
+          href: '/payload-markdown/docs',
+          label: 'Read docs',
+        },
+      }),
+    )
+    const nativeHeroMarkup = renderToStaticMarkup(
+      DocsNativeHero({
+        breadcrumb: [{ href: '/docs', label: 'Docs' }, { label: 'Configuration' }],
+        description: 'Plugin options.',
+        title: 'Configuration',
+      }),
+    )
+    const skillGroupMarkup = renderToStaticMarkup(
+      SkillCTAGroup({
+        skills: {
+          enabled: true,
+          items: [
+            {
+              type: 'codex',
+              href: '/skills/codex',
+              label: 'Codex skill',
+            },
+          ],
+        },
+      }),
+    )
+    const skillTabsMarkup = renderToStaticMarkup(
+      SkillTabs({
+        items: [
+          {
+            type: 'claude',
+            href: '/skills/claude',
+            label: 'Claude skill',
+          },
+        ],
+      }),
+    )
+
+    expect(productHeroMarkup).toContain('Payload Markdown Docs')
+    expect(nativeHeroMarkup).toContain('Configuration')
+    expect(skillGroupMarkup).toContain('Codex skill')
+    expect(skillTabsMarkup).toContain('Claude skill')
   })
 })
 

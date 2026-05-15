@@ -30,6 +30,7 @@ import {
   DEFAULT_PAGES_ROUTE_FIELD,
 } from './constants.js'
 import { createDocsAssetsEndpoints, createSyncEndpoint } from './endpoints/index.js'
+import { installDocsMarketingBlocks } from './install/blocks.js'
 
 type ResolvedCollectionOptions = {
   docsAssetsCollectionSlug: string
@@ -306,9 +307,15 @@ export const payloadMarkdownDocs =
         : []),
     ]
 
+    const incomingCollections = installDocsMarketingBlocks({
+      collectionConfigs: pluginOptions.collections,
+      collections: incomingConfig.collections ?? [],
+      globalSelection: pluginOptions.blocks,
+    })
+
     return {
       ...incomingConfig,
-      collections: [...(incomingConfig.collections ?? []), ...addedCollections],
+      collections: [...incomingCollections, ...addedCollections],
       endpoints: [
         ...(incomingConfig.endpoints ?? []),
         createSyncEndpoint({

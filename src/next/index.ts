@@ -1,3 +1,20 @@
+export { DocsBanner } from '../components/docs/DocsBanner.js'
+export { DocsCallout } from '../components/docs/DocsCallout.js'
+export { DocsCTA } from '../components/docs/DocsCTA.js'
+export { DocsPreview } from '../components/docs/DocsPreview.js'
+export { DocsNativeHero, DocsProductHero } from '../components/heroes/index.js'
+export { SkillCTAGroup } from '../components/skills/SkillCTAGroup.js'
+export { SkillTabs } from '../components/skills/SkillTabs.js'
+export type {
+  DocsBannerProps,
+  DocsCalloutProps,
+  DocsCTAProps,
+  DocsNativeHeroProps,
+  DocsPreviewProps,
+  DocsProductHeroProps,
+  SkillCTAGroupProps,
+  SkillTabsProps,
+} from '../marketing/types.js'
 export { createPayloadMarkdownDocsAssetRouteHandler } from './assetRoute.js'
 export type {
   CreatePayloadMarkdownDocsAssetRouteHandlerOptions,

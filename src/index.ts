@@ -1,3 +1,4 @@
+export { DocsBannerBlock, DocsCalloutBlock, DocsCTABlock, DocsPreviewBlock } from './blocks/index.js'
 export {
   DEFAULT_DOCS_ASSETS_COLLECTION_SLUG,
   DEFAULT_DOCS_COLLECTION_SLUG,
@@ -22,6 +23,20 @@ export {
   DOCS_GLOBALS_ADMIN_GROUP,
   DOCS_SET_MANAGER_COMPONENT,
 } from './constants.js'
+export {
+  backgroundMediaFields,
+  buttonField,
+  ctaButtonsField,
+  linkField,
+  linksArrayField,
+  skillCTAFields,
+} from './fields/index.js'
+export type {
+  DocsBackgroundMediaFieldOptions,
+  DocsCTAButtonFieldOptions,
+  DocsLinkFieldOptions,
+  DocsSkillCTAFieldOptions,
+} from './fields/index.js'
 export { payloadMarkdownDocs } from './plugin.js'
 export {
   DEFAULT_DOCS_SET_ROUTE_MODE,
@@ -85,6 +100,9 @@ export type {
   ValidatedDocsManifestFile,
 } from './sync/index.js'
 export type {
+  DocsBlockInstallSelection,
+  DocsCollectionInstallConfig,
+  DocsMarketingBlockKey,
   PayloadMarkdownDocsAuthConfig,
   PayloadMarkdownDocsCollectionConfig,
   PayloadMarkdownDocsCollectionsConfig,

@@ -61,6 +61,7 @@ export default buildConfig({
 - `sync` controls write, publish, and delete authority.
 - `routing` configures route collision checks.
 - `collections` customizes infrastructure collection slugs.
+- `blocks` optionally installs docs marketing blocks into existing layout block fields.
 
 GitHub trust belongs in `Docs Globals > Trusted`. Ed25519 public keys belong in
 `Docs Globals > Keys`. Docs packages belong in `Docs Globals > Sets`.

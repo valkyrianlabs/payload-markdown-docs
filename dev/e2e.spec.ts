@@ -36,22 +36,22 @@ test('serves AI assets from public root routes as raw text', async ({ request })
   const expectations: RawRouteExpectation[] = [
     {
       contentType: 'text/plain',
-      text: 'Root AI discovery file',
+      text: 'Generated index for published documentation packages',
       url: '/llms.txt',
     },
     {
       contentType: 'text/plain',
-      text: 'Expanded AI discovery file',
+      text: 'AI Documentation Index',
       url: '/llms-full.txt',
     },
     {
       contentType: 'text/plain',
-      text: 'Root AI discovery file',
+      text: 'Local dev docs set for end-to-end dedicated docs testing',
       url: '/plugins/payload-markdown-docs/llms.txt',
     },
     {
       contentType: 'text/plain',
-      text: 'Expanded AI discovery file',
+      text: 'Payload Markdown Docs Full Documentation',
       url: '/plugins/payload-markdown-docs/llms-full.txt',
     },
     {
