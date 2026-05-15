@@ -221,7 +221,7 @@ jobs:
           set -euo pipefail
           npm publish --access public
 
-      - name: Publish docs to docs.valkyrianlabs.com
+      - name: Publish docs to valkyrianlabs.com
         run: |
           set -euo pipefail
 
@@ -229,7 +229,7 @@ jobs:
             --source payload-markdown-docs
 
           node ./dist/cli/index.js push \
-            --endpoint "https://docs.valkyrianlabs.com/api/payload-markdown-docs/sync" \
+            --endpoint "https://valkyrianlabs.com/api/payload-markdown-docs/sync" \
             --source payload-markdown-docs \
             --repository "$GITHUB_REPOSITORY" \
             --branch "$GITHUB_REF_NAME" \
