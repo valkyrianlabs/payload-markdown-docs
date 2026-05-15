@@ -73,12 +73,13 @@ Supported asset kinds:
 `llms` and `llms-full` assets are optional custom static fallback files. By
 default, `/llms.txt`, `/llms-full.txt`, and docs-set `llms` files are generated
 by the plugin from synced docs, docs set metadata, dependencies, and skills.
-Skill routes are derived from the docs set route base, so
-`skills/main-docs/codex/SKILL.md` serves under
-`<docsSet.routeBase>/skills/codex/SKILL.md`.
+Skill routes are derived from the computed docs set route, so
+`skills/main-docs/codex/SKILL.md` serves under a public route such as
+`/plugins/main-docs/skills/codex/SKILL.md`.
 
 :::callout {variant="info" title="No target config in the manifest"}
-The manifest does not include target collection, target fields, route base, publish authority, or hard-delete authority.
+The manifest does not include target collection, target fields, route identity,
+publish authority, or hard-delete authority.
 :::
 
 See [frontmatter](/reference/frontmatter).

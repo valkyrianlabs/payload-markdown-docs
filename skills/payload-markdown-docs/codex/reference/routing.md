@@ -54,11 +54,11 @@ The `/next` export can resolve docs routes and let an app fall back to normal Pa
 
 Agent-facing workflow packs live outside the human docs tree under
 `skills/<source>/<agent>/`. They can be copied into project-local agent
-directories with `payload-markdown-docs install skill` or published by `push` as
-static assets. They are not docs pages and should not be routed as generated
-docs records.
+directories with `payload-markdown-docs install skill` or synced by `push` as
+raw assets. They are not docs pages and should not be routed as generated docs
+records.
 
 Public raw asset URLs such as `/llms.txt` and
-`<docsSet.routeBase>/skills/codex` require committed Next route files from
-`payload-markdown-docs install routes`. `/api/...` asset URLs are
+`/plugins/payload-markdown-docs/skills/codex` require committed Next route files
+from `payload-markdown-docs install routes`. `/api/...` asset URLs are
 implementation/internal fallback URLs, not public canonical docs URLs.

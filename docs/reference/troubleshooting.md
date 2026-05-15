@@ -75,9 +75,9 @@ A generated docs record changed outside the docs sync workflow. The sync aborts 
 
 ## Public `/llms.txt` Or Skill Route 404
 
-If `/api/llms.txt` or `/api/<docsSet.routeBase>/skills/...` works but the
-public route outside `/api` returns HTML 404, the consuming Next app is missing
-the public asset route files. Run:
+If `/api/llms.txt` or a Payload API skill asset URL works but the public route
+outside `/api` returns HTML 404, the consuming Next app is missing the public
+asset route files. Run:
 
 ```bash
 pnpm exec payload-markdown-docs install routes --payload-app "src/app/(payload)"

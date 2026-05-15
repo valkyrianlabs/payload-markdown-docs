@@ -11,7 +11,9 @@ tags:
 
 # Sidebar Helper
 
-The route adapter can return sidebar data for a docs set. You can also use the sidebar helpers directly.
+The route adapter returns sidebar data for docs routes. `PayloadMarkdownDocsPage`
+uses that data automatically, and custom renderers can read `resolved.sidebar`
+from a resolved docs route.
 
 Sidebar items are built from generated docs records and sorted deterministically by:
 
@@ -19,7 +21,7 @@ Sidebar items are built from generated docs records and sorted deterministically
 2. `sourcePath`
 3. `route`
 
-The helper excludes archived docs and docs hidden from navigation.
+The sidebar data excludes archived docs and docs hidden from navigation.
 
 ## Labels
 
@@ -32,7 +34,21 @@ Sidebar labels use:
 
 ## Generated Tree
 
-The tree is derived from source paths and routes. It is data, not a required UI component, so your app can render it however it wants.
+The tree is derived from source paths and routes. It is data, not a required UI
+component, so your app can render it however it wants.
+
+```tsx
+import { resolvePayloadMarkdownDocsRoute } from '@valkyrianlabs/payload-markdown-docs/next'
+
+const resolved = await resolvePayloadMarkdownDocsRoute({
+  payload,
+  slug,
+})
+
+if (resolved?.type === 'doc') {
+  console.log(resolved.sidebar)
+}
+```
 
 :::details {title="Why source paths matter"}
 Source paths are stable for agents and developers. They also make generated navigation predictable even when title text changes.

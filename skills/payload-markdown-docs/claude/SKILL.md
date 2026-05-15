@@ -9,7 +9,7 @@ Use this skill in Claude when maintaining Git-backed documentation for a project
 that uses `@valkyrianlabs/payload-markdown-docs`.
 
 Edit repo-local source files first. Treat generated Payload docs records and
-synced static assets as server-owned output, not as source of truth.
+synced raw assets as server-owned output, not as source of truth.
 
 This skill may be installed at `.claude/skills/payload-markdown-docs` by the CLI
 or served from the package `skills/payload-markdown-docs/claude` directory. The
@@ -41,7 +41,7 @@ instead of guessing directive names, props, themes, or formatting rules.
 - `validate`, `manifest`, `plan`, and `push` read that conventional package
   layout by default.
 - Manifest `files` are docs records.
-- Manifest `assets` are skill files and optional static AI-facing files.
+- Manifest `assets` are skill files and optional custom static files.
 - Skill files are not docs records and do not need docs frontmatter.
 - Payload Markdown directive and formatting guidance comes from the sibling
   `payload-markdown` skill, not this skill.

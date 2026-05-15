@@ -183,10 +183,10 @@ routes outside `/api`, including:
 ```text
 /llms.txt
 /llms-full.txt
-/<docsSet.routeBase>/llms.txt
-/<docsSet.routeBase>/llms-full.txt
-/<docsSet.routeBase>/skills/<agent>
-/<docsSet.routeBase>/skills/<agent>/SKILL.md
+/<computed-docs-set-route>/llms.txt
+/<computed-docs-set-route>/llms-full.txt
+/<computed-docs-set-route>/skills/<agent>
+/<computed-docs-set-route>/skills/<agent>/SKILL.md
 ```
 
 If public asset route files are missing, `/api/...` asset URLs can work while
@@ -310,7 +310,7 @@ Implemented for this workflow:
 - local CLI validation, manifest, plan, keygen, and push
 - native route adapter, dynamic sitemap helper, and frontend rendering helpers
 - generated root and docs-set AI discovery files
-- static asset storage for skills and optional custom assets
+- raw asset storage for skills and optional custom static assets
 - public asset route file installer for Next App Router apps
 - docs set admin manager
 - agent skill installer

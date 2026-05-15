@@ -188,7 +188,7 @@ import { DocsProductHero } from '@valkyrianlabs/payload-markdown-docs/next'
 export function SetLandingPage({
   set,
 }: {
-  set?: { description?: string; routeBase?: string; title?: string }
+  set?: { description?: string; href?: string; title?: string }
 }) {
   return (
     <DocsProductHero
@@ -197,7 +197,7 @@ export function SetLandingPage({
       description={set?.description ?? 'Explore guides, API references, and downloadable skills.'}
       primaryAction={{
         label: 'Read the docs',
-        href: set?.routeBase ?? '/docs',
+        href: set?.href ?? '/docs',
       }}
       skills={{
         enabled: true,

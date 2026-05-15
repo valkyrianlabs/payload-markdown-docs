@@ -35,7 +35,7 @@ which source credentials are trusted; plugin config decides whether writes,
 publishing, or hard delete are permitted.
 :::
 
-The package is built around `@valkyrianlabs/payload-markdown`. That package owns Markdown fields, directive rendering, themes, and authoring UX. This package owns docs ingestion, signed sync, audit records, docs sets, route helpers, and CI/local tooling.
+The package is built around `@valkyrianlabs/payload-markdown`. That package owns Markdown fields, directive rendering, themes, and authoring UX. This package owns docs ingestion, signed sync, audit records, docs sets, route resolution, and CI/local tooling.
 
 :::cards {columns="3" cardTheme="glass"}
 
@@ -48,7 +48,7 @@ Understand the docs groups, docs sets, generated docs records, signed endpoint, 
 :::
 
 :::card {title="Frontend helpers" href="/frontend/route-adapter"}
-Render docs routes, metadata, sitemaps, sidebars, and nav links from Next.
+Render docs routes, metadata, sitemaps, sidebar data, and nav links from Next.
 :::
 
 :::card {title="Dynamic sitemap" href="/frontend/sitemap"}
@@ -73,9 +73,9 @@ Use the root, `/next`, `/admin`, and `/blocks` package surfaces intentionally.
 - CLI commands for `validate`, `manifest`, `plan`, `keygen`, and signed `push`
 - server-gated sync writes, publishing, draft behavior, archive behavior, and hard delete
 - route reservations and opt-in Pages collision checks
-- read-only `/next` route adapter, metadata, sitemap, sidebar, and navbar helpers
+- read-only `/next` route adapter, metadata, sitemap, sidebar data, and navbar helpers
 - generated root and docs-set `llms.txt` / `llms-full.txt` endpoints
-- static asset storage for skills and optional custom assets
+- raw asset storage for skills and optional custom static assets
 - public asset route installer for Next App Router apps
 - default sitemap support for canonical docs pages, with opt-in raw asset entries
 - Docs Set Admin Manager with generated doc review and draft publish action

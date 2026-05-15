@@ -3,6 +3,7 @@ import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 const auditedRoots = [
+  '.codex/context.md',
   '.github',
   'README.md',
   'docs',
@@ -106,6 +107,31 @@ const hasDryRunNearOidc = (lines: string[], index: number): boolean => {
   return before.includes('dry-run') || before.includes('pull request')
 }
 
+const staleDocsPatterns = [
+  /\binstall\s+ai-skill\b/,
+  /\binstall\s+ai-routes\b/,
+  /\binstall\s+asset-routes\b/,
+  /--sync\b/,
+  /serveIndex/,
+  /legacyServeIndex/,
+  /legacyDefault/,
+  /requireDryRunBeforeApply/,
+  /getPayloadMarkdownDocsLinks/,
+  /createPayloadMarkdownDocsAssetResponse/,
+  /createPayloadMarkdownDocsLlmsResponse/,
+  /createPayloadMarkdownDocsSkillAssetResponse/,
+  /resolvePayloadMarkdownDocsAssetRoute/,
+  /routeBase/,
+  /routePath/,
+  /socialBanner/,
+  /heroBanner/,
+  /shareCard/,
+  /marketingBanner/,
+]
+
+const rootBlockImportPattern =
+  /import\s*\{[^}]*\b(?:DocsBannerBlock|DocsCalloutBlock|DocsCTABlock|DocsPreviewBlock|backgroundMediaFields|buttonField|ctaButtonsField|linkField|linksArrayField|skillCTAFields)\b[^}]*\}\s*from\s*['"]@valkyrianlabs\/payload-markdown-docs['"]/
+
 describe('documentation and skill drift guard', () => {
   it('keeps served skill contracts aligned with current push and asset behavior', async () => {
     for (const skillPath of skillPaths) {
@@ -151,6 +177,20 @@ describe('documentation and skill drift guard', () => {
           expect(before, `${file.path}:${index + 1}`).toMatch(/dry-run|pull request/)
         }
       })
+    }
+  })
+
+  it('does not document removed v1 public APIs or legacy fields', async () => {
+    const files = await readAuditedFiles()
+
+    for (const file of files) {
+      for (const pattern of staleDocsPatterns) {
+        expect(file.content, `${file.path} should not match ${pattern}`).not.toMatch(pattern)
+      }
+
+      expect(file.content, `${file.path} must import optional blocks from /blocks`).not.toMatch(
+        rootBlockImportPattern,
+      )
     }
   })
 })

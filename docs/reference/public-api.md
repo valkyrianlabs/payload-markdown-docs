@@ -22,8 +22,16 @@ import { payloadMarkdownDocs } from '@valkyrianlabs/payload-markdown-docs'
 ```
 
 The root export also includes public plugin config types such as
-`PayloadMarkdownDocsConfig`, auth, sync, target, routing, collection, endpoint,
-and block install selection types.
+`PayloadMarkdownDocsConfig`, `PayloadMarkdownDocsAuthConfig`,
+`PayloadMarkdownDocsSyncConfig`, `PayloadMarkdownDocsTargetConfig`,
+`PayloadMarkdownDocsRoutingConfig`, `PayloadMarkdownDocsCollectionsConfig`,
+`PayloadMarkdownDocsCollectionConfig`, `PayloadMarkdownDocsEndpointConfig`,
+`PayloadMarkdownDocsPagesRoutingConfig`,
+`PayloadMarkdownDocsSyncRevalidateConfig`, `DocsBlockInstallSelection`,
+`DocsCollectionInstallConfig`, and `DocsMarketingBlockKey`.
+
+Do not import constants, routing helpers, sync helpers, security helpers,
+frontmatter parsers, manifest builders, or block schemas from the root package.
 
 ## `/next`
 
@@ -32,7 +40,10 @@ Use `/next` in frontend/server route code:
 ```ts
 import {
   PayloadMarkdownDocsPage,
+  PayloadMarkdownDocsNavbar,
   getDocsForSitemap,
+  generatePayloadMarkdownDocsMetadata,
+  getPayloadMarkdownDocsMetadata,
   resolvePayloadMarkdownDocsRoute,
 } from '@valkyrianlabs/payload-markdown-docs/next'
 ```
@@ -40,6 +51,8 @@ import {
 This surface owns route resolution, page rendering, metadata, sitemap helpers,
 navigation helpers, marketing render components, and the public asset route
 handler factory.
+
+Use the nav/header builders for frontend navigation data.
 
 ## `/admin`
 
@@ -65,3 +78,6 @@ import {
 
 Sync planning, security, routing internals, hashing, frontmatter parsing, and
 manifest builders are internal package implementation details.
+
+The CLI is the sync API for v1. The package does not expose a public `/sync`
+SDK subpath.

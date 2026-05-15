@@ -1,7 +1,7 @@
 ---
-title: Migration Notes
-navTitle: Migration
-description: Breaking changes in the simplified docs usability release.
+title: V1 Cleanup Notes
+navTitle: V1 Cleanup
+description: Current v1 cleanup checklist for package consumers.
 order: 640
 status: published
 tags:
@@ -9,17 +9,17 @@ tags:
   - migration
 ---
 
-# Migration Notes
+# V1 Cleanup Notes
 
-This release removes the old per-docs-set security and routing knobs. It does
-not keep runtime compatibility branches for the removed model.
+The v1 package surface uses docs sets, slug-derived routes, server-owned sync
+authority, native agent skill assets, and a narrow public package API.
 
 ## Admin Records
 
-For each existing docs package:
+For each docs package:
 
 1. Create a docs set in `Docs Globals > Sets`.
-2. Use the old source value as the new `slug`.
+2. Use the package source id as the `slug`.
 3. Set the branch, usually `main`.
 4. Add a group only when the route needs nesting.
 5. Add GitHub owner trust in `Docs Globals > Trusted`.
@@ -59,10 +59,9 @@ omitted when the repository name is the docs set slug.
 
 ## Skill-First AI Workflow
 
-AI-facing support now comes from native skill packs instead of the old AI export
-model.
+AI-facing support comes from native skill packs.
 
-Removed/deprecated artifacts and runtime paths:
+Do not create or maintain:
 
 - `index.ai.yml`
 - `index.ai.yaml`
@@ -88,7 +87,5 @@ requested:
   require `includeSkills: true`.
 - stored generic `static` assets require `includeAssets: true`.
 
-`includeAssets` no longer implies llms or skill routes. Served asset endpoints
-are unchanged; this only changes crawler discovery from the sitemap helper. The
-default sitemap cache key changed to `sitemap-docs-v2` so deployments do not
-reuse cached output from the old broader behavior.
+`includeAssets` does not imply llms or skill routes. Served asset endpoints are
+unchanged; this only controls crawler discovery from the sitemap helper.

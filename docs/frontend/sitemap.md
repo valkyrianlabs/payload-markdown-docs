@@ -170,9 +170,9 @@ files and synced skills:
 
 - `/llms.txt`
 - `/llms-full.txt`
-- `<docsSet.routeBase>/llms.txt`
-- `<docsSet.routeBase>/llms-full.txt`
-- `<docsSet.routeBase>/skills/<agent>/<path...>`
+- `<computed-docs-set-route>/llms.txt`
+- `<computed-docs-set-route>/llms-full.txt`
+- `<computed-docs-set-route>/skills/<agent>/<path...>`
 
 For example, a docs set served at `/plugins/payload-markdown-docs` exposes
 `/plugins/payload-markdown-docs/llms.txt`,

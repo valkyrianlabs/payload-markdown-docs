@@ -137,9 +137,9 @@ skill routes and generated docs-set AI discovery routes:
 /plugins/payload-markdown-docs/skills/codex/reference/workflow.md
 ```
 
-`payload-markdown-docs push` publishes these skill artifacts by convention when
-they live under `./skills/<source>/`. They are sent as manifest `assets`, not as
-docs records, so skill files do not need docs frontmatter.
+`payload-markdown-docs push` syncs these skill artifacts by convention when they
+live under `./skills/<source>/`. They are sent as manifest `assets`, not as docs
+records, so skill files do not need docs frontmatter.
 
 ## Installing Public Asset Routes
 
@@ -155,11 +155,14 @@ URLs can work while public `/llms.txt` and `/skills` URLs return HTML 404 pages.
 
 ## Discovery
 
-Include exposed skill artifacts in `sitemap.xml` with stored asset sitemap
-coverage or the sitemap helper `additionalRoutes` option. The plugin also owns
-top-level `/llms.txt` and `/llms-full.txt` handlers generated from synced docs,
-docs set metadata, dependencies, and skills, while agents can consume native
-skill files directly through public route files.
+Raw agent artifacts are not listed in `sitemap.xml` by default. Use
+`includeSkills: true` when stored skill asset routes should appear in the docs
+sitemap, or pass explicit `additionalRoutes` for routes that are not synced
+assets. Use `includeLlms: true` only when `llms.txt` and `llms-full.txt` routes
+should be crawler-discoverable. The plugin also owns top-level `/llms.txt` and
+`/llms-full.txt` handlers generated from synced docs, docs set metadata,
+dependencies, and skills, while agents can consume native skill files directly
+through public route files.
 
 `sitemap.xml` is crawler discovery, `llms.txt` is an AI-readable entrypoint, and
 skills are native workflow artifacts.
