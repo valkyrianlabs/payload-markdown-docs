@@ -1,7 +1,7 @@
 ---
 title: Dynamic Sitemap Helper
 navTitle: Sitemap
-description: Add docs, AI discovery routes, and skill artifacts to a Next App Router sitemap.
+description: Add canonical docs pages to a Next App Router sitemap.
 order: 415
 status: published
 tags:
@@ -15,9 +15,9 @@ Use `getDocsForSitemap` from the `/next` export when a Next App Router site has
 a dynamic `src/app/sitemap.ts` file.
 
 The helper reads published docs sets, resolves group paths, includes the
-generated docs records inside each set, includes synced assets by
-default, prepends `siteUrl`, merges optional static routes, and returns a
-ready-to-use `MetadataRoute.Sitemap` array.
+generated docs records inside each set, prepends `siteUrl`, merges optional
+static routes, and returns a ready-to-use `MetadataRoute.Sitemap` array.
+By default, the output is limited to canonical crawler-discoverable docs pages.
 
 ```ts
 import type { MetadataRoute } from 'next'
@@ -84,10 +84,32 @@ once, the newest `lastModified` value is kept. Output remains sorted by URL.
 - `llms.txt` is an AI-readable entrypoint.
 - native skills are agent workflow artifacts.
 
-`getDocsForSitemap` includes generated `llms` routes and synced skill artifact
-routes by default. Set `includeAssets: false` only when the site wants to manage
-those entries manually. For static files that are not synced, keep using
-`additionalRoutes`.
+`getDocsForSitemap` does not include raw AI-facing artifacts by default.
+Human docs routes remain in `sitemap.xml`; `/llms.txt`, `/llms-full.txt`, and
+native skill routes can stay publicly served without being pushed into search
+crawler discovery.
+
+Opt in only when the app intentionally wants raw artifacts in `sitemap.xml`:
+
+```ts
+const docs = await getDocsForSitemap({
+  includeLlms: true,
+  includeSkills: true,
+  payload,
+  siteUrl,
+})
+```
+
+Options:
+
+- `includeLlms`: includes generated and stored `llms.txt` / `llms-full.txt`
+  routes.
+- `includeSkills`: includes stored native skill artifact routes and
+  extensionless `SKILL.md` aliases such as `/skills/codex`.
+- `includeAssets`: includes stored generic `static` assets only. It does not
+  imply `includeLlms` or `includeSkills`.
+
+For static files that are not synced, keep using `additionalRoutes`.
 
 Use `getPayloadMarkdownDocsAiSitemapRoutes` to build common AI/static routes:
 
@@ -132,6 +154,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   })
 }
 ```
+
+`additionalRoutes` is always explicit. Only pass `aiRoutes` when the sitemap is
+intentionally opting raw AI artifacts into crawler discovery.
 
 Skill artifacts can be hosted under plugin docs routes, such as
 `/plugins/payload-markdown-docs/skills/codex/SKILL.md`, or under a top-level
@@ -185,7 +210,10 @@ const docs = await getDocsForSitemap({
 
 Defaults:
 
-- `cacheKey`: `sitemap-docs-v1`
+- `cacheKey`: `sitemap-docs-v2`
+- `includeAssets`: `false`
+- `includeLlms`: `false`
+- `includeSkills`: `false`
 - `recursive`: `true`
 - `tags`: `sitemap`, `sitemap:docs`
 

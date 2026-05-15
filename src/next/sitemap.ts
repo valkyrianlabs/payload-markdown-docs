@@ -51,7 +51,12 @@ export type GetPaginatedDocsForSitemapOptions = {
   cacheKey?: string | string[]
   collections?: PayloadMarkdownDocsCollectionSlugs
   fetchLimit?: number
+  /** Include stored generic static asset routes. Does not include llms or skills. */
   includeAssets?: boolean
+  /** Include generated and stored llms.txt / llms-full.txt routes. */
+  includeLlms?: boolean
+  /** Include stored native skill artifact routes and SKILL.md directory aliases. */
+  includeSkills?: boolean
   overrideAccess?: boolean
   payload: PayloadMarkdownDocsReadPayload
   recursive?: boolean
@@ -66,7 +71,7 @@ type GetPaginatedDocsForSitemapCacheOptions = Omit<
   'cacheKey' | 'payload' | 'tags'
 >
 
-const DEFAULT_SITEMAP_CACHE_KEY = 'sitemap-docs-v1'
+const DEFAULT_SITEMAP_CACHE_KEY = 'sitemap-docs-v2'
 const DEFAULT_SITEMAP_TAGS = ['sitemap', 'sitemap:docs']
 const DEFAULT_AI_SKILL_FILES = ['SKILL.md']
 
@@ -419,10 +424,16 @@ const toRecursiveSitemapDoc = ({
 const toAssetSitemapDocs = ({
   doc,
   docsSetRouteById,
+  includeAssets,
+  includeLlms,
+  includeSkills,
   siteUrl,
 }: {
   doc: unknown
   docsSetRouteById: Map<string, string>
+  includeAssets: boolean
+  includeLlms: boolean
+  includeSkills: boolean
   siteUrl: string
 }): PayloadMarkdownDocsSitemapDoc[] => {
   if (!isRecord(doc) || typeof doc.route !== 'string' || doc.route.trim() === '') {
@@ -434,8 +445,37 @@ const toAssetSitemapDocs = ({
   if (sync?.archived === true) {
     return []
   }
+
+  const kind = getOptionalString(doc, 'kind')
   const routePath = normalizeRoutePath(doc.route)
   const lastModified = getOptionalString(doc, 'updatedAt') ?? null
+
+  if (kind === 'static') {
+    return includeAssets
+      ? [
+          {
+            lastModified,
+            url: getSitemapUrl({
+              routePath,
+              siteUrl,
+            }),
+          },
+        ]
+      : []
+  }
+
+  if (kind !== 'llms' && kind !== 'llms-full' && kind !== 'skill') {
+    return []
+  }
+
+  if ((kind === 'llms' || kind === 'llms-full') && !includeLlms) {
+    return []
+  }
+
+  if (kind === 'skill' && !includeSkills) {
+    return []
+  }
+
   const docs: PayloadMarkdownDocsSitemapDoc[] = [
     {
       lastModified,
@@ -445,7 +485,6 @@ const toAssetSitemapDocs = ({
       }),
     },
   ]
-  const kind = getOptionalString(doc, 'kind')
   const docsSetId = getRelationshipId(doc.docsSet)
   const docsSetRoutePath = docsSetId ? docsSetRouteById.get(docsSetId) : undefined
 
@@ -453,7 +492,10 @@ const toAssetSitemapDocs = ({
     docs.push({
       lastModified,
       url: getSitemapUrl({
-        routePath: joinRouteSegments(docsSetRoutePath, kind === 'llms' ? 'llms.txt' : 'llms-full.txt'),
+        routePath: joinRouteSegments(
+          docsSetRoutePath,
+          kind === 'llms' ? 'llms.txt' : 'llms-full.txt',
+        ),
         siteUrl,
       }),
     })
@@ -576,7 +618,9 @@ const getDocsForSitemapUncached = async ({
   additionalRoutes = [],
   collections,
   fetchLimit = 10000,
-  includeAssets = true,
+  includeAssets = false,
+  includeLlms = false,
+  includeSkills = false,
   overrideAccess = true,
   payload,
   recursive = true,
@@ -682,7 +726,8 @@ const getDocsForSitemapUncached = async ({
 
       return sitemapDoc ? [sitemapDoc] : []
     }) ?? []
-  const assetDocs = includeAssets
+  const shouldFetchAssets = includeAssets || includeLlms || includeSkills
+  const assetDocs = shouldFetchAssets
     ? await (async () => {
         try {
           const assetsResult = await payload.find({
@@ -709,6 +754,9 @@ const getDocsForSitemapUncached = async ({
             return toAssetSitemapDocs({
               doc,
               docsSetRouteById,
+              includeAssets,
+              includeLlms,
+              includeSkills,
               siteUrl,
             })
           })
@@ -717,7 +765,7 @@ const getDocsForSitemapUncached = async ({
         }
       })()
     : []
-  const generatedLlmsDocs = includeAssets
+  const generatedLlmsDocs = includeLlms
     ? toGeneratedLlmsSitemapDocs({
         docsSetEntries,
         siteUrl,

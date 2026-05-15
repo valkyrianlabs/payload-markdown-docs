@@ -681,32 +681,8 @@ describe('Payload Markdown Docs route adapter', () => {
         url: 'https://example.com/base/guides',
       },
       {
-        lastModified: '2026-05-13T12:00:00.000Z',
-        url: 'https://example.com/base/guides/llms-full.txt',
-      },
-      {
-        lastModified: '2026-05-13T12:00:00.000Z',
-        url: 'https://example.com/base/guides/llms.txt',
-      },
-      {
-        lastModified: '2026-05-14T12:00:00.000Z',
-        url: 'https://example.com/base/llms-full.txt',
-      },
-      {
-        lastModified: '2026-05-14T12:00:00.000Z',
-        url: 'https://example.com/base/llms.txt',
-      },
-      {
         lastModified: '2026-05-14T12:00:00.000Z',
         url: 'https://example.com/base/plugins/cms/payload-markdown',
-      },
-      {
-        lastModified: '2026-05-14T12:00:00.000Z',
-        url: 'https://example.com/base/plugins/cms/payload-markdown/llms-full.txt',
-      },
-      {
-        lastModified: '2026-05-14T12:00:00.000Z',
-        url: 'https://example.com/base/plugins/cms/payload-markdown/llms.txt',
       },
     ])
     expect(payload.find).toHaveBeenCalledWith(
@@ -758,23 +734,7 @@ describe('Payload Markdown Docs route adapter', () => {
     expect(result).toEqual([
       {
         lastModified: '2026-05-14T12:00:00.000Z',
-        url: 'https://example.com/llms-full.txt',
-      },
-      {
-        lastModified: '2026-05-14T12:00:00.000Z',
-        url: 'https://example.com/llms.txt',
-      },
-      {
-        lastModified: '2026-05-14T12:00:00.000Z',
         url: 'https://example.com/plugins/payload-markdown',
-      },
-      {
-        lastModified: '2026-05-14T12:00:00.000Z',
-        url: 'https://example.com/plugins/payload-markdown/llms-full.txt',
-      },
-      {
-        lastModified: '2026-05-14T12:00:00.000Z',
-        url: 'https://example.com/plugins/payload-markdown/llms.txt',
       },
     ])
   })
@@ -802,23 +762,7 @@ describe('Payload Markdown Docs route adapter', () => {
     expect(result).toEqual([
       {
         lastModified: '2026-05-14T12:00:00.000Z',
-        url: 'https://example.com/llms-full.txt',
-      },
-      {
-        lastModified: '2026-05-14T12:00:00.000Z',
-        url: 'https://example.com/llms.txt',
-      },
-      {
-        lastModified: '2026-05-14T12:00:00.000Z',
         url: 'https://example.com/plugins/payload-markdown/docs',
-      },
-      {
-        lastModified: '2026-05-14T12:00:00.000Z',
-        url: 'https://example.com/plugins/payload-markdown/docs/llms-full.txt',
-      },
-      {
-        lastModified: '2026-05-14T12:00:00.000Z',
-        url: 'https://example.com/plugins/payload-markdown/docs/llms.txt',
       },
     ])
   })
@@ -864,28 +808,12 @@ describe('Payload Markdown Docs route adapter', () => {
 
     expect(result).toEqual([
       {
-        lastModified: '2026-05-14T11:00:00.000Z',
-        url: 'https://example.com/llms-full.txt',
-      },
-      {
-        lastModified: '2026-05-14T11:00:00.000Z',
-        url: 'https://example.com/llms.txt',
-      },
-      {
         lastModified: '2026-05-15T12:00:00.000Z',
         url: 'https://example.com/plugins/payload-markdown/docs',
       },
       {
         lastModified: '2026-05-14T12:00:00.000Z',
         url: 'https://example.com/plugins/payload-markdown/docs/getting-started/installation',
-      },
-      {
-        lastModified: '2026-05-14T11:00:00.000Z',
-        url: 'https://example.com/plugins/payload-markdown/docs/llms-full.txt',
-      },
-      {
-        lastModified: '2026-05-14T11:00:00.000Z',
-        url: 'https://example.com/plugins/payload-markdown/docs/llms.txt',
       },
     ])
   })
@@ -952,16 +880,10 @@ describe('Payload Markdown Docs route adapter', () => {
           lastModified: '2026-05-15T12:00:00.000Z',
           path: '/plugins/payload-markdown',
         },
-        ...getPayloadMarkdownDocsAiSitemapRoutes({
-          includeLlmsFull: true,
-          skills: [
-            {
-              agents: ['codex', 'claude'],
-              basePath: '/plugins/payload-markdown-docs/skills',
-              lastModified: '2026-05-14T12:00:00.000Z',
-            },
-          ],
-        }),
+        {
+          lastModified: '2026-05-13T12:00:00.000Z',
+          path: '/legal',
+        },
       ],
       payload,
       recursive: false,
@@ -970,32 +892,12 @@ describe('Payload Markdown Docs route adapter', () => {
 
     expect(result).toEqual([
       {
-        lastModified: '2026-05-10T12:00:00.000Z',
-        url: 'https://example.com/llms-full.txt',
-      },
-      {
-        lastModified: '2026-05-10T12:00:00.000Z',
-        url: 'https://example.com/llms.txt',
+        lastModified: '2026-05-13T12:00:00.000Z',
+        url: 'https://example.com/legal',
       },
       {
         lastModified: '2026-05-15T12:00:00.000Z',
         url: 'https://example.com/plugins/payload-markdown',
-      },
-      {
-        lastModified: '2026-05-14T12:00:00.000Z',
-        url: 'https://example.com/plugins/payload-markdown-docs/skills/claude/SKILL.md',
-      },
-      {
-        lastModified: '2026-05-14T12:00:00.000Z',
-        url: 'https://example.com/plugins/payload-markdown-docs/skills/codex/SKILL.md',
-      },
-      {
-        lastModified: '2026-05-10T12:00:00.000Z',
-        url: 'https://example.com/plugins/payload-markdown/llms-full.txt',
-      },
-      {
-        lastModified: '2026-05-10T12:00:00.000Z',
-        url: 'https://example.com/plugins/payload-markdown/llms.txt',
       },
     ])
   })
@@ -1107,28 +1009,12 @@ describe('Payload Markdown Docs route adapter', () => {
 
     expect(result.docs).toEqual([
       {
-        lastModified: '2026-05-14T11:00:00.000Z',
-        url: 'https://example.com/llms-full.txt',
-      },
-      {
-        lastModified: '2026-05-14T11:00:00.000Z',
-        url: 'https://example.com/llms.txt',
-      },
-      {
         lastModified: '2026-05-15T12:00:00.000Z',
         url: 'https://example.com/plugins/payload-markdown',
       },
       {
         lastModified: '2026-05-14T12:00:00.000Z',
         url: 'https://example.com/plugins/payload-markdown/getting-started/installation',
-      },
-      {
-        lastModified: '2026-05-14T11:00:00.000Z',
-        url: 'https://example.com/plugins/payload-markdown/llms-full.txt',
-      },
-      {
-        lastModified: '2026-05-14T11:00:00.000Z',
-        url: 'https://example.com/plugins/payload-markdown/llms.txt',
       },
     ])
   })
@@ -1163,29 +1049,13 @@ describe('Payload Markdown Docs route adapter', () => {
     expect(result).toEqual([
       {
         lastModified: '2026-05-14T11:00:00.000Z',
-        url: 'https://example.com/llms-full.txt',
-      },
-      {
-        lastModified: '2026-05-14T11:00:00.000Z',
-        url: 'https://example.com/llms.txt',
-      },
-      {
-        lastModified: '2026-05-14T11:00:00.000Z',
         url: 'https://example.com/plugins/payload-markdown',
-      },
-      {
-        lastModified: '2026-05-14T11:00:00.000Z',
-        url: 'https://example.com/plugins/payload-markdown/llms-full.txt',
-      },
-      {
-        lastModified: '2026-05-14T11:00:00.000Z',
-        url: 'https://example.com/plugins/payload-markdown/llms.txt',
       },
     ])
     expect(payload.find).not.toHaveBeenCalledWith(expect.objectContaining({ collection: 'docs' }))
   })
 
-  it('includes stored llms and skill assets in sitemap output by default', async () => {
+  it('excludes raw AI asset routes from sitemap output by default', async () => {
     const sitemapDocsSet = {
       ...docsSet,
       _status: 'published',
@@ -1215,11 +1085,20 @@ describe('Payload Markdown Docs route adapter', () => {
           updatedAt: '2026-05-15T12:00:00.000Z',
         },
         {
-          id: 'asset-archived',
+          id: 'asset-static',
+          kind: 'static',
+          route: '/downloads/payload-markdown.zip',
+          sync: {
+            archived: false,
+          },
+          updatedAt: '2026-05-17T12:00:00.000Z',
+        },
+        {
+          id: 'asset-llms-full',
           kind: 'llms-full',
           route: '/llms-full.txt',
           sync: {
-            archived: true,
+            archived: false,
           },
           updatedAt: '2026-05-14T12:00:00.000Z',
         },
@@ -1229,6 +1108,57 @@ describe('Payload Markdown Docs route adapter', () => {
     })
 
     const result = await getDocsForSitemap({
+      payload,
+      siteUrl: 'https://example.com',
+    })
+
+    expect(result).toEqual([
+      {
+        lastModified: sitemapDocsSet.updatedAt,
+        url: 'https://example.com/plugins/payload-markdown',
+      },
+    ])
+    expect(payload.find).not.toHaveBeenCalledWith(
+      expect.objectContaining({ collection: 'payload-markdown-docs-assets' }),
+    )
+  })
+
+  it('includes llms routes only when includeLlms is true', async () => {
+    const sitemapDocsSet = {
+      ...docsSet,
+      _status: 'published',
+      group: docsGroup.id,
+      updatedAt: '2026-05-14T11:00:00.000Z',
+    }
+    const payload = createPayloadMock({
+      docsAssets: [
+        {
+          id: 'asset-llms',
+          docsSet: sitemapDocsSet.id,
+          kind: 'llms',
+          route: '/llms.txt',
+          sync: {
+            archived: false,
+          },
+          updatedAt: '2026-05-16T12:00:00.000Z',
+        },
+        {
+          id: 'asset-skill',
+          docsSet: sitemapDocsSet.id,
+          kind: 'skill',
+          route: '/plugins/payload-markdown/skills/codex/SKILL.md',
+          sync: {
+            archived: false,
+          },
+          updatedAt: '2026-05-15T12:00:00.000Z',
+        },
+      ],
+      docsGroups: [docsGroup],
+      docsSets: [sitemapDocsSet],
+    })
+
+    const result = await getDocsForSitemap({
+      includeLlms: true,
       payload,
       siteUrl: 'https://example.com',
     })
@@ -1254,9 +1184,71 @@ describe('Payload Markdown Docs route adapter', () => {
         lastModified: '2026-05-16T12:00:00.000Z',
         url: 'https://example.com/plugins/payload-markdown/llms.txt',
       },
+    ])
+  })
+
+  it('includes skill routes only when includeSkills is true', async () => {
+    const sitemapDocsSet = {
+      ...docsSet,
+      _status: 'published',
+      group: docsGroup.id,
+      updatedAt: '2026-05-14T11:00:00.000Z',
+    }
+    const payload = createPayloadMock({
+      docsAssets: [
+        {
+          id: 'asset-llms',
+          docsSet: sitemapDocsSet.id,
+          kind: 'llms',
+          route: '/llms.txt',
+          sync: {
+            archived: false,
+          },
+          updatedAt: '2026-05-16T12:00:00.000Z',
+        },
+        {
+          id: 'asset-skill',
+          docsSet: sitemapDocsSet.id,
+          kind: 'skill',
+          route: '/plugins/payload-markdown/skills/codex/SKILL.md',
+          sync: {
+            archived: false,
+          },
+          updatedAt: '2026-05-15T12:00:00.000Z',
+        },
+        {
+          id: 'asset-skill-reference',
+          docsSet: sitemapDocsSet.id,
+          kind: 'skill',
+          route: '/plugins/payload-markdown/skills/codex/reference/formatting.md',
+          sync: {
+            archived: false,
+          },
+          updatedAt: '2026-05-13T12:00:00.000Z',
+        },
+      ],
+      docsGroups: [docsGroup],
+      docsSets: [sitemapDocsSet],
+    })
+
+    const result = await getDocsForSitemap({
+      includeSkills: true,
+      payload,
+      siteUrl: 'https://example.com',
+    })
+
+    expect(result).toEqual([
+      {
+        lastModified: sitemapDocsSet.updatedAt,
+        url: 'https://example.com/plugins/payload-markdown',
+      },
       {
         lastModified: '2026-05-15T12:00:00.000Z',
         url: 'https://example.com/plugins/payload-markdown/skills/codex',
+      },
+      {
+        lastModified: '2026-05-13T12:00:00.000Z',
+        url: 'https://example.com/plugins/payload-markdown/skills/codex/reference/formatting.md',
       },
       {
         lastModified: '2026-05-15T12:00:00.000Z',
@@ -1265,26 +1257,65 @@ describe('Payload Markdown Docs route adapter', () => {
     ])
   })
 
-  it('can disable stored asset sitemap entries', async () => {
+  it('includeAssets only includes generic static asset routes', async () => {
+    const sitemapDocsSet = {
+      ...docsSet,
+      _status: 'published',
+      group: docsGroup.id,
+      updatedAt: '2026-05-14T11:00:00.000Z',
+    }
     const payload = createPayloadMock({
       docsAssets: [
         {
+          id: 'asset-static',
+          kind: 'static',
+          route: '/downloads/payload-markdown.zip',
+          sync: {
+            archived: false,
+          },
+          updatedAt: '2026-05-17T12:00:00.000Z',
+        },
+        {
           id: 'asset-llms',
+          docsSet: sitemapDocsSet.id,
+          kind: 'llms',
           route: '/llms.txt',
           sync: {
             archived: false,
           },
+          updatedAt: '2026-05-16T12:00:00.000Z',
+        },
+        {
+          id: 'asset-skill',
+          docsSet: sitemapDocsSet.id,
+          kind: 'skill',
+          route: '/plugins/payload-markdown/skills/codex/SKILL.md',
+          sync: {
+            archived: false,
+          },
+          updatedAt: '2026-05-15T12:00:00.000Z',
         },
       ],
+      docsGroups: [docsGroup],
+      docsSets: [sitemapDocsSet],
     })
 
     const result = await getDocsForSitemap({
-      includeAssets: false,
+      includeAssets: true,
       payload,
       siteUrl: 'https://example.com',
     })
 
-    expect(result).toEqual([])
+    expect(result).toEqual([
+      {
+        lastModified: '2026-05-17T12:00:00.000Z',
+        url: 'https://example.com/downloads/payload-markdown.zip',
+      },
+      {
+        lastModified: sitemapDocsSet.updatedAt,
+        url: 'https://example.com/plugins/payload-markdown',
+      },
+    ])
   })
 })
 

@@ -566,9 +566,11 @@ Useful stable paths include:
 /plugins/payload-markdown-docs/skills/codex/reference/workflow.md
 ```
 
-Generated AI discovery routes and synced skill assets are included by the docs
-sitemap helpers by default. Use `additionalRoutes` for static routes that are
-not generated or synced:
+Generated sitemap output includes canonical human docs pages by default. Raw
+AI-facing routes like `llms.txt`, `llms-full.txt`, and native skill Markdown are
+publicly served but are not listed in `sitemap.xml` unless explicitly requested
+with `includeLlms` or `includeSkills`. Use `additionalRoutes` for static routes
+that are not generated or synced:
 
 ```ts
 import { getDocsForSitemap } from '@valkyrianlabs/payload-markdown-docs/next'

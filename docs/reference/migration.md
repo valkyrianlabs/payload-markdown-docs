@@ -76,3 +76,19 @@ Use repo-local Markdown files under `/docs` for human documentation source. Use
 the canonical skill artifacts under `/skills/payload-markdown-docs/<agent>/` for
 agent workflow instructions. The CLI installer copies those artifacts into
 project-local agent paths for Codex and Claude.
+
+## Sitemap AI Artifacts
+
+Generated sitemap output now includes canonical human docs routes by default.
+Raw AI-facing artifacts are no longer listed in `sitemap.xml` unless explicitly
+requested:
+
+- `llms.txt` and `llms-full.txt` require `includeLlms: true`.
+- native skill routes such as `/skills/codex` and `/skills/codex/SKILL.md`
+  require `includeSkills: true`.
+- stored generic `static` assets require `includeAssets: true`.
+
+`includeAssets` no longer implies llms or skill routes. Served asset endpoints
+are unchanged; this only changes crawler discovery from the sitemap helper. The
+default sitemap cache key changed to `sitemap-docs-v2` so deployments do not
+reuse cached output from the old broader behavior.

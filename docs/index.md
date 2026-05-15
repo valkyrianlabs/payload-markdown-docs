@@ -73,7 +73,7 @@ Install local agent guidance for writing docs that validate and sync.
 - generated root and docs-set `llms.txt` / `llms-full.txt` endpoints
 - static asset storage for skills and optional custom assets
 - public asset route installer for Next App Router apps
-- sitemap support for AI discovery routes and native skill artifacts
+- opt-in sitemap support for AI discovery routes and native skill artifacts
 - Docs Set Admin Manager with generated doc review and draft publish action
 - local Codex and Claude skill installer
 - canonical agent skill artifacts under `/skills`
