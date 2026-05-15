@@ -9,10 +9,20 @@ Docs groups reserve namespaces such as `/plugins` or `/internal/tools`.
 ## Docs Sets
 
 Docs sets represent one documentation site. Their route base is derived from an
-optional group plus the docs set slug, such as:
+optional group plus the docs set slug and `routeMode`.
+
+`docs-root` routes docs at the product route:
 
 ```text
 /plugins/payload-markdown-docs
+```
+
+`product-nested` routes docs below `/docs` so the product route can be owned by
+the host app or Pages collection:
+
+```text
+/plugins/payload-markdown-docs
+/plugins/payload-markdown-docs/docs
 ```
 
 ## Generated Docs
@@ -20,6 +30,12 @@ optional group plus the docs set slug, such as:
 Generated docs records are internal storage for routing, search, sync correctness, and per-doc overrides.
 
 `index.md` routes to the docs set route base. Nested files route below it.
+
+## Group Pages
+
+Docs groups use `pageMode`. `auto` lets the docs plugin render a generated group
+landing page such as `/plugins`; `custom` leaves that route for the host app.
+Legacy records without `pageMode` fall back to `serveIndex`.
 
 ## Links
 

@@ -14,6 +14,7 @@ import {
   DEFAULT_MARKDOWN_FIELD_NAME,
 } from '../constants.js'
 import {
+  deriveDocsSetProductRoutePath,
   deriveDocsSetRouteBase,
   isRouteDescendant,
   joinRouteSegments,
@@ -148,9 +149,14 @@ const withComputedDocsSetRoute = ({
 
   return {
     ...docsSet,
+    productRoute: deriveDocsSetProductRoutePath({
+      docsSetSlug: docsSet.slug,
+      groupRoutePath,
+    }),
     routeBase: deriveDocsSetRouteBase({
       docsSetSlug: docsSet.slug,
       groupRoutePath,
+      routeMode: docsSet.routeMode,
     }),
   }
 }
@@ -472,11 +478,37 @@ const findGroupIndexRoute = async ({
           }
         : undefined
     })
-    .find((candidate) => candidate?.routePath === route && candidate.serveIndex)
+    .find((candidate) => candidate?.routePath === route && candidate.pageMode === 'auto')
 
   if (!group) {
     return undefined
   }
+
+  const childGroups = [...groupsById.entries()]
+    .filter(([, doc]) => isRecord(doc) && getRelationshipId(doc.parent) === group.id)
+    .flatMap(([groupId, doc]) => {
+      const resolved = toResolvedDocsGroup(doc)
+      const routePath = getGroupRoutePath({
+        groupId,
+        groupsById,
+      })
+
+      return resolved && routePath
+        ? [
+            {
+              ...resolved,
+              routePath,
+            },
+          ]
+        : []
+    })
+    .sort((first, second) => {
+      if (first.order !== second.order) {
+        return first.order - second.order
+      }
+
+      return (first.navTitle ?? first.title).localeCompare(second.navTitle ?? second.title)
+    })
 
   const docsSetsResult = await payload.find({
     collection: collections.docsSets,
@@ -501,11 +533,12 @@ const findGroupIndexRoute = async ({
         return first.order - second.order
       }
 
-      return first.routeBase.localeCompare(second.routeBase)
+      return (first.navTitle ?? first.title).localeCompare(second.navTitle ?? second.title)
     })
 
   return {
     type: 'docsGroupIndex',
+    childGroups,
     docsSets,
     group,
     route,

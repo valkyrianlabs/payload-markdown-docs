@@ -6,18 +6,10 @@ import { unstable_cache } from 'next/cache'
 import type { PayloadMarkdownDocsCollectionSlugs, PayloadMarkdownDocsReadPayload } from './types.js'
 
 import {
-  DEFAULT_DOCS_ASSETS_COLLECTION_SLUG,
-  DEFAULT_DOCS_COLLECTION_SLUG,
-  DEFAULT_DOCS_GROUPS_COLLECTION_SLUG,
-  DEFAULT_DOCS_SETS_COLLECTION_SLUG,
+  DEFAULT_DOCS_ASSETS_COLLECTION_SLUG, DEFAULT_DOCS_COLLECTION_SLUG, DEFAULT_DOCS_GROUPS_COLLECTION_SLUG, DEFAULT_DOCS_SETS_COLLECTION_SLUG,
   DEFAULT_MARKDOWN_FIELD_NAME,
 } from '../constants.js'
-import {
-  deriveDocsSetRouteBase,
-  isRouteDescendant,
-  joinRouteSegments,
-  normalizeRoutePath,
-} from '../routing/index.js'
+import { deriveDocsSetRouteBase, isRouteDescendant, joinRouteSegments, normalizeRoutePath, } from '../routing/index.js'
 import { getRelationshipId, isRecord, isVisibleDocsRecord, toResolvedDocsRecord } from './records.js'
 
 export type PayloadMarkdownDocsSitemapDoc = {
@@ -256,6 +248,7 @@ const toDocsSetSitemapEntry = ({
       groupId: getRelationshipId(doc.group),
       groupsById,
     }),
+    routeMode: doc.routeMode === 'product-nested' ? 'product-nested' : 'docs-root',
   })
 
   return {
@@ -412,6 +405,56 @@ const getLatestLastModified = (
   return firstTime > secondTime ? first : second
 }
 
+const toGeneratedLlmsSitemapDocs = ({
+  docsSetEntries,
+  siteUrl,
+}: {
+  docsSetEntries: DocsSetSitemapEntry[]
+  siteUrl: string
+}): PayloadMarkdownDocsSitemapDoc[] => {
+  if (docsSetEntries.length === 0) {
+    return []
+  }
+
+  const rootLastModified = docsSetEntries.reduce<null | string>(
+    (latest, entry) => getLatestLastModified(latest, entry.sitemapDoc.lastModified),
+    null,
+  )
+
+  return [
+    {
+      lastModified: rootLastModified,
+      url: getSitemapUrl({
+        routePath: '/llms.txt',
+        siteUrl,
+      }),
+    },
+    {
+      lastModified: rootLastModified,
+      url: getSitemapUrl({
+        routePath: '/llms-full.txt',
+        siteUrl,
+      }),
+    },
+    ...docsSetEntries.flatMap((entry) => [
+      {
+        lastModified: entry.sitemapDoc.lastModified,
+        url: getSitemapUrl({
+          routePath: joinRouteSegments(entry.routePath, 'llms.txt'),
+          siteUrl,
+        }),
+      },
+      {
+        lastModified: entry.sitemapDoc.lastModified,
+        url: getSitemapUrl({
+          routePath: joinRouteSegments(entry.routePath, 'llms-full.txt'),
+          siteUrl,
+        }),
+      },
+    ]),
+  ]
+}
+
 const dedupeAndSortSitemapDocs = (
   docs: PayloadMarkdownDocsSitemapDoc[],
 ): PayloadMarkdownDocsSitemapDoc[] => {
@@ -469,6 +512,7 @@ const getDocsForSitemapUncached = async ({
         id: true,
         slug: true,
         group: true,
+        routeMode: true,
         updatedAt: true,
       },
       where: {
@@ -572,22 +616,27 @@ const getDocsForSitemapUncached = async ({
           })
 
           return assetsResult.docs.flatMap((doc) => {
-            const sitemapDocs = toAssetSitemapDocs({
+            return toAssetSitemapDocs({
               doc,
               docsSetRouteById,
               siteUrl,
             })
-
-            return sitemapDocs
           })
         } catch {
           return []
         }
       })()
     : []
+  const generatedLlmsDocs = includeAssets
+    ? toGeneratedLlmsSitemapDocs({
+        docsSetEntries,
+        siteUrl,
+      })
+    : []
   const docs = dedupeAndSortSitemapDocs([
     ...docsSetEntries.map((entry) => entry.sitemapDoc),
     ...recursiveDocs,
+    ...generatedLlmsDocs,
     ...assetDocs,
     ...additionalRoutes.flatMap((route) => {
       const sitemapDoc = toAdditionalSitemapDoc({

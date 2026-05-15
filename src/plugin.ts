@@ -351,9 +351,12 @@ export const payloadMarkdownDocs =
         ...createDocsAssetsEndpoints({
           docsAssetsCollectionSlug,
           docsAssetsEnabled,
+          docsCollectionSlug,
+          docsEnabled,
           docsGroupsCollectionSlug,
           docsSetsCollectionSlug,
           docsSetsEnabled,
+          markdownFieldName,
         }),
       ],
     }

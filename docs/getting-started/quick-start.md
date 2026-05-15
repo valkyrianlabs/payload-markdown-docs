@@ -44,33 +44,34 @@ skills/
       SKILL.md
     claude/
       SKILL.md
-llms.txt
-llms-full.txt
 ```
 
-Markdown docs become manifest `files`. Skills and root AI discovery files become
-manifest `assets`, so skill files do not need docs frontmatter.
+Markdown docs become manifest `files`. Skills become manifest `assets`, so skill
+files do not need docs frontmatter. AI discovery files are generated from synced
+docs, docs set metadata, dependencies, and skills.
 
 ## Install An Agent Skill
 
-In the docs set target application, install a local agent skill so Codex or
-Claude has project-specific guidance for maintaining Markdown docs, supported
-frontmatter, validation, and sync safety rules.
+In the docs set target application, install local agent skills so Codex or
+Claude has project-specific guidance for package structure, supported
+frontmatter, validation, sync safety rules, and Payload Markdown authoring.
 
 ```bash
 pnpm exec payload-markdown-docs install skill --agent codex
 pnpm exec payload-markdown-docs install skill --agent claude
 ```
 
-The Codex installer writes `.agents/skills/payload-markdown-docs/` and creates
-or updates `AGENTS.md`. The Claude installer writes
-`.claude/skills/payload-markdown-docs/` and does not modify `AGENTS.md` by
-default. Neither install syncs docs, calls Payload, or publishes content.
+The Codex installer writes `.agents/skills/payload-markdown-docs/`,
+`.agents/skills/payload-markdown/`, and creates or updates `AGENTS.md`. The
+Claude installer writes `.claude/skills/payload-markdown-docs/` plus
+`.claude/skills/payload-markdown/` and does not modify `AGENTS.md` by default.
+Neither install syncs docs, calls Payload, or publishes content.
 
 ## Install Public Asset Routes
 
-If the consuming Next app should serve `/llms.txt`, `/llms-full.txt`, or
-docs-set skill URLs outside `/api`, commit the generated route files:
+If the consuming Next app should serve generated `/llms.txt`, `/llms-full.txt`,
+docs-set `llms` files, or skill URLs outside `/api`, commit the generated route
+files:
 
 ```bash
 pnpm exec payload-markdown-docs install routes --payload-app "src/app/(payload)"

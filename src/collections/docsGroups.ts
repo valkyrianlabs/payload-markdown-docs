@@ -11,7 +11,7 @@ export const createDocsGroupsCollection = ({
 }: CreateDocsGroupsCollectionOptions): CollectionConfig => ({
   slug,
   admin: {
-    defaultColumns: ['title', 'slug', 'serveIndex', 'updatedAt'],
+    defaultColumns: ['title', 'slug', 'pageMode', 'updatedAt'],
     group: DOCS_GLOBALS_ADMIN_GROUP,
     useAsTitle: 'title',
   },
@@ -46,8 +46,30 @@ export const createDocsGroupsCollection = ({
       defaultValue: 0,
     },
     {
+      name: 'pageMode',
+      type: 'select',
+      admin: {
+        description:
+          'auto generates a docs group landing page. custom lets the site own this group route.',
+      },
+      defaultValue: 'auto',
+      options: [
+        {
+          label: 'Auto generated',
+          value: 'auto',
+        },
+        {
+          label: 'Custom',
+          value: 'custom',
+        },
+      ],
+    },
+    {
       name: 'serveIndex',
       type: 'checkbox',
+      admin: {
+        description: 'Legacy field. Use pageMode for new docs groups.',
+      },
       defaultValue: false,
     },
   ],

@@ -1,5 +1,7 @@
 import { access, mkdir, readdir, readFile, writeFile } from 'node:fs/promises'
+import { createRequire } from 'node:module'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 import type { CliResult, ParsedCliArgs } from '../types.js'
 
@@ -10,6 +12,8 @@ type AgentTarget = 'claude' | 'codex'
 
 type PackageManager = 'bun' | 'npm' | 'pnpm' | 'yarn'
 
+type SkillPackageName = 'payload-markdown' | 'payload-markdown-docs'
+
 type SkillTemplateFile = {
   content: string
   relativePath: string
@@ -17,11 +21,15 @@ type SkillTemplateFile = {
 
 type PlannedSkillFile = {
   content: string
+  displayPath: string
   path: string
   relativePath: string
+  skillName: SkillPackageName
 }
 
-type PlannedInstallFile = PlannedSkillFile
+type PlannedInstallFile = {
+  skillName?: SkillPackageName
+} & Omit<PlannedSkillFile, 'skillName'>
 
 type InstallSkillOptions = {
   agent: AgentTarget
@@ -30,6 +38,7 @@ type InstallSkillOptions = {
   force: boolean
   outDir: string
   packageManager: PackageManager
+  payloadMarkdownOutDir: string
   updateAgentsFile: boolean
 }
 
@@ -40,13 +49,26 @@ type InstallAssetRoutesOptions = {
 }
 
 const packageManagers = new Set<PackageManager>(['bun', 'npm', 'pnpm', 'yarn'])
-const supportedInstallTargets = new Set(['ai-routes', 'ai-skill', 'asset-routes', 'routes', 'skill'])
+const supportedInstallTargets = new Set([
+  'ai-routes',
+  'ai-skill',
+  'asset-routes',
+  'routes',
+  'skill',
+])
 const supportedAgents = new Set<AgentTarget>(['claude', 'codex'])
-const defaultSkillOutputPaths: Record<AgentTarget, string> = {
+const docsSkillName = 'payload-markdown-docs'
+const payloadMarkdownSkillName = 'payload-markdown'
+const defaultDocsSkillOutputPaths: Record<AgentTarget, string> = {
   claude: '.claude/skills/payload-markdown-docs',
   codex: '.agents/skills/payload-markdown-docs',
 }
+const defaultPayloadMarkdownSkillOutputPaths: Record<AgentTarget, string> = {
+  claude: '.claude/skills/payload-markdown',
+  codex: '.agents/skills/payload-markdown',
+}
 const agentsFilePath = 'AGENTS.md'
+const requireFromHere = createRequire(import.meta.url)
 
 const fileExists = async (filePath: string): Promise<boolean> => {
   try {
@@ -85,7 +107,16 @@ const detectPayloadAppDir = async (): Promise<string | undefined> => {
   return undefined
 }
 
-const getSkillTemplateRoot = async (agent: AgentTarget): Promise<URL> => {
+const directoryPathToUrl = (directoryPath: string): URL => {
+  const normalized = path.resolve(directoryPath)
+  const withTrailingSeparator = normalized.endsWith(path.sep)
+    ? normalized
+    : `${normalized}${path.sep}`
+
+  return pathToFileURL(withTrailingSeparator)
+}
+
+const getDocsSkillTemplateRoot = async (agent: AgentTarget): Promise<URL> => {
   const candidates = [
     new URL(`../../skills/payload-markdown-docs/${agent}/`, import.meta.url),
     new URL(`../../../skills/payload-markdown-docs/${agent}/`, import.meta.url),
@@ -98,6 +129,44 @@ const getSkillTemplateRoot = async (agent: AgentTarget): Promise<URL> => {
   }
 
   return candidates[0]
+}
+
+const getPayloadMarkdownSkillTemplateRoot = async (
+  agent: AgentTarget,
+): Promise<CliResult | URL> => {
+  const candidates: string[] = []
+
+  try {
+    const packageEntry = requireFromHere.resolve('@valkyrianlabs/payload-markdown')
+    const packageRoot = path.dirname(path.dirname(packageEntry))
+
+    candidates.push(path.join(packageRoot, 'skills', 'payload-markdown', agent))
+  } catch {
+    // Fall through to the local workspace candidate below.
+  }
+
+  candidates.push(
+    path.resolve(
+      'node_modules',
+      '@valkyrianlabs',
+      'payload-markdown',
+      'skills',
+      'payload-markdown',
+      agent,
+    ),
+  )
+
+  for (const candidate of candidates) {
+    if (await fileExists(candidate)) {
+      return directoryPathToUrl(candidate)
+    }
+  }
+
+  return {
+    exitCode: 1,
+    stderr:
+      'Could not find @valkyrianlabs/payload-markdown skill files. Reinstall dependencies and try again.\n',
+  }
 }
 
 const readTemplateFiles = async (
@@ -169,16 +238,32 @@ const assertSafeRelativePath = (relativePath: string): CliResult | undefined => 
   return undefined
 }
 
-const createPlannedFiles = async ({
+const displayPathFor = (filePath: string): string => {
+  const relative = path.relative(process.cwd(), filePath)
+
+  if (relative && !relative.startsWith('..') && !path.isAbsolute(relative)) {
+    return relative.split(path.sep).join('/')
+  }
+
+  return filePath.split(path.sep).join('/')
+}
+
+const createPlannedFilesForSkill = async ({
   agent,
+  directoryUrl,
   docsRoot,
   outDir,
   packageManager,
-}: Pick<InstallSkillOptions, 'agent' | 'docsRoot' | 'outDir' | 'packageManager'>): Promise<
+  skillName,
+}: {
+  directoryUrl: URL
+  outDir: string
+  skillName: SkillPackageName
+} & Pick<InstallSkillOptions, 'agent' | 'docsRoot' | 'packageManager'>): Promise<
   CliResult | PlannedSkillFile[]
 > => {
   const absoluteOutDir = path.resolve(outDir)
-  const templates = await readTemplateFiles(await getSkillTemplateRoot(agent))
+  const templates = await readTemplateFiles(directoryUrl)
   const plannedFiles: PlannedSkillFile[] = []
 
   for (const template of templates) {
@@ -190,10 +275,7 @@ const createPlannedFiles = async ({
 
     const outputPath = path.resolve(absoluteOutDir, template.relativePath)
 
-    if (
-      outputPath !== absoluteOutDir &&
-      !outputPath.startsWith(`${absoluteOutDir}${path.sep}`)
-    ) {
+    if (outputPath !== absoluteOutDir && !outputPath.startsWith(`${absoluteOutDir}${path.sep}`)) {
       return {
         exitCode: 1,
         stderr: `Refusing to write outside target directory: ${template.relativePath}\n`,
@@ -207,28 +289,75 @@ const createPlannedFiles = async ({
         docsRoot,
         packageManager,
       }),
+      displayPath: displayPathFor(outputPath),
       path: outputPath,
       relativePath: template.relativePath,
+      skillName,
     })
   }
 
   return plannedFiles
 }
 
+const createPlannedSkillFiles = async (
+  options: InstallSkillOptions,
+): Promise<CliResult | PlannedSkillFile[]> => {
+  const payloadMarkdownTemplateRoot = await getPayloadMarkdownSkillTemplateRoot(options.agent)
+
+  if ('exitCode' in payloadMarkdownTemplateRoot) {
+    return payloadMarkdownTemplateRoot
+  }
+
+  const docsSkillFiles = await createPlannedFilesForSkill({
+    agent: options.agent,
+    directoryUrl: await getDocsSkillTemplateRoot(options.agent),
+    docsRoot: options.docsRoot,
+    outDir: options.outDir,
+    packageManager: options.packageManager,
+    skillName: docsSkillName,
+  })
+
+  if ('exitCode' in docsSkillFiles) {
+    return docsSkillFiles
+  }
+
+  const payloadMarkdownSkillFiles = await createPlannedFilesForSkill({
+    agent: options.agent,
+    directoryUrl: payloadMarkdownTemplateRoot,
+    docsRoot: options.docsRoot,
+    outDir: options.payloadMarkdownOutDir,
+    packageManager: options.packageManager,
+    skillName: payloadMarkdownSkillName,
+  })
+
+  if ('exitCode' in payloadMarkdownSkillFiles) {
+    return payloadMarkdownSkillFiles
+  }
+
+  return [...docsSkillFiles, ...payloadMarkdownSkillFiles]
+}
+
 const createAgentsFilePlan = async (): Promise<PlannedInstallFile | undefined> => {
   const absoluteAgentsPath = path.resolve(agentsFilePath)
-  const defaultSkillOutputPath = defaultSkillOutputPaths.codex
-  const skillPath = `${defaultSkillOutputPath}/SKILL.md`
+  const defaultDocsSkillOutputPath = defaultDocsSkillOutputPaths.codex
+  const defaultPayloadMarkdownSkillOutputPath = defaultPayloadMarkdownSkillOutputPaths.codex
+  const docsSkillPath = `${defaultDocsSkillOutputPath}/SKILL.md`
+  const payloadMarkdownSkillPath = `${defaultPayloadMarkdownSkillOutputPath}/SKILL.md`
   const skillSection = [
-    '## Payload Markdown Docs Skill',
+    '## Payload Markdown Docs Skills',
     '',
-    `This project uses the Payload Markdown Docs skill at \`${defaultSkillOutputPath}/\`.`,
-    `Start with \`${skillPath}\` when maintaining Git-backed Markdown docs.`,
+    'This project uses two local skills for Git-backed docs:',
+    '',
+    `- \`${defaultDocsSkillOutputPath}/\` explains the Payload Markdown Docs package structure, sync workflow, routes, and frontmatter.`,
+    `- \`${defaultPayloadMarkdownSkillOutputPath}/\` explains Payload Markdown authoring, directives, formatting, and quality checks.`,
+    '',
+    `Start with \`${docsSkillPath}\` when maintaining synced docs. Use \`${payloadMarkdownSkillPath}\` for renderer directive syntax and Markdown authoring rules.`,
   ].join('\n')
 
   if (!(await fileExists(absoluteAgentsPath))) {
     return {
       content: `# Agents\n\n${skillSection}\n`,
+      displayPath: agentsFilePath,
       path: absoluteAgentsPath,
       relativePath: agentsFilePath,
     }
@@ -237,8 +366,10 @@ const createAgentsFilePlan = async (): Promise<PlannedInstallFile | undefined> =
   const currentContent = await readFile(absoluteAgentsPath, 'utf8')
 
   if (
-    currentContent.includes(skillPath) ||
-    currentContent.includes(defaultSkillOutputPath)
+    (currentContent.includes(docsSkillPath) ||
+      currentContent.includes(defaultDocsSkillOutputPath)) &&
+    (currentContent.includes(payloadMarkdownSkillPath) ||
+      currentContent.includes(defaultPayloadMarkdownSkillOutputPath))
   ) {
     return undefined
   }
@@ -247,6 +378,7 @@ const createAgentsFilePlan = async (): Promise<PlannedInstallFile | undefined> =
 
   return {
     content: `${currentContent}${separator}${skillSection}\n`,
+    displayPath: agentsFilePath,
     path: absoluteAgentsPath,
     relativePath: agentsFilePath,
   }
@@ -328,6 +460,7 @@ const getInstallSkillOptions = async (
   const [agent] = uniqueRequestedAgents
   const outDirFlag = getFlagString(args, 'out')
   const packageManagerFlag = getFlagString(args, 'package-manager')
+  const outDir = outDirFlag ?? defaultDocsSkillOutputPaths[agent]
 
   if (
     packageManagerFlag !== undefined &&
@@ -344,9 +477,13 @@ const getInstallSkillOptions = async (
     docsRoot: getFlagString(args, 'docs-root') ?? './docs',
     dryRun: getFlagBoolean(args, 'dry-run'),
     force: getFlagBoolean(args, 'force'),
-    outDir: outDirFlag ?? defaultSkillOutputPaths[agent],
+    outDir,
     packageManager:
       (packageManagerFlag as PackageManager | undefined) ?? (await detectPackageManager()),
+    payloadMarkdownOutDir:
+      outDirFlag === undefined
+        ? defaultPayloadMarkdownSkillOutputPaths[agent]
+        : path.join(path.dirname(outDir), payloadMarkdownSkillName),
     updateAgentsFile: agent === 'codex' && outDirFlag === undefined,
   }
 }
@@ -358,6 +495,7 @@ const createAssetRoutePlan = ({
 
   return assetRouteScaffoldFiles.map((file) => ({
     content: file.content,
+    displayPath: path.posix.join(payloadAppDir.replaceAll(path.sep, '/'), file.relativePath),
     path: path.join(absolutePayloadAppDir, file.relativePath),
     relativePath: path.posix.join(payloadAppDir.replaceAll(path.sep, '/'), file.relativePath),
   }))
@@ -403,29 +541,29 @@ const formatPlannedFiles = ({
   dryRun,
   files,
   outDir,
+  payloadMarkdownOutDir,
 }: {
   agent: AgentTarget
   dryRun: boolean
   files: PlannedInstallFile[]
   outDir: string
+  payloadMarkdownOutDir: string
 }): string => {
   const lines = [
-    dryRun
-      ? 'payload-markdown-docs install skill dry-run'
-      : 'payload-markdown-docs install skill',
+    dryRun ? 'payload-markdown-docs install skill dry-run' : 'payload-markdown-docs install skill',
     '',
     `Agent: ${agent}`,
-    `Target: ${path.resolve(outDir)}`,
+    'Targets:',
+    `- ${docsSkillName}: ${path.resolve(outDir)}`,
+    `- ${payloadMarkdownSkillName}: ${path.resolve(payloadMarkdownOutDir)}`,
     'Files:',
-    ...files.map((file) => `- ${file.relativePath}`),
+    ...files.map((file) => `- ${file.displayPath}`),
   ]
 
   return `${lines.join('\n')}\n`
 }
 
-export const runInstallCommand = async (
-  args: ParsedCliArgs,
-): Promise<CliResult> => {
+export const runInstallCommand = async (args: ParsedCliArgs): Promise<CliResult> => {
   const [target] = args.positionals
 
   if (target === 'routes' || target === 'asset-routes' || target === 'ai-routes') {
@@ -494,7 +632,7 @@ export const runInstallCommand = async (
     return options
   }
 
-  const plannedFiles = await createPlannedFiles(options)
+  const plannedFiles = await createPlannedSkillFiles(options)
 
   if ('exitCode' in plannedFiles) {
     return plannedFiles
@@ -511,7 +649,7 @@ export const runInstallCommand = async (
         const existingContent = await readFile(file.path, 'utf8')
 
         if (existingContent !== file.content) {
-          existingFiles.push(file.relativePath)
+          existingFiles.push(file.displayPath)
         }
       }
     }
@@ -534,6 +672,7 @@ export const runInstallCommand = async (
         dryRun: true,
         files: plannedInstallFiles,
         outDir: options.outDir,
+        payloadMarkdownOutDir: options.payloadMarkdownOutDir,
       }),
     }
   }
@@ -556,6 +695,7 @@ export const runInstallCommand = async (
       dryRun: false,
       files: plannedInstallFiles,
       outDir: options.outDir,
+      payloadMarkdownOutDir: options.payloadMarkdownOutDir,
     }),
   }
 }

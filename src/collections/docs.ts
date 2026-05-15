@@ -68,6 +68,14 @@ export const createDocsCollection = ({
       type: 'textarea',
     },
     {
+      name: 'dependencies',
+      type: 'json',
+      admin: {
+        description:
+          'Optional fully qualified package names used to link related docs sets in generated AI discovery files.',
+      },
+    },
+    {
       name: 'publishedAt',
       type: 'date',
       admin: {

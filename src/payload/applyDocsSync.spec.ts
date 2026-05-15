@@ -152,7 +152,7 @@ describe('docs sync apply helpers', () => {
     const manifest = getValidatedManifest([
       {
         content:
-          '---\ntitle: Install\nnavTitle: Install\ndescription: Install docs.\norder: 10\n---\n# Installation\n',
+          '---\ntitle: Install\nnavTitle: Install\ndescription: Install docs.\norder: 10\ndependencies:\n  - "@valkyrianlabs/payload-markdown"\n---\n# Installation\n',
         path: 'getting-started/installation.md',
       },
     ])
@@ -169,6 +169,7 @@ describe('docs sync apply helpers', () => {
       }),
     ).toMatchObject({
       body: '# Installation\n',
+      dependencies: ['@valkyrianlabs/payload-markdown'],
       depth: 1,
       description: 'Install docs.',
       navTitle: 'Install',

@@ -1,7 +1,7 @@
 ---
 title: Dynamic Sitemap Helper
 navTitle: Sitemap
-description: Add docs, static AI routes, and skill artifacts to a Next App Router sitemap.
+description: Add docs, AI discovery routes, and skill artifacts to a Next App Router sitemap.
 order: 415
 status: published
 tags:
@@ -15,7 +15,7 @@ Use `getDocsForSitemap` from the `/next` export when a Next App Router site has
 a dynamic `src/app/sitemap.ts` file.
 
 The helper reads published docs sets, resolves group paths, includes the
-generated docs records inside each set, includes synced static assets by
+generated docs records inside each set, includes synced assets by
 default, prepends `siteUrl`, merges optional static routes, and returns a
 ready-to-use `MetadataRoute.Sitemap` array.
 
@@ -58,14 +58,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const payload = await getPayload({ config })
   const docs = await getDocsForSitemap({
     additionalRoutes: [
-      { path: '/llms.txt' },
-      { path: '/llms-full.txt' },
-      { path: '/plugins/payload-markdown-docs/llms.txt' },
-      { path: '/plugins/payload-markdown-docs/llms-full.txt' },
-      { path: '/plugins/payload-markdown-docs/skills/codex' },
-      { path: '/plugins/payload-markdown-docs/skills/codex/SKILL.md' },
-      { path: '/plugins/payload-markdown-docs/skills/claude' },
-      { path: '/plugins/payload-markdown-docs/skills/claude/SKILL.md' },
+      { path: '/agent-index.txt' },
     ],
     payload,
     siteUrl,
@@ -91,10 +84,10 @@ once, the newest `lastModified` value is kept. Output remains sorted by URL.
 - `llms.txt` is an AI-readable entrypoint.
 - native skills are agent workflow artifacts.
 
-When `payload-markdown-docs push` syncs assets, `getDocsForSitemap` includes
-stored `/llms.txt`, `/llms-full.txt`, and skill artifact routes by default. Set
-`includeAssets: false` only when the site wants to manage those entries
-manually. For static files that are not synced, keep using `additionalRoutes`.
+`getDocsForSitemap` includes generated `llms` routes and synced skill artifact
+routes by default. Set `includeAssets: false` only when the site wants to manage
+those entries manually. For static files that are not synced, keep using
+`additionalRoutes`.
 
 Use `getPayloadMarkdownDocsAiSitemapRoutes` to build common AI/static routes:
 
@@ -116,15 +109,13 @@ const aiRoutes = getPayloadMarkdownDocsAiSitemapRoutes({
       agents: ['codex', 'claude'],
       files: [
         'SKILL.md',
-        'reference/payload-markdown-directives.md',
-        'reference/formatting.md',
+        'reference/docs-package.md',
         'reference/frontmatter.md',
         'reference/workflow.md',
         'reference/sync.md',
         'reference/routing.md',
         'reference/admin.md',
         'reference/troubleshooting.md',
-        'examples/docs-page.md',
         'examples/github-actions.md',
       ],
     },
@@ -149,7 +140,8 @@ the public route your site owns.
 
 ## Serving Synced Assets
 
-The plugin registers Payload-owned GET endpoints for synced AI/static assets:
+The plugin registers Payload-owned GET endpoints for generated AI discovery
+files and synced skills:
 
 - `/llms.txt`
 - `/llms-full.txt`

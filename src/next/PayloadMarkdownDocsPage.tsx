@@ -198,24 +198,55 @@ export const PayloadMarkdownDocsPage = async ({
               </p>
             ) : null}
           </header>
-          {resolved.docsSets.length > 0 ? (
-            <nav aria-label="Docs sets">
+          {resolved.childGroups.length > 0 || resolved.docsSets.length > 0 ? (
+            <nav aria-label="Docs groups and sets">
               <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {resolved.docsSets.map((docsSet) => (
-                  <li key={docsSet.id}>
+                {resolved.childGroups.map((group) => (
+                  <li key={group.id}>
                     <a
                       className="block rounded-xl border border-border bg-white/[0.03] p-5 transition-colors hover:bg-white/[0.06]"
-                      href={docsSet.routeBase}
+                      href={group.routePath}
                     >
                       <span className="text-base font-semibold text-foreground">
-                        {docsSet.navTitle ?? docsSet.title}
+                        {group.navTitle ?? group.title}
                       </span>
-                      {docsSet.description ? (
+                      {group.description ? (
                         <span className="mt-2 block text-sm leading-6 text-foreground/65">
-                          {docsSet.description}
+                          {group.description}
                         </span>
                       ) : null}
                     </a>
+                  </li>
+                ))}
+                {resolved.docsSets.map((docsSet) => (
+                  <li key={docsSet.id}>
+                    <div className="rounded-xl border border-border bg-white/[0.03] p-5 transition-colors hover:bg-white/[0.06]">
+                      <a
+                        className="block"
+                        href={
+                          docsSet.routeMode === 'product-nested'
+                            ? docsSet.productRoute
+                            : docsSet.routeBase
+                        }
+                      >
+                        <span className="text-base font-semibold text-foreground">
+                          {docsSet.navTitle ?? docsSet.title}
+                        </span>
+                        {docsSet.description ? (
+                          <span className="mt-2 block text-sm leading-6 text-foreground/65">
+                            {docsSet.description}
+                          </span>
+                        ) : null}
+                      </a>
+                      {docsSet.routeMode === 'product-nested' ? (
+                        <a
+                          className="mt-4 inline-flex text-sm font-medium text-cyan-300 hover:text-cyan-200"
+                          href={docsSet.routeBase}
+                        >
+                          Documentation
+                        </a>
+                      ) : null}
+                    </div>
                   </li>
                 ))}
               </ul>

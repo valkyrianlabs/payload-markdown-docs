@@ -1726,6 +1726,53 @@ describe('sync endpoint dry-run handling', () => {
     )
   })
 
+  it('derives product-nested docs routes below the docs segment', async () => {
+    const { privateKey, publicKey } = keyPair()
+    const body = JSON.stringify(createManifest({ mode: 'sync' }))
+    const payload = createMockPayload({
+      docsGroups: [
+        {
+          id: 'docs-group-1',
+          slug: 'plugins',
+        },
+      ],
+      docsSets: [
+        {
+          id: 'docs-set-1',
+          slug: 'main-docs',
+          branch: 'main',
+          group: 'docs-group-1',
+          routeMode: 'product-nested',
+        },
+      ],
+    })
+    const { json, response } = await callEndpoint({
+      body,
+      endpointOptions: {
+        allowWrites: true,
+        docsSetsEnabled: true,
+      },
+      headers: signBody({
+        body,
+        privateKey,
+      }),
+      payload,
+      publicKey: publicKey.toString(),
+    })
+
+    expect(response.status).toBe(200)
+    expect(json.summary).toMatchObject({ create: 1 })
+    expect(payload.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: 'docs',
+        data: expect.objectContaining({
+          docsSet: 'docs-set-1',
+          route: '/plugins/main-docs/docs',
+        }),
+      }),
+    )
+  })
+
   it('rejects duplicate routes outside the resolved docs set', async () => {
     const { privateKey, publicKey } = keyPair()
     const body = JSON.stringify(createManifest({ mode: 'sync' }))
@@ -1808,6 +1855,95 @@ describe('sync endpoint dry-run handling', () => {
     expect(response.status).toBe(409)
     expect(json.error).toMatchObject({ code: 'route_collision' })
     expect(JSON.stringify(json)).toContain('descendant_route_collision')
+  })
+
+  it('allows Pages at product routes for product-nested docs sets', async () => {
+    const { privateKey, publicKey } = keyPair()
+    const body = JSON.stringify(createManifest({ mode: 'sync' }))
+    const payload = createMockPayload({
+      docsGroups: [
+        {
+          id: 'docs-group-1',
+          slug: 'plugins',
+        },
+      ],
+      docsSets: [
+        {
+          id: 'docs-set-1',
+          slug: 'main-docs',
+          branch: 'main',
+          group: 'docs-group-1',
+          routeMode: 'product-nested',
+        },
+      ],
+      pages: [
+        {
+          id: 'page-1',
+          slug: '/plugins/main-docs',
+        },
+      ],
+    })
+    const { response } = await callEndpoint({
+      body,
+      endpointOptions: {
+        allowWrites: true,
+        docsSetsEnabled: true,
+        routingPagesEnabled: true,
+      },
+      headers: signBody({
+        body,
+        privateKey,
+      }),
+      payload,
+      publicKey: publicKey.toString(),
+    })
+
+    expect(response.status).toBe(200)
+  })
+
+  it('rejects Pages inside product-nested docs namespaces', async () => {
+    const { privateKey, publicKey } = keyPair()
+    const body = JSON.stringify(createManifest())
+    const payload = createMockPayload({
+      docsGroups: [
+        {
+          id: 'docs-group-1',
+          slug: 'plugins',
+        },
+      ],
+      docsSets: [
+        {
+          id: 'docs-set-1',
+          slug: 'main-docs',
+          branch: 'main',
+          group: 'docs-group-1',
+          routeMode: 'product-nested',
+        },
+      ],
+      pages: [
+        {
+          id: 'page-1',
+          slug: '/plugins/main-docs/docs',
+        },
+      ],
+    })
+    const { json, response } = await callEndpoint({
+      body,
+      endpointOptions: {
+        docsSetsEnabled: true,
+        routingPagesEnabled: true,
+      },
+      headers: signBody({
+        body,
+        privateKey,
+      }),
+      payload,
+      publicKey: publicKey.toString(),
+    })
+
+    expect(response.status).toBe(409)
+    expect(json.error).toMatchObject({ code: 'route_collision' })
+    expect(JSON.stringify(json)).toContain('exact_route_collision')
   })
 
   it('updates changed docs in sync mode', async () => {

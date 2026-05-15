@@ -51,7 +51,7 @@ Options:
   --codex                         Install the Codex skill pack.
   --claude                        Install the Claude skill pack.
   --agent <codex|claude>          Agent target.
-  --out <path>                    Output directory. Defaults to .agents/skills/payload-markdown-docs for Codex and .claude/skills/payload-markdown-docs for Claude.
+  --out <path>                    Output directory for the payload-markdown-docs skill. Defaults to .agents/skills/payload-markdown-docs for Codex and .claude/skills/payload-markdown-docs for Claude.
   --docs-root <path>              Docs root to mention in installed guidance. Defaults to ./docs.
   --package-manager <name>        pnpm, npm, yarn, or bun. Auto-detected when omitted.
   --payload-app <path>             Payload app route group for route installs. Defaults to src/app/(payload), app/(payload), or dev/app/(payload) when found.
@@ -62,6 +62,7 @@ Options:
 
 Default Codex installs also create or update AGENTS.md so Codex can discover the skill guidance.
 Default Claude installs do not create or update AGENTS.md.
+Skill installs also copy the companion @valkyrianlabs/payload-markdown skill beside the payload-markdown-docs skill.
 Install commands do not sync docs, call Payload, or run package manager commands.
 Route installs add exact Next App Router files for /llms.txt, /llms-full.txt, and docs-set skill asset URLs so those public routes can reach the plugin-owned Payload asset handlers instead of the frontend catch-all.
 `,

@@ -207,6 +207,7 @@ export const findConfiguredPagesRouteCollisions = async ({
   allowBridgePages,
   bridgeField,
   collectionSlug,
+  docsGroupRoutes,
   docsSetRouteBase,
   payload,
   routeField,
@@ -214,6 +215,12 @@ export const findConfiguredPagesRouteCollisions = async ({
   allowBridgePages: boolean
   bridgeField: string
   collectionSlug: string
+  docsGroupRoutes?: {
+    ownerId?: string
+    pageMode?: 'auto' | 'custom'
+    routePath: string
+    serveIndex?: boolean
+  }[]
   docsSetRouteBase: string
   payload: RouteCollisionPayloadOperations
   routeField: string
@@ -227,6 +234,7 @@ export const findConfiguredPagesRouteCollisions = async ({
 
   const collisions = findPageRouteCollisions({
     allowBridgePages,
+    docsGroupRoutes,
     docsSetRouteBase,
     pages: result.docs.flatMap((doc) => {
       if (!isRecord(doc)) {

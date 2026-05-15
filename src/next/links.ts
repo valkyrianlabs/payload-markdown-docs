@@ -4,7 +4,11 @@ import {
   DEFAULT_DOCS_GROUPS_COLLECTION_SLUG,
   DEFAULT_DOCS_SETS_COLLECTION_SLUG,
 } from '../constants.js'
-import { deriveDocsSetRouteBase, joinRouteSegments } from '../routing/index.js'
+import {
+  deriveDocsSetProductRoutePath,
+  deriveDocsSetRouteBase,
+  joinRouteSegments,
+} from '../routing/index.js'
 import {
   getRelationshipId,
   isRecord,
@@ -237,20 +241,24 @@ export const getPayloadMarkdownDocsNavItems = async ({
       continue
     }
 
+    const routeBase = deriveDocsSetRouteBase({
+      docsSetSlug: docsSet.slug,
+      groupRoutePath,
+      routeMode: docsSet.routeMode,
+    })
+    const productRoute = deriveDocsSetProductRoutePath({
+      docsSetSlug: docsSet.slug,
+      groupRoutePath,
+    })
+
     const item: PayloadMarkdownDocsNavItem = {
       id: docsSet.id,
       type: 'docsSet',
       collection: docsSetsCollectionSlug,
       label: docsSet.navTitle ?? docsSet.title,
       order: docsSet.order,
-      route: deriveDocsSetRouteBase({
-        docsSetSlug: docsSet.slug,
-        groupRoutePath,
-      }),
-      url: deriveDocsSetRouteBase({
-        docsSetSlug: docsSet.slug,
-        groupRoutePath,
-      }),
+      route: routeBase,
+      url: docsSet.routeMode === 'product-nested' ? productRoute : routeBase,
     }
 
     if (groupId) {
@@ -296,7 +304,7 @@ export const getPayloadMarkdownDocsNavItems = async ({
       label: group.navTitle ?? group.title,
       order: group.order,
       route: routePath,
-      ...(group.serveIndex ? { url: routePath } : {}),
+      ...(group.pageModeSource === 'legacyDefault' ? {} : { url: routePath }),
     }
   }
 
@@ -356,17 +364,25 @@ export const getPayloadMarkdownDocsLinks = async ({
         return []
       }
 
+      const groupRoutePath = getGroupRoutePath({
+        groupId: getRelationshipId(doc.group),
+        groupsById,
+      })
+      const routeBase = deriveDocsSetRouteBase({
+        docsSetSlug: docsSet.slug,
+        groupRoutePath,
+        routeMode: docsSet.routeMode,
+      })
+      const productRoute = deriveDocsSetProductRoutePath({
+        docsSetSlug: docsSet.slug,
+        groupRoutePath,
+      })
+
       return [
         {
           label: docsSet.navTitle ?? docsSet.title,
           order: docsSet.order,
-          url: deriveDocsSetRouteBase({
-            docsSetSlug: docsSet.slug,
-            groupRoutePath: getGroupRoutePath({
-              groupId: getRelationshipId(doc.group),
-              groupsById,
-            }),
-          }),
+          url: docsSet.routeMode === 'product-nested' ? productRoute : routeBase,
         },
       ]
     })

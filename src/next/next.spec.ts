@@ -183,7 +183,9 @@ const resolvedDocsSet: ResolvedPayloadMarkdownDocsSet = {
   slug: 'payload-markdown',
   description: 'Docs set description.',
   order: 0,
+  productRoute: '/payload-markdown',
   routeBase: '/payload-markdown',
+  routeMode: 'docs-root',
   title: 'Payload Markdown',
 }
 
@@ -319,9 +321,95 @@ describe('Payload Markdown Docs route adapter', () => {
     expect(resolved?.type === 'docsSetIndex' ? resolved.doc : undefined).toBeUndefined()
   })
 
-  it('resolves docs group routes only when serveIndex is true', async () => {
+  it('resolves product-nested docs under the docs segment', async () => {
+    const productDocsSet = {
+      ...docsSet,
+      routeMode: 'product-nested',
+    }
+    const payload = createPayloadMock({
+      docs: [
+        createDoc({
+          docsSet: productDocsSet,
+          route: '/plugins/payload-markdown/docs/getting-started',
+          sourcePath: 'getting-started/index.md',
+          title: 'Getting Started',
+        }),
+      ],
+      docsGroups: [docsGroup],
+      docsSets: [
+        {
+          ...productDocsSet,
+          group: docsGroup,
+        },
+      ],
+    })
+
+    await expect(
+      resolvePayloadMarkdownDocsRoute({
+        path: '/plugins/payload-markdown/docs',
+        payload,
+      }),
+    ).resolves.toMatchObject({
+      type: 'docsSetIndex',
+      docsSet: {
+        productRoute: '/plugins/payload-markdown',
+        routeBase: '/plugins/payload-markdown/docs',
+        routeMode: 'product-nested',
+      },
+    })
+
+    await expect(
+      resolvePayloadMarkdownDocsRoute({
+        path: '/plugins/payload-markdown/docs/getting-started',
+        payload,
+      }),
+    ).resolves.toMatchObject({
+      type: 'doc',
+      doc: {
+        title: 'Getting Started',
+      },
+      docsSet: {
+        routeBase: '/plugins/payload-markdown/docs',
+      },
+    })
+  })
+
+  it('does not resolve the product route for product-nested docs sets', async () => {
     const payload = createPayloadMock({
       docsGroups: [docsGroup],
+      docsSets: [
+        {
+          ...docsSet,
+          group: docsGroup,
+          routeMode: 'product-nested',
+        },
+      ],
+    })
+
+    await expect(
+      resolvePayloadMarkdownDocsRoute({
+        path: '/plugins/payload-markdown',
+        payload,
+      }),
+    ).resolves.toBeNull()
+  })
+
+  it('resolves docs group routes when pageMode is auto or legacy serveIndex is true', async () => {
+    const childGroup = {
+      id: 'group-guides',
+      slug: 'guides',
+      order: 0,
+      parent: docsGroup,
+      title: 'Guides',
+    }
+    const payload = createPayloadMock({
+      docsGroups: [
+        {
+          ...docsGroup,
+          pageMode: 'auto',
+        },
+        childGroup,
+      ],
       docsSets: [
         {
           ...docsSet,
@@ -337,6 +425,12 @@ describe('Payload Markdown Docs route adapter', () => {
 
     expect(resolved).toMatchObject({
       type: 'docsGroupIndex',
+      childGroups: [
+        {
+          id: 'group-guides',
+          routePath: '/plugins/guides',
+        },
+      ],
       docsSets: [
         {
           id: 'set-1',
@@ -344,10 +438,31 @@ describe('Payload Markdown Docs route adapter', () => {
       ],
     })
 
+    await expect(
+      resolvePayloadMarkdownDocsRoute({
+        path: '/plugins',
+        payload: createPayloadMock({
+          docsGroups: [
+            {
+              ...docsGroup,
+              pageMode: undefined,
+              serveIndex: true,
+            },
+          ],
+        }),
+      }),
+    ).resolves.toMatchObject({
+      type: 'docsGroupIndex',
+      group: {
+        pageMode: 'auto',
+      },
+    })
+
     const disabledPayload = createPayloadMock({
       docsGroups: [
         {
           ...docsGroup,
+          pageMode: undefined,
           serveIndex: false,
         },
       ],
@@ -357,6 +472,24 @@ describe('Payload Markdown Docs route adapter', () => {
       resolvePayloadMarkdownDocsRoute({
         path: '/plugins',
         payload: disabledPayload,
+      }),
+    ).resolves.toBeNull()
+  })
+
+  it('does not resolve custom docs group routes', async () => {
+    const payload = createPayloadMock({
+      docsGroups: [
+        {
+          ...docsGroup,
+          pageMode: 'custom',
+        },
+      ],
+    })
+
+    await expect(
+      resolvePayloadMarkdownDocsRoute({
+        path: '/plugins',
+        payload,
       }),
     ).resolves.toBeNull()
   })
@@ -538,8 +671,32 @@ describe('Payload Markdown Docs route adapter', () => {
         url: 'https://example.com/base/guides',
       },
       {
+        lastModified: '2026-05-13T12:00:00.000Z',
+        url: 'https://example.com/base/guides/llms-full.txt',
+      },
+      {
+        lastModified: '2026-05-13T12:00:00.000Z',
+        url: 'https://example.com/base/guides/llms.txt',
+      },
+      {
+        lastModified: '2026-05-14T12:00:00.000Z',
+        url: 'https://example.com/base/llms-full.txt',
+      },
+      {
+        lastModified: '2026-05-14T12:00:00.000Z',
+        url: 'https://example.com/base/llms.txt',
+      },
+      {
         lastModified: '2026-05-14T12:00:00.000Z',
         url: 'https://example.com/base/plugins/cms/payload-markdown',
+      },
+      {
+        lastModified: '2026-05-14T12:00:00.000Z',
+        url: 'https://example.com/base/plugins/cms/payload-markdown/llms-full.txt',
+      },
+      {
+        lastModified: '2026-05-14T12:00:00.000Z',
+        url: 'https://example.com/base/plugins/cms/payload-markdown/llms.txt',
       },
     ])
     expect(payload.find).toHaveBeenCalledWith(
@@ -551,6 +708,7 @@ describe('Payload Markdown Docs route adapter', () => {
           id: true,
           slug: true,
           group: true,
+          routeMode: true,
           updatedAt: true,
         },
         where: {
@@ -590,7 +748,67 @@ describe('Payload Markdown Docs route adapter', () => {
     expect(result).toEqual([
       {
         lastModified: '2026-05-14T12:00:00.000Z',
+        url: 'https://example.com/llms-full.txt',
+      },
+      {
+        lastModified: '2026-05-14T12:00:00.000Z',
+        url: 'https://example.com/llms.txt',
+      },
+      {
+        lastModified: '2026-05-14T12:00:00.000Z',
         url: 'https://example.com/plugins/payload-markdown',
+      },
+      {
+        lastModified: '2026-05-14T12:00:00.000Z',
+        url: 'https://example.com/plugins/payload-markdown/llms-full.txt',
+      },
+      {
+        lastModified: '2026-05-14T12:00:00.000Z',
+        url: 'https://example.com/plugins/payload-markdown/llms.txt',
+      },
+    ])
+  })
+
+  it('uses product-nested docs route bases in sitemap output', async () => {
+    const payload = createPayloadMock({
+      docsGroups: [docsGroup],
+      docsSets: [
+        {
+          ...docsSet,
+          _status: 'published',
+          group: docsGroup.id,
+          routeMode: 'product-nested',
+          updatedAt: '2026-05-14T12:00:00.000Z',
+        },
+      ],
+    })
+
+    const result = await getDocsForSitemap({
+      payload,
+      recursive: false,
+      siteUrl: 'https://example.com',
+    })
+
+    expect(result).toEqual([
+      {
+        lastModified: '2026-05-14T12:00:00.000Z',
+        url: 'https://example.com/llms-full.txt',
+      },
+      {
+        lastModified: '2026-05-14T12:00:00.000Z',
+        url: 'https://example.com/llms.txt',
+      },
+      {
+        lastModified: '2026-05-14T12:00:00.000Z',
+        url: 'https://example.com/plugins/payload-markdown/docs',
+      },
+      {
+        lastModified: '2026-05-14T12:00:00.000Z',
+        url: 'https://example.com/plugins/payload-markdown/docs/llms-full.txt',
+      },
+      {
+        lastModified: '2026-05-14T12:00:00.000Z',
+        url: 'https://example.com/plugins/payload-markdown/docs/llms.txt',
       },
     ])
   })
@@ -675,9 +893,11 @@ describe('Payload Markdown Docs route adapter', () => {
 
     expect(result).toEqual([
       {
+        lastModified: '2026-05-10T12:00:00.000Z',
         url: 'https://example.com/llms-full.txt',
       },
       {
+        lastModified: '2026-05-10T12:00:00.000Z',
         url: 'https://example.com/llms.txt',
       },
       {
@@ -691,6 +911,14 @@ describe('Payload Markdown Docs route adapter', () => {
       {
         lastModified: '2026-05-14T12:00:00.000Z',
         url: 'https://example.com/plugins/payload-markdown-docs/skills/codex/SKILL.md',
+      },
+      {
+        lastModified: '2026-05-10T12:00:00.000Z',
+        url: 'https://example.com/plugins/payload-markdown/llms-full.txt',
+      },
+      {
+        lastModified: '2026-05-10T12:00:00.000Z',
+        url: 'https://example.com/plugins/payload-markdown/llms.txt',
       },
     ])
   })
@@ -802,12 +1030,28 @@ describe('Payload Markdown Docs route adapter', () => {
 
     expect(result.docs).toEqual([
       {
+        lastModified: '2026-05-14T11:00:00.000Z',
+        url: 'https://example.com/llms-full.txt',
+      },
+      {
+        lastModified: '2026-05-14T11:00:00.000Z',
+        url: 'https://example.com/llms.txt',
+      },
+      {
         lastModified: '2026-05-15T12:00:00.000Z',
         url: 'https://example.com/plugins/payload-markdown',
       },
       {
         lastModified: '2026-05-14T12:00:00.000Z',
         url: 'https://example.com/plugins/payload-markdown/getting-started/installation',
+      },
+      {
+        lastModified: '2026-05-14T11:00:00.000Z',
+        url: 'https://example.com/plugins/payload-markdown/llms-full.txt',
+      },
+      {
+        lastModified: '2026-05-14T11:00:00.000Z',
+        url: 'https://example.com/plugins/payload-markdown/llms.txt',
       },
     ])
   })
@@ -842,7 +1086,23 @@ describe('Payload Markdown Docs route adapter', () => {
     expect(result).toEqual([
       {
         lastModified: '2026-05-14T11:00:00.000Z',
+        url: 'https://example.com/llms-full.txt',
+      },
+      {
+        lastModified: '2026-05-14T11:00:00.000Z',
+        url: 'https://example.com/llms.txt',
+      },
+      {
+        lastModified: '2026-05-14T11:00:00.000Z',
         url: 'https://example.com/plugins/payload-markdown',
+      },
+      {
+        lastModified: '2026-05-14T11:00:00.000Z',
+        url: 'https://example.com/plugins/payload-markdown/llms-full.txt',
+      },
+      {
+        lastModified: '2026-05-14T11:00:00.000Z',
+        url: 'https://example.com/plugins/payload-markdown/llms.txt',
       },
     ])
     expect(payload.find).not.toHaveBeenCalledWith(expect.objectContaining({ collection: 'docs' }))
@@ -898,12 +1158,20 @@ describe('Payload Markdown Docs route adapter', () => {
 
     expect(result).toEqual([
       {
+        lastModified: sitemapDocsSet.updatedAt,
+        url: 'https://example.com/llms-full.txt',
+      },
+      {
         lastModified: '2026-05-16T12:00:00.000Z',
         url: 'https://example.com/llms.txt',
       },
       {
         lastModified: sitemapDocsSet.updatedAt,
         url: 'https://example.com/plugins/payload-markdown',
+      },
+      {
+        lastModified: sitemapDocsSet.updatedAt,
+        url: 'https://example.com/plugins/payload-markdown/llms-full.txt',
       },
       {
         lastModified: '2026-05-16T12:00:00.000Z',
@@ -1294,6 +1562,60 @@ describe('Payload Markdown Docs link helpers', () => {
     ])
   })
 
+  it('preserves legacy group nav fallback only when pageMode is missing', async () => {
+    const payload = createPayloadMock({
+      docsGroups: [
+        {
+          ...docsGroup,
+          pageMode: undefined,
+          serveIndex: false,
+        },
+      ],
+      docsSets: [
+        {
+          ...docsSet,
+          group: docsGroup,
+        },
+      ],
+    })
+
+    await expect(getPayloadMarkdownDocsHeaderNavItems({ payload })).resolves.toEqual([
+      expect.objectContaining({
+        link: {
+          type: 'custom',
+          label: 'Plugins',
+          url: '/plugins/payload-markdown',
+        },
+      }),
+    ])
+  })
+
+  it('links explicit custom groups to the custom group route', async () => {
+    const payload = createPayloadMock({
+      docsGroups: [
+        {
+          ...docsGroup,
+          pageMode: 'custom',
+          serveIndex: false,
+        },
+      ],
+      docsSets: [
+        {
+          ...docsSet,
+          group: docsGroup,
+        },
+      ],
+    })
+
+    await expect(getPayloadMarkdownDocsNavItems({ payload })).resolves.toEqual([
+      expect.objectContaining({
+        id: 'group-1',
+        route: '/plugins',
+        url: '/plugins',
+      }),
+    ])
+  })
+
   it('caps only top-level docs nav items by explicit slots or existing header count', async () => {
     const payload = createPayloadMock({
       docsGroups: [docsGroup],
@@ -1621,6 +1943,51 @@ describe('Payload Markdown Docs page component', () => {
     expect(markup).not.toContain('href="/payload-markdown/configuration"')
     expect(markup).toContain('href="/payload-markdown/configuration/options"')
   })
+
+  it('renders generated group indexes with child group and docs set cards', async () => {
+    const markup = renderToStaticMarkup(
+      await PayloadMarkdownDocsPage({
+        resolved: {
+          type: 'docsGroupIndex',
+          childGroups: [
+            {
+              id: 'group-guides',
+              order: 0,
+              pageMode: 'auto',
+              pageModeSource: 'explicit',
+              routePath: '/plugins/guides',
+              serveIndex: true,
+              title: 'Guides',
+            },
+          ],
+          docsSets: [
+            {
+              ...resolvedDocsSet,
+              productRoute: '/plugins/payload-markdown',
+              routeBase: '/plugins/payload-markdown/docs',
+              routeMode: 'product-nested',
+            },
+          ],
+          group: {
+            id: 'group-1',
+            description: 'Plugin documentation.',
+            order: 0,
+            pageMode: 'auto',
+            pageModeSource: 'explicit',
+            routePath: '/plugins',
+            serveIndex: true,
+            title: 'Plugins',
+          },
+          route: '/plugins',
+        },
+      }),
+    )
+
+    expect(markup).toContain('href="/plugins/guides"')
+    expect(markup).toContain('href="/plugins/payload-markdown"')
+    expect(markup).toContain('href="/plugins/payload-markdown/docs"')
+    expect(markup).toContain('Documentation')
+  })
 })
 
 describe('Payload Markdown Docs metadata helpers', () => {
@@ -1656,11 +2023,14 @@ describe('Payload Markdown Docs metadata helpers', () => {
   it('uses group metadata for group index routes', () => {
     const metadata = getPayloadMarkdownDocsMetadata({
       type: 'docsGroupIndex',
+      childGroups: [],
       docsSets: [],
       group: {
         id: 'group-1',
         description: 'Plugin documentation.',
         order: 0,
+        pageMode: 'auto',
+        pageModeSource: 'explicit',
         routePath: '/plugins',
         serveIndex: true,
         title: 'Plugins',

@@ -6,7 +6,7 @@ Use this workflow when editing docs source files.
 2. Edit Markdown files in place.
 3. Keep frontmatter valid and simple.
 4. Keep internal docs links root-relative.
-5. Use only supported `payload-markdown` directives.
+5. Use the sibling `payload-markdown` skill for directive syntax and formatting.
 6. Run validation.
 7. Run plan when sync impact matters.
 8. Only push when the user asks for upload/sync and provides endpoint/auth context.
@@ -58,4 +58,5 @@ Use Ed25519 key flags only when the project is not using GitHub OIDC:
 Use `--publish` only when the user explicitly asks for published output and the
 server supports publishing.
 
-Do not directly edit generated Payload docs records unless the user specifically asks for Payload-side overrides.
+Do not directly edit generated Payload docs records unless the user specifically
+asks for Payload-side overrides.

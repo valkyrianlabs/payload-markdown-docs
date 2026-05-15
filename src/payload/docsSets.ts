@@ -1,6 +1,9 @@
+import type { DocsSetRouteMode } from '../routing/index.js'
 import type { PayloadMarkdownDocsAuthToggle } from '../types.js'
 
 import {
+  DEFAULT_DOCS_SET_ROUTE_MODE,
+  deriveDocsSetProductRoutePath,
   deriveDocsSetRouteBase,
   isRouteDescendant,
   joinRouteSegments,
@@ -14,6 +17,7 @@ export type DocsSetPayloadOperations = {
     draft?: boolean
     limit?: number
     overrideAccess?: boolean
+    sort?: string
     where?: unknown
   }) => Promise<{
     docs: unknown[]
@@ -31,6 +35,7 @@ export type PayloadRecordId = number | string
 
 export type ResolvedDocsGroup = {
   id: PayloadRecordId
+  pageMode: 'auto' | 'custom'
   parentId?: string
   routePath: string
   slug: string
@@ -43,10 +48,16 @@ export type ResolvedDocsSet = {
   }
   allowPullRequests: boolean
   branch: string
+  description?: string
   groupId?: string
+  groupPageMode?: 'auto' | 'custom'
+  groupRoutePath?: string
   id: PayloadRecordId
+  productRoute: string
   routeBase: string
+  routeMode: DocsSetRouteMode
   slug: string
+  title: string
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -76,6 +87,19 @@ const getRelationshipId = (value: unknown): string | undefined => {
 
 const getString = (value: unknown): string | undefined =>
   typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined
+
+const getRouteMode = (value: unknown): DocsSetRouteMode =>
+  value === 'product-nested' || value === 'docs-root'
+    ? value
+    : DEFAULT_DOCS_SET_ROUTE_MODE
+
+const getGroupPageMode = (doc: Record<string, unknown>): 'auto' | 'custom' => {
+  if (doc.pageMode === 'auto' || doc.pageMode === 'custom') {
+    return doc.pageMode
+  }
+
+  return doc.serveIndex === true ? 'auto' : 'custom'
+}
 
 const getStringArray = (value: unknown): string[] => {
   if (!Array.isArray(value)) {
@@ -180,6 +204,7 @@ const toResolvedGroup = (
     return {
       id,
       slug,
+      pageMode: getGroupPageMode(doc),
       routePath: joinRouteSegments(slug),
     }
   }
@@ -193,6 +218,7 @@ const toResolvedGroup = (
   return {
     id,
     slug,
+    pageMode: getGroupPageMode(doc),
     parentId,
     routePath: joinRouteSegments(parentGroup?.routePath, slug),
   }
@@ -220,6 +246,11 @@ const toResolvedDocsSet = ({
   const group = groupId ? toResolvedGroup(groupsById.get(groupId), groupsById) : undefined
   const advancedSecurity = isRecord(doc.advancedSecurity) ? doc.advancedSecurity : undefined
   const advancedSecurityEnabled = advancedSecurity?.enabled === true
+  const routeMode = getRouteMode(doc.routeMode)
+  const productRoute = deriveDocsSetProductRoutePath({
+    docsSetSlug: slug,
+    groupRoutePath: group?.routePath,
+  })
 
   return {
     id,
@@ -234,13 +265,20 @@ const toResolvedDocsSet = ({
     slug,
     allowPullRequests: doc.allowPullRequests === true,
     branch: getString(doc.branch) ?? 'main',
+    description: getString(doc.description),
     groupId,
+    groupPageMode: group?.pageMode,
+    groupRoutePath: group?.routePath,
+    productRoute,
     routeBase: normalizeRoutePath(
       deriveDocsSetRouteBase({
         docsSetSlug: slug,
         groupRoutePath: group?.routePath,
+        routeMode,
       }),
     ),
+    routeMode,
+    title: getString(doc.title) ?? slug,
   }
 }
 
@@ -384,4 +422,39 @@ export const findDocsSetByRoutePrefix = async ({
           isRouteDescendant(docsSet.routeBase, normalizedRoute)),
     )
     .sort((first, second) => second.routeBase.length - first.routeBase.length)[0]
+}
+
+export const findAllDocsSets = async ({
+  collectionSlug,
+  docsGroupsCollectionSlug,
+  payload,
+}: {
+  collectionSlug: string
+  docsGroupsCollectionSlug: string
+  payload: DocsSetPayloadOperations
+}): Promise<ResolvedDocsSet[]> => {
+  const [result, groupsById] = await Promise.all([
+    payload.find({
+      collection: collectionSlug,
+      depth: 0,
+      draft: false,
+      limit: 1000,
+      overrideAccess: true,
+    }),
+    getGroupsById({
+      collectionSlug: docsGroupsCollectionSlug,
+      payload,
+    }),
+  ])
+
+  return result.docs
+    .flatMap((doc) => {
+      const docsSet = toResolvedDocsSet({
+        doc,
+        groupsById,
+      })
+
+      return docsSet ? [docsSet] : []
+    })
+    .sort((first, second) => first.routeBase.localeCompare(second.routeBase))
 }

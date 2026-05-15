@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 
 import {
   DEFAULT_DOCS_ASSETS_COLLECTION_SLUG,
+  DEFAULT_DOCS_COLLECTION_SLUG,
   DEFAULT_DOCS_GROUPS_COLLECTION_SLUG,
   DEFAULT_DOCS_SETS_COLLECTION_SLUG,
 } from '../constants.js'
@@ -14,42 +15,77 @@ type MockPayload = {
   find: ReturnType<typeof vi.fn>
 }
 
-const getEqualsConstraint = (where: unknown, field: string): string | undefined => {
-  if (typeof where !== 'object' || where === null || Array.isArray(where)) {
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
+
+const getNestedValue = (doc: unknown, field: string): unknown => {
+  if (!isRecord(doc)) {
     return undefined
   }
 
-  const directConstraint = (where as Record<string, unknown>)[field]
+  return field.split('.').reduce<unknown>((value, segment) => {
+    if (!isRecord(value)) {
+      return undefined
+    }
 
-  if (
-    typeof directConstraint === 'object' &&
-    directConstraint !== null &&
-    !Array.isArray(directConstraint)
-  ) {
-    const value = (directConstraint as Record<string, unknown>).equals
+    return value[segment]
+  }, doc)
+}
 
-    return typeof value === 'string' ? value : undefined
+const getComparableValue = (value: unknown): unknown =>
+  isRecord(value) && (typeof value.id === 'string' || typeof value.id === 'number')
+    ? value.id
+    : value
+
+const matchesConstraint = (doc: unknown, field: string, constraint: unknown): boolean => {
+  if (!isRecord(constraint)) {
+    return true
   }
 
-  const andConstraints = (where as Record<string, unknown>).and
+  const value = getComparableValue(getNestedValue(doc, field))
 
-  if (!Array.isArray(andConstraints)) {
-    return undefined
+  if ('equals' in constraint) {
+    return value === constraint.equals
   }
 
-  return andConstraints
-    .map((constraint) => getEqualsConstraint(constraint, field))
-    .find((value): value is string => value !== undefined)
+  if ('not_equals' in constraint) {
+    return value !== constraint.not_equals
+  }
+
+  return true
+}
+
+const matchesWhere = (doc: unknown, where: unknown): boolean => {
+  if (!isRecord(where)) {
+    return true
+  }
+
+  const andConstraints = where.and
+  const orConstraints = where.or
+
+  if (Array.isArray(andConstraints) && !andConstraints.every((item) => matchesWhere(doc, item))) {
+    return false
+  }
+
+  if (Array.isArray(orConstraints) && !orConstraints.some((item) => matchesWhere(doc, item))) {
+    return false
+  }
+
+  return Object.entries(where).every(([field, constraint]) =>
+    field === 'and' || field === 'or' ? true : matchesConstraint(doc, field, constraint),
+  )
 }
 
 const createMockPayload = ({
   assets = [],
   assetsFindError,
+  docs = [],
   docsGroups = [],
   docsSets = [],
 }: {
   assets?: unknown[]
   assetsFindError?: Error
+  docs?: unknown[]
   docsGroups?: unknown[]
   docsSets?: unknown[]
 } = {}): MockPayload => ({
@@ -59,18 +95,14 @@ const createMockPayload = ({
         return Promise.reject(assetsFindError)
       }
 
-      const route = getEqualsConstraint(args.where, 'route')
-
       return Promise.resolve({
-        docs: route
-          ? assets.filter(
-              (asset) =>
-                typeof asset === 'object' &&
-                asset !== null &&
-                !Array.isArray(asset) &&
-                (asset as Record<string, unknown>).route === route,
-            )
-          : assets,
+        docs: assets.filter((asset) => matchesWhere(asset, args.where)),
+      })
+    }
+
+    if (args.collection === DEFAULT_DOCS_COLLECTION_SLUG) {
+      return Promise.resolve({
+        docs: docs.filter((doc) => matchesWhere(doc, args.where)),
       })
     }
 
@@ -218,6 +250,188 @@ describe('docs asset endpoints', () => {
     expect(response?.status).toBe(200)
     expect(response?.headers.get('content-type')).toContain('text/plain')
     expect(await response?.text()).toBe('# Payload Markdown Docs\n')
+  })
+
+  it('generates root llms.txt from published docs sets', async () => {
+    const endpoint = createDocsAssetsEndpoints({}).find((item) => item.path === '/llms.txt')
+    const payload = createMockPayload({
+      assets: [
+        {
+          id: 'skill-1',
+          content: '# Codex Skill\n',
+          contentType: 'text/markdown; charset=utf-8',
+          kind: 'skill',
+          route: '/plugins/payload-markdown-docs/skills/codex/SKILL.md',
+          sourceId: 'payload-markdown-docs',
+          sourcePath: 'skills/payload-markdown-docs/codex/SKILL.md',
+          sync: {
+            archived: false,
+            sourceId: 'payload-markdown-docs',
+          },
+        },
+      ],
+      docs: [
+        {
+          id: 'doc-1',
+          content: '# Overview\n',
+          docsSet: 'docs-set-1',
+          order: 0,
+          route: '/plugins/payload-markdown-docs',
+          sourcePath: 'index.md',
+          sync: {
+            archived: false,
+          },
+          title: 'Overview',
+        },
+      ],
+      docsGroups: [
+        {
+          id: 'docs-group-1',
+          slug: 'plugins',
+        },
+      ],
+      docsSets: [
+        {
+          id: 'docs-set-1',
+          slug: 'payload-markdown-docs',
+          description: 'Git-backed Markdown documentation sync for Payload CMS.',
+          group: 'docs-group-1',
+          title: 'Payload Markdown Docs',
+        },
+      ],
+    })
+
+    const response = await endpoint?.handler(
+      createRequest({
+        payload,
+        url: 'https://example.com/llms.txt',
+      }),
+    )
+    const text = await response?.text()
+
+    expect(response?.status).toBe(200)
+    expect(response?.headers.get('content-type')).toContain('text/plain')
+    expect(text).toContain('Payload Markdown Docs: https://example.com/plugins/payload-markdown-docs')
+    expect(text).toContain(
+      'Payload Markdown Docs Codex SKILL.md: https://example.com/plugins/payload-markdown-docs/skills/codex/SKILL.md',
+    )
+    expect(text).not.toContain('docs.valkyrianlabs.com')
+  })
+
+  it('generates docs-set llms.txt with dependency links from docs metadata', async () => {
+    const endpoint = createDocsAssetsEndpoints({}).find(
+      (item) => item.path === '/:routeBase*/llms.txt',
+    )
+    const payload = createMockPayload({
+      docs: [
+        {
+          id: 'doc-1',
+          content: '# Overview\n',
+          dependencies: ['@valkyrianlabs/payload-markdown'],
+          docsSet: 'docs-set-1',
+          navTitle: 'Overview',
+          order: 0,
+          route: '/plugins/payload-markdown-docs',
+          sourcePath: 'index.md',
+          sync: {
+            archived: false,
+          },
+          title: 'Payload Markdown Docs',
+        },
+      ],
+      docsGroups: [
+        {
+          id: 'docs-group-1',
+          slug: 'plugins',
+        },
+      ],
+      docsSets: [
+        {
+          id: 'docs-set-1',
+          slug: 'payload-markdown-docs',
+          description: 'Git-backed Markdown documentation sync for Payload CMS.',
+          group: 'docs-group-1',
+          title: 'Payload Markdown Docs',
+        },
+        {
+          id: 'docs-set-2',
+          slug: 'payload-markdown',
+          description: 'Markdown field and directive rendering.',
+          group: 'docs-group-1',
+          title: 'Payload Markdown',
+        },
+      ],
+    })
+
+    const response = await endpoint?.handler(
+      createRequest({
+        payload,
+        routeParams: {
+          routeBase: ['plugins', 'payload-markdown-docs'],
+        },
+        url: 'https://example.com/plugins/payload-markdown-docs/llms.txt',
+      }),
+    )
+    const text = await response?.text()
+
+    expect(response?.status).toBe(200)
+    expect(text).toContain('Overview: https://example.com/plugins/payload-markdown-docs')
+    expect(text).toContain(
+      'Payload Markdown: https://example.com/plugins/payload-markdown - Markdown field and directive rendering.',
+    )
+    expect(text).not.toContain('docs.valkyrianlabs.com')
+  })
+
+  it('generates docs-set llms-full.txt with markdown content', async () => {
+    const endpoint = createDocsAssetsEndpoints({}).find(
+      (item) => item.path === '/:routeBase*/llms-full.txt',
+    )
+    const payload = createMockPayload({
+      docs: [
+        {
+          id: 'doc-1',
+          content: '# Overview\n\nGenerated content.',
+          docsSet: 'docs-set-1',
+          order: 0,
+          route: '/plugins/payload-markdown-docs',
+          sourcePath: 'index.md',
+          sync: {
+            archived: false,
+          },
+          title: 'Payload Markdown Docs',
+        },
+      ],
+      docsGroups: [
+        {
+          id: 'docs-group-1',
+          slug: 'plugins',
+        },
+      ],
+      docsSets: [
+        {
+          id: 'docs-set-1',
+          slug: 'payload-markdown-docs',
+          group: 'docs-group-1',
+          title: 'Payload Markdown Docs',
+        },
+      ],
+    })
+
+    const response = await endpoint?.handler(
+      createRequest({
+        payload,
+        routeParams: {
+          routeBase: ['plugins', 'payload-markdown-docs'],
+        },
+        url: 'https://example.com/plugins/payload-markdown-docs/llms-full.txt',
+      }),
+    )
+    const text = await response?.text()
+
+    expect(response?.status).toBe(200)
+    expect(text).toContain('# Payload Markdown Docs Full Documentation')
+    expect(text).toContain('URL: https://example.com/plugins/payload-markdown-docs')
+    expect(text).toContain('# Overview\n\nGenerated content.')
   })
 
   it('serves skill assets under the matched docs set route base', async () => {

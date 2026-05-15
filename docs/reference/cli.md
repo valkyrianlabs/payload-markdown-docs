@@ -24,8 +24,8 @@ payload-markdown-docs validate --source main-docs
 
 Validates the conventional docs package by building and validating an in-memory
 manifest. By default this includes Markdown docs from `./docs`, skill artifacts
-from `./skills/<source>`, and root `llms.txt` / `llms-full.txt` files when
-present.
+from `./skills/<source>`, and optional custom `llms.txt` / `llms-full.txt`
+fallback assets when present.
 
 ## manifest
 
@@ -33,8 +33,8 @@ present.
 payload-markdown-docs manifest --source main-docs --pretty
 ```
 
-Prints manifest JSON. Docs records remain under `files`; static AI-facing
-artifacts such as skills and `llms.txt` are emitted under `assets`.
+Prints manifest JSON. Docs records remain under `files`; skill artifacts and
+optional custom static fallback files are emitted under `assets`.
 
 ## plan
 
@@ -61,7 +61,8 @@ keys when the matching `ssh-ed25519 ...` public key is stored in Keys.
 
 - docs from `./docs` as manifest `files`
 - skills from `./skills/<source>` as manifest `assets`
-- `./llms.txt` and `./llms-full.txt` as manifest `assets` when present
+- `./llms.txt` and `./llms-full.txt` as optional custom static fallback assets
+  when present
 
 Ed25519:
 
@@ -135,10 +136,12 @@ payload-markdown-docs install skill --agent codex
 payload-markdown-docs install skill --agent claude
 ```
 
-Installs native AI-agent guidance from the package `skills/` tree. Codex
-defaults to `.agents/skills/payload-markdown-docs/` and creates or updates
-`AGENTS.md`. Claude defaults to `.claude/skills/payload-markdown-docs/` and does
-not update `AGENTS.md` by default.
+Installs native AI-agent guidance from the package `skills/` tree and installs
+the companion `@valkyrianlabs/payload-markdown` authoring skill beside it. Codex
+defaults to `.agents/skills/payload-markdown-docs/` plus
+`.agents/skills/payload-markdown/` and creates or updates `AGENTS.md`. Claude
+defaults to `.claude/skills/payload-markdown-docs/` plus
+`.claude/skills/payload-markdown/` and does not update `AGENTS.md` by default.
 
 Alias:
 
@@ -191,6 +194,7 @@ Useful flags:
 guidance.
 
 :::details {title="Common flags"}
+
 - `--source <id>`
 - `--docs <path>`
 - `--skills <path>`
@@ -209,4 +213,5 @@ guidance.
 - `--max-files <number>`
 - `--max-file-bytes <number>`
 - `--max-total-bytes <number>`
+
 :::

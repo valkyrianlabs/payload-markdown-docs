@@ -6,6 +6,8 @@ order: 0
 status: published
 tags:
   - overview
+dependencies:
+  - "@valkyrianlabs/payload-markdown"
 ---
 
 # Payload Markdown Docs
@@ -68,9 +70,10 @@ Install local agent guidance for writing docs that validate and sync.
 - server-gated sync writes, publishing, draft behavior, archive behavior, and hard delete
 - route reservations and opt-in Pages collision checks
 - read-only `/next` route adapter, metadata, sitemap, sidebar, and navbar helpers
-- static asset storage for skills, `llms.txt`, and `llms-full.txt`
+- generated root and docs-set `llms.txt` / `llms-full.txt` endpoints
+- static asset storage for skills and optional custom assets
 - public asset route installer for Next App Router apps
-- sitemap support for static AI routes and native skill artifacts
+- sitemap support for AI discovery routes and native skill artifacts
 - Docs Set Admin Manager with generated doc review and draft publish action
 - local Codex and Claude skill installer
 - canonical agent skill artifacts under `/skills`
