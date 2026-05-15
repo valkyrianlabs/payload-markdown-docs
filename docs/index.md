@@ -52,11 +52,15 @@ Render docs routes, metadata, sitemaps, sidebars, and nav links from Next.
 :::
 
 :::card {title="Dynamic sitemap" href="/frontend/sitemap"}
-Add docs records, docs set URLs, AI discovery files, and skill artifacts to `src/app/sitemap.ts`.
+Add canonical docs records and docs set URLs to `src/app/sitemap.ts`, with opt-in raw asset entries.
 :::
 
 :::card {title="Agent skill" href="/workflow/agent-skill-installer"}
 Install local agent guidance for writing docs that validate and sync.
+:::
+
+:::card {title="Public API" href="/reference/public-api"}
+Use the root, `/next`, `/admin`, and `/blocks` package surfaces intentionally.
 :::
 
 :::
@@ -73,7 +77,7 @@ Install local agent guidance for writing docs that validate and sync.
 - generated root and docs-set `llms.txt` / `llms-full.txt` endpoints
 - static asset storage for skills and optional custom assets
 - public asset route installer for Next App Router apps
-- opt-in sitemap support for AI discovery routes and native skill artifacts
+- default sitemap support for canonical docs pages, with opt-in raw asset entries
 - Docs Set Admin Manager with generated doc review and draft publish action
 - local Codex and Claude skill installer
 - canonical agent skill artifacts under `/skills`

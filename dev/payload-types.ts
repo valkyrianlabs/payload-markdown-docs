@@ -176,7 +176,10 @@ export interface DocsGroup {
   description?: string | null;
   navTitle?: string | null;
   order?: number | null;
-  serveIndex?: boolean | null;
+  /**
+   * auto generates a docs group landing page. custom lets the site own this group route.
+   */
+  pageMode?: ('auto' | 'custom') | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -189,6 +192,7 @@ export interface DocsSet {
   title: string;
   slug: string;
   group?: (number | null) | DocsGroup;
+  routeMode?: ('docs-root' | 'product-nested') | null;
   /**
    * Git branch allowed to publish this docs set. The full Git ref is handled internally.
    */
@@ -198,6 +202,17 @@ export interface DocsSet {
    */
   allowPullRequests?: boolean | null;
   description?: string | null;
+  /**
+   * Social preview metadata for this docs set.
+   */
+  openGraph?: {
+    title?: string | null;
+    description?: string | null;
+    /**
+     * Social preview image used for OpenGraph and Twitter cards.
+     */
+    image?: (number | null) | Media;
+  };
   publishedAt?: string | null;
   /**
    * Optional workflow lock-down. Leave disabled to allow any workflow from a trusted GitHub owner/repository and branch.
@@ -541,7 +556,7 @@ export interface DocsGroupsSelect<T extends boolean = true> {
   description?: T;
   navTitle?: T;
   order?: T;
-  serveIndex?: T;
+  pageMode?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -553,9 +568,17 @@ export interface DocsSetsSelect<T extends boolean = true> {
   title?: T;
   slug?: T;
   group?: T;
+  routeMode?: T;
   branch?: T;
   allowPullRequests?: T;
   description?: T;
+  openGraph?:
+    | T
+    | {
+        title?: T;
+        description?: T;
+        image?: T;
+      };
   publishedAt?: T;
   advancedSecurity?:
     | T

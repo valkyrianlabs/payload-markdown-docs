@@ -22,29 +22,16 @@ export type {
   PayloadMarkdownDocsAssetRouteHandler,
 } from './assetRoute.js'
 export {
-  createPayloadMarkdownDocsAssetResponse,
-  createPayloadMarkdownDocsLlmsResponse,
-  createPayloadMarkdownDocsSkillAssetResponse,
-  resolvePayloadMarkdownDocsAssetRoute,
-} from './assets.js'
-export type {
-  ResolvedPayloadMarkdownDocsAsset,
-  ResolvePayloadMarkdownDocsAssetRouteOptions,
-} from './assets.js'
-export {
   appendPayloadMarkdownDocsHeaderNavItems,
   getPayloadMarkdownDocsHeaderNavItems,
-  getPayloadMarkdownDocsLinks,
   getPayloadMarkdownDocsNavItems,
 } from './links.js'
 export type {
   AppendPayloadMarkdownDocsHeaderNavItemsOptions,
   GetPayloadMarkdownDocsHeaderNavItemsOptions,
-  GetPayloadMarkdownDocsLinksOptions,
   GetPayloadMarkdownDocsNavItemsOptions,
   PayloadMarkdownDocsHeaderNavItem,
   PayloadMarkdownDocsHeaderNavLink,
-  PayloadMarkdownDocsLink,
   PayloadMarkdownDocsNavCapacityOptions,
   PayloadMarkdownDocsNavItem,
   PayloadMarkdownDocsNavItemType,
@@ -59,11 +46,6 @@ export type {
 export { PayloadMarkdownDocsPage } from './PayloadMarkdownDocsPage.js'
 export type { PayloadMarkdownDocsPageProps } from './PayloadMarkdownDocsPage.js'
 export { getPayloadMarkdownDocsRoutePath, resolvePayloadMarkdownDocsRoute } from './route.js'
-export { buildPayloadMarkdownDocsSidebar, getPayloadMarkdownDocsSidebar } from './sidebar.js'
-export type {
-  BuildPayloadMarkdownDocsSidebarOptions,
-  GetPayloadMarkdownDocsSidebarOptions,
-} from './sidebar.js'
 export {
   getDocsForSitemap,
   getPaginatedDocsForSitemap,
@@ -80,10 +62,12 @@ export type {
 export type {
   PayloadMarkdownDocsCollectionSlugs,
   PayloadMarkdownDocsDefaults,
-  PayloadMarkdownDocsFindArgs,
   PayloadMarkdownDocsGroupPageMode,
   PayloadMarkdownDocsHeroImage,
   PayloadMarkdownDocsMetadata,
+  PayloadMarkdownDocsMetadataImage,
+  PayloadMarkdownDocsOpenGraph,
+  PayloadMarkdownDocsOpenGraphImage,
   PayloadMarkdownDocsOverrides,
   PayloadMarkdownDocsReadPayload,
   PayloadMarkdownDocsRouteMode,

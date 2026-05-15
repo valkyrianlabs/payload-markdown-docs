@@ -48,7 +48,7 @@ Seeded docs group:
 
 - title: `Plugins`
 - route path: `/plugins` derived from slug `plugins`
-- serveIndex: `false`
+- pageMode: `auto`
 
 Seeded docs set:
 

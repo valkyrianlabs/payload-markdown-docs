@@ -46,7 +46,6 @@ instead of guessing directive names, props, themes, or formatting rules.
 - Payload Markdown directive and formatting guidance comes from the sibling
   `payload-markdown` skill, not this skill.
 - `push` defaults to sync mode. Use `--dry-run` only for an explicit dry-run.
-- `--sync` is a compatibility flag, not a required primary flag.
 - `--publish` is separate from sync mode and only requests published output.
 - Server config owns writes, publishing, drafts, hard delete, auth, and route
   collision behavior.

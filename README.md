@@ -8,9 +8,6 @@
 &nbsp;
 [![license](https://img.shields.io/npm/l/@valkyrianlabs/payload-markdown-docs)](https://github.com/valkyrianlabs/payload-markdown-docs?tab=MIT-1-ov-file)
 
-> ⚠️ This plugin is still in early release as of v0.9.7. It is functional, but
-> v1 polish is still in progress.
-
 AI-first Markdown documentation generation, sync, and publishing for Payload CMS.
 
 `@valkyrianlabs/payload-markdown-docs` turns a repo-local `/docs` tree into
@@ -119,7 +116,7 @@ pushes them. Payload stores and renders them. Your site owns the final output.
 - Ed25519 signed local publishing for advanced on-demand workflows.
 - Payload admin collections for docs sets, groups, trusted owners, and keys.
 - Next.js helpers for resolving and rendering docs routes.
-- Next.js sitemap helpers that can include docs records, AI discovery files, and skill artifacts.
+- Next.js sitemap helpers for canonical docs pages, with opt-in raw asset entries.
 - Drop-in docs navbar and headless navigation helpers.
 - Local CLI commands for validation, manifest generation, and sync planning.
 - Rendering powered by `@valkyrianlabs/payload-markdown`.
@@ -159,6 +156,21 @@ export default buildConfig({
     }),
   ],
 })
+```
+
+## Public API
+
+The package surface is intentionally split by runtime:
+
+- `@valkyrianlabs/payload-markdown-docs`: Payload plugin/config API only.
+- `@valkyrianlabs/payload-markdown-docs/next`: Next rendering, metadata, sitemap, nav, route, and asset route helpers.
+- `@valkyrianlabs/payload-markdown-docs/admin`: `DocsSetManager` for Payload import maps.
+- `@valkyrianlabs/payload-markdown-docs/blocks`: optional Payload block schemas and field helpers.
+
+Manual block installation imports from `/blocks`:
+
+```ts
+import { DocsCTABlock, DocsPreviewBlock } from '@valkyrianlabs/payload-markdown-docs/blocks'
 ```
 
 This adds the `Docs Globals` admin collections:
@@ -514,16 +526,6 @@ const docsNav = await getPayloadMarkdownDocsNavItems({
 })
 ```
 
-For simple flat header links, use the compatibility link helper:
-
-```ts
-import { getPayloadMarkdownDocsLinks } from '@valkyrianlabs/payload-markdown-docs/next'
-
-const docsLinks = await getPayloadMarkdownDocsLinks({ payload })
-
-// [{ label: 'Payload Markdown Docs', url: '/plugins/payload-markdown-docs' }]
-```
-
 ## Serve Raw AI Assets
 
 The canonical agent artifacts are normal files under `skills/`. `push` syncs
@@ -569,8 +571,10 @@ Useful stable paths include:
 Generated sitemap output includes canonical human docs pages by default. Raw
 AI-facing routes like `llms.txt`, `llms-full.txt`, and native skill Markdown are
 publicly served but are not listed in `sitemap.xml` unless explicitly requested
-with `includeLlms` or `includeSkills`. Use `additionalRoutes` for static routes
-that are not generated or synced:
+with `includeLlms` or `includeSkills`. Synced `static` assets are also hidden
+unless `includeAssets` is enabled; `includeAssets` does not include llms or
+skills. Use `additionalRoutes` for static routes that are not generated or
+synced:
 
 ```ts
 import { getDocsForSitemap } from '@valkyrianlabs/payload-markdown-docs/next'
@@ -601,15 +605,6 @@ configured branch.
 
 When enabled, add every allowed workflow ref explicitly. An empty list rejects
 all workflow publishing for that docs set.
-
-## Early Release Note
-
-This plugin is in early release. It is fully functional, but a few v1-oriented
-features are still being refined, including group-level docs UX and deeper
-navigation integration with Payload website starter variants.
-
-Use it. Break it. File sharp issues. This package is already built for real
-docs workflows, but the v1 polish pass is still moving.
 
 ## More Docs
 

@@ -84,7 +84,6 @@ export type PayloadMarkdownDocsSyncConfig = {
   allowPublish?: boolean
   allowWrites?: boolean
   deleteBehavior?: 'archive' | 'delete' | 'draft' | 'ignore'
-  requireDryRunBeforeApply?: boolean
   revalidate?: false | PayloadMarkdownDocsSyncRevalidateConfig
 }
 

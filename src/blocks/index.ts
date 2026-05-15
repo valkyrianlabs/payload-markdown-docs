@@ -1,3 +1,17 @@
+export {
+  backgroundMediaFields,
+  buttonField,
+  ctaButtonsField,
+  linkField,
+  linksArrayField,
+  skillCTAFields,
+} from '../fields/index.js'
+export type {
+  DocsBackgroundMediaFieldOptions,
+  DocsCTAButtonFieldOptions,
+  DocsLinkFieldOptions,
+  DocsSkillCTAFieldOptions,
+} from '../fields/index.js'
 export { DocsBannerBlock } from './docsBanner/index.js'
 export { DocsCalloutBlock } from './docsCallout/index.js'
 export { DocsCTABlock } from './docsCTA/index.js'

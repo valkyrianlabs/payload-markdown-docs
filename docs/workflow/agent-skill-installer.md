@@ -28,13 +28,6 @@ pnpm exec payload-markdown-docs install skill --agent claude
 pnpm exec payload-markdown-docs install skill --claude
 ```
 
-Alias:
-
-```bash
-pnpm exec payload-markdown-docs install ai-skill --agent codex
-pnpm exec payload-markdown-docs install ai-skill --agent claude
-```
-
 :::callout {variant="info" title="Local guidance only"}
 The installer writes Markdown guidance files. Codex installs create or update
 `AGENTS.md` by default so Codex can discover both skills. Claude installs do not

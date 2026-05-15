@@ -35,7 +35,6 @@ Generated docs records are internal storage for routing, search, sync correctnes
 
 Docs groups use `pageMode`. `auto` lets the docs plugin render a generated group
 landing page such as `/plugins`; `custom` leaves that route for the host app.
-Legacy records without `pageMode` fall back to `serveIndex`.
 
 ## Links
 

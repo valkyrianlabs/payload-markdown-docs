@@ -106,15 +106,6 @@ const hasDryRunNearOidc = (lines: string[], index: number): boolean => {
   return before.includes('dry-run') || before.includes('pull request')
 }
 
-const hasPrivateKeyEnvSyncPair = (lines: string[]): boolean =>
-  lines.some((line, index) => {
-    if (!line.includes('--private-key-env') || !line.includes('DOCS_SYNC_PRIVATE_KEY')) {
-      return false
-    }
-
-    return lines.slice(index + 1, index + 4).some((nextLine) => nextLine.includes('--sync'))
-  })
-
 describe('documentation and skill drift guard', () => {
   it('keeps served skill contracts aligned with current push and asset behavior', async () => {
     for (const skillPath of skillPaths) {
@@ -148,17 +139,13 @@ describe('documentation and skill drift guard', () => {
         expect(file.content, file.path).not.toMatch(/index\.ai\.ya?ml/)
       }
 
-      expect(hasPrivateKeyEnvSyncPair(lines), file.path).toBe(false)
+      expect(file.content, file.path).not.toContain('--sync')
       if (!allowedNegativeRuleFiles.has(file.path)) {
         expect(file.content, file.path).not.toMatch(/\/plugins\/<name>\.md/)
         expect(file.content, file.path).not.toMatch(/single consolidated AI Markdown export file/i)
       }
 
       lines.forEach((line, index) => {
-        if (line.includes('--sync') && file.path !== 'docs/reference/cli.md') {
-          expect(line.toLowerCase(), `${file.path}:${index + 1}`).toContain('compatibility')
-        }
-
         if (line.includes('--github-oidc') && hasDryRunNearOidc(lines, index)) {
           const before = lines.slice(Math.max(0, index - 8), index).join('\n').toLowerCase()
           expect(before, `${file.path}:${index + 1}`).toMatch(/dry-run|pull request/)

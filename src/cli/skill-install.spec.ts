@@ -194,26 +194,6 @@ describe('install skill command', () => {
     await expect(readInstalledFile(root, 'AGENTS.md')).rejects.toThrow()
   })
 
-  it('supports the ai-skill alias for both agents', async () => {
-    const root = await createTempRoot()
-    const codexOut = path.join(root, 'codex', 'payload-markdown-docs')
-    const claudeOut = path.join(root, 'claude', 'payload-markdown-docs')
-
-    const codex = await runCli(['install', 'ai-skill', '--agent', 'codex', '--out', codexOut])
-    const claude = await runCli(['install', 'ai-skill', '--agent', 'claude', '--out', claudeOut])
-
-    expect(codex.exitCode).toBe(0)
-    expect(claude.exitCode).toBe(0)
-    expect(await readInstalledFile(codexOut, 'SKILL.md')).toContain('Use this skill in Codex')
-    expect(
-      await readInstalledFile(path.join(root, 'codex/payload-markdown'), 'SKILL.md'),
-    ).toContain('# Payload Markdown')
-    expect(await readInstalledFile(claudeOut, 'SKILL.md')).toContain('Use this skill in Claude')
-    expect(
-      await readInstalledFile(path.join(root, 'claude/payload-markdown'), 'SKILL.md'),
-    ).toContain('# Payload Markdown')
-  })
-
   it('merges Codex skill instructions into an existing AGENTS.md', async () => {
     const root = await createTempRoot()
     process.chdir(root)
@@ -256,7 +236,7 @@ describe('install skill command', () => {
     expect(skill).toContain('--docs ./content/docs')
     expect(skill).toContain('npm exec payload-markdown-docs push \\')
     expect(skill).not.toContain('payload-markdown-docs push ./content/docs')
-    expect(skill).toContain('`--sync` is a compatibility flag')
+    expect(skill).not.toContain('--sync')
     expect(skill).not.toContain('./content/docs/index.ai.yml')
     expect(payloadMarkdownSkill).toContain('name: payload-markdown')
     await expect(readInstalledFile(root, 'AGENTS.md')).rejects.toThrow()
@@ -362,7 +342,7 @@ describe('install skill command', () => {
       "export { GET } from '../../../../../payloadMarkdownDocsAssetRoute'",
     )
 
-    const unchanged = await runCli(['install', 'asset-routes'])
+    const unchanged = await runCli(['install', 'routes'])
 
     expect(unchanged.exitCode).toBe(0)
   })
@@ -375,7 +355,7 @@ describe('install skill command', () => {
     })
     process.chdir(root)
 
-    const dryRun = await runCli(['install', 'ai-routes', '--payload-app', payloadApp, '--dry-run'])
+    const dryRun = await runCli(['install', 'routes', '--payload-app', payloadApp, '--dry-run'])
 
     expect(dryRun.exitCode).toBe(0)
     expect(dryRun.stdout).toContain('dry-run')
@@ -528,7 +508,7 @@ describe('install skill command', () => {
     expect(multipleAgents.exitCode).toBe(1)
     expect(multipleAgents.stderr).toContain('one agent target')
     expect(badTarget.exitCode).toBe(1)
-    expect(badTarget.stderr).toContain('target "skill", "ai-skill", "routes"')
+    expect(badTarget.stderr).toContain('target "skill" or "routes"')
     expect(badPackageManager.exitCode).toBe(1)
     expect(badPackageManager.stderr).toContain('pnpm, npm, yarn, or bun')
     expect(help.exitCode).toBe(0)

@@ -82,7 +82,6 @@ export type DocsSyncEndpointErrorCode =
   | 'body_hash_mismatch'
   | 'delete_behavior_not_implemented'
   | 'draft_behavior_not_available'
-  | 'dry_run_required_not_implemented'
   | 'hard_delete_disabled'
   | 'invalid_body'
   | 'invalid_manifest'
@@ -144,7 +143,6 @@ export type CreateSyncEndpointOptions = {
   noncesEnabled: boolean
   nonceTtlSeconds?: number
   oidcFetchJson?: FetchJson
-  requireDryRunBeforeApply?: boolean
   revalidate?: false | PayloadMarkdownDocsSyncRevalidateConfig
   routing?: {
     pages?: {
@@ -1257,14 +1255,6 @@ const createSyncEndpointHandler =
         'sync_writes_disabled',
         'Sync writes are disabled by server configuration.',
         403,
-      )
-    }
-
-    if (isSyncMode && options.requireDryRunBeforeApply === true) {
-      return errorResponse(
-        'dry_run_required_not_implemented',
-        'Required dry-run proof before apply is not implemented yet.',
-        400,
       )
     }
 

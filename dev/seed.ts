@@ -1,6 +1,6 @@
 import type { Payload } from 'payload'
 
-import { sha256Hex } from '../dist'
+import { sha256Hex } from '../src/sync/hash'
 import { devUser } from './helpers/credentials'
 import {
   buildDevDocsGroupSeedData,

@@ -49,13 +49,7 @@ type InstallAssetRoutesOptions = {
 }
 
 const packageManagers = new Set<PackageManager>(['bun', 'npm', 'pnpm', 'yarn'])
-const supportedInstallTargets = new Set([
-  'ai-routes',
-  'ai-skill',
-  'asset-routes',
-  'routes',
-  'skill',
-])
+const supportedInstallTargets = new Set(['routes', 'skill'])
 const supportedAgents = new Set<AgentTarget>(['claude', 'codex'])
 const docsSkillName = 'payload-markdown-docs'
 const payloadMarkdownSkillName = 'payload-markdown'
@@ -420,8 +414,7 @@ const getInstallSkillOptions = async (
   if (!target || !supportedInstallTargets.has(target)) {
     return {
       exitCode: 1,
-      stderr:
-        'Install requires target "skill", "ai-skill", "routes", "asset-routes", or "ai-routes".\n',
+      stderr: 'Install requires target "skill" or "routes".\n',
     }
   }
 
@@ -566,7 +559,7 @@ const formatPlannedFiles = ({
 export const runInstallCommand = async (args: ParsedCliArgs): Promise<CliResult> => {
   const [target] = args.positionals
 
-  if (target === 'routes' || target === 'asset-routes' || target === 'ai-routes') {
+  if (target === 'routes') {
     const options = await getInstallAssetRoutesOptions(args)
 
     if ('exitCode' in options) {
