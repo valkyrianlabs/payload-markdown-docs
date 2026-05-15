@@ -1,7 +1,7 @@
 import type { Config, PayloadRequest } from 'payload'
 
 import { generateKeyPairSync, randomUUID, sign } from 'node:crypto'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   DEFAULT_DOCS_ASSETS_COLLECTION_SLUG,
@@ -20,6 +20,18 @@ import {
 } from '../security/index.js'
 import { buildDocsManifest, sha256Hex } from '../sync/index.js'
 import { createSyncEndpoint } from './index.js'
+
+const cacheMocks = vi.hoisted(() => ({
+  revalidatePath: vi.fn(),
+  revalidateTag: vi.fn(),
+  unstableCache: vi.fn((callback: (...args: unknown[]) => Promise<unknown>) => callback),
+}))
+
+vi.mock('next/cache', () => ({
+  revalidatePath: cacheMocks.revalidatePath,
+  revalidateTag: cacheMocks.revalidateTag,
+  unstable_cache: cacheMocks.unstableCache,
+}))
 
 const now = new Date('2026-01-01T00:00:00.000Z')
 
@@ -48,6 +60,12 @@ type MockPayload = {
 }
 
 let currentPublicKey = ''
+
+beforeEach(() => {
+  cacheMocks.revalidatePath.mockClear()
+  cacheMocks.revalidateTag.mockClear()
+  cacheMocks.unstableCache.mockClear()
+})
 
 const getEqualsConstraint = (where: unknown, field: string): string | undefined => {
   if (typeof where !== 'object' || where === null || Array.isArray(where)) {
@@ -1597,6 +1615,46 @@ describe('sync endpoint dry-run handling', () => {
       }),
     )
     expect(JSON.stringify(json)).not.toContain('# Home')
+  })
+
+  it('revalidates auto-generated group index pages when syncing a docs set', async () => {
+    const { privateKey, publicKey } = keyPair()
+    const body = JSON.stringify(createManifest({ mode: 'sync' }))
+    const payload = createMockPayload({
+      docsGroups: [
+        {
+          id: 'docs-group-1',
+          slug: 'plugins',
+          pageMode: 'auto',
+        },
+      ],
+      docsSets: [
+        {
+          id: 'docs-set-1',
+          slug: 'main-docs',
+          branch: 'main',
+          group: 'docs-group-1',
+        },
+      ],
+    })
+    const { json, response } = await callEndpoint({
+      body,
+      endpointOptions: {
+        allowWrites: true,
+        docsSetsEnabled: true,
+      },
+      headers: signBody({
+        body,
+        privateKey,
+      }),
+      payload,
+      publicKey: publicKey.toString(),
+    })
+
+    expect(response.status).toBe(200)
+    expect(json).toMatchObject({ ok: true })
+    expect(cacheMocks.revalidatePath).toHaveBeenCalledWith('/plugins')
+    expect(cacheMocks.revalidatePath).toHaveBeenCalledWith('/plugins/main-docs')
   })
 
   it('applies sync mode by creating llms and skill asset records', async () => {

@@ -3,13 +3,23 @@ import type { PaginatedDocs } from 'payload'
 
 import { unstable_cache } from 'next/cache'
 
+import type { DocsSetRouteMode } from '../routing/index.js'
 import type { PayloadMarkdownDocsCollectionSlugs, PayloadMarkdownDocsReadPayload } from './types.js'
 
 import {
-  DEFAULT_DOCS_ASSETS_COLLECTION_SLUG, DEFAULT_DOCS_COLLECTION_SLUG, DEFAULT_DOCS_GROUPS_COLLECTION_SLUG, DEFAULT_DOCS_SETS_COLLECTION_SLUG,
+  DEFAULT_DOCS_ASSETS_COLLECTION_SLUG,
+  DEFAULT_DOCS_COLLECTION_SLUG,
+  DEFAULT_DOCS_GROUPS_COLLECTION_SLUG,
+  DEFAULT_DOCS_SETS_COLLECTION_SLUG,
   DEFAULT_MARKDOWN_FIELD_NAME,
 } from '../constants.js'
-import { deriveDocsSetRouteBase, isRouteDescendant, joinRouteSegments, normalizeRoutePath, } from '../routing/index.js'
+import {
+  deriveDocsSetProductRoutePath,
+  deriveDocsSetRouteBase,
+  isRouteDescendant,
+  joinRouteSegments,
+  normalizeRoutePath,
+} from '../routing/index.js'
 import { getRelationshipId, isRecord, isVisibleDocsRecord, toResolvedDocsRecord } from './records.js'
 
 export type PayloadMarkdownDocsSitemapDoc = {
@@ -219,6 +229,8 @@ const getGroupRoutePath = ({
 
 type DocsSetSitemapEntry = {
   docsSetId?: string
+  productRoute: string
+  routeMode: DocsSetRouteMode
   routePath: string
   sitemapDoc: PayloadMarkdownDocsSitemapDoc
 }
@@ -242,17 +254,25 @@ const toDocsSetSitemapEntry = ({
     return undefined
   }
 
+  const groupRoutePath = getGroupRoutePath({
+    groupId: getRelationshipId(doc.group),
+    groupsById,
+  })
+  const routeMode = doc.routeMode === 'product-nested' ? 'product-nested' : 'docs-root'
+  const productRoute = deriveDocsSetProductRoutePath({
+    docsSetSlug: slug,
+    groupRoutePath,
+  })
   const routePath = deriveDocsSetRouteBase({
     docsSetSlug: slug,
-    groupRoutePath: getGroupRoutePath({
-      groupId: getRelationshipId(doc.group),
-      groupsById,
-    }),
-    routeMode: doc.routeMode === 'product-nested' ? 'product-nested' : 'docs-root',
+    groupRoutePath,
+    routeMode,
   })
 
   return {
     docsSetId: getRelationshipId(doc),
+    productRoute,
+    routeMode,
     routePath,
     sitemapDoc: {
       lastModified: getOptionalString(doc, 'updatedAt') ?? null,
@@ -264,27 +284,92 @@ const toDocsSetSitemapEntry = ({
   }
 }
 
-const belongsToDocsSetRoute = ({
-  docsSetRoutePaths,
+const getDocsSetEntryForRoute = ({
+  docsSetEntries,
   routePath,
 }: {
-  docsSetRoutePaths: string[]
+  docsSetEntries: DocsSetSitemapEntry[]
   routePath: string
-}): boolean =>
-  docsSetRoutePaths.some(
-    (docsSetRoutePath) =>
-      routePath === docsSetRoutePath || isRouteDescendant(docsSetRoutePath, routePath),
+}): DocsSetSitemapEntry | undefined =>
+  docsSetEntries.find(
+    (entry) => routePath === entry.routePath || isRouteDescendant(entry.routePath, routePath),
+  ) ??
+  docsSetEntries.find(
+    (entry) =>
+      entry.routeMode === 'product-nested' &&
+      (routePath === entry.productRoute || isRouteDescendant(entry.productRoute, routePath)),
   )
+
+const getRouteDescendantSuffix = ({
+  child,
+  parent,
+}: {
+  child: string
+  parent: string
+}): string | undefined => {
+  const normalizedParent = normalizeRoutePath(parent)
+  const normalizedChild = normalizeRoutePath(child)
+
+  if (normalizedParent === '/') {
+    return normalizedChild === '/' ? undefined : normalizedChild.slice(1)
+  }
+
+  if (!isRouteDescendant(normalizedParent, normalizedChild)) {
+    return undefined
+  }
+
+  return normalizedChild.slice(normalizedParent.length + 1)
+}
+
+const isRootIndexSourcePath = (sourcePath: string): boolean =>
+  sourcePath.replace(/\\/g, '/').replace(/^\/+/g, '').toLowerCase() === 'index.md'
+
+const resolveRecursiveSitemapRoutePath = ({
+  docsSetEntry,
+  routePath,
+  sourcePath,
+}: {
+  docsSetEntry: DocsSetSitemapEntry
+  routePath: string
+  sourcePath: string
+}): string => {
+  const normalizedRoutePath = normalizeRoutePath(routePath)
+
+  if (docsSetEntry.routeMode !== 'product-nested') {
+    return normalizedRoutePath
+  }
+
+  if (
+    normalizedRoutePath === docsSetEntry.routePath ||
+    isRouteDescendant(docsSetEntry.routePath, normalizedRoutePath)
+  ) {
+    return normalizedRoutePath
+  }
+
+  if (
+    normalizedRoutePath === docsSetEntry.productRoute ||
+    isRootIndexSourcePath(sourcePath)
+  ) {
+    return docsSetEntry.routePath
+  }
+
+  const suffix = getRouteDescendantSuffix({
+    child: normalizedRoutePath,
+    parent: docsSetEntry.productRoute,
+  })
+
+  return suffix ? joinRouteSegments(docsSetEntry.routePath, suffix) : normalizedRoutePath
+}
 
 const toRecursiveSitemapDoc = ({
   doc,
-  docsSetIds,
-  docsSetRoutePaths,
+  docsSetEntries,
+  docsSetEntryById,
   siteUrl,
 }: {
   doc: unknown
-  docsSetIds: Set<string>
-  docsSetRoutePaths: string[]
+  docsSetEntries: DocsSetSitemapEntry[]
+  docsSetEntryById: Map<string, DocsSetSitemapEntry>
   siteUrl: string
 }): PayloadMarkdownDocsSitemapDoc | undefined => {
   if (!isRecord(doc)) {
@@ -305,23 +390,27 @@ const toRecursiveSitemapDoc = ({
     return undefined
   }
 
-  if (record.docsSetId) {
-    if (!docsSetIds.has(record.docsSetId)) {
-      return undefined
-    }
-  } else if (
-    !belongsToDocsSetRoute({
-      docsSetRoutePaths,
-      routePath: record.route,
-    })
-  ) {
+  const docsSetEntry = record.docsSetId
+    ? docsSetEntryById.get(record.docsSetId)
+    : getDocsSetEntryForRoute({
+        docsSetEntries,
+        routePath: record.route,
+      })
+
+  if (!docsSetEntry) {
     return undefined
   }
+
+  const routePath = resolveRecursiveSitemapRoutePath({
+    docsSetEntry,
+    routePath: record.route,
+    sourcePath: record.sourcePath,
+  })
 
   return {
     lastModified: getOptionalString(doc, 'updatedAt') ?? null,
     url: getSitemapUrl({
-      routePath: record.route,
+      routePath,
       siteUrl,
     }),
   }
@@ -572,21 +661,22 @@ const getDocsForSitemapUncached = async ({
 
       return entry ? [entry] : []
     })
-  const docsSetIds = new Set(
-    docsSetEntries.flatMap((entry) => (entry.docsSetId ? [entry.docsSetId] : [])),
+  const docsSetEntryById = new Map(
+    docsSetEntries.flatMap((entry) =>
+      entry.docsSetId ? [[entry.docsSetId, entry] as const] : [],
+    ),
   )
   const docsSetRouteById = new Map(
     docsSetEntries.flatMap((entry) =>
       entry.docsSetId ? [[entry.docsSetId, entry.routePath] as const] : [],
     ),
   )
-  const docsSetRoutePaths = docsSetEntries.map((entry) => entry.routePath)
   const recursiveDocs =
     docsResult?.docs.flatMap((doc) => {
       const sitemapDoc = toRecursiveSitemapDoc({
         doc,
-        docsSetIds,
-        docsSetRoutePaths,
+        docsSetEntries,
+        docsSetEntryById,
         siteUrl,
       })
 

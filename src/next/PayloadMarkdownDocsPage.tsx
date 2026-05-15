@@ -186,7 +186,10 @@ export const PayloadMarkdownDocsPage = async ({
         className="min-h-screen bg-background text-foreground"
         data-payload-markdown-docs-route={resolved.route}
       >
-        <div className="mx-auto w-full max-w-6xl px-6 py-14 lg:px-8">
+        <div
+          className="mx-auto w-full max-w-6xl px-6 py-14 lg:px-8"
+          style={getDocsLayoutStyle(false)}
+        >
           <header className="mb-10 border-b border-border pb-8">
             <p className="mb-3 text-sm font-medium uppercase tracking-wide text-cyan-300">Docs</p>
             <h1 className="text-4xl font-semibold tracking-tight md:text-5xl">

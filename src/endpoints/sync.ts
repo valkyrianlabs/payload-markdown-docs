@@ -478,14 +478,20 @@ const getRevalidationTags = ({
 
 const getRevalidationPaths = ({
   assetPlan,
+  docsSet,
   manifest,
   plan,
 }: {
   assetPlan: ReturnType<typeof planDocsAssetsSync>
+  docsSet?: ResolvedDocsSet
   manifest: ValidatedDocsManifest
   plan: ReturnType<typeof planDocsSync>
 }): string[] => {
   const paths = new Set<string>()
+
+  if (docsSet?.groupPageMode === 'auto' && docsSet.groupRoutePath) {
+    paths.add(docsSet.groupRoutePath)
+  }
 
   for (const file of manifest.files) {
     paths.add(file.route)
@@ -522,11 +528,13 @@ const getRevalidationPaths = ({
 
 const revalidateDocsSyncCache = async ({
   assetPlan,
+  docsSet,
   manifest,
   options,
   plan,
 }: {
   assetPlan: ReturnType<typeof planDocsAssetsSync>
+  docsSet?: ResolvedDocsSet
   manifest: ValidatedDocsManifest
   options: CreateSyncEndpointOptions
   plan: ReturnType<typeof planDocsSync>
@@ -564,6 +572,7 @@ const revalidateDocsSyncCache = async ({
 
   for (const path of getRevalidationPaths({
     assetPlan,
+    docsSet,
     manifest,
     plan,
   })) {
@@ -1498,6 +1507,7 @@ const createSyncEndpointHandler =
 
         await revalidateDocsSyncCache({
           assetPlan,
+          docsSet: sourceResolution.source.docsSet,
           manifest: validation.data,
           options,
           plan,

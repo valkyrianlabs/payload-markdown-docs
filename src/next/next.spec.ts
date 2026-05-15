@@ -813,6 +813,73 @@ describe('Payload Markdown Docs route adapter', () => {
     ])
   })
 
+  it('maps recursive product-nested docs records under the docs route base', async () => {
+    const payload = createPayloadMock({
+      docs: [
+        createDoc({
+          id: 'doc-index',
+          _status: 'published',
+          docsSet: docsSet.id,
+          route: '/plugins/payload-markdown',
+          sourcePath: 'index.md',
+          title: 'Overview',
+          updatedAt: '2026-05-15T12:00:00.000Z',
+        }),
+        createDoc({
+          id: 'doc-install',
+          _status: 'published',
+          docsSet: docsSet.id,
+          route: '/plugins/payload-markdown/getting-started/installation',
+          sourcePath: 'getting-started/installation.md',
+          title: 'Installation',
+          updatedAt: '2026-05-14T12:00:00.000Z',
+        }),
+      ],
+      docsGroups: [docsGroup],
+      docsSets: [
+        {
+          ...docsSet,
+          _status: 'published',
+          group: docsGroup.id,
+          routeMode: 'product-nested',
+          updatedAt: '2026-05-14T11:00:00.000Z',
+        },
+      ],
+    })
+
+    const result = await getDocsForSitemap({
+      payload,
+      siteUrl: 'https://example.com',
+    })
+
+    expect(result).toEqual([
+      {
+        lastModified: '2026-05-14T11:00:00.000Z',
+        url: 'https://example.com/llms-full.txt',
+      },
+      {
+        lastModified: '2026-05-14T11:00:00.000Z',
+        url: 'https://example.com/llms.txt',
+      },
+      {
+        lastModified: '2026-05-15T12:00:00.000Z',
+        url: 'https://example.com/plugins/payload-markdown/docs',
+      },
+      {
+        lastModified: '2026-05-14T12:00:00.000Z',
+        url: 'https://example.com/plugins/payload-markdown/docs/getting-started/installation',
+      },
+      {
+        lastModified: '2026-05-14T11:00:00.000Z',
+        url: 'https://example.com/plugins/payload-markdown/docs/llms-full.txt',
+      },
+      {
+        lastModified: '2026-05-14T11:00:00.000Z',
+        url: 'https://example.com/plugins/payload-markdown/docs/llms.txt',
+      },
+    ])
+  })
+
   it('includes additional routes in paginated sitemap docs', async () => {
     const payload = createPayloadMock({})
 
@@ -1952,6 +2019,7 @@ describe('Payload Markdown Docs page component', () => {
           childGroups: [
             {
               id: 'group-guides',
+              description: 'Guides and tutorials.',
               order: 0,
               pageMode: 'auto',
               pageModeSource: 'explicit',
@@ -1986,7 +2054,10 @@ describe('Payload Markdown Docs page component', () => {
     expect(markup).toContain('href="/plugins/guides"')
     expect(markup).toContain('href="/plugins/payload-markdown"')
     expect(markup).toContain('href="/plugins/payload-markdown/docs"')
+    expect(markup).toContain('Guides and tutorials.')
+    expect(markup).toContain('Docs set description.')
     expect(markup).toContain('Documentation')
+    expect(markup).toContain('margin-top:6rem')
   })
 })
 
