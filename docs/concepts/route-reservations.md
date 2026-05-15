@@ -32,8 +32,7 @@ Doc: /plugins/payload-markdown-docs/workflow/signed-push
 
 With `routeMode: "docs-root"`, the docs set owns
 `/plugins/payload-markdown-docs` and descendants. A normal Page at `/plugins`
-can still exist if the group uses `pageMode: "custom"` or legacy
-`serveIndex: false`.
+can still exist if the group uses `pageMode: "custom"`.
 
 With `routeMode: "product-nested"`, the docs set owns
 `/plugins/payload-markdown-docs/docs` and descendants. The parent

@@ -228,13 +228,6 @@ const getPushCommandOptions = async (
     return endpoint
   }
 
-  if (getFlagBoolean(args, 'dry-run') && getFlagBoolean(args, 'sync')) {
-    return {
-      exitCode: 1,
-      stderr: 'Use either --dry-run or --sync, not both.\n',
-    }
-  }
-
   const deleteBehaviorFlag = getFlagString(args, 'delete-behavior')
 
   if (

@@ -95,7 +95,6 @@ payload-markdown-docs push \
 ```
 
 `push` defaults to sync mode. `--dry-run` submits a validation-only request.
-`--sync` is still accepted for compatibility but is no longer required.
 `--publish` is separate from sync mode and requests published output. Publishing
 and writes remain server-owned.
 
@@ -116,7 +115,6 @@ Common push flags:
 - `--no-llms`
 - `--no-llms-full`
 - `--dry-run`
-- `--sync`
 - `--strict-routes`
 - `--publish`
 - `--delete-behavior <archive|delete|draft|ignore>`
@@ -142,13 +140,6 @@ defaults to `.agents/skills/payload-markdown-docs/` plus
 `.agents/skills/payload-markdown/` and creates or updates `AGENTS.md`. Claude
 defaults to `.claude/skills/payload-markdown-docs/` plus
 `.claude/skills/payload-markdown/` and does not update `AGENTS.md` by default.
-
-Alias:
-
-```bash
-payload-markdown-docs install ai-skill --agent codex
-payload-markdown-docs install ai-skill --agent claude
-```
 
 Useful flags:
 

@@ -1,7 +1,7 @@
 ---
 title: Metadata Helper
 navTitle: Metadata
-description: Generate simple metadata from resolved docs routes.
+description: Generate Next-compatible metadata from resolved docs routes.
 order: 410
 status: published
 tags:
@@ -29,13 +29,17 @@ const metadata = resolved
   : {}
 ```
 
-Metadata uses:
+Metadata returns root `title` / `description` plus OpenGraph and Twitter fields
+when values are available. It uses:
 
-- per-doc SEO overrides when present
 - doc title and description
-- docs set defaults
+- docs set `openGraph.title`, `openGraph.description`, and `openGraph.image`
+- docs set nav title, title, and description
 - docs group title and description
 
-The helper intentionally stays simple. It does not build a full Open Graph system.
+Docs pages inherit the docs set OpenGraph image unless the resolved doc has a
+hero image. Doc title and description override docs set OpenGraph title and
+description. Twitter metadata uses `summary_large_image` when an image is
+available.
 
 See [overrides](/admin/overrides) for per-doc SEO fields.

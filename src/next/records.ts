@@ -2,6 +2,8 @@ import type {
   PayloadMarkdownDocsDefaults,
   PayloadMarkdownDocsGroupPageMode,
   PayloadMarkdownDocsHeroImage,
+  PayloadMarkdownDocsOpenGraph,
+  PayloadMarkdownDocsOpenGraphImage,
   PayloadMarkdownDocsOverrides,
   PayloadMarkdownDocsRouteMode,
   ResolvedPayloadMarkdownDocsGroup,
@@ -99,7 +101,7 @@ const toOverrides = (value: unknown): PayloadMarkdownDocsOverrides | undefined =
   return Object.keys(overrides).length > 0 ? overrides : undefined
 }
 
-const toHeroImage = (value: unknown): PayloadMarkdownDocsHeroImage | undefined => {
+const toMediaImage = (value: unknown): PayloadMarkdownDocsHeroImage | undefined => {
   const media = isRecord(value) && isRecord(value.value) ? value.value : value
 
   if (!isRecord(media)) {
@@ -122,40 +124,35 @@ const toHeroImage = (value: unknown): PayloadMarkdownDocsHeroImage | undefined =
   }) as PayloadMarkdownDocsHeroImage
 }
 
+const toHeroImage = (value: unknown): PayloadMarkdownDocsHeroImage | undefined =>
+  toMediaImage(value)
+
+const toOpenGraphImage = (value: unknown): PayloadMarkdownDocsOpenGraphImage | undefined =>
+  toMediaImage(value) as PayloadMarkdownDocsOpenGraphImage | undefined
+
+const toOpenGraph = (value: unknown): PayloadMarkdownDocsOpenGraph | undefined => {
+  if (!isRecord(value)) {
+    return undefined
+  }
+
+  const openGraph = cleanObject({
+    description: getOptionalString(value, 'description'),
+    image: toOpenGraphImage(value.image),
+    title: getOptionalString(value, 'title'),
+  } satisfies PayloadMarkdownDocsOpenGraph)
+
+  return Object.keys(openGraph).length > 0
+    ? (openGraph as PayloadMarkdownDocsOpenGraph)
+    : undefined
+}
+
 const getRouteMode = (value: unknown): PayloadMarkdownDocsRouteMode =>
   value === 'product-nested' || value === 'docs-root'
     ? value
     : DEFAULT_DOCS_SET_ROUTE_MODE
 
-const getPageMode = ({
-  pageMode,
-  serveIndex,
-}: {
-  pageMode: unknown
-  serveIndex?: boolean
-}): {
-  mode: PayloadMarkdownDocsGroupPageMode
-  source: ResolvedPayloadMarkdownDocsGroup['pageModeSource']
-} => {
-  if (pageMode === 'auto' || pageMode === 'custom') {
-    return {
-      mode: pageMode,
-      source: 'explicit',
-    }
-  }
-
-  if (serveIndex === true) {
-    return {
-      mode: 'auto',
-      source: 'legacyServeIndex',
-    }
-  }
-
-  return {
-    mode: 'custom',
-    source: 'legacyDefault',
-  }
-}
+const getPageMode = (pageMode: unknown): PayloadMarkdownDocsGroupPageMode =>
+  pageMode === 'custom' ? 'custom' : 'auto'
 
 export const toResolvedDocsSet = (doc: unknown): ResolvedPayloadMarkdownDocsSet | undefined => {
   if (!isRecord(doc)) {
@@ -163,17 +160,16 @@ export const toResolvedDocsSet = (doc: unknown): ResolvedPayloadMarkdownDocsSet 
   }
 
   const id = getRecordId(doc)
-  const routeBase = getOptionalString(doc, 'routeBase')
   const title = getOptionalString(doc, 'title')
   const slug = getOptionalString(doc, 'slug')
 
-  if (!id || !title || (!routeBase && !slug)) {
+  if (!id || !title || !slug) {
     return undefined
   }
 
   const routeMode = getRouteMode(doc.routeMode)
   const productRoute = deriveDocsSetProductRoutePath({
-    docsSetSlug: slug ?? id,
+    docsSetSlug: slug,
   })
 
   return {
@@ -182,14 +178,14 @@ export const toResolvedDocsSet = (doc: unknown): ResolvedPayloadMarkdownDocsSet 
     defaults: toDefaults(doc.defaults),
     description: getOptionalString(doc, 'description'),
     navTitle: getOptionalString(doc, 'navTitle'),
+    openGraph: toOpenGraph(doc.openGraph),
     order: getOptionalNumber(doc, 'order') ?? 0,
     productRoute,
     routeBase: normalizeRoutePath(
-      routeBase ??
-        deriveDocsSetRouteBase({
-          docsSetSlug: slug ?? id,
-          routeMode,
-        }),
+      deriveDocsSetRouteBase({
+        docsSetSlug: slug,
+        routeMode,
+      }),
     ),
     routeMode,
     status: doc._status === 'draft' || doc._status === 'published' ? doc._status : undefined,
@@ -211,19 +207,14 @@ export const toResolvedDocsGroup = (doc: unknown): ResolvedPayloadMarkdownDocsGr
   }
 
   const id = getRecordId(doc)
-  const routePath = getOptionalString(doc, 'routePath')
   const title = getOptionalString(doc, 'title')
   const slug = getOptionalString(doc, 'slug')
 
-  if (!id || !title || (!routePath && !slug)) {
+  if (!id || !title || !slug) {
     return undefined
   }
 
-  const serveIndex = getOptionalBoolean(doc, 'serveIndex') ?? false
-  const pageMode = getPageMode({
-    pageMode: doc.pageMode,
-    serveIndex,
-  })
+  const pageMode = getPageMode(doc.pageMode)
 
   return {
     id,
@@ -231,10 +222,8 @@ export const toResolvedDocsGroup = (doc: unknown): ResolvedPayloadMarkdownDocsGr
     description: getOptionalString(doc, 'description'),
     navTitle: getOptionalString(doc, 'navTitle'),
     order: getOptionalNumber(doc, 'order') ?? 0,
-    pageMode: pageMode.mode,
-    pageModeSource: pageMode.source,
-    routePath: normalizeRoutePath(routePath ?? `/${slug}`),
-    serveIndex: pageMode.mode === 'auto',
+    pageMode,
+    routePath: normalizeRoutePath(`/${slug}`),
     title,
   }
 }

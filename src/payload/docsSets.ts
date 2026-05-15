@@ -94,11 +94,11 @@ const getRouteMode = (value: unknown): DocsSetRouteMode =>
     : DEFAULT_DOCS_SET_ROUTE_MODE
 
 const getGroupPageMode = (doc: Record<string, unknown>): 'auto' | 'custom' => {
-  if (doc.pageMode === 'auto' || doc.pageMode === 'custom') {
-    return doc.pageMode
+  if (doc.pageMode === 'custom') {
+    return 'custom'
   }
 
-  return doc.serveIndex === true ? 'auto' : 'custom'
+  return 'auto'
 }
 
 const getStringArray = (value: unknown): string[] => {
