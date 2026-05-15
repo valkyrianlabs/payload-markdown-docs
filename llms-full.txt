@@ -13,15 +13,24 @@ documentation lives in `/docs`; native agent workflow artifacts live in
 
 - Codex SKILL.md: https://docs.valkyrianlabs.com/plugins/payload-markdown-docs/skills/codex/SKILL.md
 - Claude SKILL.md: https://docs.valkyrianlabs.com/plugins/payload-markdown-docs/skills/claude/SKILL.md
-- Codex directives reference: https://docs.valkyrianlabs.com/plugins/payload-markdown-docs/skills/codex/reference/payload-markdown-directives.md
-- Claude directives reference: https://docs.valkyrianlabs.com/plugins/payload-markdown-docs/skills/claude/reference/payload-markdown-directives.md
+- Codex docs package reference: https://docs.valkyrianlabs.com/plugins/payload-markdown-docs/skills/codex/reference/docs-package.md
+- Claude docs package reference: https://docs.valkyrianlabs.com/plugins/payload-markdown-docs/skills/claude/reference/docs-package.md
 - Codex workflow reference: https://docs.valkyrianlabs.com/plugins/payload-markdown-docs/skills/codex/reference/workflow.md
 - Claude workflow reference: https://docs.valkyrianlabs.com/plugins/payload-markdown-docs/skills/claude/reference/workflow.md
+
+## Payload Markdown Skill Artifacts
+
+- Codex SKILL.md: https://docs.valkyrianlabs.com/plugins/payload-markdown/skills/codex/SKILL.md
+- Claude SKILL.md: https://docs.valkyrianlabs.com/plugins/payload-markdown/skills/claude/SKILL.md
+- Codex directives reference: https://docs.valkyrianlabs.com/plugins/payload-markdown/skills/codex/reference/payload-markdown-directives.md
+- Claude directives reference: https://docs.valkyrianlabs.com/plugins/payload-markdown/skills/claude/reference/payload-markdown-directives.md
+- Codex formatting reference: https://docs.valkyrianlabs.com/plugins/payload-markdown/skills/codex/reference/formatting.md
+- Claude formatting reference: https://docs.valkyrianlabs.com/plugins/payload-markdown/skills/claude/reference/formatting.md
 
 ## Agent Guidance
 
 Prefer native skill artifacts when maintaining docs in a repository. The skills
-describe supported frontmatter, Markdown formatting, Payload Markdown
-directives, validation, sync planning, routing, admin overrides, and safety
-rules. Rendered docs pages are useful for broad product context, but skills are
-the canonical agent workflow package.
+describe supported docs package structure, frontmatter, Markdown formatting,
+Payload Markdown directives, validation, sync planning, routing, admin
+overrides, and safety rules. Rendered docs pages are useful for broad product
+context, but skills are the canonical agent workflow package.

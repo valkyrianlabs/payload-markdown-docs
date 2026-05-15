@@ -11,8 +11,8 @@ tags:
 
 # Agent Skill Installer
 
-The installer copies native agent workflow packs from the package `skills/`
-directory into a consuming project.
+The installer copies this plugin's native agent workflow pack plus the companion
+`@valkyrianlabs/payload-markdown` authoring skill into a consuming project.
 
 Codex:
 
@@ -37,7 +37,7 @@ pnpm exec payload-markdown-docs install ai-skill --agent claude
 
 :::callout {variant="info" title="Local guidance only"}
 The installer writes Markdown guidance files. Codex installs create or update
-`AGENTS.md` by default so Codex can discover the skill. Claude installs do not
+`AGENTS.md` by default so Codex can discover both skills. Claude installs do not
 touch `AGENTS.md` by default. The installer does not sync docs, call Payload,
 fetch remote docs, or run package manager commands.
 :::
@@ -52,8 +52,7 @@ Codex default output:
     payload-markdown-docs/
       SKILL.md
       reference/
-        payload-markdown-directives.md
-        formatting.md
+        docs-package.md
         frontmatter.md
         workflow.md
         sync.md
@@ -61,8 +60,22 @@ Codex default output:
         admin.md
         troubleshooting.md
       examples/
-        docs-page.md
         github-actions.md
+    payload-markdown/
+      SKILL.md
+      agents/
+        openai.yaml
+      reference/
+        payload-markdown-directives.md
+        formatting.md
+        automated-docs-workflow.md
+        quality.md
+      examples/
+        docs-page.md
+        reference-page.md
+        release-notes.md
+      scripts/
+        check_payload_markdown_doc.py
 AGENTS.md
 ```
 
@@ -74,8 +87,7 @@ Claude default output:
     payload-markdown-docs/
       SKILL.md
       reference/
-        payload-markdown-directives.md
-        formatting.md
+        docs-package.md
         frontmatter.md
         workflow.md
         sync.md
@@ -83,8 +95,20 @@ Claude default output:
         admin.md
         troubleshooting.md
       examples/
-        docs-page.md
         github-actions.md
+    payload-markdown/
+      SKILL.md
+      reference/
+        payload-markdown-directives.md
+        formatting.md
+        automated-docs-workflow.md
+        quality.md
+      examples/
+        docs-page.md
+        reference-page.md
+        release-notes.md
+      scripts/
+        check_payload_markdown_doc.py
 ```
 
 The canonical source artifacts live in the package repository:
@@ -92,6 +116,13 @@ The canonical source artifacts live in the package repository:
 ```text
 skills/payload-markdown-docs/codex/
 skills/payload-markdown-docs/claude/
+```
+
+The companion skill source comes from:
+
+```text
+node_modules/@valkyrianlabs/payload-markdown/skills/payload-markdown/codex/
+node_modules/@valkyrianlabs/payload-markdown/skills/payload-markdown/claude/
 ```
 
 `install skill` installs local agent guidance only. It does not publish skills,
@@ -150,15 +181,17 @@ pnpm exec payload-markdown-docs install skill --agent codex \
 ```
 
 Use `--dry-run` to preview files and `--force` to overwrite changed existing
-skill files. Unchanged existing files are accepted.
+skill files. Unchanged existing files are accepted. When `--out` is customized,
+the companion `payload-markdown` skill is installed as a sibling directory.
 
 ## What The Skills Teach
 
 - maintain docs in repo-local Markdown files
+- understand docs package layout, manifest `files`, and manifest `assets`
 - use `.md` files only unless future config explicitly enables another format
-- use supported frontmatter only
-- follow plain Markdown formatting expectations first
-- use supported `payload-markdown` directives only when useful
+- use supported payload-markdown-docs frontmatter only
+- defer Payload Markdown directive and formatting details to the companion
+  `payload-markdown` skill
 - keep internal links route-aware and root-relative inside the docs set
 - run validate before finishing docs edits
 - run plan when sync behavior matters

@@ -12,6 +12,8 @@ Native agent skills:
 
 - Payload Markdown Docs Codex skill: https://docs.valkyrianlabs.com/plugins/payload-markdown-docs/skills/codex/SKILL.md
 - Payload Markdown Docs Claude skill: https://docs.valkyrianlabs.com/plugins/payload-markdown-docs/skills/claude/SKILL.md
+- Payload Markdown Codex skill: https://docs.valkyrianlabs.com/plugins/payload-markdown/skills/codex/SKILL.md
+- Payload Markdown Claude skill: https://docs.valkyrianlabs.com/plugins/payload-markdown/skills/claude/SKILL.md
 
 Agents should prefer native skills over scraping rendered directive-heavy docs
 pages. Use rendered docs for human-facing product reference, and use skill

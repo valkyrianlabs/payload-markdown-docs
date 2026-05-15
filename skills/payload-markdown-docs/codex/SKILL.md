@@ -12,12 +12,30 @@ Edit repo-local source files first. Treat generated Payload docs records and
 synced static assets as server-owned output, not as source of truth.
 
 This skill may be installed at `.agents/skills/payload-markdown-docs` by the CLI
-or served from the package `skills/payload-markdown-docs/codex` directory.
+or served from the package `skills/payload-markdown-docs/codex` directory. The
+installer also installs the sibling `payload-markdown` skill at
+`.agents/skills/payload-markdown`.
+
+This skill owns the docs package structure, plugin sync workflow, routing,
+frontmatter, and plugin-specific safety rules. It intentionally does not define
+Payload Markdown directive syntax or renderer formatting details. Use the
+sibling `payload-markdown` skill for those:
+
+- `../payload-markdown/SKILL.md`
+- `../payload-markdown/reference/payload-markdown-directives.md`
+- `../payload-markdown/reference/formatting.md`
+- `../payload-markdown/reference/quality.md`
+
+If the sibling skill is not installed, inspect
+`node_modules/@valkyrianlabs/payload-markdown/skills/payload-markdown/codex/`
+instead of guessing directive names, props, themes, or formatting rules.
 
 ## Current Model
 
-- Human docs records live in `./docs`.
-- Native agent skill assets live in `./skills/<source>/<agent>/`.
+- Human docs records live in `./docs` by default.
+- Native agent skill assets live in `./skills/<source>/<agent>/`; this package
+  uses `./skills/payload-markdown-docs/codex/` and
+  `./skills/payload-markdown-docs/claude/`.
 - Root AI discovery assets live at `./llms.txt` and `./llms-full.txt`.
 - `validate`, `manifest`, `plan`, and `push` read that conventional package
   layout by default.
@@ -25,6 +43,8 @@ or served from the package `skills/payload-markdown-docs/codex` directory.
 - Manifest `assets` are skill files, `llms.txt`, `llms-full.txt`, and other
   static AI-facing files.
 - Skill files are not docs records and do not need docs frontmatter.
+- Payload Markdown directive and formatting guidance comes from the sibling
+  `payload-markdown` skill, not this skill.
 - `push` defaults to sync mode. Use `--dry-run` only for an explicit dry-run.
 - `--sync` is a compatibility flag, not a required primary flag.
 - `--publish` is separate from sync mode and only requests published output.
@@ -40,10 +60,9 @@ or served from the package `skills/payload-markdown-docs/codex` directory.
 - Keep human docs in repo-local `.md` files under `./docs` unless configured
   otherwise.
 - Do not introduce MDX unless a future project config explicitly enables it.
-- Prefer plain Markdown structure before using directives.
-- Use supported frontmatter only.
-- Use supported `payload-markdown` directives only when they improve the page.
-- Avoid decorative directive spam.
+- Use the sibling `payload-markdown` skill before adding or changing renderer
+  directives, directive props, theme names, or general Markdown formatting.
+- Use only the docs frontmatter supported by this plugin.
 - Keep internal docs links route-aware and root-relative inside the docs set,
   such as `/getting-started/quick-start`.
 - Run validation before finishing docs edits.
@@ -61,7 +80,9 @@ or served from the package `skills/payload-markdown-docs/codex` directory.
 - Do not create `index.ai.yaml`.
 - Do not create a single consolidated AI Markdown export file.
 - Do not maintain `/plugins/<name>.md` AI export routes.
-- Do not invent unsupported `payload-markdown` directives.
+- Do not duplicate Payload Markdown directive references in this skill.
+- Do not invent unsupported Payload Markdown directives or props; use the
+  sibling `payload-markdown` skill as the source of truth.
 - Do not treat generated Payload records as source of truth.
 
 ## Default Workflow
@@ -126,24 +147,30 @@ Install public raw asset route files in a Next app when the user needs
 
 ## References
 
-- `reference/payload-markdown-directives.md`
-- `reference/formatting.md`
+- `reference/docs-package.md`
 - `reference/frontmatter.md`
 - `reference/workflow.md`
 - `reference/sync.md`
 - `reference/routing.md`
 - `reference/admin.md`
 - `reference/troubleshooting.md`
-- `examples/docs-page.md`
 - `examples/github-actions.md`
+
+Payload Markdown companion references:
+
+- `../payload-markdown/reference/payload-markdown-directives.md`
+- `../payload-markdown/reference/formatting.md`
+- `../payload-markdown/reference/quality.md`
+- `../payload-markdown/examples/docs-page.md`
 
 ## Safety Checklist
 
 Before finishing:
 
-1. Confirm changed docs have valid frontmatter.
-2. Confirm internal links are root-relative and route-aware.
-3. Confirm directives match the reference.
-4. Run validate.
-5. Run plan when sync behavior matters.
-6. Report validation or plan failures instead of guessing.
+1. Confirm changed docs live under the configured docs root, normally `./docs`.
+2. Confirm changed docs have valid plugin frontmatter.
+3. Confirm internal links are root-relative and route-aware.
+4. If directives changed, confirm them against the sibling `payload-markdown` skill.
+5. Run validate.
+6. Run plan when sync behavior matters.
+7. Report validation or plan failures instead of guessing.

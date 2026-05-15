@@ -53,19 +53,20 @@ manifest `assets`, so skill files do not need docs frontmatter.
 
 ## Install An Agent Skill
 
-In the docs set target application, install a local agent skill so Codex or
-Claude has project-specific guidance for maintaining Markdown docs, supported
-frontmatter, validation, and sync safety rules.
+In the docs set target application, install local agent skills so Codex or
+Claude has project-specific guidance for package structure, supported
+frontmatter, validation, sync safety rules, and Payload Markdown authoring.
 
 ```bash
 pnpm exec payload-markdown-docs install skill --agent codex
 pnpm exec payload-markdown-docs install skill --agent claude
 ```
 
-The Codex installer writes `.agents/skills/payload-markdown-docs/` and creates
-or updates `AGENTS.md`. The Claude installer writes
-`.claude/skills/payload-markdown-docs/` and does not modify `AGENTS.md` by
-default. Neither install syncs docs, calls Payload, or publishes content.
+The Codex installer writes `.agents/skills/payload-markdown-docs/`,
+`.agents/skills/payload-markdown/`, and creates or updates `AGENTS.md`. The
+Claude installer writes `.claude/skills/payload-markdown-docs/` plus
+`.claude/skills/payload-markdown/` and does not modify `AGENTS.md` by default.
+Neither install syncs docs, calls Payload, or publishes content.
 
 ## Install Public Asset Routes
 

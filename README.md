@@ -63,9 +63,10 @@ pnpm exec payload-markdown-docs install skill --agent claude
 ```
 
 Then ask Codex or Claude to inspect your codebase and generate or maintain your
-docs using the installed `payload-markdown-docs` skill instructions.
+docs using the installed `payload-markdown-docs` and `payload-markdown` skill
+instructions.
 
-The skill gives the agent repo-local guidance for:
+The installed skills give the agent repo-local guidance for:
 
 - documentation tree structure,
 - frontmatter,
@@ -73,14 +74,16 @@ The skill gives the agent repo-local guidance for:
 - validation,
 - route-derived docs metadata,
 - Markdown authoring patterns,
-- and [@valkyrianlabs/payload-markdown](https://github.com/valkyrianlabs/payload-markdown) directive usage.
+- and [@valkyrianlabs/payload-markdown](https://github.com/valkyrianlabs/payload-markdown) directive usage through the companion `payload-markdown` skill.
 
 You can still write every document by hand. In fact, you should review and tune
 important docs by hand. But the workflow is optimized for AI to build the first
 pass, maintain large sections, and keep documentation moving with the codebase.
 
-Codex and Claude skill packs are included today. The canonical skill artifacts
-live in this package under `skills/payload-markdown-docs/<agent>/`.
+Codex and Claude skill packs are included today. The canonical
+`payload-markdown-docs` skill artifacts live in this package under
+`skills/payload-markdown-docs/<agent>/`; the companion Payload Markdown skill is
+copied from `@valkyrianlabs/payload-markdown`.
 
 ## Why This Exists
 
@@ -249,6 +252,7 @@ The Codex installer writes:
 
 ```txt
 .agents/skills/payload-markdown-docs/
+.agents/skills/payload-markdown/
 AGENTS.md
 ```
 
@@ -256,11 +260,14 @@ The Claude installer writes:
 
 ```txt
 .claude/skills/payload-markdown-docs/
+.claude/skills/payload-markdown/
 ```
 
 The installer does not sync docs, call Payload, or publish content. It only
 installs agent-facing guidance so AI agents can understand the documentation
-rules inside your repo.
+rules inside your repo. The `payload-markdown-docs` skill covers package
+structure and sync behavior; the `payload-markdown` skill covers renderer
+directives and Markdown authoring.
 
 A typical prompt after installing the skill:
 
