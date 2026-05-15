@@ -535,6 +535,44 @@ describe('docs asset endpoints', () => {
     expect(await response?.text()).toBe('# Codex Skill\n')
   })
 
+  it('serves stored skill assets even when docs set route metadata is unavailable', async () => {
+    const endpoint = createDocsAssetsEndpoints({}).find((item) =>
+      item.path.includes('/skills/'),
+    )
+    const payload = createMockPayload({
+      assets: [
+        {
+          id: 'asset-1',
+          content: '# Codex Skill\n',
+          contentType: 'text/markdown; charset=utf-8',
+          kind: 'skill',
+          route: '/plugins/payload-markdown-docs/skills/codex/SKILL.md',
+          sourcePath: 'skills/payload-markdown-docs/codex/SKILL.md',
+          sync: {
+            archived: false,
+          },
+        },
+      ],
+      docsSets: [],
+    })
+
+    const response = await endpoint?.handler(
+      createRequest({
+        payload,
+        routeParams: {
+          agent: 'codex',
+          assetPath: ['SKILL.md'],
+          routeBase: ['plugins', 'payload-markdown-docs'],
+        },
+        url: 'https://example.com/plugins/payload-markdown-docs/skills/codex/SKILL.md',
+      }),
+    )
+
+    expect(response?.status).toBe(200)
+    expect(response?.headers.get('content-type')).toContain('text/markdown')
+    expect(await response?.text()).toBe('# Codex Skill\n')
+  })
+
   it('serves skill directory requests as the agent SKILL.md file', async () => {
     const endpoint = createDocsAssetsEndpoints({}).find((item) =>
       item.path.includes('/skills/'),

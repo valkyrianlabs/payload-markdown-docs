@@ -106,29 +106,6 @@ const getSkillRequestPath = (req: PayloadRequest): string => {
   return getRequestPath(req)
 }
 
-const getRouteRemainder = ({
-  route,
-  routeBase,
-}: {
-  route: string
-  routeBase: string
-}): string | undefined => {
-  const normalizedRoute = normalizeRoutePath(route)
-  const normalizedRouteBase = normalizeRoutePath(routeBase)
-
-  if (normalizedRouteBase === '/') {
-    return normalizedRoute
-  }
-
-  if (normalizedRoute === normalizedRouteBase) {
-    return '/'
-  }
-
-  return normalizedRoute.startsWith(`${normalizedRouteBase}/`)
-    ? normalizedRoute.slice(normalizedRouteBase.length)
-    : undefined
-}
-
 const notFoundResponse = (): Response =>
   new Response('Not found', {
     headers: {
@@ -400,41 +377,14 @@ const createDocsSetLlmsEndpoint = ({
 
 const createSkillAssetEndpoint = ({
   collectionSlug,
-  docsGroupsCollectionSlug,
-  docsSetsCollectionSlug,
 }: {
   collectionSlug: string
-  docsGroupsCollectionSlug: string
-  docsSetsCollectionSlug: string
 }): Endpoint =>
   createRootGetEndpoint({
     handler: async (req) => {
       const route = getSkillRequestPath(req)
 
       try {
-        const docsSet = await findDocsSetByRoutePrefix({
-          collectionSlug: docsSetsCollectionSlug,
-          docsGroupsCollectionSlug,
-          includeProductRoute: true,
-          payload: req.payload as unknown as DocsSetPayloadOperations,
-          route,
-        })
-
-        if (!docsSet) {
-          return notFoundResponse()
-        }
-
-        const skillRouteBase =
-          docsSet.routeMode === 'product-nested' ? docsSet.productRoute : docsSet.routeBase
-        const routeRemainder = getRouteRemainder({
-          route,
-          routeBase: skillRouteBase,
-        })
-
-        if (!routeRemainder?.startsWith('/skills/')) {
-          return notFoundResponse()
-        }
-
         const asset = await resolveAssetByRoute({
           collectionSlug,
           payload: req.payload as unknown as AssetEndpointPayloadOperations,
@@ -514,8 +464,6 @@ export const createDocsAssetsEndpoints = ({
           }),
           createSkillAssetEndpoint({
             collectionSlug: docsAssetsCollectionSlug,
-            docsGroupsCollectionSlug,
-            docsSetsCollectionSlug,
           }),
         ]
       : []),
