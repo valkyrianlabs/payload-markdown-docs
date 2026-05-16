@@ -20,7 +20,7 @@ fast as the code they describe.
 
 ---
 
-[📖 Explore the Docs](https://valkyrianlabs.com/plugins/payload-markdown-docs/docs)
+## [📖 Explore the Docs](https://valkyrianlabs.com/plugins/payload-markdown-docs/docs)
 
 ---
 

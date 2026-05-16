@@ -229,7 +229,7 @@ jobs:
             --source payload-markdown-docs
 
           node ./dist/cli/index.js push \
-            --endpoint "https://valkyrianlabs.com/api/payload-markdown-docs/sync" \
+            --endpoint "https://valkyrianlabs.com/api/documentation/sync" \
             --source payload-markdown-docs \
             --repository "$GITHUB_REPOSITORY" \
             --branch "$GITHUB_REF_NAME" \
