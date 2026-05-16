@@ -89,9 +89,7 @@ const getString = (value: unknown): string | undefined =>
   typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined
 
 const getRouteMode = (value: unknown): DocsSetRouteMode =>
-  value === 'product-nested' || value === 'docs-root'
-    ? value
-    : DEFAULT_DOCS_SET_ROUTE_MODE
+  value === 'product-nested' || value === 'docs-root' ? value : DEFAULT_DOCS_SET_ROUTE_MODE
 
 const getGroupPageMode = (doc: Record<string, unknown>): 'auto' | 'custom' => {
   if (doc.pageMode === 'custom') {
@@ -146,20 +144,16 @@ export const isEd25519AuthEnabled = (
 
 export const updateDocsSetAfterSync = async ({
   collectionSlug,
-  docsCount,
   docsSetId,
   now,
   payload,
   publish,
-  syncRunId,
 }: {
   collectionSlug: string
-  docsCount: number
   docsSetId: PayloadRecordId
   now: Date
   payload: DocsSetPayloadOperations
   publish: boolean
-  syncRunId?: PayloadRecordId
 }): Promise<void> => {
   if (!payload.update) {
     return
@@ -171,10 +165,8 @@ export const updateDocsSetAfterSync = async ({
     data: {
       _status: publish ? 'published' : 'draft',
       sync: {
-        docsCount,
         lastStatus: 'success',
         lastSyncedAt: now.toISOString(),
-        lastSyncRunId: syncRunId,
       },
     },
     draft: !publish,

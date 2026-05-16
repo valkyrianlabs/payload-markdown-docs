@@ -13,10 +13,7 @@ import {
   DEFAULT_DOCS_GROUPS_COLLECTION_SLUG,
   DEFAULT_DOCS_SETS_COLLECTION_SLUG,
 } from '../constants.js'
-import {
-  deriveDocsSetRouteBase,
-  joinRouteSegments,
-} from '../routing/index.js'
+import { deriveDocsSetRouteBase, joinRouteSegments } from '../routing/index.js'
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -83,9 +80,7 @@ const getOverrideSummary = (overrides: RawDocsRecord['overrides']): string[] => 
   return summary
 }
 
-const getDocStatus = (
-  doc: RawDocsRecord,
-): DocsSetManagerDocItem['status'] => {
+const getDocStatus = (doc: RawDocsRecord): DocsSetManagerDocItem['status'] => {
   if (doc.sync?.archived === true) {
     return 'archived'
   }
@@ -177,10 +172,7 @@ const titleCaseSegment = (segment: string): string =>
     .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
     .join(' ')
 
-const compareDocItems = (
-  first: DocsSetManagerDocItem,
-  second: DocsSetManagerDocItem,
-): number => {
+const compareDocItems = (first: DocsSetManagerDocItem, second: DocsSetManagerDocItem): number => {
   if (first.order !== second.order) {
     return first.order - second.order
   }
@@ -203,9 +195,7 @@ const getOrCreateFolder = ({
   segment: string
   sourcePath: string
 }): DocsSetManagerDocItem => {
-  const existing = items.find(
-    (item) => item.kind === 'folder' && item.sourcePath === sourcePath,
-  )
+  const existing = items.find((item) => item.kind === 'folder' && item.sourcePath === sourcePath)
 
   if (existing) {
     existing.order = Math.min(existing.order, order)
@@ -286,9 +276,7 @@ const toDocItem = ({
 }): DocsSetManagerDocItem => {
   const id = getRecordId(doc) ?? `unknown-${index}`
   const route = hasText(doc.route) ? doc.route : ''
-  const sourcePath = hasText(doc.sourcePath)
-    ? doc.sourcePath
-    : `missing-source-path-${id}`
+  const sourcePath = hasText(doc.sourcePath) ? doc.sourcePath : `missing-source-path-${id}`
   const title = hasText(doc.title) ? doc.title : sourcePath
   const status = getDocStatus(doc)
   const overrideSummary = getOverrideSummary(doc.overrides)
@@ -395,15 +383,10 @@ export const buildDocsSetManagerData = ({
       hiddenFromNav: sortedDocs.filter((doc) => doc.hiddenFromNav).length,
       published: sortedDocs.filter((doc) => doc.published).length,
       total: sortedDocs.length,
-      withOverrides: sortedDocs.filter((doc) => doc.overrideSummary.length > 0)
-        .length,
+      withOverrides: sortedDocs.filter((doc) => doc.overrideSummary.length > 0).length,
     },
     sync: docsSet.sync
       ? {
-          docsCount:
-            typeof docsSet.sync.docsCount === 'number'
-              ? docsSet.sync.docsCount
-              : undefined,
           lastStatus: docsSet.sync.lastStatus ?? undefined,
           lastSyncedAt: docsSet.sync.lastSyncedAt ?? undefined,
         }
@@ -480,9 +463,7 @@ export const getDocsSetManagerData = async ({
     adminRoute,
     docs,
     docsCollectionSlug,
-    docsGroups: docsGroupsResult.docs
-      .filter(isRecord)
-      .map((group) => group as RawDocsGroupRecord),
+    docsGroups: docsGroupsResult.docs.filter(isRecord).map((group) => group as RawDocsGroupRecord),
     docsSet,
   })
 }

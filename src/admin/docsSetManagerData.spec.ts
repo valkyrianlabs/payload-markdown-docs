@@ -14,7 +14,6 @@ const docsSet = {
   id: 'set-1',
   slug: 'payload-markdown',
   sync: {
-    docsCount: 5,
     lastStatus: 'success' as const,
     lastSyncedAt: '2026-01-01T00:00:00.000Z',
   },
@@ -144,13 +143,13 @@ describe('docs set manager data helpers', () => {
       withOverrides: 1,
     })
     expect(data.sync).toEqual({
-      docsCount: 5,
       lastStatus: 'success',
       lastSyncedAt: '2026-01-01T00:00:00.000Z',
     })
-    expect(
-      data.docs.find((item) => item.id === 'doc-1')?.overrideSummary,
-    ).toEqual(['Nav title override', 'Hidden from nav'])
+    expect(data.docs.find((item) => item.id === 'doc-1')?.overrideSummary).toEqual([
+      'Nav title override',
+      'Hidden from nav',
+    ])
   })
 
   it('sorts docs deterministically and builds a source path tree', () => {

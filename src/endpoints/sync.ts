@@ -270,11 +270,7 @@ const errorResponse = (
   )
 
 const docsAssetsStorageUnavailableResponse = (): Response =>
-  errorResponse(
-    'assets_storage_unavailable',
-    DOCS_ASSETS_STORAGE_UNAVAILABLE_MESSAGE,
-    500,
-  )
+  errorResponse('assets_storage_unavailable', DOCS_ASSETS_STORAGE_UNAVAILABLE_MESSAGE, 500)
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -1489,12 +1485,10 @@ const createSyncEndpointHandler =
         if (sourceResolution.source.docsSet) {
           await updateDocsSetAfterSync({
             collectionSlug: options.docsSetsCollectionSlug,
-            docsCount: validation.data.files.length,
             docsSetId: sourceResolution.source.docsSet.id,
             now: options.getNow?.() ?? new Date(),
             payload: req.payload as unknown as DocsSetPayloadOperations,
             publish: validation.data.publish,
-            syncRunId,
           })
         }
 

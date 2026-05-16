@@ -4,7 +4,6 @@ export type RawDocsSetRecord = {
   routeMode?: 'docs-root' | 'product-nested'
   slug?: string
   sync?: {
-    docsCount?: null | number
     lastStatus?: 'failed' | 'pending' | 'success' | null
     lastSyncedAt?: null | string
   }
@@ -45,11 +44,7 @@ export type DocsSetManagerWarning = {
   sourcePath?: string
 }
 
-export type DocsSetManagerDocStatus =
-  | 'archived'
-  | 'draft'
-  | 'published'
-  | 'synced'
+export type DocsSetManagerDocStatus = 'archived' | 'draft' | 'published' | 'synced'
 
 export type DocsSetManagerDocItem = {
   adminURL?: string
@@ -85,7 +80,6 @@ export type DocsSetManagerData = {
     withOverrides: number
   }
   sync?: {
-    docsCount?: number
     lastStatus?: 'failed' | 'pending' | 'success'
     lastSyncedAt?: string
   }

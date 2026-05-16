@@ -6,9 +6,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'vitest'
 
 import type { PayloadMarkdownDocsConfig } from '../dist'
 
-import {
-  payloadMarkdownDocs,
-} from '../dist'
+import { payloadMarkdownDocs } from '../dist'
 import {
   DEFAULT_DOCS_COLLECTION_SLUG,
   DEFAULT_DOCS_GROUPS_COLLECTION_SLUG,
@@ -28,10 +26,15 @@ type NamedField = {
       Field?: string
     }
     custom?: Record<string, unknown>
+    position?: string
   }
   fields?: NamedField[]
   name?: string
   relationTo?: string | string[]
+  tabs?: Array<{
+    fields?: NamedField[]
+    label?: string
+  }>
   type?: string
 }
 
@@ -41,10 +44,7 @@ const payloadMarkdownDocsSync =
     payloadMarkdownDocs(pluginConfig)(incomingConfig) as Config
 
 const isNamedField = (field: unknown, fieldName: string): field is NamedField =>
-  typeof field === 'object' &&
-  field !== null &&
-  'name' in field &&
-  field.name === fieldName
+  typeof field === 'object' && field !== null && 'name' in field && field.name === fieldName
 
 const getCollection = (
   configToSearch: { collections?: ReadonlyArray<{ slug: string }> } | undefined,
@@ -55,13 +55,31 @@ const getCollection = (
     | undefined
 
 const getField = (collection: CollectionConfig | undefined, fieldName: string) =>
-  collection?.fields.find((field) => isNamedField(field, fieldName)) as NamedField | undefined
+  getNamedFields(collection?.fields).find((field) => isNamedField(field, fieldName))
+
+const getNamedFields = (
+  fields: CollectionConfig['fields'] | NamedField[] | undefined,
+): NamedField[] =>
+  (fields ?? []).flatMap((field) => {
+    const namedField = field as NamedField
+    const childFields = [
+      ...getNamedFields(namedField.fields),
+      ...(namedField.tabs ?? []).flatMap((tab) => getNamedFields(tab.fields)),
+    ]
+
+    return [namedField, ...childFields]
+  })
 
 const getGroupField = (collection: CollectionConfig | undefined, fieldName: string) => {
   const field = getField(collection, fieldName)
 
   return field?.type === 'group' ? field : undefined
 }
+
+const getTabsField = (collection: CollectionConfig | undefined) =>
+  collection?.fields.find((field) => (field as NamedField).type === 'tabs') as
+    | NamedField
+    | undefined
 
 const hasValidPostgresUrl = (): boolean => {
   if (process.env.PAYLOAD_MARKDOWN_DOCS_RUN_DB_TESTS !== '1') {
@@ -369,6 +387,11 @@ describe('payloadMarkdownDocs collection wiring', () => {
     expect(getField(docsGroupsCollection, 'parent')?.relationTo).toBe(
       DEFAULT_DOCS_GROUPS_COLLECTION_SLUG,
     )
+    expect(getField(docsGroupsCollection, 'slug')?.admin?.position).toBe('sidebar')
+    expect(getField(docsGroupsCollection, 'parent')?.admin?.position).toBe('sidebar')
+    expect(getField(docsGroupsCollection, 'navTitle')?.admin?.position).toBe('sidebar')
+    expect(getField(docsGroupsCollection, 'order')?.admin?.position).toBe('sidebar')
+    expect(getField(docsGroupsCollection, 'pageMode')?.admin?.position).toBe('sidebar')
     expect(getField(docsGroupsCollection, 'routePath')).toBeUndefined()
     expect(getField(docsGroupsCollection, 'serveIndex')).toBeUndefined()
     expect(docsGroupsCollection?.admin?.group).toBe(DOCS_GLOBALS_ADMIN_GROUP)
@@ -382,9 +405,16 @@ describe('payloadMarkdownDocs collection wiring', () => {
     const advancedSecurityField = getGroupField(docsSetsCollection, 'advancedSecurity')
     const openGraphField = getGroupField(docsSetsCollection, 'openGraph')
     const syncField = getGroupField(docsSetsCollection, 'sync')
+    const tabsField = getTabsField(docsSetsCollection)
 
     expect(getField(docsSetsCollection, 'title')?.type).toBe('text')
     expect(getField(docsSetsCollection, 'slug')?.type).toBe('text')
+    expect(tabsField?.tabs?.map((tab) => tab.label)).toEqual([
+      'Info / Content',
+      'SEO / OpenGraph',
+      'Security',
+      'Sync / Generated Docs',
+    ])
     expect(getField(docsSetsCollection, 'sourceId')).toBeUndefined()
     expect(getField(docsSetsCollection, 'sourceRoot')).toBeUndefined()
     expect(getField(docsSetsCollection, 'group')?.relationTo).toBe(
@@ -392,6 +422,11 @@ describe('payloadMarkdownDocs collection wiring', () => {
     )
     expect(getField(docsSetsCollection, 'branch')?.type).toBe('text')
     expect(getField(docsSetsCollection, 'allowPullRequests')?.type).toBe('checkbox')
+    expect(getField(docsSetsCollection, 'slug')?.admin?.position).toBe('sidebar')
+    expect(getField(docsSetsCollection, 'group')?.admin?.position).toBe('sidebar')
+    expect(getField(docsSetsCollection, 'routeMode')?.admin?.position).toBe('sidebar')
+    expect(getField(docsSetsCollection, 'branch')?.admin?.position).toBe('sidebar')
+    expect(getField(docsSetsCollection, 'allowPullRequests')?.admin?.position).toBe('sidebar')
     expect(getField(docsSetsCollection, 'routeBase')).toBeUndefined()
     expect(openGraphField?.fields?.map((field) => field.name)).toEqual([
       'title',
@@ -418,12 +453,7 @@ describe('payloadMarkdownDocs collection wiring', () => {
       'enabled',
       'allowedWorkflowRefs',
     ])
-    expect(syncField?.fields?.map((field) => field.name)).toEqual([
-      'lastSyncedAt',
-      'lastSyncRunId',
-      'lastStatus',
-      'docsCount',
-    ])
+    expect(syncField?.fields?.map((field) => field.name)).toEqual(['lastSyncedAt', 'lastStatus'])
     expect(getField(docsSetsCollection, 'docsSetManager')).toMatchObject({
       type: 'ui',
       admin: {

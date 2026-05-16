@@ -24,12 +24,18 @@ export const createDocsGroupsCollection = ({
     {
       name: 'slug',
       type: 'text',
+      admin: {
+        position: 'sidebar',
+      },
       index: true,
       required: true,
     },
     {
       name: 'parent',
       type: 'relationship',
+      admin: {
+        position: 'sidebar',
+      },
       relationTo: slug,
     },
     {
@@ -39,10 +45,16 @@ export const createDocsGroupsCollection = ({
     {
       name: 'navTitle',
       type: 'text',
+      admin: {
+        position: 'sidebar',
+      },
     },
     {
       name: 'order',
       type: 'number',
+      admin: {
+        position: 'sidebar',
+      },
       defaultValue: 0,
     },
     {
@@ -51,6 +63,7 @@ export const createDocsGroupsCollection = ({
       admin: {
         description:
           'auto generates a docs group landing page. custom lets the site own this group route.',
+        position: 'sidebar',
       },
       defaultValue: 'auto',
       options: [

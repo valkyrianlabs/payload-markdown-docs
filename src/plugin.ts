@@ -268,7 +268,6 @@ export const payloadMarkdownDocs =
               docsCollectionSlug: docsEnabled ? docsCollectionSlug : undefined,
               docsGroupsCollectionSlug,
               openGraphMediaCollectionSlugs: resolveOpenGraphMediaCollectionSlugs(pluginOptions),
-              syncRunsCollectionSlug: syncRunsEnabled ? syncRunsCollectionSlug : undefined,
             }),
           ]
         : []),
