@@ -23,4 +23,4 @@ export const DEFAULT_MAX_SKEW_SECONDS = 300
 export const DEFAULT_NONCE_TTL_SECONDS = 600
 export const DEFAULT_GITHUB_OIDC_ISSUER = 'https://token.actions.githubusercontent.com'
 export const MANAGED_BY = 'payload-markdown-docs'
-export const DOCS_GLOBALS_ADMIN_GROUP = 'Docs Globals'
+export const DOCS_GLOBALS_ADMIN_GROUP = 'Documentation'

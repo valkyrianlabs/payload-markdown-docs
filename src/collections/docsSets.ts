@@ -111,13 +111,13 @@ export const createDocsSetsCollection = ({
               type: 'textarea',
             },
           ],
-          label: 'Info / Content',
+          label: 'Content',
         },
         ...(seoEnabled
           ? [
               {
                 fields: [createSEOField(seoUploadCollectionSlug)],
-                label: 'SEO / OpenGraph',
+                label: 'SEO',
               },
             ]
           : []),
@@ -215,7 +215,7 @@ export const createDocsSetsCollection = ({
                 ]
               : []),
           ],
-          label: 'Sync / Generated Docs',
+          label: 'Sync',
         },
       ],
     },
