@@ -221,13 +221,13 @@ payloadMarkdownDocs({
 
 ## Endpoint
 
-The sync endpoint defaults to `/api/payload-markdown-docs/sync` because Payload
+The sync endpoint defaults to `/api/documentation/sync` because Payload
 mounts plugin endpoints under `/api`.
 
 ```ts
 payloadMarkdownDocs({
   endpoint: {
-    path: '/payload-markdown-docs/sync',
+    path: '/documentation/sync',
     maxBodyBytes: 5_000_000,
   },
 })

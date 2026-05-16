@@ -55,7 +55,7 @@ payloadMarkdownDocs({
 The default endpoint is exposed at:
 
 ```text
-/api/payload-markdown-docs/sync
+/api/documentation/sync
 ```
 
 By default, the plugin adds Sets, Groups, Keys, and Trusted collections under

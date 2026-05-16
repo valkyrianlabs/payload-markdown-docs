@@ -142,7 +142,7 @@ describe('parseCliArgs', () => {
       'push',
       './docs',
       '--endpoint',
-      'https://example.com/api/payload-markdown-docs/sync',
+      'https://example.com/api/documentation/sync',
       '--key-id',
       'github-actions-main',
       '--private-key-file',
@@ -153,7 +153,7 @@ describe('parseCliArgs', () => {
       args: {
         command: 'push',
         flags: {
-          endpoint: 'https://example.com/api/payload-markdown-docs/sync',
+          endpoint: 'https://example.com/api/documentation/sync',
           'key-id': 'github-actions-main',
           'private-key-file': '.docs-sync/docs-sync-private.pem',
         },
@@ -420,7 +420,7 @@ describe('plan command', () => {
 })
 
 describe('push command', () => {
-  const endpoint = 'https://example.com/api/payload-markdown-docs/sync'
+  const endpoint = 'https://example.com/api/documentation/sync'
 
   const pushArgs = async (
     root: string,

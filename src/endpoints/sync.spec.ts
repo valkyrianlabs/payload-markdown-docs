@@ -247,7 +247,7 @@ const signBody = ({
   body,
   keyId = 'test-key',
   nonce = 'nonce-1',
-  path = '/api/payload-markdown-docs/sync',
+  path = '/api/documentation/sync',
   privateKey,
   timestamp = now.toISOString(),
 }: {
@@ -342,7 +342,7 @@ const createRequest = ({
   headers,
   method = 'POST',
   payload = createMockPayload(),
-  url = 'https://example.test/api/payload-markdown-docs/sync',
+  url = 'https://example.test/api/documentation/sync',
 }: {
   body?: string
   headers?: Headers
@@ -2524,8 +2524,8 @@ describe('sync endpoint dry-run handling', () => {
     expect(
       getCanonicalPathFromRequestUrl({
         endpointPath: DEFAULT_DOCS_SYNC_ENDPOINT_PATH,
-        url: 'https://example.test/api/payload-markdown-docs/sync',
+        url: 'https://example.test/api/documentation/sync',
       }),
-    ).toBe('/api/payload-markdown-docs/sync')
+    ).toBe('/api/documentation/sync')
   })
 })

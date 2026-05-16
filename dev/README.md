@@ -97,7 +97,7 @@ Dry-run against the local endpoint:
 
 ```bash
 pnpm cli push ./dev/docs-fixtures/basic \
-  --endpoint "http://localhost:3000/api/payload-markdown-docs/sync" \
+  --endpoint "http://localhost:3000/api/documentation/sync" \
   --source payload-markdown-docs \
   --key-id dev-local \
   --private-key-file dev/.docs-sync/docs-sync-private.pem \
@@ -108,7 +108,7 @@ Apply as draft records:
 
 ```bash
 pnpm cli push ./dev/docs-fixtures/basic \
-  --endpoint "http://localhost:3000/api/payload-markdown-docs/sync" \
+  --endpoint "http://localhost:3000/api/documentation/sync" \
   --source payload-markdown-docs \
   --key-id dev-local \
   --private-key-file dev/.docs-sync/docs-sync-private.pem
@@ -118,7 +118,7 @@ Apply and publish:
 
 ```bash
 pnpm cli push ./dev/docs-fixtures/publishing \
-  --endpoint "http://localhost:3000/api/payload-markdown-docs/sync" \
+  --endpoint "http://localhost:3000/api/documentation/sync" \
   --source payload-markdown-docs \
   --key-id dev-local \
   --private-key-file dev/.docs-sync/docs-sync-private.pem \

@@ -63,7 +63,7 @@ describe('dev harness docs and scripts', () => {
       'push',
       './dev/docs-fixtures/basic',
       '--endpoint',
-      'http://localhost:3000/api/payload-markdown-docs/sync',
+      'http://localhost:3000/api/documentation/sync',
       '--source',
       sourceId,
       '--key-id',
@@ -77,7 +77,7 @@ describe('dev harness docs and scripts', () => {
     expect(readme).toContain(`--source ${sourceId}`)
     expect(readme).not.toContain('--root docs')
     expect(readme).toContain(
-      '--endpoint "http://localhost:3000/api/payload-markdown-docs/sync"',
+      '--endpoint "http://localhost:3000/api/documentation/sync"',
     )
     expect(readme).toContain('--private-key-file dev/.docs-sync/docs-sync-private.pem')
     expect(readme).toContain('Use `pnpm cli` here to run the source CLI.')

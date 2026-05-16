@@ -147,7 +147,7 @@ describe('payloadMarkdownDocs collection wiring', () => {
     expect(transformedConfig.endpoints).toContainEqual(
       expect.objectContaining({
         method: 'post',
-        path: '/payload-markdown-docs/sync',
+        path: '/documentation/sync',
       }),
     )
   })
@@ -419,10 +419,10 @@ describe('payloadMarkdownDocs collection wiring', () => {
     expect(getField(docsSetsCollection, 'title')?.type).toBe('text')
     expect(getField(docsSetsCollection, 'slug')?.type).toBe('text')
     expect(tabsField?.tabs?.map((tab) => tab.label)).toEqual([
-      'Info / Content',
-      'SEO / OpenGraph',
+      'Content',
+      'SEO',
       'Security',
-      'Sync / Generated Docs',
+      'Sync',
     ])
     expect(getField(docsSetsCollection, 'sourceId')).toBeUndefined()
     expect(getField(docsSetsCollection, 'sourceRoot')).toBeUndefined()
@@ -487,9 +487,9 @@ describe('payloadMarkdownDocs collection wiring', () => {
 
     expect(getGroupField(docsSetsCollection, 'meta')).toBeUndefined()
     expect(tabsField?.tabs?.map((tab) => tab.label)).toEqual([
-      'Info / Content',
+      'Content',
       'Security',
-      'Sync / Generated Docs',
+      'Sync',
     ])
   })
 
@@ -633,7 +633,7 @@ describeWithPostgres('payloadMarkdownDocs dev app integration', () => {
     expect(payload?.config.endpoints).toContainEqual(
       expect.objectContaining({
         method: 'post',
-        path: '/payload-markdown-docs/sync',
+        path: '/documentation/sync',
       }),
     )
     expect(payload?.config.endpoints).not.toContainEqual(

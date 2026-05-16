@@ -49,7 +49,7 @@ host app can own the product route:
 /plugins/payload-markdown-docs/docs
 ```
 
-## SEO / OpenGraph
+## SEO
 
 The `meta` group uses `@payloadcms/plugin-seo` field components for standard
 social preview metadata:

@@ -183,7 +183,7 @@ This adds the `Docs Globals` admin collections:
 The sync endpoint is:
 
 ```txt
-/api/payload-markdown-docs/sync
+/api/documentation/sync
 ```
 
 The sync endpoint is an implementation endpoint. Public raw AI asset URLs such
