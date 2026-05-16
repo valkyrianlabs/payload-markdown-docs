@@ -329,13 +329,13 @@ describe('Payload Markdown Docs route adapter', () => {
     expect(resolved?.type === 'docsSetIndex' ? resolved.doc : undefined).toBeUndefined()
   })
 
-  it('normalizes docs set OpenGraph metadata on resolved routes', async () => {
+  it('normalizes docs set SEO metadata on resolved routes', async () => {
     const payload = createPayloadMock({
       docs: [],
       docsSets: [
         {
           ...docsSet,
-          openGraph: {
+          meta: {
             description: 'Social description.',
             image: {
               relationTo: 'media',

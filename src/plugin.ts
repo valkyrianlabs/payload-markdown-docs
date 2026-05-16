@@ -80,22 +80,6 @@ const resolveHeroImageMediaCollectionSlugs = (
   ]
 }
 
-const resolveOpenGraphMediaCollectionSlugs = (
-  pluginOptions: PayloadMarkdownDocsConfig,
-): string[] => {
-  const additionalMediaCollections =
-    typeof pluginOptions.target?.heroImage === 'object'
-      ? (pluginOptions.target.heroImage.additionalMediaCollections ?? [])
-      : []
-
-  return [
-    ...new Set([
-      DEFAULT_MEDIA_COLLECTION_SLUG,
-      ...additionalMediaCollections.map((slug) => slug.trim()).filter(Boolean),
-    ]),
-  ]
-}
-
 const resolveCollectionOptions = (
   pluginOptions: PayloadMarkdownDocsConfig,
 ): ResolvedCollectionOptions => {
@@ -267,7 +251,8 @@ export const payloadMarkdownDocs =
               slug: docsSetsCollectionSlug,
               docsCollectionSlug: docsEnabled ? docsCollectionSlug : undefined,
               docsGroupsCollectionSlug,
-              openGraphMediaCollectionSlugs: resolveOpenGraphMediaCollectionSlugs(pluginOptions),
+              seoEnabled: pluginOptions.seo !== false,
+              seoUploadCollectionSlug: DEFAULT_MEDIA_COLLECTION_SLUG,
             }),
           ]
         : []),

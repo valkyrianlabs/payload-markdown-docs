@@ -1,6 +1,6 @@
 {
   "name": "@valkyrianlabs/payload-markdown-docs",
-  "version": "0.12.4",
+  "version": "0.12.5",
   "description": "Git-backed Markdown documentation sync for Payload CMS, powered by payload-markdown.",
   "bin": {
     "payload-markdown-docs": "./dist/cli/index.js"
@@ -131,6 +131,7 @@
   },
   "registry": "https://registry.npmjs.org/",
   "dependencies": {
+    "@payloadcms/plugin-seo": "latest",
     "@valkyrianlabs/payload-markdown": "latest"
   },
   "packageManager": "pnpm@10.33.0"

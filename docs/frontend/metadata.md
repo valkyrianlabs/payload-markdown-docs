@@ -24,21 +24,19 @@ const resolved = await resolvePayloadMarkdownDocsRoute({
   slug,
 })
 
-const metadata = resolved
-  ? getPayloadMarkdownDocsMetadata(resolved)
-  : {}
+const metadata = resolved ? getPayloadMarkdownDocsMetadata(resolved) : {}
 ```
 
 Metadata returns root `title` / `description` plus OpenGraph and Twitter fields
 when values are available. It uses:
 
 - doc title and description
-- docs set `openGraph.title`, `openGraph.description`, and `openGraph.image`
+- docs set `meta.title`, `meta.description`, and `meta.image`
 - docs set nav title, title, and description
 - docs group title and description
 
 Docs pages inherit the docs set OpenGraph image unless the resolved doc has a
-hero image. Doc title and description override docs set OpenGraph title and
+hero image. Doc title and description override docs set SEO title and
 description. Twitter metadata uses `summary_large_image` when an image is
 available.
 

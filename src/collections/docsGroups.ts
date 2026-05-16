@@ -1,5 +1,7 @@
 import type { CollectionConfig } from 'payload'
 
+import { slugField } from 'payload'
+
 import { DOCS_GLOBALS_ADMIN_GROUP } from '../constants.js'
 
 export type CreateDocsGroupsCollectionOptions = {
@@ -21,15 +23,7 @@ export const createDocsGroupsCollection = ({
       type: 'text',
       required: true,
     },
-    {
-      name: 'slug',
-      type: 'text',
-      admin: {
-        position: 'sidebar',
-      },
-      index: true,
-      required: true,
-    },
+    slugField(),
     {
       name: 'parent',
       type: 'relationship',

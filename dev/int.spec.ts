@@ -29,6 +29,7 @@ type NamedField = {
     position?: string
   }
   fields?: NamedField[]
+  label?: string
   name?: string
   relationTo?: string | string[]
   tabs?: Array<{
@@ -75,6 +76,11 @@ const getGroupField = (collection: CollectionConfig | undefined, fieldName: stri
 
   return field?.type === 'group' ? field : undefined
 }
+
+const getTopLevelFieldContaining = (collection: CollectionConfig | undefined, fieldName: string) =>
+  collection?.fields.find((field) =>
+    (field as NamedField).fields?.some((child) => isNamedField(child, fieldName)),
+  ) as NamedField | undefined
 
 const getTabsField = (collection: CollectionConfig | undefined) =>
   collection?.fields.find((field) => (field as NamedField).type === 'tabs') as
@@ -387,7 +393,10 @@ describe('payloadMarkdownDocs collection wiring', () => {
     expect(getField(docsGroupsCollection, 'parent')?.relationTo).toBe(
       DEFAULT_DOCS_GROUPS_COLLECTION_SLUG,
     )
-    expect(getField(docsGroupsCollection, 'slug')?.admin?.position).toBe('sidebar')
+    expect(getField(docsGroupsCollection, 'generateSlug')?.type).toBe('checkbox')
+    expect(getTopLevelFieldContaining(docsGroupsCollection, 'slug')?.admin?.position).toBe(
+      'sidebar',
+    )
     expect(getField(docsGroupsCollection, 'parent')?.admin?.position).toBe('sidebar')
     expect(getField(docsGroupsCollection, 'navTitle')?.admin?.position).toBe('sidebar')
     expect(getField(docsGroupsCollection, 'order')?.admin?.position).toBe('sidebar')
@@ -403,7 +412,7 @@ describe('payloadMarkdownDocs collection wiring', () => {
     } as unknown as Config)
     const docsSetsCollection = getCollection(transformedConfig, DEFAULT_DOCS_SETS_COLLECTION_SLUG)
     const advancedSecurityField = getGroupField(docsSetsCollection, 'advancedSecurity')
-    const openGraphField = getGroupField(docsSetsCollection, 'openGraph')
+    const metaField = getGroupField(docsSetsCollection, 'meta')
     const syncField = getGroupField(docsSetsCollection, 'sync')
     const tabsField = getTabsField(docsSetsCollection)
 
@@ -422,18 +431,16 @@ describe('payloadMarkdownDocs collection wiring', () => {
     )
     expect(getField(docsSetsCollection, 'branch')?.type).toBe('text')
     expect(getField(docsSetsCollection, 'allowPullRequests')?.type).toBe('checkbox')
-    expect(getField(docsSetsCollection, 'slug')?.admin?.position).toBe('sidebar')
+    expect(getField(docsSetsCollection, 'generateSlug')?.type).toBe('checkbox')
+    expect(getTopLevelFieldContaining(docsSetsCollection, 'slug')?.admin?.position).toBe('sidebar')
     expect(getField(docsSetsCollection, 'group')?.admin?.position).toBe('sidebar')
     expect(getField(docsSetsCollection, 'routeMode')?.admin?.position).toBe('sidebar')
     expect(getField(docsSetsCollection, 'branch')?.admin?.position).toBe('sidebar')
     expect(getField(docsSetsCollection, 'allowPullRequests')?.admin?.position).toBe('sidebar')
     expect(getField(docsSetsCollection, 'routeBase')).toBeUndefined()
-    expect(openGraphField?.fields?.map((field) => field.name)).toEqual([
-      'title',
-      'description',
-      'image',
-    ])
-    expect(openGraphField?.fields?.find((field) => field.name === 'image')).toMatchObject({
+    expect(metaField?.label).toBe('SEO')
+    expect(metaField?.fields?.map((field) => field.name)).toEqual(['title', 'description', 'image'])
+    expect(metaField?.fields?.find((field) => field.name === 'image')).toMatchObject({
       type: 'upload',
       relationTo: 'media',
     })
@@ -466,6 +473,24 @@ describe('payloadMarkdownDocs collection wiring', () => {
         },
       },
     })
+  })
+
+  test('docs sets SEO fields can be disabled', () => {
+    const transformedConfig = payloadMarkdownDocsSync({
+      enabled: true,
+      seo: false,
+    })({
+      collections: [],
+    } as unknown as Config)
+    const docsSetsCollection = getCollection(transformedConfig, DEFAULT_DOCS_SETS_COLLECTION_SLUG)
+    const tabsField = getTabsField(docsSetsCollection)
+
+    expect(getGroupField(docsSetsCollection, 'meta')).toBeUndefined()
+    expect(tabsField?.tabs?.map((tab) => tab.label)).toEqual([
+      'Info / Content',
+      'Security',
+      'Sync / Generated Docs',
+    ])
   })
 
   test('docs set manager respects custom docs and docs set slugs', () => {

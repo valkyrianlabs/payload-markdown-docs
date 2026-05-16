@@ -25,7 +25,7 @@ For a typical docs set, configure:
 - `branch`, default `main`
 - `allowPullRequests`, default off
 - `description`, optional
-- `openGraph`, optional social preview metadata
+- `meta`, optional SEO/social preview metadata
 
 The `slug` is also the manifest source and the GitHub OIDC audience. The
 route base is derived from the optional group route plus the set slug.
@@ -49,17 +49,21 @@ host app can own the product route:
 /plugins/payload-markdown-docs/docs
 ```
 
-## OpenGraph Preview
+## SEO / OpenGraph
 
-The `openGraph` group stores standard social preview metadata:
+The `meta` group uses `@payloadcms/plugin-seo` field components for standard
+social preview metadata:
 
 - `title`
 - `description`
 - `image`
 
-The image uses the configured/default Payload media collection. OpenGraph data
-feeds metadata helpers only; it does not render a hero or banner in
+The image uses the default Payload `media` collection. SEO data feeds metadata
+helpers only; it does not render a hero or banner in
 `PayloadMarkdownDocsPage`.
+
+SEO fields are enabled by default. Set `seo: false` in `payloadMarkdownDocs()`
+to omit them.
 
 ## Advanced Security
 
@@ -76,7 +80,7 @@ add the exact release workflow refs.
 
 ## Sync Metadata
 
-The `sync` group stores last sync status and counts. The Docs Set Admin Manager
-uses this metadata for the generated docs overview.
+The `sync` group stores `lastSyncedAt` and `lastStatus`. The Docs Set Admin
+Manager computes generated docs counts directly from linked generated records.
 
 See [Docs Set Admin Manager](/admin/docs-set-manager).

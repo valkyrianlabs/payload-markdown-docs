@@ -62,6 +62,7 @@ export default buildConfig({
 - `routing` configures route collision checks.
 - `collections` customizes infrastructure collection slugs.
 - `blocks` optionally installs docs marketing blocks into existing layout block fields.
+- `seo` controls docs set SEO fields. It defaults to `true`; set `false` to omit them.
 
 GitHub trust belongs in `Docs Globals > Trusted`. Ed25519 public keys belong in
 `Docs Globals > Keys`. Docs packages belong in `Docs Globals > Sets`.
@@ -197,6 +198,26 @@ payloadMarkdownDocs({
 ```
 
 Set `target.heroImage: false` to omit the field.
+
+## SEO Fields
+
+Docs sets include a `meta` group by default, powered by
+`@payloadcms/plugin-seo` field components:
+
+```ts
+payloadMarkdownDocs({
+  seo: true,
+})
+```
+
+Set `seo: false` when an app wants to manage docs set metadata outside this
+plugin:
+
+```ts
+payloadMarkdownDocs({
+  seo: false,
+})
+```
 
 ## Endpoint
 

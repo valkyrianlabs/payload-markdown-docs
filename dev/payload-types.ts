@@ -73,6 +73,7 @@ export interface Config {
     'docs-sets': DocsSet;
     'docs-keys': DocsKey;
     'docs-trusted': DocsTrusted;
+    'payload-markdown-docs-assets': PayloadMarkdownDocsAsset;
     docs: Doc;
     'docs-sync-runs': DocsSyncRun;
     'docs-sync-nonces': DocsSyncNonce;
@@ -90,6 +91,7 @@ export interface Config {
     'docs-sets': DocsSetsSelect<false> | DocsSetsSelect<true>;
     'docs-keys': DocsKeysSelect<false> | DocsKeysSelect<true>;
     'docs-trusted': DocsTrustedSelect<false> | DocsTrustedSelect<true>;
+    'payload-markdown-docs-assets': PayloadMarkdownDocsAssetsSelect<false> | PayloadMarkdownDocsAssetsSelect<true>;
     docs: DocsSelect<false> | DocsSelect<true>;
     'docs-sync-runs': DocsSyncRunsSelect<false> | DocsSyncRunsSelect<true>;
     'docs-sync-nonces': DocsSyncNoncesSelect<false> | DocsSyncNoncesSelect<true>;
@@ -171,6 +173,10 @@ export interface Media {
 export interface DocsGroup {
   id: number;
   title: string;
+  /**
+   * When enabled, the slug will auto-generate from the title field on save and autosave.
+   */
+  generateSlug?: boolean | null;
   slug: string;
   parent?: (number | null) | DocsGroup;
   description?: string | null;
@@ -189,9 +195,15 @@ export interface DocsGroup {
  */
 export interface DocsSet {
   id: number;
-  title: string;
+  /**
+   * When enabled, the slug will auto-generate from the title field on save and autosave.
+   */
+  generateSlug?: boolean | null;
   slug: string;
   group?: (number | null) | DocsGroup;
+  /**
+   * docs-root serves docs at the docs set route. product-nested serves docs under /docs so the parent route can be used as a product page.
+   */
   routeMode?: ('docs-root' | 'product-nested') | null;
   /**
    * Git branch allowed to publish this docs set. The full Git ref is handled internally.
@@ -201,19 +213,17 @@ export interface DocsSet {
    * Allow GitHub pull request events to dry-run or publish this docs set.
    */
   allowPullRequests?: boolean | null;
+  publishedAt?: string | null;
+  title: string;
   description?: string | null;
-  /**
-   * Social preview metadata for this docs set.
-   */
-  openGraph?: {
+  meta?: {
     title?: string | null;
     description?: string | null;
     /**
-     * Social preview image used for OpenGraph and Twitter cards.
+     * Maximum upload file size: 12MB. Recommended file size for images is <500KB.
      */
     image?: (number | null) | Media;
   };
-  publishedAt?: string | null;
   /**
    * Optional workflow lock-down. Leave disabled to allow any workflow from a trusted GitHub owner/repository and branch.
    */
@@ -232,60 +242,16 @@ export interface DocsSet {
         }[]
       | null;
   };
+  /**
+   * Latest successful docs set sync status.
+   */
   sync?: {
     lastSyncedAt?: string | null;
-    lastSyncRunId?: (number | null) | DocsSyncRun;
     lastStatus?: ('failed' | 'pending' | 'success') | null;
-    docsCount?: number | null;
   };
   updatedAt: string;
   createdAt: string;
   _status?: ('draft' | 'published') | null;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "docs-sync-runs".
- */
-export interface DocsSyncRun {
-  id: number;
-  sourceId: string;
-  repository?: string | null;
-  branch?: string | null;
-  commit?: string | null;
-  actor?: string | null;
-  keyId?: string | null;
-  mode: 'dry-run' | 'sync';
-  status: 'pending' | 'success' | 'failed';
-  publishRequested?: boolean | null;
-  deleteBehavior?: ('archive' | 'delete' | 'draft' | 'ignore') | null;
-  bodyHash?: string | null;
-  fileCount?: number | null;
-  totalBytes?: number | null;
-  summary?:
-    | {
-        [k: string]: unknown;
-      }
-    | unknown[]
-    | string
-    | number
-    | boolean
-    | null;
-  warnings?:
-    | {
-        message?: string | null;
-        id?: string | null;
-      }[]
-    | null;
-  errors?:
-    | {
-        message?: string | null;
-        id?: string | null;
-      }[]
-    | null;
-  startedAt: string;
-  completedAt?: string | null;
-  updatedAt: string;
-  createdAt: string;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -334,6 +300,79 @@ export interface DocsTrusted {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "payload-markdown-docs-assets".
+ */
+export interface PayloadMarkdownDocsAsset {
+  id: number;
+  sourceId: string;
+  docsSet?: (number | null) | DocsSet;
+  kind: 'llms' | 'llms-full' | 'skill' | 'static';
+  sourcePath: string;
+  route?: string | null;
+  contentType: string;
+  content: string;
+  sourceHash?: string | null;
+  sync?: {
+    sourceId?: string | null;
+    sourcePath?: string | null;
+    sourceHashAtLastSync?: string | null;
+    contentHashAtLastSync?: string | null;
+    lastSyncedAt?: string | null;
+    lastSyncRunId?: (number | null) | DocsSyncRun;
+    managedBy?: string | null;
+    archived?: boolean | null;
+    archivedAt?: string | null;
+  };
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "docs-sync-runs".
+ */
+export interface DocsSyncRun {
+  id: number;
+  sourceId: string;
+  repository?: string | null;
+  branch?: string | null;
+  commit?: string | null;
+  actor?: string | null;
+  keyId?: string | null;
+  mode: 'dry-run' | 'sync';
+  status: 'pending' | 'success' | 'failed';
+  publishRequested?: boolean | null;
+  deleteBehavior?: ('archive' | 'delete' | 'draft' | 'ignore') | null;
+  bodyHash?: string | null;
+  fileCount?: number | null;
+  totalBytes?: number | null;
+  summary?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  warnings?:
+    | {
+        message?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  errors?:
+    | {
+        message?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  startedAt: string;
+  completedAt?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "docs".
  */
 export interface Doc {
@@ -341,6 +380,18 @@ export interface Doc {
   title: string;
   navTitle?: string | null;
   description?: string | null;
+  /**
+   * Optional fully qualified package names used to link related docs sets in generated AI discovery files.
+   */
+  dependencies?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
   publishedAt?: string | null;
   route: string;
   sourcePath: string;
@@ -463,6 +514,10 @@ export interface PayloadLockedDocument {
         value: number | DocsTrusted;
       } | null)
     | ({
+        relationTo: 'payload-markdown-docs-assets';
+        value: number | PayloadMarkdownDocsAsset;
+      } | null)
+    | ({
         relationTo: 'docs';
         value: number | Doc;
       } | null)
@@ -551,6 +606,7 @@ export interface MediaSelect<T extends boolean = true> {
  */
 export interface DocsGroupsSelect<T extends boolean = true> {
   title?: T;
+  generateSlug?: T;
   slug?: T;
   parent?: T;
   description?: T;
@@ -565,21 +621,22 @@ export interface DocsGroupsSelect<T extends boolean = true> {
  * via the `definition` "docs-sets_select".
  */
 export interface DocsSetsSelect<T extends boolean = true> {
-  title?: T;
+  generateSlug?: T;
   slug?: T;
   group?: T;
   routeMode?: T;
   branch?: T;
   allowPullRequests?: T;
+  publishedAt?: T;
+  title?: T;
   description?: T;
-  openGraph?:
+  meta?:
     | T
     | {
         title?: T;
         description?: T;
         image?: T;
       };
-  publishedAt?: T;
   advancedSecurity?:
     | T
     | {
@@ -595,9 +652,7 @@ export interface DocsSetsSelect<T extends boolean = true> {
     | T
     | {
         lastSyncedAt?: T;
-        lastSyncRunId?: T;
         lastStatus?: T;
-        docsCount?: T;
       };
   updatedAt?: T;
   createdAt?: T;
@@ -633,12 +688,42 @@ export interface DocsTrustedSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "payload-markdown-docs-assets_select".
+ */
+export interface PayloadMarkdownDocsAssetsSelect<T extends boolean = true> {
+  sourceId?: T;
+  docsSet?: T;
+  kind?: T;
+  sourcePath?: T;
+  route?: T;
+  contentType?: T;
+  content?: T;
+  sourceHash?: T;
+  sync?:
+    | T
+    | {
+        sourceId?: T;
+        sourcePath?: T;
+        sourceHashAtLastSync?: T;
+        contentHashAtLastSync?: T;
+        lastSyncedAt?: T;
+        lastSyncRunId?: T;
+        managedBy?: T;
+        archived?: T;
+        archivedAt?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "docs_select".
  */
 export interface DocsSelect<T extends boolean = true> {
   title?: T;
   navTitle?: T;
   description?: T;
+  dependencies?: T;
   publishedAt?: T;
   route?: T;
   sourcePath?: T;

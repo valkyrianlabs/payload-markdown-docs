@@ -1,45 +1,38 @@
 import type { CollectionConfig, Field } from 'payload'
 
+import { MetaDescriptionField, MetaImageField, MetaTitleField } from '@payloadcms/plugin-seo/fields'
+import { slugField } from 'payload'
+
 import { DOCS_GLOBALS_ADMIN_GROUP, DOCS_SET_MANAGER_COMPONENT } from '../constants.js'
 import { populatePublishedAt } from '../payload/populatePublishedAt.js'
 
 export type CreateDocsSetsCollectionOptions = {
   docsCollectionSlug?: string
   docsGroupsCollectionSlug: string
-  openGraphMediaCollectionSlugs: string[]
+  seoEnabled: boolean
+  seoUploadCollectionSlug: string
   slug: string
 }
 
-const createOpenGraphImageField = (relationToSlugs: string[]): Field => {
-  const fieldBase = {
-    name: 'image',
-    type: 'upload' as const,
-    admin: {
-      description: 'Social preview image used for OpenGraph and Twitter cards.',
-    },
-    displayPreview: true,
-    label: 'Image',
-    maxDepth: 1,
-  }
-
-  if (relationToSlugs.length === 1) {
-    return {
-      ...fieldBase,
-      relationTo: relationToSlugs[0] ?? 'media',
-    }
-  }
-
-  return {
-    ...fieldBase,
-    relationTo: relationToSlugs,
-  }
-}
+const createSEOField = (uploadsCollection: string): Field => ({
+  name: 'meta',
+  type: 'group',
+  fields: [
+    MetaTitleField({}),
+    MetaDescriptionField({}),
+    MetaImageField({
+      relationTo: uploadsCollection,
+    }),
+  ],
+  label: 'SEO',
+})
 
 export const createDocsSetsCollection = ({
   slug,
   docsCollectionSlug,
   docsGroupsCollectionSlug,
-  openGraphMediaCollectionSlugs,
+  seoEnabled,
+  seoUploadCollectionSlug,
 }: CreateDocsSetsCollectionOptions): CollectionConfig => ({
   slug,
   admin: {
@@ -48,16 +41,7 @@ export const createDocsSetsCollection = ({
     useAsTitle: 'title',
   },
   fields: [
-    {
-      name: 'slug',
-      type: 'text',
-      admin: {
-        position: 'sidebar',
-      },
-      index: true,
-      required: true,
-      unique: true,
-    },
+    slugField(),
     {
       name: 'group',
       type: 'relationship',
@@ -129,30 +113,14 @@ export const createDocsSetsCollection = ({
           ],
           label: 'Info / Content',
         },
-        {
-          fields: [
-            {
-              name: 'openGraph',
-              type: 'group',
-              admin: {
-                description: 'Social preview metadata for this docs set.',
+        ...(seoEnabled
+          ? [
+              {
+                fields: [createSEOField(seoUploadCollectionSlug)],
+                label: 'SEO / OpenGraph',
               },
-              fields: [
-                {
-                  name: 'title',
-                  type: 'text',
-                },
-                {
-                  name: 'description',
-                  type: 'textarea',
-                },
-                createOpenGraphImageField(openGraphMediaCollectionSlugs),
-              ],
-              label: 'OpenGraph preview',
-            },
-          ],
-          label: 'SEO / OpenGraph',
-        },
+            ]
+          : []),
         {
           fields: [
             {

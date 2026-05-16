@@ -5,6 +5,7 @@ export type PayloadMarkdownDocsConfig = {
   enabled?: boolean
   endpoint?: PayloadMarkdownDocsEndpointConfig
   routing?: PayloadMarkdownDocsRoutingConfig
+  seo?: boolean
   sync?: PayloadMarkdownDocsSyncConfig
   target?: PayloadMarkdownDocsTargetConfig
 }
@@ -35,9 +36,7 @@ export type PayloadMarkdownDocsCollectionConfig = {
 
 export type DocsMarketingBlockKey = 'banner' | 'callout' | 'cta' | 'preview'
 
-export type DocsBlockInstallSelection =
-  | boolean
-  | Partial<Record<DocsMarketingBlockKey, boolean>>
+export type DocsBlockInstallSelection = boolean | Partial<Record<DocsMarketingBlockKey, boolean>>
 
 export type DocsCollectionInstallConfig = boolean | PayloadMarkdownDocsCollectionConfig
 
@@ -50,10 +49,7 @@ export type PayloadMarkdownDocsCollectionsConfig = {
   docsTrusted?: PayloadMarkdownDocsCollectionConfig
   nonces?: PayloadMarkdownDocsCollectionConfig
   syncRuns?: PayloadMarkdownDocsCollectionConfig
-} & Record<
-  string,
-  DocsCollectionInstallConfig | undefined
->
+} & Record<string, DocsCollectionInstallConfig | undefined>
 
 export type PayloadMarkdownDocsPagesRoutingConfig = {
   allowBridgePages?: boolean

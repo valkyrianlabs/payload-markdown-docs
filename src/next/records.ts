@@ -141,15 +141,11 @@ const toOpenGraph = (value: unknown): PayloadMarkdownDocsOpenGraph | undefined =
     title: getOptionalString(value, 'title'),
   } satisfies PayloadMarkdownDocsOpenGraph)
 
-  return Object.keys(openGraph).length > 0
-    ? (openGraph as PayloadMarkdownDocsOpenGraph)
-    : undefined
+  return Object.keys(openGraph).length > 0 ? (openGraph as PayloadMarkdownDocsOpenGraph) : undefined
 }
 
 const getRouteMode = (value: unknown): PayloadMarkdownDocsRouteMode =>
-  value === 'product-nested' || value === 'docs-root'
-    ? value
-    : DEFAULT_DOCS_SET_ROUTE_MODE
+  value === 'product-nested' || value === 'docs-root' ? value : DEFAULT_DOCS_SET_ROUTE_MODE
 
 const getPageMode = (pageMode: unknown): PayloadMarkdownDocsGroupPageMode =>
   pageMode === 'custom' ? 'custom' : 'auto'
@@ -178,7 +174,7 @@ export const toResolvedDocsSet = (doc: unknown): ResolvedPayloadMarkdownDocsSet 
     defaults: toDefaults(doc.defaults),
     description: getOptionalString(doc, 'description'),
     navTitle: getOptionalString(doc, 'navTitle'),
-    openGraph: toOpenGraph(doc.openGraph),
+    openGraph: toOpenGraph(doc.meta) ?? toOpenGraph(doc.openGraph),
     order: getOptionalNumber(doc, 'order') ?? 0,
     productRoute,
     routeBase: normalizeRoutePath(
@@ -199,7 +195,7 @@ export const isVisibleDocsSet = ({
 }: {
   docsSet: ResolvedPayloadMarkdownDocsSet
   includeDrafts?: boolean
-}): boolean => !(!includeDrafts && docsSet.status === 'draft');
+}): boolean => !(!includeDrafts && docsSet.status === 'draft')
 
 export const toResolvedDocsGroup = (doc: unknown): ResolvedPayloadMarkdownDocsGroup | undefined => {
   if (!isRecord(doc)) {
@@ -282,5 +278,5 @@ export const isVisibleDocsRecord = ({
     return false
   }
 
-  return !(!includeDrafts && record.status === 'draft');
+  return !(!includeDrafts && record.status === 'draft')
 }
