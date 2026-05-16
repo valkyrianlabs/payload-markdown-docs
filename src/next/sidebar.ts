@@ -37,7 +37,7 @@ const getSourcePathSegments = (sourcePath: string): string[] => {
   const withoutExtension = sourcePath.replace(/\.md$/i, '')
   const segments = withoutExtension.split('/').filter(Boolean)
 
-  if (segments.at(-1) === 'index') {
+  if (segments.at(-1)?.toLowerCase() === 'index') {
     return segments.slice(0, -1)
   }
 

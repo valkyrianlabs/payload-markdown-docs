@@ -26,7 +26,7 @@ import {
 } from './links.js'
 import { getPayloadMarkdownDocsMetadata } from './metadata.js'
 import { PayloadMarkdownDocsNavbar } from './PayloadMarkdownDocsNavbar.js'
-import { PayloadMarkdownDocsPage } from './PayloadMarkdownDocsPage.js'
+import { PayloadMarkdownDocsPage, rewritePayloadMarkdownDocsLinks } from './PayloadMarkdownDocsPage.js'
 import { getPayloadMarkdownDocsRoutePath, resolvePayloadMarkdownDocsRoute } from './route.js'
 import { buildPayloadMarkdownDocsSidebar, getPayloadMarkdownDocsSidebar } from './sidebar.js'
 import {
@@ -385,6 +385,13 @@ describe('Payload Markdown Docs route adapter', () => {
     const payload = createPayloadMock({
       docs: [
         createDoc({
+          id: 'doc-index',
+          docsSet: productDocsSet,
+          route: '/plugins/payload-markdown/docs',
+          sourcePath: 'Index.md',
+          title: 'Overview',
+        }),
+        createDoc({
           docsSet: productDocsSet,
           route: '/plugins/payload-markdown/docs/getting-started',
           sourcePath: 'getting-started/index.md',
@@ -428,6 +435,81 @@ describe('Payload Markdown Docs route adapter', () => {
         routeBase: '/plugins/payload-markdown/docs',
       },
     })
+
+    await expect(
+      resolvePayloadMarkdownDocsRoute({
+        path: '/plugins/payload-markdown/getting-started',
+        payload,
+      }),
+    ).resolves.toMatchObject({
+      type: 'doc',
+      doc: {
+        title: 'Getting Started',
+      },
+      docsSet: {
+        routeBase: '/plugins/payload-markdown/docs',
+      },
+      route: '/plugins/payload-markdown/docs/getting-started',
+    })
+
+    await expect(
+      resolvePayloadMarkdownDocsRoute({
+        path: '/plugins/payload-markdown/Index',
+        payload,
+      }),
+    ).resolves.toMatchObject({
+      type: 'docsSetIndex',
+      doc: {
+        title: 'Overview',
+      },
+      docsSet: {
+        routeBase: '/plugins/payload-markdown/docs',
+      },
+      route: '/plugins/payload-markdown/docs',
+    })
+  })
+
+  it('uses current route mode when resolving product-nested aliases', async () => {
+    const productDocsSet = {
+      ...docsSet,
+      routeMode: 'product-nested',
+    }
+    const docsSets = [
+      {
+        ...productDocsSet,
+        group: docsGroup,
+      },
+    ]
+    const payload = createPayloadMock({
+      docs: [
+        createDoc({
+          docsSet: productDocsSet,
+          route: '/plugins/payload-markdown/docs/getting-started',
+          sourcePath: 'getting-started/index.md',
+          title: 'Getting Started',
+        }),
+      ],
+      docsGroups: [docsGroup],
+      docsSets,
+    })
+
+    await expect(
+      resolvePayloadMarkdownDocsRoute({
+        path: '/plugins/payload-markdown/getting-started',
+        payload,
+      }),
+    ).resolves.toMatchObject({
+      type: 'doc',
+    })
+
+    docsSets[0].routeMode = 'docs-root'
+
+    await expect(
+      resolvePayloadMarkdownDocsRoute({
+        path: '/plugins/payload-markdown/getting-started',
+        payload,
+      }),
+    ).resolves.toBeNull()
   })
 
   it('does not resolve the product route for product-nested docs sets', async () => {
@@ -1881,6 +1963,72 @@ describe('Payload Markdown Docs link helpers', () => {
 })
 
 describe('Payload Markdown Docs page component', () => {
+  it('rewrites docs-local markdown links into the current docs set route space', () => {
+    const productNestedDocsSet = {
+      ...resolvedDocsSet,
+      productRoute: '/plugins/payload-markdown',
+      routeBase: '/plugins/payload-markdown/docs',
+      routeMode: 'product-nested' as const,
+    }
+    const markdown = [
+      '[Getting started](/getting-started)',
+      '[Install](getting-started/install.md)',
+      '[Home](/Index.md)',
+      '<a href="/configuration">Configuration</a>',
+      '',
+      '```md',
+      '[Keep example](/example)',
+      '```',
+    ].join('\n')
+
+    expect(
+      rewritePayloadMarkdownDocsLinks({
+        doc: resolvedRecord({
+          sourcePath: 'Index.md',
+        }),
+        docsSet: productNestedDocsSet,
+        markdown,
+      }),
+    ).toBe(
+      [
+        '[Getting started](/plugins/payload-markdown/getting-started)',
+        '[Install](/plugins/payload-markdown/getting-started/install)',
+        '[Home](/plugins/payload-markdown/docs)',
+        '<a href="/plugins/payload-markdown/configuration">Configuration</a>',
+        '',
+        '```md',
+        '[Keep example](/example)',
+        '```',
+      ].join('\n'),
+    )
+  })
+
+  it('passes rewritten markdown to the renderer', async () => {
+    const markup = renderToStaticMarkup(
+      await PayloadMarkdownDocsPage({
+        resolved: {
+          type: 'doc',
+          doc: resolvedRecord({
+            content: '[Getting started](/getting-started)\n',
+            route: '/plugins/payload-markdown/docs',
+            sourcePath: 'Index.md',
+          }),
+          docsSet: {
+            ...resolvedDocsSet,
+            productRoute: '/plugins/payload-markdown',
+            routeBase: '/plugins/payload-markdown/docs',
+            routeMode: 'product-nested',
+          },
+          route: '/plugins/payload-markdown/docs',
+          sidebar: [],
+        },
+      }),
+    )
+
+    expect(markup).toContain('[Getting started](/plugins/payload-markdown/getting-started)')
+    expect(markup).not.toContain('[Getting started](/getting-started)')
+  })
+
   it('renders styled shell defaults for docs routes', async () => {
     const markup = renderToStaticMarkup(
       await PayloadMarkdownDocsPage({

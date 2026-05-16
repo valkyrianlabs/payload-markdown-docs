@@ -296,6 +296,109 @@ const findDocsSetByRoutePrefix = async ({
     .sort((first, second) => second.routeBase.length - first.routeBase.length)[0]
 }
 
+type ProductNestedRouteAlias = {
+  docsSet: ResolvedPayloadMarkdownDocsSet
+  route: string
+}
+
+const normalizeProductNestedAliasSuffix = (suffix: string): string => {
+  const segments = suffix
+    .split('/')
+    .map((segment) => segment.trim().replace(/\.md$/i, ''))
+    .filter(Boolean)
+
+  if (segments.at(-1)?.toLowerCase() === 'index') {
+    segments.pop()
+  }
+
+  return segments.join('/')
+}
+
+const getProductNestedAliasSuffix = ({
+  docsSet,
+  route,
+}: {
+  docsSet: ResolvedPayloadMarkdownDocsSet
+  route: string
+}): string | undefined => {
+  if (docsSet.routeMode !== 'product-nested') {
+    return undefined
+  }
+
+  if (route === docsSet.productRoute) {
+    return undefined
+  }
+
+  if (route === docsSet.routeBase || isRouteDescendant(docsSet.routeBase, route)) {
+    return undefined
+  }
+
+  if (!isRouteDescendant(docsSet.productRoute, route)) {
+    return undefined
+  }
+
+  return normalizeProductNestedAliasSuffix(route.slice(docsSet.productRoute.length + 1))
+}
+
+const findProductNestedRouteAliases = async ({
+  collections,
+  includeDrafts,
+  overrideAccess,
+  payload,
+  route,
+}: {
+  collections: ResolvedCollectionSlugs
+  includeDrafts: boolean
+  overrideAccess: boolean
+  payload: PayloadMarkdownDocsReadPayload
+  route: string
+}): Promise<ProductNestedRouteAlias[]> => {
+  const [result, groupsById] = await Promise.all([
+    payload.find({
+      collection: collections.docsSets,
+      depth: 1,
+      draft: includeDrafts,
+      limit: 1000,
+      overrideAccess,
+    }),
+    getGroupsById({
+      collections,
+      overrideAccess,
+      payload,
+    }),
+  ])
+
+  return result.docs
+    .map((doc) =>
+      withComputedDocsSetRoute({
+        doc,
+        docsSet: toResolvedDocsSet(doc),
+        groupsById,
+      }),
+    )
+    .filter((docsSet): docsSet is ResolvedPayloadMarkdownDocsSet => {
+      if (!docsSet || !isVisibleDocsSet({ docsSet, includeDrafts })) {
+        return false
+      }
+
+      return getProductNestedAliasSuffix({
+        docsSet,
+        route,
+      }) !== undefined
+    })
+    .sort((first, second) => second.productRoute.length - first.productRoute.length)
+    .map((docsSet) => ({
+      docsSet,
+      route: joinRouteSegments(
+        docsSet.routeBase,
+        getProductNestedAliasSuffix({
+          docsSet,
+          route,
+        }),
+      ),
+    }))
+}
+
 const getRelatedDocsSet = (doc: unknown): ResolvedPayloadMarkdownDocsSet | undefined => {
   if (!isRecord(doc) || !isRecord(doc.docsSet)) {
     return undefined
@@ -342,6 +445,30 @@ const findDocsSetForRecord = async ({
     payload,
     route: record.route,
   })
+}
+
+const docsRecordBelongsToDocsSet = ({
+  doc,
+  docsSet,
+  record,
+}: {
+  doc: unknown
+  docsSet: ResolvedPayloadMarkdownDocsSet
+  record: ResolvedPayloadMarkdownDocsRecord
+}): boolean => {
+  if (record.docsSetId && record.docsSetId !== docsSet.id) {
+    return false
+  }
+
+  if (isRecord(doc)) {
+    const relatedDocsSetId = getRelationshipId(doc.docsSet)
+
+    if (relatedDocsSetId && relatedDocsSetId !== docsSet.id) {
+      return false
+    }
+  }
+
+  return true
 }
 
 const findDocsRecordByRoute = async ({
@@ -430,19 +557,13 @@ const findDocsSetIndexRecord = async ({
     return undefined
   }
 
-  if (result.record.docsSetId && result.record.docsSetId !== docsSet.id) {
-    return undefined
-  }
-
-  if (isRecord(result.doc)) {
-    const relatedDocsSetId = getRelationshipId(result.doc.docsSet)
-
-    if (relatedDocsSetId && relatedDocsSetId !== docsSet.id) {
-      return undefined
-    }
-  }
-
-  return result.record
+  return docsRecordBelongsToDocsSet({
+    doc: result.doc,
+    docsSet,
+    record: result.record,
+  })
+    ? result.record
+    : undefined
 }
 
 const findGroupIndexRoute = async ({
@@ -632,6 +753,80 @@ export const resolvePayloadMarkdownDocsRoute = async ({
         doc: docResult.record,
         docsSet: resolvedDocsSet,
         route,
+        sidebar,
+      }
+    }
+  }
+
+  const productNestedAliases = await findProductNestedRouteAliases({
+    collections,
+    includeDrafts,
+    overrideAccess,
+    payload,
+    route,
+  })
+
+  for (const alias of productNestedAliases) {
+    if (alias.route === alias.docsSet.routeBase) {
+      const [doc, sidebar] = await Promise.all([
+        findDocsSetIndexRecord({
+          collections,
+          docsSet: alias.docsSet,
+          includeDrafts,
+          markdownField,
+          overrideAccess,
+          payload,
+        }),
+        getPayloadMarkdownDocsSidebar({
+          collections: collectionOptions,
+          docsSet: alias.docsSet,
+          includeDrafts,
+          markdownField,
+          overrideAccess,
+          payload,
+        }),
+      ])
+
+      return {
+        ...(doc ? { doc } : {}),
+        type: 'docsSetIndex',
+        docsSet: alias.docsSet,
+        route: alias.route,
+        sidebar,
+      }
+    }
+
+    const aliasDocResult = await findDocsRecordByRoute({
+      collections,
+      includeDrafts,
+      markdownField,
+      overrideAccess,
+      payload,
+      route: alias.route,
+    })
+
+    if (
+      aliasDocResult &&
+      docsRecordBelongsToDocsSet({
+        doc: aliasDocResult.doc,
+        docsSet: alias.docsSet,
+        record: aliasDocResult.record,
+      })
+    ) {
+      const sidebar = await getPayloadMarkdownDocsSidebar({
+        collections: collectionOptions,
+        docsSet: alias.docsSet,
+        includeDrafts,
+        markdownField,
+        overrideAccess,
+        payload,
+      })
+
+      return {
+        type: 'doc',
+        doc: aliasDocResult.record,
+        docsSet: alias.docsSet,
+        route: alias.route,
         sidebar,
       }
     }

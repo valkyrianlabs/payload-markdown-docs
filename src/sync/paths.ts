@@ -181,7 +181,7 @@ export const normalizeDocsPath = (input: string): NormalizeDocsPathResult => {
     return segment
   })
 
-  if (routeSegments.at(-1) === 'index') {
+  if (routeSegments.at(-1)?.toLowerCase() === 'index') {
     routeSegments.pop()
   }
 
@@ -243,10 +243,17 @@ export const deriveRouteFromSourcePath = ({
     routeSegments = routeSegments.slice(routeBaseSegments.length)
   }
 
-  if (slug && routeSegments.length > 0) {
-    routeSegments[routeSegments.length - 1] = slug
-  } else if (slug) {
-    routeSegments = [slug]
+  const normalizedSlug = slug?.trim()
+  const isIndexSourcePath =
+    normalizedPath.path.split('/').at(-1)?.toLowerCase() === 'index.md'
+  const shouldApplySlug = Boolean(
+    normalizedSlug && !(isIndexSourcePath && normalizedSlug.toLowerCase() === 'index'),
+  )
+
+  if (shouldApplySlug && normalizedSlug && routeSegments.length > 0) {
+    routeSegments[routeSegments.length - 1] = normalizedSlug
+  } else if (shouldApplySlug && normalizedSlug) {
+    routeSegments = [normalizedSlug]
   }
 
   const routeSuffix = routeSegments.join('/')

@@ -120,6 +120,21 @@ describe('docs route derivation', () => {
     ).toBe('/docs')
   })
 
+  test('routes cased index files to their folder route', () => {
+    expect(
+      deriveRouteFromSourcePath({
+        routeBase: '/plugins/payload-markdown/docs',
+        sourcePath: 'Index.md',
+      }),
+    ).toBe('/plugins/payload-markdown/docs')
+    expect(
+      deriveRouteFromSourcePath({
+        routeBase: '/plugins/payload-markdown/docs',
+        sourcePath: 'getting-started/Index.md',
+      }),
+    ).toBe('/plugins/payload-markdown/docs/getting-started')
+  })
+
   test('routes docs/index.md to route base', () => {
     expect(
       deriveRouteFromSourcePath({
@@ -146,6 +161,26 @@ describe('docs route derivation', () => {
         sourcePath: 'getting-started/install.md',
       }),
     ).toBe('/docs/getting-started/setup')
+  })
+
+  test('frontmatter index slug does not create an index route segment', () => {
+    expect(
+      deriveRouteFromSourcePath({
+        slug: 'Index',
+        routeBase: '/plugins/payload-markdown/docs',
+        sourcePath: 'Index.md',
+      }),
+    ).toBe('/plugins/payload-markdown/docs')
+  })
+
+  test('frontmatter index slug still applies to non-index files', () => {
+    expect(
+      deriveRouteFromSourcePath({
+        slug: 'index',
+        routeBase: '/docs',
+        sourcePath: 'reference/overview.md',
+      }),
+    ).toBe('/docs/reference/index')
   })
 })
 

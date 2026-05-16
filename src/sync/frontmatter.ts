@@ -309,7 +309,8 @@ export const titleFromSourcePath = (sourcePath: string): string => {
 
   const pathSegments = normalizedPath.path.split('/')
   const lastSegment = pathSegments.at(-1) ?? 'index.md'
-  const baseName = lastSegment === 'index.md' ? pathSegments.at(-2) ?? 'index' : lastSegment
+  const baseName =
+    lastSegment.toLowerCase() === 'index.md' ? pathSegments.at(-2) ?? 'index' : lastSegment
   const withoutExtension = baseName.replace(/\.md$/, '')
 
   return withoutExtension
