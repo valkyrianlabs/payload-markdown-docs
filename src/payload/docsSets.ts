@@ -407,13 +407,31 @@ export const findDocsSetByRoutePrefix = async ({
         groupsById,
       }),
     )
-    .filter(
-      (docsSet): docsSet is ResolvedDocsSet =>
-        docsSet !== undefined &&
-        (docsSet.routeBase === normalizedRoute ||
-          isRouteDescendant(docsSet.routeBase, normalizedRoute)),
-    )
-    .sort((first, second) => second.routeBase.length - first.routeBase.length)[0]
+    .flatMap((docsSet) => {
+      if (!docsSet) {
+        return []
+      }
+
+      const matchedRoutePrefix =
+        docsSet.routeBase === normalizedRoute ||
+        isRouteDescendant(docsSet.routeBase, normalizedRoute)
+          ? docsSet.routeBase
+          : docsSet.productRoute === normalizedRoute ||
+              isRouteDescendant(docsSet.productRoute, normalizedRoute)
+            ? docsSet.productRoute
+            : undefined
+
+      return matchedRoutePrefix
+        ? [
+            {
+              docsSet,
+              matchedRoutePrefix,
+            },
+          ]
+        : []
+    })
+    .sort((first, second) => second.matchedRoutePrefix.length - first.matchedRoutePrefix.length)[0]
+    ?.docsSet
 }
 
 export const findAllDocsSets = async ({
