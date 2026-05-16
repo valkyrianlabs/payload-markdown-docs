@@ -10,7 +10,7 @@ Check that the workflow uses `--github-oidc`, grants `id-token: write`, and uses
 
 ## OIDC repository or ref not allowed
 
-Check `Docs Globals > Trusted` for owner/repository trust and the docs set branch for ref trust.
+Check GitHub OIDC records in `Docs Globals > Access` for owner/repository trust and the docs set branch for ref trust.
 
 ## OIDC replay
 

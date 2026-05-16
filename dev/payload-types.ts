@@ -71,8 +71,7 @@ export interface Config {
     media: Media;
     'docs-groups': DocsGroup;
     'docs-sets': DocsSet;
-    'docs-keys': DocsKey;
-    'docs-trusted': DocsTrusted;
+    'docs-access': DocsAccess;
     'payload-markdown-docs-assets': PayloadMarkdownDocsAsset;
     docs: Doc;
     'docs-sync-runs': DocsSyncRun;
@@ -89,8 +88,7 @@ export interface Config {
     media: MediaSelect<false> | MediaSelect<true>;
     'docs-groups': DocsGroupsSelect<false> | DocsGroupsSelect<true>;
     'docs-sets': DocsSetsSelect<false> | DocsSetsSelect<true>;
-    'docs-keys': DocsKeysSelect<false> | DocsKeysSelect<true>;
-    'docs-trusted': DocsTrustedSelect<false> | DocsTrustedSelect<true>;
+    'docs-access': DocsAccessSelect<false> | DocsAccessSelect<true>;
     'payload-markdown-docs-assets': PayloadMarkdownDocsAssetsSelect<false> | PayloadMarkdownDocsAssetsSelect<true>;
     docs: DocsSelect<false> | DocsSelect<true>;
     'docs-sync-runs': DocsSyncRunsSelect<false> | DocsSyncRunsSelect<true>;
@@ -255,33 +253,25 @@ export interface DocsSet {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "docs-keys".
+ * via the `definition` "docs-access".
  */
-export interface DocsKey {
+export interface DocsAccess {
   id: number;
   title: string;
+  accessType: 'ed25519' | 'githubOidc';
+  identityKey?: string | null;
   /**
    * Identifier sent by signed docs sync requests. Keep this stable for each publishing environment.
    */
-  keyId: string;
+  keyId?: string | null;
   /**
    * Ed25519 public key allowed to publish docs. Private keys never belong in Payload.
    */
-  publicKey: string;
-  updatedAt: string;
-  createdAt: string;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "docs-trusted".
- */
-export interface DocsTrusted {
-  id: number;
-  title: string;
+  publicKey?: string | null;
   /**
    * GitHub owner or organization trusted to publish docs through OIDC.
    */
-  owner: string;
+  owner?: string | null;
   /**
    * Leave off to trust every repository owned by this GitHub owner. Enable to list specific repositories.
    */
@@ -506,12 +496,8 @@ export interface PayloadLockedDocument {
         value: number | DocsSet;
       } | null)
     | ({
-        relationTo: 'docs-keys';
-        value: number | DocsKey;
-      } | null)
-    | ({
-        relationTo: 'docs-trusted';
-        value: number | DocsTrusted;
+        relationTo: 'docs-access';
+        value: number | DocsAccess;
       } | null)
     | ({
         relationTo: 'payload-markdown-docs-assets';
@@ -660,21 +646,14 @@ export interface DocsSetsSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "docs-keys_select".
+ * via the `definition` "docs-access_select".
  */
-export interface DocsKeysSelect<T extends boolean = true> {
+export interface DocsAccessSelect<T extends boolean = true> {
   title?: T;
+  accessType?: T;
+  identityKey?: T;
   keyId?: T;
   publicKey?: T;
-  updatedAt?: T;
-  createdAt?: T;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "docs-trusted_select".
- */
-export interface DocsTrustedSelect<T extends boolean = true> {
-  title?: T;
   owner?: T;
   limitRepos?: T;
   repositories?:

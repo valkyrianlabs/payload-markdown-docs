@@ -23,19 +23,20 @@ This writes:
 - `.docs-sync/docs-sync-public.pem`
 
 :::callout {variant="warning" title="Do not commit the private key"}
-The public key belongs in `Docs Globals > Keys`. The private key belongs in
+The public key belongs in `Docs Globals > Access`. The private key belongs in
 local secret storage or a CI secret such as `DOCS_SYNC_PRIVATE_KEY`.
 :::
 
 The CLI also accepts unencrypted OpenSSH Ed25519 private keys, for example a
 dedicated `ssh-keygen -t ed25519` key. If you use an OpenSSH key, paste the
-matching `ssh-ed25519 ...` public key into `Docs Globals > Keys`.
+matching `ssh-ed25519 ...` public key into `Docs Globals > Access`.
 
 ## Configure The Public Key
 
 ```text
-Docs Globals -> Keys
+Docs Globals -> Access
 
+type: Ed25519 Key
 keyId: github-actions-main
 publicKey: contents of .docs-sync/docs-sync-public.pem
 ```
@@ -54,7 +55,7 @@ Store the PEM as `DOCS_SYNC_PRIVATE_KEY` and use `--private-key-env DOCS_SYNC_PR
 
 ### Rotate keys
 
-Add the new public key to Keys, then switch CI to the new private key.
+Add the new Ed25519 access record, then switch CI to the new private key.
 
 :::
 

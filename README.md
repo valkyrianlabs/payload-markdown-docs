@@ -177,8 +177,7 @@ This adds the `Docs Globals` admin collections:
 
 - `Sets`: documentation packages. The set `slug` is the sync source and OIDC audience.
 - `Groups`: optional route nesting. Routes are derived from group slugs.
-- `Keys`: global Ed25519 public keys for local or non-GitHub publishing.
-- `Trusted`: global GitHub owners trusted for OIDC publishing.
+- `Access`: GitHub OIDC trust records and Ed25519 public keys for publishing.
 
 The sync endpoint is:
 
@@ -406,7 +405,7 @@ pnpm exec payload-markdown-docs keygen --out .docs-sync
 Add the public key in Payload Admin:
 
 ```txt
-Docs Globals > Keys
+Docs Globals > Access
 ```
 
 Then push with the private key:
@@ -449,11 +448,7 @@ import {
 import { notFound } from 'next/navigation'
 import { getPayload } from 'payload'
 
-export default async function Page({
-  params,
-}: {
-  params: Promise<{ slug?: string[] }>
-}) {
+export default async function Page({ params }: { params: Promise<{ slug?: string[] }> }) {
   const { slug } = await params
   const payload = await getPayload({ config })
 
@@ -483,10 +478,7 @@ import type { Payload } from 'payload'
 
 export async function HeaderDocsNav({ payload }: { payload: Payload }) {
   return (
-    <PayloadMarkdownDocsNavbar
-      currentPath="/plugins/payload-markdown-docs"
-      payload={payload}
-    />
+    <PayloadMarkdownDocsNavbar currentPath="/plugins/payload-markdown-docs" payload={payload} />
   )
 }
 ```
@@ -582,9 +574,7 @@ import { getDocsForSitemap } from '@valkyrianlabs/payload-markdown-docs/next'
 const sitemap = await getDocsForSitemap({
   payload,
   siteUrl,
-  additionalRoutes: [
-    { path: '/agent-index.txt' },
-  ],
+  additionalRoutes: [{ path: '/agent-index.txt' }],
 })
 ```
 

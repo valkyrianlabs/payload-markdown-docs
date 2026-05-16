@@ -42,11 +42,10 @@ export type DocsCollectionInstallConfig = boolean | PayloadMarkdownDocsCollectio
 
 export type PayloadMarkdownDocsCollectionsConfig = {
   docs?: PayloadMarkdownDocsCollectionConfig
+  docsAccess?: PayloadMarkdownDocsCollectionConfig
   docsAssets?: PayloadMarkdownDocsCollectionConfig
   docsGroups?: PayloadMarkdownDocsCollectionConfig
-  docsKeys?: PayloadMarkdownDocsCollectionConfig
   docsSets?: PayloadMarkdownDocsCollectionConfig
-  docsTrusted?: PayloadMarkdownDocsCollectionConfig
   nonces?: PayloadMarkdownDocsCollectionConfig
   syncRuns?: PayloadMarkdownDocsCollectionConfig
 } & Record<string, DocsCollectionInstallConfig | undefined>

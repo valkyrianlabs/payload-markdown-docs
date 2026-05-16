@@ -25,8 +25,9 @@ In `Docs Globals > Sets`, create:
 - `branch`: `main`
 - optional `group`: a group such as `plugins` when you want nested routes
 
-In `Docs Globals > Trusted`, create:
+In `Docs Globals > Access`, create a GitHub OIDC record:
 
+- `type`: GitHub OIDC
 - `owner`: your GitHub owner or organization
 - `limitRepos`: off for the normal owner-level trust model
 

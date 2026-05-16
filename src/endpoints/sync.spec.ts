@@ -4,12 +4,11 @@ import { generateKeyPairSync, randomUUID, sign } from 'node:crypto'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  DEFAULT_DOCS_ACCESS_COLLECTION_SLUG,
   DEFAULT_DOCS_ASSETS_COLLECTION_SLUG,
   DEFAULT_DOCS_GROUPS_COLLECTION_SLUG,
-  DEFAULT_DOCS_KEYS_COLLECTION_SLUG,
   DEFAULT_DOCS_SETS_COLLECTION_SLUG,
   DEFAULT_DOCS_SYNC_ENDPOINT_PATH,
-  DEFAULT_DOCS_TRUSTED_COLLECTION_SLUG,
   MANAGED_BY,
 } from '../constants.js'
 import { payloadMarkdownDocs } from '../plugin.js'
@@ -103,29 +102,52 @@ const filterDocsByEquals = (docs: unknown[], where: unknown, field: string): unk
   })
 }
 
+const filterDocsByWhereEquals = (docs: unknown[], where: unknown): unknown[] => {
+  if (typeof where !== 'object' || where === null || Array.isArray(where)) {
+    return docs
+  }
+
+  const constraints = Object.entries(where as Record<string, unknown>).flatMap(
+    ([field, constraint]) => {
+      if (typeof constraint !== 'object' || constraint === null || Array.isArray(constraint)) {
+        return []
+      }
+
+      const expected = (constraint as Record<string, unknown>).equals
+
+      return expected === undefined ? [] : [{ expected, field }]
+    },
+  )
+
+  if (constraints.length === 0) {
+    return docs
+  }
+
+  return docs.filter((doc) => {
+    if (typeof doc !== 'object' || doc === null || Array.isArray(doc)) {
+      return false
+    }
+
+    const record = doc as Record<string, unknown>
+
+    return constraints.every(({ expected, field }) => record[field] === expected)
+  })
+}
+
 const createMockPayload = ({
   assetsFindError,
+  docsAccess,
   docsGroups = [],
-  docsKeys,
   docsSets = [],
-  docsTrusted = [
-    {
-      id: 'trusted-id',
-      limitRepos: false,
-      owner: 'valkyrianlabs',
-      title: 'Valkyrian Labs',
-    },
-  ],
   existingAssets = [],
   existingDocs = [],
   pages = [],
   replayNonce = false,
 }: {
   assetsFindError?: Error
+  docsAccess?: unknown[]
   docsGroups?: unknown[]
-  docsKeys?: unknown[]
   docsSets?: unknown[]
-  docsTrusted?: unknown[]
   existingAssets?: unknown[]
   existingDocs?: unknown[]
   pages?: unknown[]
@@ -190,24 +212,28 @@ const createMockPayload = ({
       })
     }
 
-    if (collection === DEFAULT_DOCS_KEYS_COLLECTION_SLUG) {
-      const resolvedDocsKeys = docsKeys ?? [
+    if (collection === DEFAULT_DOCS_ACCESS_COLLECTION_SLUG) {
+      const resolvedDocsAccess = docsAccess ?? [
         {
-          id: 'key-id',
+          id: 'access-key-id',
+          accessType: 'ed25519',
+          identityKey: 'ed25519:test-key',
           keyId: 'test-key',
           publicKey: currentPublicKey,
           title: 'Test Key',
         },
+        {
+          id: 'access-github-id',
+          accessType: 'githubOidc',
+          identityKey: 'githubOidc:valkyrianlabs',
+          limitRepos: false,
+          owner: 'valkyrianlabs',
+          title: 'Valkyrian Labs',
+        },
       ]
 
       return Promise.resolve({
-        docs: filterDocsByEquals(resolvedDocsKeys, args.where, 'keyId'),
-      })
-    }
-
-    if (collection === DEFAULT_DOCS_TRUSTED_COLLECTION_SLUG) {
-      return Promise.resolve({
-        docs: docsTrusted,
+        docs: filterDocsByWhereEquals(resolvedDocsAccess, args.where),
       })
     }
 
@@ -392,18 +418,16 @@ const createEndpointForTests = ({
       ed25519: true,
     },
     deleteBehavior,
+    docsAccessCollectionSlug: DEFAULT_DOCS_ACCESS_COLLECTION_SLUG,
+    docsAccessEnabled: true,
     docsAssetsCollectionSlug: DEFAULT_DOCS_ASSETS_COLLECTION_SLUG,
     docsAssetsEnabled: true,
     docsCollectionSlug: 'docs',
     docsEnabled: true,
     docsEnableDrafts,
     docsGroupsCollectionSlug: DEFAULT_DOCS_GROUPS_COLLECTION_SLUG,
-    docsKeysCollectionSlug: DEFAULT_DOCS_KEYS_COLLECTION_SLUG,
-    docsKeysEnabled: true,
     docsSetsCollectionSlug: DEFAULT_DOCS_SETS_COLLECTION_SLUG,
     docsSetsEnabled,
-    docsTrustedCollectionSlug: DEFAULT_DOCS_TRUSTED_COLLECTION_SLUG,
-    docsTrustedEnabled: true,
     endpointPath: DEFAULT_DOCS_SYNC_ENDPOINT_PATH,
     getNow: () => now,
     markdownFieldName: 'content',
@@ -478,16 +502,14 @@ const createOidcEndpointForTests = ({
     auth: {
       githubOidc: true,
     },
+    docsAccessCollectionSlug: DEFAULT_DOCS_ACCESS_COLLECTION_SLUG,
+    docsAccessEnabled: true,
     docsCollectionSlug: 'docs',
     docsEnabled: true,
     docsEnableDrafts: true,
     docsGroupsCollectionSlug: DEFAULT_DOCS_GROUPS_COLLECTION_SLUG,
-    docsKeysCollectionSlug: DEFAULT_DOCS_KEYS_COLLECTION_SLUG,
-    docsKeysEnabled: true,
     docsSetsCollectionSlug: DEFAULT_DOCS_SETS_COLLECTION_SLUG,
     docsSetsEnabled: true,
-    docsTrustedCollectionSlug: DEFAULT_DOCS_TRUSTED_COLLECTION_SLUG,
-    docsTrustedEnabled: true,
     endpointPath: DEFAULT_DOCS_SYNC_ENDPOINT_PATH,
     getNow: () => now,
     markdownFieldName: 'content',
@@ -512,16 +534,14 @@ const createMultiAuthEndpointForTests = ({
       ed25519: true,
       githubOidc: true,
     },
+    docsAccessCollectionSlug: DEFAULT_DOCS_ACCESS_COLLECTION_SLUG,
+    docsAccessEnabled: true,
     docsCollectionSlug: 'docs',
     docsEnabled: true,
     docsEnableDrafts: true,
     docsGroupsCollectionSlug: DEFAULT_DOCS_GROUPS_COLLECTION_SLUG,
-    docsKeysCollectionSlug: DEFAULT_DOCS_KEYS_COLLECTION_SLUG,
-    docsKeysEnabled: true,
     docsSetsCollectionSlug: DEFAULT_DOCS_SETS_COLLECTION_SLUG,
     docsSetsEnabled: true,
-    docsTrustedCollectionSlug: DEFAULT_DOCS_TRUSTED_COLLECTION_SLUG,
-    docsTrustedEnabled: true,
     endpointPath: DEFAULT_DOCS_SYNC_ENDPOINT_PATH,
     getNow: () => now,
     markdownFieldName: 'content',
@@ -550,16 +570,14 @@ const createCmsManagedEndpointForTests = ({
     allowPublish,
     allowWrites,
     auth,
+    docsAccessCollectionSlug: DEFAULT_DOCS_ACCESS_COLLECTION_SLUG,
+    docsAccessEnabled: true,
     docsCollectionSlug: 'docs',
     docsEnabled: true,
     docsEnableDrafts: true,
     docsGroupsCollectionSlug: DEFAULT_DOCS_GROUPS_COLLECTION_SLUG,
-    docsKeysCollectionSlug: DEFAULT_DOCS_KEYS_COLLECTION_SLUG,
-    docsKeysEnabled: true,
     docsSetsCollectionSlug: DEFAULT_DOCS_SETS_COLLECTION_SLUG,
     docsSetsEnabled: true,
-    docsTrustedCollectionSlug: DEFAULT_DOCS_TRUSTED_COLLECTION_SLUG,
-    docsTrustedEnabled: true,
     endpointPath: DEFAULT_DOCS_SYNC_ENDPOINT_PATH,
     getNow: () => now,
     markdownFieldName: 'content',
@@ -637,16 +655,14 @@ describe('sync endpoint registration', () => {
 describe('sync endpoint dry-run handling', () => {
   it('rejects requests when auth is not configured', async () => {
     const endpoint = createSyncEndpoint({
+      docsAccessCollectionSlug: DEFAULT_DOCS_ACCESS_COLLECTION_SLUG,
+      docsAccessEnabled: true,
       docsCollectionSlug: 'docs',
       docsEnabled: true,
       docsEnableDrafts: false,
       docsGroupsCollectionSlug: DEFAULT_DOCS_GROUPS_COLLECTION_SLUG,
-      docsKeysCollectionSlug: DEFAULT_DOCS_KEYS_COLLECTION_SLUG,
-      docsKeysEnabled: true,
       docsSetsCollectionSlug: DEFAULT_DOCS_SETS_COLLECTION_SLUG,
       docsSetsEnabled: true,
-      docsTrustedCollectionSlug: DEFAULT_DOCS_TRUSTED_COLLECTION_SLUG,
-      docsTrustedEnabled: true,
       endpointPath: DEFAULT_DOCS_SYNC_ENDPOINT_PATH,
       getNow: () => now,
       markdownFieldName: 'content',
@@ -853,7 +869,9 @@ describe('sync endpoint dry-run handling', () => {
     const { privateKey, publicKey } = keyPair()
     const body = JSON.stringify(createManifest())
     const payload = createMockPayload({
-      assetsFindError: new Error('Failed query: relation "payload_markdown_docs_assets" does not exist'),
+      assetsFindError: new Error(
+        'Failed query: relation "payload_markdown_docs_assets" does not exist',
+      ),
     })
 
     const { json, response } = await callEndpoint({
@@ -1081,7 +1099,7 @@ describe('sync endpoint dry-run handling', () => {
     })
   })
 
-  it('accepts signed requests using global Ed25519 keys and docs set slugs', async () => {
+  it('accepts signed requests using Access Ed25519 keys and docs set slugs', async () => {
     const { privateKey, publicKey } = keyPair()
     const body = JSON.stringify(createManifest({ mode: 'sync' }))
     const payload = createMockPayload({
@@ -1124,20 +1142,15 @@ describe('sync endpoint dry-run handling', () => {
     )
   })
 
-  it('accepts GitHub OIDC using global Trusted records with repo limiting', async () => {
+  it('accepts GitHub OIDC using Access records with repo limiting', async () => {
     const tokenFixture = createOidcTokenFixture()
     const body = JSON.stringify(createManifest())
     const payload = createMockPayload({
-      docsSets: [
+      docsAccess: [
         {
-          id: 'docs-set-1',
-          slug: 'main-docs',
-          branch: 'main',
-        },
-      ],
-      docsTrusted: [
-        {
-          id: 'trusted-id',
+          id: 'access-github-id',
+          accessType: 'githubOidc',
+          identityKey: 'githubOidc:valkyrianlabs',
           limitRepos: true,
           owner: 'valkyrianlabs',
           repositories: [
@@ -1146,6 +1159,13 @@ describe('sync endpoint dry-run handling', () => {
             },
           ],
           title: 'Valkyrian Labs',
+        },
+      ],
+      docsSets: [
+        {
+          id: 'docs-set-1',
+          slug: 'main-docs',
+          branch: 'main',
         },
       ],
     })

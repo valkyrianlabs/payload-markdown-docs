@@ -29,8 +29,8 @@ This writes `dev/.docs-sync/docs-sync-public.pem` and
 `dev/.docs-sync/docs-sync-private.pem`. The directory is ignored. Do not commit
 private keys.
 
-The docs seed script reads the public key in this order and stores it in
-`Docs Globals > Keys`:
+The docs seed script reads the public key in this order and stores it in an
+Ed25519 record in `Docs Globals > Access`:
 
 - `DOCS_SYNC_PUBLIC_KEY`
 - `DOCS_SYNC_PUBLIC_KEY_FILE`
@@ -67,7 +67,7 @@ pnpm dev
 ```
 
 If the server was already running when keys were generated, rerun
-`pnpm dev:docs:seed` so the global Keys record stores the public key.
+`pnpm dev:docs:seed` so the Ed25519 Access record stores the public key.
 
 ## Local Commands
 
@@ -147,7 +147,7 @@ Login:
 Check:
 
 - `/` renders the dev landing page with links to Admin and docs routes.
-- The `Docs Globals` sidebar group contains `Sets`, `Groups`, `Keys`, and `Trusted`.
+- The `Docs Globals` sidebar group contains `Sets`, `Groups`, and `Access`.
 - `Docs Globals > Groups` contains `Plugins`.
 - `Docs Globals > Sets` contains `Payload Markdown Docs`.
 - The docs set edit view shows the read-only Generated Docs manager.

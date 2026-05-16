@@ -16,7 +16,7 @@ into Payload-managed docs sets, generated docs records, generated AI discovery
 files, and native agent skill asset records.
 
 The client sends docs content. Payload docs sets decide the source slug and
-branch; global Keys and Trusted records decide which credentials are allowed.
+branch; Access records decide which credentials and GitHub owners are allowed.
 Plugin config decides collections, fields, lifecycle behavior, and publishing
 modes.
 
@@ -58,7 +58,7 @@ The default endpoint is exposed at:
 /api/documentation/sync
 ```
 
-By default, the plugin adds Sets, Groups, Keys, and Trusted collections under
+By default, the plugin adds Sets, Groups, and Access collections under
 `Docs Globals`. Generated docs records are linked to docs sets and remain the
 internal records used for routing, search, and sync correctness.
 
@@ -113,7 +113,7 @@ pnpm exec payload-markdown-docs keygen --out .docs-sync
 
 Use the generated keys this way:
 
-- `docs-sync-public.pem` goes into `Docs Globals > Keys` in Payload Admin.
+- `docs-sync-public.pem` goes into an Ed25519 record in `Docs Globals > Access`.
 - `docs-sync-private.pem` goes into a CI secret such as `DOCS_SYNC_PRIVATE_KEY`.
 - Do not commit the private key.
 
@@ -247,8 +247,8 @@ Required secret:
 - `DOCS_SYNC_ENDPOINT`
 
 The matching docs set slug must match the CLI source. For GitHub OIDC, add a
-Trusted owner in Payload Admin. For Ed25519, add the public key in
-`Docs Globals > Keys`.
+GitHub OIDC record in `Docs Globals > Access`. For Ed25519, add an Ed25519 key
+record in `Docs Globals > Access`.
 
 ## Native Route Adapter
 

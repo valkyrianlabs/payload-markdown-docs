@@ -3,9 +3,8 @@ import type { Endpoint, PayloadRequest } from 'payload'
 import type {
   ApplyDocsAssetsSyncPayloadOperations,
   ApplyDocsSyncPayloadOperations,
-  DocsKeyPayloadOperations,
+  DocsAccessPayloadOperations,
   DocsSetPayloadOperations,
-  DocsTrustedPayloadOperations,
   ExistingAssetsPayloadOperations,
   ExistingDocsPayloadOperations,
   ExistingPayloadDocsRecord,
@@ -122,18 +121,16 @@ export type CreateSyncEndpointOptions = {
   allowWrites?: boolean
   auth?: PayloadMarkdownDocsAuthConfig
   deleteBehavior?: DocsDeleteBehavior
+  docsAccessCollectionSlug: string
+  docsAccessEnabled: boolean
   docsAssetsCollectionSlug?: string
   docsAssetsEnabled?: boolean
   docsCollectionSlug: string
   docsEnabled: boolean
   docsEnableDrafts: boolean
   docsGroupsCollectionSlug: string
-  docsKeysCollectionSlug: string
-  docsKeysEnabled: boolean
   docsSetsCollectionSlug: string
   docsSetsEnabled: boolean
-  docsTrustedCollectionSlug: string
-  docsTrustedEnabled: boolean
   endpointPath: string
   getNow?: () => Date
   markdownFieldName: string
@@ -791,20 +788,20 @@ const authenticateEd25519Request = async ({
     }
   }
 
-  if (!options.docsKeysEnabled) {
+  if (!options.docsAccessEnabled) {
     return {
       response: errorResponse(
         'auth_disabled',
-        'Signed sync authentication requires the docs Keys collection.',
+        'Signed sync authentication requires the docs Access collection.',
         401,
       ),
     }
   }
 
   const keyConfig = await findDocsKeyById({
-    collectionSlug: options.docsKeysCollectionSlug,
+    collectionSlug: options.docsAccessCollectionSlug,
     keyId: headersResult.headers.keyId,
-    payload: req.payload as unknown as DocsKeyPayloadOperations,
+    payload: req.payload as unknown as DocsAccessPayloadOperations,
   })
 
   if (!keyConfig) {
@@ -969,19 +966,19 @@ const authenticateGitHubOidcRequest = async ({
     }
   }
 
-  if (!options.docsTrustedEnabled) {
+  if (!options.docsAccessEnabled) {
     return {
       response: errorResponse(
         'auth_disabled',
-        'GitHub OIDC sync authentication requires the docs Trusted collection.',
+        'GitHub OIDC sync authentication requires the docs Access collection.',
         401,
       ),
     }
   }
 
   const trustedSources = await findTrustedGitHubSources({
-    collectionSlug: options.docsTrustedCollectionSlug,
-    payload: req.payload as unknown as DocsTrustedPayloadOperations,
+    collectionSlug: options.docsAccessCollectionSlug,
+    payload: req.payload as unknown as DocsAccessPayloadOperations,
   })
   const allowedRef = docsSet.branch.startsWith('refs/')
     ? docsSet.branch

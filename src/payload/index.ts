@@ -7,12 +7,17 @@ export { applyDocsSync, assertApplyDeleteBehaviorSupported } from './applyDocsSy
 export type { ApplyDocsSyncPayloadOperations, ApplyDocsSyncResult } from './applyDocsSync.js'
 export { findDocsAssetsSyncConflicts } from './assetsConflicts.js'
 export { buildAssetArchiveData, buildAssetData } from './assetsData.js'
+export {
+  buildDocsAccessIdentityKey,
+  findDocsKeyById,
+  findTrustedGitHubSources,
+  isDocsAccessType,
+} from './docsAccess.js'
+export type { DocsAccessPayloadOperations, DocsAccessType, ResolvedDocsKey } from './docsAccess.js'
 export { findDocsSyncConflicts } from './docsConflicts.js'
 export type { DocsSyncConflict, DocsSyncConflictReason } from './docsConflicts.js'
 export { buildArchiveData, buildDocsData, getDocsDepth } from './docsData.js'
 export type { BuildDocsDataInput, DocsDraftStatus } from './docsData.js'
-export { findDocsKeyById } from './docsKeys.js'
-export type { DocsKeyPayloadOperations, ResolvedDocsKey } from './docsKeys.js'
 export {
   findAllDocsSets,
   findDocsSetByRouteBase,
@@ -23,12 +28,7 @@ export {
   updateDocsSetAfterSync,
 } from './docsSets.js'
 export type { DocsSetPayloadOperations, ResolvedDocsSet } from './docsSets.js'
-export { findTrustedGitHubSources } from './docsTrusted.js'
-export type { DocsTrustedPayloadOperations } from './docsTrusted.js'
-export {
-  findExistingPayloadDocsAssetRecords,
-  toExistingAssetRecord,
-} from './existingAssets.js'
+export { findExistingPayloadDocsAssetRecords, toExistingAssetRecord } from './existingAssets.js'
 export type {
   ExistingAssetsPayloadOperations,
   ExistingPayloadDocsAssetRecord,

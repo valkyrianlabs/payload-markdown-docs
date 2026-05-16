@@ -7,18 +7,11 @@ import { parseCliArgs } from './parseArgs.js'
 
 const sourceId = 'payload-markdown-docs'
 
-const docsFlags = [
-  '--source',
-  sourceId,
-]
+const docsFlags = ['--source', sourceId]
 
 describe('dev docs fixtures', () => {
   it('validates the basic dev fixture through the CLI', async () => {
-    const result = await runCli([
-      'validate',
-      'dev/docs-fixtures/basic',
-      ...docsFlags,
-    ])
+    const result = await runCli(['validate', 'dev/docs-fixtures/basic', ...docsFlags])
 
     expect(result.exitCode).toBe(0)
     expect(result.stdout).toContain(`Source: ${sourceId}`)
@@ -27,11 +20,7 @@ describe('dev docs fixtures', () => {
   })
 
   it('validates the publishing dev fixture through the CLI', async () => {
-    const result = await runCli([
-      'validate',
-      'dev/docs-fixtures/publishing',
-      ...docsFlags,
-    ])
+    const result = await runCli(['validate', 'dev/docs-fixtures/publishing', ...docsFlags])
 
     expect(result.exitCode).toBe(0)
     expect(result.stdout).toContain('Files: 2')
@@ -42,11 +31,7 @@ describe('dev docs fixtures', () => {
     const files = await walkDocsFiles({
       root: 'dev/docs-fixtures/invalid',
     })
-    const result = await runCli([
-      'validate',
-      'dev/docs-fixtures/invalid',
-      ...docsFlags,
-    ])
+    const result = await runCli(['validate', 'dev/docs-fixtures/invalid', ...docsFlags])
 
     expect(files.map((file) => file.path)).toEqual(['bad-frontmatter.md'])
     expect(result.exitCode).toBe(1)
@@ -76,9 +61,7 @@ describe('dev harness docs and scripts', () => {
     expect(parsedPush.ok).toBe(true)
     expect(readme).toContain(`--source ${sourceId}`)
     expect(readme).not.toContain('--root docs')
-    expect(readme).toContain(
-      '--endpoint "http://localhost:3000/api/documentation/sync"',
-    )
+    expect(readme).toContain('--endpoint "http://localhost:3000/api/documentation/sync"')
     expect(readme).toContain('--private-key-file dev/.docs-sync/docs-sync-private.pem')
     expect(readme).toContain('Use `pnpm cli` here to run the source CLI.')
     expect(readme).toContain('pnpm cli push ./dev/docs-fixtures/basic')
@@ -126,14 +109,13 @@ describe('dev harness docs and scripts', () => {
     expect(helper).not.toContain('String(groupId)')
     expect(seedScript).toContain('buildDevDocsSetSeedData({')
     expect(seedScript).toContain('groupId,')
-    expect(seedScript).toContain('buildDevDocsKeySeedData({')
+    expect(seedScript).toContain('buildDevDocsEd25519AccessSeedData({')
+    expect(seedScript).toContain('buildDevDocsGitHubOidcAccessSeedData()')
+    expect(seedScript).toContain('identityKey')
   })
 
   it('mounts the dev frontend route adapter catch-all', async () => {
-    const routeFile = await readFile(
-      'dev/app/(frontend)/[[...slug]]/page.tsx',
-      'utf8',
-    )
+    const routeFile = await readFile('dev/app/(frontend)/[[...slug]]/page.tsx', 'utf8')
 
     expect(routeFile).toContain('resolvePayloadMarkdownDocsRoute')
     expect(routeFile).toContain('PayloadMarkdownDocsPage')
@@ -142,9 +124,7 @@ describe('dev harness docs and scripts', () => {
     expect(routeFile).toContain('/plugins/payload-markdown-docs/getting-started/installation')
     expect(routeFile).toContain('/admin')
     expect(routeFile).toContain('notFound()')
-    expect(routeFile.indexOf('slug.length === 0')).toBeLessThan(
-      routeFile.indexOf('notFound()'),
-    )
+    expect(routeFile.indexOf('slug.length === 0')).toBeLessThan(routeFile.indexOf('notFound()'))
   })
 
   it('loads Tailwind sources and theme tokens for markdown rendering', async () => {

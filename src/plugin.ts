@@ -3,25 +3,23 @@ import type { Config, Plugin } from 'payload'
 import type { PayloadMarkdownDocsConfig } from './types.js'
 
 import {
+  createDocsAccessCollection,
   createDocsAssetsCollection,
   createDocsCollection,
   createDocsGroupsCollection,
-  createDocsKeysCollection,
   createDocsSetsCollection,
-  createDocsTrustedCollection,
   createNoncesCollection,
   createSyncRunsCollection,
 } from './collections/index.js'
 import {
+  DEFAULT_DOCS_ACCESS_COLLECTION_SLUG,
   DEFAULT_DOCS_ASSETS_COLLECTION_SLUG,
   DEFAULT_DOCS_COLLECTION_SLUG,
   DEFAULT_DOCS_GROUPS_COLLECTION_SLUG,
-  DEFAULT_DOCS_KEYS_COLLECTION_SLUG,
   DEFAULT_DOCS_SETS_COLLECTION_SLUG,
   DEFAULT_DOCS_SYNC_ENDPOINT_PATH,
   DEFAULT_DOCS_SYNC_NONCES_COLLECTION_SLUG,
   DEFAULT_DOCS_SYNC_RUNS_COLLECTION_SLUG,
-  DEFAULT_DOCS_TRUSTED_COLLECTION_SLUG,
   DEFAULT_MARKDOWN_FIELD_NAME,
   DEFAULT_MAX_BODY_BYTES,
   DEFAULT_MEDIA_COLLECTION_SLUG,
@@ -33,18 +31,16 @@ import { createDocsAssetsEndpoints, createSyncEndpoint } from './endpoints/index
 import { installDocsMarketingBlocks } from './install/blocks.js'
 
 type ResolvedCollectionOptions = {
+  docsAccessCollectionSlug: string
+  docsAccessEnabled: boolean
   docsAssetsCollectionSlug: string
   docsAssetsEnabled: boolean
   docsCollectionSlug: string
   docsEnabled: boolean
   docsGroupsCollectionSlug: string
   docsGroupsEnabled: boolean
-  docsKeysCollectionSlug: string
-  docsKeysEnabled: boolean
   docsSetsCollectionSlug: string
   docsSetsEnabled: boolean
-  docsTrustedCollectionSlug: string
-  docsTrustedEnabled: boolean
   enableDrafts: boolean
   heroImageMediaCollectionSlugs?: string[]
   markdownFieldName: string
@@ -103,6 +99,9 @@ const resolveCollectionOptions = (
   }
 
   return {
+    docsAccessCollectionSlug:
+      pluginOptions.collections?.docsAccess?.slug ?? DEFAULT_DOCS_ACCESS_COLLECTION_SLUG,
+    docsAccessEnabled: pluginOptions.collections?.docsAccess?.enabled !== false,
     docsAssetsCollectionSlug:
       pluginOptions.collections?.docsAssets?.slug ?? DEFAULT_DOCS_ASSETS_COLLECTION_SLUG,
     docsAssetsEnabled: pluginOptions.collections?.docsAssets?.enabled !== false,
@@ -112,15 +111,9 @@ const resolveCollectionOptions = (
     docsGroupsCollectionSlug:
       pluginOptions.collections?.docsGroups?.slug ?? DEFAULT_DOCS_GROUPS_COLLECTION_SLUG,
     docsGroupsEnabled: pluginOptions.collections?.docsGroups?.enabled !== false,
-    docsKeysCollectionSlug:
-      pluginOptions.collections?.docsKeys?.slug ?? DEFAULT_DOCS_KEYS_COLLECTION_SLUG,
-    docsKeysEnabled: pluginOptions.collections?.docsKeys?.enabled !== false,
     docsSetsCollectionSlug:
       pluginOptions.collections?.docsSets?.slug ?? DEFAULT_DOCS_SETS_COLLECTION_SLUG,
     docsSetsEnabled: pluginOptions.collections?.docsSets?.enabled !== false,
-    docsTrustedCollectionSlug:
-      pluginOptions.collections?.docsTrusted?.slug ?? DEFAULT_DOCS_TRUSTED_COLLECTION_SLUG,
-    docsTrustedEnabled: pluginOptions.collections?.docsTrusted?.enabled !== false,
     enableDrafts: pluginOptions.target?.enableDrafts === true,
     heroImageMediaCollectionSlugs: resolveHeroImageMediaCollectionSlugs(pluginOptions),
     markdownFieldName: pluginOptions.target?.markdownField ?? DEFAULT_MARKDOWN_FIELD_NAME,
@@ -179,18 +172,16 @@ export const payloadMarkdownDocs =
     }
 
     const {
+      docsAccessCollectionSlug,
+      docsAccessEnabled,
       docsAssetsCollectionSlug,
       docsAssetsEnabled,
       docsCollectionSlug,
       docsEnabled,
       docsGroupsCollectionSlug,
       docsGroupsEnabled,
-      docsKeysCollectionSlug,
-      docsKeysEnabled,
       docsSetsCollectionSlug,
       docsSetsEnabled,
-      docsTrustedCollectionSlug,
-      docsTrustedEnabled,
       enableDrafts,
       heroImageMediaCollectionSlugs,
       markdownFieldName,
@@ -200,18 +191,16 @@ export const payloadMarkdownDocs =
       syncRunsEnabled,
     } = resolveCollectionOptions(pluginOptions)
     assertCollectionOptionCompatibility({
+      docsAccessCollectionSlug,
+      docsAccessEnabled,
       docsAssetsCollectionSlug,
       docsAssetsEnabled,
       docsCollectionSlug,
       docsEnabled,
       docsGroupsCollectionSlug,
       docsGroupsEnabled,
-      docsKeysCollectionSlug,
-      docsKeysEnabled,
       docsSetsCollectionSlug,
       docsSetsEnabled,
-      docsTrustedCollectionSlug,
-      docsTrustedEnabled,
       enableDrafts,
       heroImageMediaCollectionSlugs,
       markdownFieldName,
@@ -227,8 +216,7 @@ export const payloadMarkdownDocs =
     const collectionSlugsToAdd = [
       ...(docsGroupsEnabled ? [docsGroupsCollectionSlug] : []),
       ...(docsSetsEnabled ? [docsSetsCollectionSlug] : []),
-      ...(docsKeysEnabled ? [docsKeysCollectionSlug] : []),
-      ...(docsTrustedEnabled ? [docsTrustedCollectionSlug] : []),
+      ...(docsAccessEnabled ? [docsAccessCollectionSlug] : []),
       ...(docsAssetsEnabled ? [docsAssetsCollectionSlug] : []),
       ...(docsEnabled ? [docsCollectionSlug] : []),
       ...(syncRunsEnabled ? [syncRunsCollectionSlug] : []),
@@ -256,17 +244,10 @@ export const payloadMarkdownDocs =
             }),
           ]
         : []),
-      ...(docsKeysEnabled
+      ...(docsAccessEnabled
         ? [
-            createDocsKeysCollection({
-              slug: docsKeysCollectionSlug,
-            }),
-          ]
-        : []),
-      ...(docsTrustedEnabled
-        ? [
-            createDocsTrustedCollection({
-              slug: docsTrustedCollectionSlug,
+            createDocsAccessCollection({
+              slug: docsAccessCollectionSlug,
             }),
           ]
         : []),
@@ -325,18 +306,16 @@ export const payloadMarkdownDocs =
           allowWrites: pluginOptions.sync?.allowWrites,
           auth: pluginOptions.auth,
           deleteBehavior: pluginOptions.sync?.deleteBehavior,
+          docsAccessCollectionSlug,
+          docsAccessEnabled,
           docsAssetsCollectionSlug,
           docsAssetsEnabled,
           docsCollectionSlug,
           docsEnabled,
           docsEnableDrafts: enableDrafts,
           docsGroupsCollectionSlug,
-          docsKeysCollectionSlug,
-          docsKeysEnabled,
           docsSetsCollectionSlug,
           docsSetsEnabled,
-          docsTrustedCollectionSlug,
-          docsTrustedEnabled,
           endpointPath,
           markdownFieldName,
           maxBodyBytes: pluginOptions.endpoint?.maxBodyBytes ?? DEFAULT_MAX_BODY_BYTES,

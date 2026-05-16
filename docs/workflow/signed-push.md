@@ -58,11 +58,11 @@ Content-Type: application/json
 ```
 
 The endpoint reads the manifest source, resolves the matching docs set, and
-then verifies the request against the global Keys collection before it applies
-the manifest.
+then verifies the request against an Ed25519 record in the Access collection
+before it applies the manifest.
 
 Private keys may be CLI-generated PKCS#8 PEM/base64 keys or unencrypted
-OpenSSH Ed25519 private keys. Public keys in `Docs Globals > Keys` may be
+OpenSSH Ed25519 private keys. Public keys in `Docs Globals > Access` may be
 PKCS#8/SPKI public keys from `keygen` or `ssh-ed25519 ...` OpenSSH public keys.
 
 ## GitHub OIDC
@@ -84,7 +84,7 @@ Content-Type: application/json
 
 OIDC is bearer authentication, not a body signature. The server resolves the
 docs set, verifies the JWT against GitHub's JWKS, checks docs-set claim
-branch plus global Trusted owner/repository records, checks the body hash, and
+branch plus Access owner/repository records, checks the body hash, and
 uses the token `jti` for replay protection.
 
 See the [security model](/concepts/security-model).

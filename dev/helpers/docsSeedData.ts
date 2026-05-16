@@ -1,8 +1,7 @@
 export const devDocsSourceId = 'payload-markdown-docs'
+export const devDocsAccessSlug = 'docs-access'
 export const devDocsGroupSlug = 'docs-groups'
-export const devDocsKeySlug = 'docs-keys'
 export const devDocsSetSlug = 'docs-sets'
-export const devDocsTrustedSlug = 'docs-trusted'
 
 export type PayloadRecordId = number | string
 
@@ -36,19 +35,23 @@ export const buildDevDocsSetSeedData = ({
   title: 'Payload Markdown Docs',
 })
 
-export const buildDevDocsKeySeedData = ({
+export const buildDevDocsEd25519AccessSeedData = ({
   keyId = 'dev-local',
   publicKey,
 }: {
   keyId?: string
   publicKey: string
 }) => ({
+  accessType: 'ed25519',
+  identityKey: `ed25519:${keyId.trim()}`,
   keyId,
   publicKey,
   title: 'Dev Local',
 })
 
-export const buildDevDocsTrustedSeedData = () => ({
+export const buildDevDocsGitHubOidcAccessSeedData = () => ({
+  accessType: 'githubOidc',
+  identityKey: 'githubOidc:valkyrianlabs',
   limitRepos: false,
   owner: 'valkyrianlabs',
   title: 'Valkyrian Labs',

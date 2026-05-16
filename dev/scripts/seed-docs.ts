@@ -3,21 +3,17 @@ import type { CollectionSlug, Payload, Where } from 'payload'
 import { getPayload } from 'payload'
 
 import {
+  buildDevDocsEd25519AccessSeedData,
+  buildDevDocsGitHubOidcAccessSeedData,
   buildDevDocsGroupSeedData,
-  buildDevDocsKeySeedData,
   buildDevDocsSetSeedData,
-  buildDevDocsTrustedSeedData,
+  devDocsAccessSlug,
   devDocsGroupSlug,
-  devDocsKeySlug,
   devDocsSetSlug,
   devDocsSourceId,
-  devDocsTrustedSlug,
   getPayloadRecordId,
 } from '../helpers/docsSeedData'
-import {
-  docsSyncKeyId,
-  readDocsSyncPublicKey,
-} from '../helpers/docsSyncKeys'
+import { docsSyncKeyId, readDocsSyncPublicKey } from '../helpers/docsSyncKeys'
 import config from '../payload.config'
 
 const findFirst = async ({
@@ -103,39 +99,43 @@ const run = async () => {
         },
       },
     })
-    const docsKey = docsSyncPublicKey
+    const docsKeyAccess = docsSyncPublicKey
       ? await upsert({
-          collection: devDocsKeySlug,
-          data: buildDevDocsKeySeedData({
+          collection: devDocsAccessSlug,
+          data: buildDevDocsEd25519AccessSeedData({
             keyId: docsSyncKeyId,
             publicKey: docsSyncPublicKey,
           }),
           payload,
           where: {
-            keyId: {
-              equals: docsSyncKeyId,
+            identityKey: {
+              equals: `ed25519:${docsSyncKeyId}`,
             },
           },
         })
       : undefined
-    const trusted = await upsert({
-      collection: devDocsTrustedSlug,
-      data: buildDevDocsTrustedSeedData(),
+    const githubAccess = await upsert({
+      collection: devDocsAccessSlug,
+      data: buildDevDocsGitHubOidcAccessSeedData(),
       payload,
       where: {
-        owner: {
-          equals: 'valkyrianlabs',
+        identityKey: {
+          equals: 'githubOidc:valkyrianlabs',
         },
       },
     })
 
     process.stdout.write(`Seeded docs group: ${groupId ?? 'created'}\n`)
     process.stdout.write(`Seeded docs set: ${getPayloadRecordId(docsSet) ?? 'created'}\n`)
-    process.stdout.write(`Seeded docs trusted owner: ${getPayloadRecordId(trusted) ?? 'created'}\n`)
+    process.stdout.write(
+      `Seeded docs GitHub OIDC access: ${getPayloadRecordId(githubAccess) ?? 'created'}\n`,
+    )
     if (!docsSyncPublicKey) {
-      process.stdout.write('Docs sync public key not found; docs key was not updated.\n')
+      process.stdout.write('Docs sync public key not found; Ed25519 access was not updated.\n')
     } else {
-      process.stdout.write(`Seeded docs key: ${getPayloadRecordId(docsKey) ?? 'created'}\n`)
+      process.stdout.write(
+        `Seeded docs Ed25519 access: ${getPayloadRecordId(docsKeyAccess) ?? 'created'}\n`,
+      )
     }
   } finally {
     await payload.destroy()

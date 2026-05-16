@@ -8,13 +8,12 @@ import type { PayloadMarkdownDocsConfig } from '../dist'
 
 import { payloadMarkdownDocs } from '../dist'
 import {
+  DEFAULT_DOCS_ACCESS_COLLECTION_SLUG,
   DEFAULT_DOCS_COLLECTION_SLUG,
   DEFAULT_DOCS_GROUPS_COLLECTION_SLUG,
-  DEFAULT_DOCS_KEYS_COLLECTION_SLUG,
   DEFAULT_DOCS_SETS_COLLECTION_SLUG,
   DEFAULT_DOCS_SYNC_NONCES_COLLECTION_SLUG,
   DEFAULT_DOCS_SYNC_RUNS_COLLECTION_SLUG,
-  DEFAULT_DOCS_TRUSTED_COLLECTION_SLUG,
   DEFAULT_MARKDOWN_FIELD_NAME,
   DOCS_GLOBALS_ADMIN_GROUP,
   DOCS_SET_MANAGER_COMPONENT,
@@ -25,18 +24,26 @@ type NamedField = {
     components?: {
       Field?: string
     }
+    condition?: (data: unknown, siblingData?: Record<string, unknown>) => boolean
     custom?: Record<string, unknown>
+    hidden?: boolean
     position?: string
   }
+  defaultValue?: unknown
   fields?: NamedField[]
+  index?: boolean
   label?: string
   name?: string
+  options?: Array<{ label?: string; value?: string }> | string[]
   relationTo?: string | string[]
+  required?: boolean
   tabs?: Array<{
     fields?: NamedField[]
     label?: string
   }>
   type?: string
+  unique?: boolean
+  validate?: (value: unknown, options: { siblingData: Record<string, unknown> }) => string | true
 }
 
 const payloadMarkdownDocsSync =
@@ -141,6 +148,7 @@ describe('payloadMarkdownDocs collection wiring', () => {
     expect(getCollection(transformedConfig, 'posts')).toBeDefined()
     expect(getCollection(transformedConfig, DEFAULT_DOCS_GROUPS_COLLECTION_SLUG)).toBeDefined()
     expect(getCollection(transformedConfig, DEFAULT_DOCS_SETS_COLLECTION_SLUG)).toBeDefined()
+    expect(getCollection(transformedConfig, DEFAULT_DOCS_ACCESS_COLLECTION_SLUG)).toBeDefined()
     expect(getCollection(transformedConfig, DEFAULT_DOCS_COLLECTION_SLUG)).toBeDefined()
     expect(getCollection(transformedConfig, DEFAULT_DOCS_SYNC_RUNS_COLLECTION_SLUG)).toBeDefined()
     expect(getCollection(transformedConfig, DEFAULT_DOCS_SYNC_NONCES_COLLECTION_SLUG)).toBeDefined()
@@ -162,10 +170,9 @@ describe('payloadMarkdownDocs collection wiring', () => {
     )
     const docsSetsCollection = getCollection(transformedConfig, DEFAULT_DOCS_SETS_COLLECTION_SLUG)
     const docsCollection = getCollection(transformedConfig, DEFAULT_DOCS_COLLECTION_SLUG)
-    const docsKeysCollection = getCollection(transformedConfig, DEFAULT_DOCS_KEYS_COLLECTION_SLUG)
-    const docsTrustedCollection = getCollection(
+    const docsAccessCollection = getCollection(
       transformedConfig,
-      DEFAULT_DOCS_TRUSTED_COLLECTION_SLUG,
+      DEFAULT_DOCS_ACCESS_COLLECTION_SLUG,
     )
     const syncRunsCollection = getCollection(
       transformedConfig,
@@ -186,11 +193,7 @@ describe('payloadMarkdownDocs collection wiring', () => {
       useAsTitle: 'title',
     })
     expect(docsGroupsCollection?.admin?.hidden).not.toBe(true)
-    expect(docsKeysCollection?.admin).toMatchObject({
-      group: DOCS_GLOBALS_ADMIN_GROUP,
-      useAsTitle: 'title',
-    })
-    expect(docsTrustedCollection?.admin).toMatchObject({
+    expect(docsAccessCollection?.admin).toMatchObject({
       group: DOCS_GLOBALS_ADMIN_GROUP,
       useAsTitle: 'title',
     })
@@ -231,6 +234,9 @@ describe('payloadMarkdownDocs collection wiring', () => {
   test('custom infrastructure collection slugs work', () => {
     const transformedConfig = payloadMarkdownDocsSync({
       collections: {
+        docsAccess: {
+          slug: 'kb-docs-access',
+        },
         docsGroups: {
           slug: 'kb-docs-groups',
         },
@@ -249,14 +255,16 @@ describe('payloadMarkdownDocs collection wiring', () => {
 
     expect(getCollection(transformedConfig, 'kb-docs-groups')).toBeDefined()
     expect(getCollection(transformedConfig, 'kb-docs-sets')).toBeDefined()
-    expect(getCollection(transformedConfig, DEFAULT_DOCS_KEYS_COLLECTION_SLUG)).toBeDefined()
-    expect(getCollection(transformedConfig, DEFAULT_DOCS_TRUSTED_COLLECTION_SLUG)).toBeDefined()
+    expect(getCollection(transformedConfig, 'kb-docs-access')).toBeDefined()
     expect(getCollection(transformedConfig, 'kb-sync-runs')).toBeDefined()
     expect(getCollection(transformedConfig, 'kb-sync-nonces')).toBeDefined()
     expect(getCollection(transformedConfig, 'kb-docs-groups')?.admin?.group).toBe(
       DOCS_GLOBALS_ADMIN_GROUP,
     )
     expect(getCollection(transformedConfig, 'kb-docs-sets')?.admin?.group).toBe(
+      DOCS_GLOBALS_ADMIN_GROUP,
+    )
+    expect(getCollection(transformedConfig, 'kb-docs-access')?.admin?.group).toBe(
       DOCS_GLOBALS_ADMIN_GROUP,
     )
     expect(getCollection(transformedConfig, 'kb-sync-runs')?.admin?.hidden).toBe(true)
@@ -406,6 +414,119 @@ describe('payloadMarkdownDocs collection wiring', () => {
     expect(docsGroupsCollection?.admin?.group).toBe(DOCS_GLOBALS_ADMIN_GROUP)
   })
 
+  test('docs access collection contains selector-driven auth fields', () => {
+    const transformedConfig = payloadMarkdownDocsSync({ enabled: true })({
+      collections: [],
+    } as unknown as Config)
+    const docsAccessCollection = getCollection(
+      transformedConfig,
+      DEFAULT_DOCS_ACCESS_COLLECTION_SLUG,
+    )
+    const accessTypeField = getField(docsAccessCollection, 'accessType')
+    const identityKeyField = getField(docsAccessCollection, 'identityKey')
+    const keyIdField = getField(docsAccessCollection, 'keyId')
+    const publicKeyField = getField(docsAccessCollection, 'publicKey')
+    const ownerField = getField(docsAccessCollection, 'owner')
+    const limitReposField = getField(docsAccessCollection, 'limitRepos')
+    const repositoriesField = getField(docsAccessCollection, 'repositories')
+
+    expect(docsAccessCollection?.labels).toEqual({
+      plural: 'Access',
+      singular: 'Access',
+    })
+    expect(docsAccessCollection?.admin?.defaultColumns).toContain('accessType')
+    expect(docsAccessCollection?.admin).toMatchObject({
+      group: DOCS_GLOBALS_ADMIN_GROUP,
+      useAsTitle: 'title',
+    })
+    expect(accessTypeField).toMatchObject({
+      type: 'select',
+      defaultValue: 'githubOidc',
+      index: true,
+      label: 'Type',
+      required: true,
+    })
+    expect(accessTypeField?.options).toEqual([
+      {
+        label: 'Ed25519 Key',
+        value: 'ed25519',
+      },
+      {
+        label: 'GitHub OIDC',
+        value: 'githubOidc',
+      },
+    ])
+    expect(identityKeyField).toMatchObject({
+      type: 'text',
+      admin: {
+        hidden: true,
+      },
+      index: true,
+      unique: true,
+    })
+    expect(keyIdField).toMatchObject({
+      type: 'text',
+      index: true,
+    })
+    expect(publicKeyField).toMatchObject({
+      type: 'textarea',
+    })
+    expect(ownerField).toMatchObject({
+      type: 'text',
+      index: true,
+    })
+    expect(limitReposField).toMatchObject({
+      type: 'checkbox',
+      defaultValue: false,
+    })
+    expect(typeof keyIdField?.validate).toBe('function')
+    expect(typeof publicKeyField?.validate).toBe('function')
+    expect(typeof ownerField?.validate).toBe('function')
+    expect(keyIdField?.validate?.('', { siblingData: { accessType: 'ed25519' } })).toBe(
+      'Key ID is required for this access type.',
+    )
+    expect(keyIdField?.validate?.('', { siblingData: { accessType: 'githubOidc' } })).toBe(true)
+    expect(publicKeyField?.validate?.('', { siblingData: { accessType: 'ed25519' } })).toBe(
+      'Public key is required for this access type.',
+    )
+    expect(ownerField?.validate?.('', { siblingData: { accessType: 'githubOidc' } })).toBe(
+      'Owner is required for this access type.',
+    )
+    expect(ownerField?.validate?.('', { siblingData: { accessType: 'ed25519' } })).toBe(true)
+    expect(keyIdField?.admin?.condition?.({}, { accessType: 'ed25519' })).toBe(true)
+    expect(keyIdField?.admin?.condition?.({}, { accessType: 'githubOidc' })).toBe(false)
+    expect(publicKeyField?.admin?.condition?.({}, { accessType: 'ed25519' })).toBe(true)
+    expect(ownerField?.admin?.condition?.({}, { accessType: 'githubOidc' })).toBe(true)
+    expect(limitReposField?.admin?.condition?.({}, { accessType: 'githubOidc' })).toBe(true)
+    expect(
+      repositoriesField?.admin?.condition?.(
+        {},
+        {
+          accessType: 'githubOidc',
+          limitRepos: true,
+        },
+      ),
+    ).toBe(true)
+    expect(
+      repositoriesField?.admin?.condition?.(
+        {},
+        {
+          accessType: 'githubOidc',
+          limitRepos: false,
+        },
+      ),
+    ).toBe(false)
+    expect(
+      repositoriesField?.admin?.condition?.(
+        {},
+        {
+          accessType: 'ed25519',
+          limitRepos: true,
+        },
+      ),
+    ).toBe(false)
+  })
+
   test('docs sets collection contains expected fields', () => {
     const transformedConfig = payloadMarkdownDocsSync({ enabled: true })({
       collections: [],
@@ -418,12 +539,7 @@ describe('payloadMarkdownDocs collection wiring', () => {
 
     expect(getField(docsSetsCollection, 'title')?.type).toBe('text')
     expect(getField(docsSetsCollection, 'slug')?.type).toBe('text')
-    expect(tabsField?.tabs?.map((tab) => tab.label)).toEqual([
-      'Content',
-      'SEO',
-      'Security',
-      'Sync',
-    ])
+    expect(tabsField?.tabs?.map((tab) => tab.label)).toEqual(['Content', 'SEO', 'Security', 'Sync'])
     expect(getField(docsSetsCollection, 'sourceId')).toBeUndefined()
     expect(getField(docsSetsCollection, 'sourceRoot')).toBeUndefined()
     expect(getField(docsSetsCollection, 'group')?.relationTo).toBe(
@@ -486,11 +602,7 @@ describe('payloadMarkdownDocs collection wiring', () => {
     const tabsField = getTabsField(docsSetsCollection)
 
     expect(getGroupField(docsSetsCollection, 'meta')).toBeUndefined()
-    expect(tabsField?.tabs?.map((tab) => tab.label)).toEqual([
-      'Content',
-      'Security',
-      'Sync',
-    ])
+    expect(tabsField?.tabs?.map((tab) => tab.label)).toEqual(['Content', 'Security', 'Sync'])
   })
 
   test('docs set manager respects custom docs and docs set slugs', () => {
@@ -609,6 +721,7 @@ describeWithPostgres('payloadMarkdownDocs dev app integration', () => {
   })
 
   test('registers Phase 2 collections in the dev app', () => {
+    expect(payload?.collections[DEFAULT_DOCS_ACCESS_COLLECTION_SLUG]).toBeDefined()
     expect(payload?.collections[DEFAULT_DOCS_COLLECTION_SLUG]).toBeDefined()
     expect(payload?.collections[DEFAULT_DOCS_GROUPS_COLLECTION_SLUG]).toBeDefined()
     expect(payload?.collections[DEFAULT_DOCS_SETS_COLLECTION_SLUG]).toBeDefined()

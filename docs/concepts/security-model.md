@@ -59,10 +59,13 @@ The manifest cannot choose:
 - allowed docs set slugs
 - source-specific auth allowlists
 
-Payload Admin docs sets own slugs, branches, and advanced workflow refs. Global
-Keys and Trusted records own reusable authentication trust. Plugin config owns
-collection setup and lifecycle gates such as write, publish, and hard-delete
-authority.
+Payload Admin docs sets own package routing, branch, OIDC audience, and
+source-specific restrictions. Access records own reusable publishing
+credentials and trust: Ed25519 public keys for signed manual, local, or
+non-GitHub sync, and GitHub OIDC owner/repository allowlists for GitHub Actions
+sync. Nonces provide replay protection. Sync runs provide audit history. Plugin
+config owns collection setup and lifecycle gates such as write, publish, and
+hard-delete authority.
 
 ## Replay Protection
 

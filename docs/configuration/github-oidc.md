@@ -40,11 +40,12 @@ payloadMarkdownDocs({
 Then create records in Payload Admin:
 
 - `Docs Globals > Sets`: a docs set whose slug matches the CLI source
-- `Docs Globals > Trusted`: a trusted GitHub owner
+- `Docs Globals > Access`: a GitHub OIDC record for the trusted owner
 
 The docs set branch is the normal publishing boundary. The token repository
-owner must match a Trusted owner. If `limitRepos` is off, any repository under
-that owner is trusted. If it is on, the repository must be listed.
+owner must match a GitHub OIDC Access owner. If `limitRepos` is off, any
+repository under that owner is trusted. If it is on, the repository must be
+listed.
 
 ## Workflow Permissions
 
@@ -105,5 +106,6 @@ be limited to exact workflow files or refs.
 ## Ed25519 Still Works
 
 Ed25519 signed sync remains supported for local machines, non-GitHub CI, and
-workflows that prefer static key pairs. Add public keys in `Docs Globals > Keys`.
+workflows that prefer static key pairs. Add public keys in
+`Docs Globals > Access`.
 See [signed push](/workflow/signed-push).

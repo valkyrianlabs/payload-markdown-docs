@@ -37,8 +37,9 @@ repository name is the docs set slug.
 
 ## `oidc_repository_not_allowed`
 
-The token repository is not trusted. Check `Docs Globals > Trusted`, especially
-the owner, `limitRepos`, and repository list.
+The token repository is not trusted. Check GitHub OIDC records in
+`Docs Globals > Access`, especially the owner, `limitRepos`, and repository
+list.
 
 ## `oidc_ref_not_allowed`
 

@@ -9,7 +9,7 @@ Important concepts:
 - Human docs are manifest `files`.
 - Skills are manifest `assets`; AI discovery files are generated from synced
   docs and skills unless custom static fallback assets are explicitly provided.
-- Global Keys and Trusted records own reusable authentication trust.
+- Access records own reusable authentication trust.
 - The manifest does not choose target collections or fields.
 - CLI `push` defaults to sync mode; `--dry-run` is the explicit validation-only mode.
 - `sync.allowWrites: true` is required for `mode: "sync"`.

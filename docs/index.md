@@ -7,7 +7,7 @@ status: published
 tags:
   - overview
 dependencies:
-  - "@valkyrianlabs/payload-markdown"
+  - '@valkyrianlabs/payload-markdown'
 ---
 
 # Payload Markdown Docs
@@ -69,7 +69,7 @@ Use the root, `/next`, `/admin`, and `/blocks` package surfaces intentionally.
 
 - dedicated docs, docs groups, docs sets, sync runs, and nonce collections
 - signed Ed25519 sync endpoint with nonce replay protection
-- GitHub Actions OIDC auth mode with global Trusted owner/repository checks
+- GitHub Actions OIDC auth mode with Access owner/repository checks
 - CLI commands for `validate`, `manifest`, `plan`, `keygen`, and signed `push`
 - server-gated sync writes, publishing, draft behavior, archive behavior, and hard delete
 - route reservations and opt-in Pages collision checks
