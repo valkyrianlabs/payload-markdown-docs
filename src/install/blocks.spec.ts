@@ -1,6 +1,6 @@
 import type { Block, CollectionConfig, Config, Field } from 'payload'
 
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import {
   backgroundMediaFields,
@@ -68,6 +68,11 @@ const getNamedNestedField = (fields: Field[], name: string): Field | undefined =
   getNestedFields(fields).find(
     (field) => 'name' in field && typeof field.name === 'string' && field.name === name,
   )
+
+type FindByIDArgs = {
+  collection: string
+  id: number | string
+}
 
 describe('docs marketing block selection', () => {
   it('selects all blocks with blocks true', () => {
@@ -325,5 +330,91 @@ describe('docs marketing block field shapes', () => {
       },
     })
     expect(field.filterOptions({})).toBe(false)
+  })
+
+  it('validates heading overrides against available docs relationship titles', async () => {
+    const ctaHeadingField = getNamedNestedField(DocsCTABlock.fields, 'heading') as
+      | ({
+          validate?: (
+            value: unknown,
+            options: { req?: unknown; siblingData: Record<string, unknown> },
+          ) => Promise<string | true> | string | true
+        } & Field)
+      | undefined
+    const calloutHeadingField = getNamedNestedField(PublicDocsCalloutBlock.fields, 'heading') as
+      | ({
+          validate?: (
+            value: unknown,
+            options: { req?: unknown; siblingData: Record<string, unknown> },
+          ) => Promise<string | true> | string | true
+        } & Field)
+      | undefined
+    const req = {
+      payload: {
+        findByID: vi.fn((args: FindByIDArgs) => {
+          const collection = args.collection
+          const id = args.id
+
+          return Promise.resolve(
+            id === 'with-title'
+              ? {
+                  id,
+                  collection,
+                  title: collection === 'docs' ? 'Configuration' : 'Payload Markdown',
+                }
+              : {
+                  id,
+                  collection,
+                },
+          )
+        }),
+      },
+    }
+
+    expect(await ctaHeadingField?.validate?.(undefined, { req, siblingData: {} })).toBe(
+      'Add a heading or select a docs set with a title.',
+    )
+    expect(
+      await ctaHeadingField?.validate?.(undefined, {
+        req,
+        siblingData: {
+          docsSet: {
+            title: 'Payload Markdown',
+          },
+        },
+      }),
+    ).toBe(true)
+    expect(
+      await ctaHeadingField?.validate?.('Override heading', {
+        req,
+        siblingData: {},
+      }),
+    ).toBe(true)
+    expect(
+      await calloutHeadingField?.validate?.(undefined, {
+        req,
+        siblingData: {
+          docsPage: {
+            title: 'Configuration',
+          },
+        },
+      }),
+    ).toBe(true)
+    expect(
+      await ctaHeadingField?.validate?.(undefined, {
+        req,
+        siblingData: {
+          docsSet: 'with-title',
+        },
+      }),
+    ).toBe(true)
+    expect(
+      await ctaHeadingField?.validate?.(undefined, {
+        req,
+        siblingData: {
+          docsSet: 'missing-title',
+        },
+      }),
+    ).toBe('Add a heading or select a docs set with a title.')
   })
 })

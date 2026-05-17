@@ -1,13 +1,15 @@
 import type { DocsBannerProps } from '../../marketing/types.js'
 
 import { normalizeCTAButtons } from '../../utilities/index.js'
-import { getRouteLikeDescription, getRouteLikeTitle } from '../../utilities/normalizeShared.js'
+import { getRouteLikeDescription } from '../../utilities/normalizeShared.js'
 import { SkillCTAGroup } from '../skills/SkillCTAGroup.js'
 import {
   ActionGroup,
   BackgroundLayer,
   cx,
   Heading,
+  resolveOptionalText,
+  resolveRequiredHeading,
   TextContent,
   themeClasses,
 } from './shared.js'
@@ -41,18 +43,19 @@ export const DocsBanner = ({
   textAlign = 'center',
   theme = 'dark',
 }: DocsBannerProps) => {
-  const resolvedHeading = heading ?? getRouteLikeTitle(docsSet)
-  const resolvedDescription = description ?? getRouteLikeDescription(docsSet)
+  const resolvedHeading = resolveRequiredHeading({
+    blockType: 'docsBanner',
+    fallback: docsSet,
+    fallbackLabel: 'selected docs set',
+    value: heading,
+  })
+  const resolvedDescription = resolveOptionalText(description, getRouteLikeDescription(docsSet))
   const actions = normalizeCTAButtons(ctaButtons, undefined, {
     docsSet,
   })
   const resolvedSize = size ?? 'md'
   const resolvedAlign = textAlign ?? 'center'
   const resolvedTheme = theme ?? 'dark'
-
-  if (!resolvedHeading && !resolvedDescription && actions.length === 0 && !badge && !eyebrow) {
-    return null
-  }
 
   return (
     <section

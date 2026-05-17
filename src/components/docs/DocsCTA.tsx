@@ -1,7 +1,7 @@
 import type { DocsCTAProps } from '../../marketing/types.js'
 
 import { normalizeCTAButtons } from '../../utilities/index.js'
-import { getRouteLikeDescription, getRouteLikeTitle, getString } from '../../utilities/normalizeShared.js'
+import { getRouteLikeDescription, getString } from '../../utilities/normalizeShared.js'
 import { SkillCTAGroup } from '../skills/SkillCTAGroup.js'
 import {
   ActionGroup,
@@ -10,6 +10,8 @@ import {
   getFallbackAction,
   Heading,
   normalizeBadges,
+  resolveOptionalText,
+  resolveRequiredHeading,
   TextContent,
   themeClasses,
 } from './shared.js'
@@ -32,8 +34,13 @@ export const DocsCTA = (props: DocsCTAProps) => {
     theme = 'default',
   } = props
   const legacyDocsUrl = getString((props as Record<string, unknown>).docsUrl)
-  const resolvedHeading = heading ?? getRouteLikeTitle(docsSet)
-  const resolvedDescription = description ?? getRouteLikeDescription(docsSet)
+  const resolvedHeading = resolveRequiredHeading({
+    blockType: 'docsCTA',
+    fallback: docsSet,
+    fallbackLabel: 'selected docs set',
+    value: heading,
+  })
+  const resolvedDescription = resolveOptionalText(description, getRouteLikeDescription(docsSet))
   const actions = normalizeCTAButtons(
     ctaButtons,
     getFallbackAction({
@@ -48,10 +55,6 @@ export const DocsCTA = (props: DocsCTAProps) => {
   const badges = normalizeBadges(inputBadges)
   const resolvedTheme = theme ?? 'default'
   const centered = layout === 'centered' || layout === 'card'
-
-  if (!resolvedHeading && !resolvedDescription && actions.length === 0 && badges.length === 0) {
-    return null
-  }
 
   return (
     <section

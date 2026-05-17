@@ -1,10 +1,7 @@
 import type { DocsPreviewProps } from '../../marketing/types.js'
 
 import { normalizeCTAButtons, normalizeDocsPreviewItems } from '../../utilities/index.js'
-import {
-  getRouteLikeDescription,
-  getRouteLikeTitle,
-} from '../../utilities/normalizeShared.js'
+import { getRouteLikeDescription } from '../../utilities/normalizeShared.js'
 import { SkillCTAGroup } from '../skills/SkillCTAGroup.js'
 import { DocsPreviewCard } from './DocsPreviewCard.js'
 import {
@@ -12,6 +9,8 @@ import {
   cx,
   getFallbackAction,
   Heading,
+  resolveOptionalText,
+  resolveRequiredHeading,
   TextContent,
   themeClasses,
 } from './shared.js'
@@ -37,8 +36,13 @@ export const DocsPreview = (props: DocsPreviewProps) => {
     maxItems?: null | number
     viewAllUrl?: null | string
   } & DocsPreviewProps
-  const resolvedHeading = heading ?? getRouteLikeTitle(docsSet)
-  const resolvedDescription = description ?? getRouteLikeDescription(docsSet)
+  const resolvedHeading = resolveRequiredHeading({
+    blockType: 'docsPreview',
+    fallback: docsSet,
+    fallbackLabel: 'selected docs set',
+    value: heading,
+  })
+  const resolvedDescription = resolveOptionalText(description, getRouteLikeDescription(docsSet))
   const previewItems = normalizeDocsPreviewItems(
     [...(legacyProps.manualItems ?? legacyProps.items ?? []), ...(legacyProps.docs ?? [])],
     {
@@ -58,10 +62,6 @@ export const DocsPreview = (props: DocsPreviewProps) => {
   )
   const resolvedLayout = layout ?? 'cards'
   const resolvedTheme = theme ?? 'default'
-
-  if (!resolvedHeading && !resolvedDescription && previewItems.length === 0 && actions.length === 0) {
-    return null
-  }
 
   return (
     <section

@@ -4,12 +4,11 @@ import {
   getDocsPageHref,
   getRouteLikeDescription,
   getRouteLikeHref,
-  getRouteLikeTitle,
   getString,
 } from '../../utilities/normalizeShared.js'
 import { SkillCTAGroup } from '../skills/SkillCTAGroup.js'
 import { DocsCalloutCard } from './DocsCalloutCard.js'
-import { cx } from './shared.js'
+import { cx, resolveOptionalText, resolveRequiredHeading } from './shared.js'
 
 export const DocsCallout = (props: DocsCalloutProps) => {
   const {
@@ -31,12 +30,16 @@ export const DocsCallout = (props: DocsCalloutProps) => {
     getString(legacyProps.href) ??
     getString(legacyProps.manualHref) ??
     getRouteLikeHref(legacyProps.routeReference)
-  const resolvedHeading = heading ?? getRouteLikeTitle(docsPage)
-  const resolvedDescription = description ?? excerpt ?? getRouteLikeDescription(docsPage)
-
-  if (!resolvedHeading && !resolvedDescription && !resolvedHref) {
-    return null
-  }
+  const resolvedHeading = resolveRequiredHeading({
+    blockType: 'docsCallout',
+    fallback: docsPage,
+    fallbackLabel: 'selected docs page',
+    value: heading,
+  })
+  const resolvedDescription = resolveOptionalText(
+    description ?? excerpt,
+    getRouteLikeDescription(docsPage),
+  )
 
   return (
     <section

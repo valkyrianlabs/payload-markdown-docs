@@ -2284,6 +2284,45 @@ describe('Payload Markdown Docs marketing components', () => {
     expect(bannerMarkup).toContain('Open docs')
   })
 
+  it('renders docs set fallback headings without relying on badges or actions', () => {
+    const docsSet = {
+      description: 'Docs set fallback description.',
+      title: 'Docs set fallback title',
+    }
+    const bannerMarkup = renderToStaticMarkup(
+      DocsBanner({
+        ctaButtons: [],
+        docsSet,
+      }),
+    )
+    const ctaMarkup = renderToStaticMarkup(
+      DocsCTA({
+        ctaButtons: [],
+        docsSet,
+      }),
+    )
+
+    expect(bannerMarkup).toContain('Docs set fallback title')
+    expect(bannerMarkup).toContain('Docs set fallback description.')
+    expect(ctaMarkup).toContain('Docs set fallback title')
+    expect(ctaMarkup).toContain('Docs set fallback description.')
+  })
+
+  it('throws a clear error when a required docs marketing heading cannot resolve', () => {
+    expect(() =>
+      DocsBanner({
+        ctaButtons: [],
+      }),
+    ).toThrow('docsBanner requires a heading or a selected docs set with a title')
+    expect(() =>
+      DocsCallout({
+        docsPage: {
+          route: '/docs/configuration',
+        },
+      }),
+    ).toThrow('docsCallout requires a heading or a selected docs page with a title')
+  })
+
   it('renders docs marketing blocks through the standard Payload block component map', () => {
     const docsSet = {
       id: 2,

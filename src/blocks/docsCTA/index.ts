@@ -4,6 +4,7 @@ import {
   backgroundMediaFields,
   ctaButtonsField,
   docsSetRelationshipField,
+  validateDocsSetHeadingFallback,
 } from '../../fields/index.js'
 import { skillCTAFields } from '../../fields/skills.js'
 
@@ -38,8 +39,9 @@ export const DocsCTABlock: Block = {
       name: 'heading',
       type: 'text',
       admin: {
-        description: 'Optional heading override. Defaults to the selected docs set title.',
+        description: 'Required unless the selected docs set provides a title.',
       },
+      validate: validateDocsSetHeadingFallback(),
     },
     {
       name: 'description',

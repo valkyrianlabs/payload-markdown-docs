@@ -3,6 +3,7 @@ import type { Block } from 'payload'
 import {
   docsPageRelationshipField,
   docsSetRelationshipField,
+  validateDocsPageHeadingFallback,
 } from '../../fields/index.js'
 import { skillCTAFields } from '../../fields/skills.js'
 
@@ -76,8 +77,9 @@ export const DocsCalloutBlock: Block = {
       name: 'heading',
       type: 'text',
       admin: {
-        description: 'Optional heading override. Defaults to the selected docs page title.',
+        description: 'Required unless the selected docs page provides a title.',
       },
+      validate: validateDocsPageHeadingFallback(),
     },
     {
       name: 'excerpt',

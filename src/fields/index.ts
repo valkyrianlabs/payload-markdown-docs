@@ -7,5 +7,10 @@ export {
   docsSetRelationshipField,
   getDocsPageFilter,
 } from './docsReferences.js'
+export {
+  validateDocsPageHeadingFallback,
+  validateDocsSetHeadingFallback,
+  validateHeadingFallback,
+} from './headingFallback.js'
 export { skillCTAFields } from './skills.js'
 export type { DocsSkillCTAFieldOptions } from './skills.js'

@@ -8,6 +8,7 @@ import type {
 } from '../../marketing/types.js'
 
 import { normalizeBackgroundMedia } from '../../utilities/index.js'
+import { getRouteLikeTitle, getString } from '../../utilities/normalizeShared.js'
 
 export const cx = (...values: (false | null | string | undefined)[]): string =>
   values.filter(Boolean).join(' ')
@@ -46,6 +47,39 @@ export const TextContent = ({
   }
 
   return <div className={className}>{children}</div>
+}
+
+export const resolveOptionalText = (
+  value: ReactNode,
+  fallback?: string,
+): ReactNode | undefined => {
+  if (typeof value === 'string') {
+    return value.trim() ? value : fallback
+  }
+
+  return value ?? fallback
+}
+
+export const resolveRequiredHeading = ({
+  blockType,
+  fallback,
+  fallbackLabel,
+  value,
+}: {
+  blockType: string
+  fallback?: unknown
+  fallbackLabel: string
+  value?: null | string
+}): string => {
+  const heading = getString(value) ?? getRouteLikeTitle(fallback)
+
+  if (heading) {
+    return heading
+  }
+
+  throw new Error(
+    `[payload-markdown-docs] ${blockType} requires a heading or a ${fallbackLabel} with a title. Set a heading override or query the relationship with enough depth to include its title.`,
+  )
 }
 
 export const normalizeBadges = (
