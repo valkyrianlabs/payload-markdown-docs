@@ -3,7 +3,10 @@ import { createElement, Fragment, type ReactNode } from 'react'
 import { renderToReadableStream, renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 
-import type { DocsMarketingPayloadOperations } from '../marketing/types.js'
+import type {
+  DocsMarketingFetch,
+  DocsMarketingPayloadOperations,
+} from '../marketing/types.js'
 import type {
   PayloadMarkdownDocsReadPayload,
   ResolvedPayloadMarkdownDocsRecord,
@@ -2413,6 +2416,71 @@ describe('Payload Markdown Docs marketing components', () => {
       depth: 1,
       overrideAccess: true,
     })
+  })
+
+  it('hydrates id-only docs relationships through the Payload REST API without app config imports', async () => {
+    const fetchDocs: DocsMarketingFetch = vi.fn((input) => {
+      const url = new URL(String(input), 'https://docs.example.test')
+
+      if (url.pathname === '/api/docs-sets/set-1') {
+        return Promise.resolve(
+          Response.json({
+            id: 'set-1',
+            slug: 'payload-markdown',
+            description: 'REST set description.',
+            group: {
+              id: 'group-1',
+              slug: 'plugins',
+            },
+            routeMode: 'product-nested',
+            title: 'REST set title',
+          }),
+        )
+      }
+
+      if (url.pathname === '/api/payload-markdown-docs-assets') {
+        return Promise.resolve(
+          Response.json({
+            docs: [
+              {
+                docsSet: 'set-1',
+                kind: 'skill',
+                route: '/plugins/payload-markdown/skills/claude/skill.md',
+                sourcePath: 'skills/claude/SKILL.md',
+              },
+            ],
+          }),
+        )
+      }
+
+      return Promise.resolve(Response.json({}, { status: 404 }))
+    })
+
+    const markup = await renderServerMarkup(
+      createElement(DocsPreview, {
+        docsSet: 'set-1',
+        fetch: fetchDocs,
+        skills: {
+          enabled: true,
+        },
+      }),
+    )
+
+    expect(markup).toContain('REST set title')
+    expect(markup).toContain('REST set description.')
+    expect(markup).toContain('href="/plugins/payload-markdown"')
+    expect(markup).toContain('Claude skill')
+    expect(fetchDocs).toHaveBeenCalledWith(
+      '/api/docs-sets/set-1?depth=2',
+      {
+        headers: {
+          accept: 'application/json',
+        },
+      },
+    )
+    expect(String((fetchDocs as ReturnType<typeof vi.fn>).mock.calls[1]?.[0])).toContain(
+      '/api/payload-markdown-docs-assets?',
+    )
   })
 
   it('renders docs marketing blocks through the standard Payload block component map', async () => {

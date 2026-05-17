@@ -98,6 +98,11 @@ export type DocsMarketingPayloadOperations = {
   }) => Promise<DocsPageReference | DocsSetReference | null>
 }
 
+export type DocsMarketingFetch = (
+  input: RequestInfo | URL,
+  init?: RequestInit,
+) => Promise<Response>
+
 export type DocsActionVariant = 'ghost' | 'link' | 'outline' | 'primary' | 'secondary'
 export type DocsCTAButtonTarget = 'custom' | 'set' | 'setPage'
 
@@ -222,10 +227,13 @@ export type NormalizedDocsPreviewItem = {
 export type DocsTheme = 'brand' | 'dark' | 'default' | 'muted'
 
 export type DocsMarketingPayloadBlockProps = {
+  apiBaseURL?: null | string
+  apiRoutePrefix?: null | string
   blockName?: null | string
   blockType?: null | string
   collections?: DocsRelationshipCollections
   collectionSlug?: null | string
+  fetch?: DocsMarketingFetch
   id?: null | number | string
   payload?: DocsMarketingPayloadOperations
 }

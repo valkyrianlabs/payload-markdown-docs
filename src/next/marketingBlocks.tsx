@@ -5,12 +5,14 @@ import type {
   DocsBannerProps,
   DocsCalloutProps,
   DocsCTAProps,
+  DocsMarketingFetch,
   DocsMarketingPayloadBlockProps,
   DocsMarketingPayloadOperations,
   DocsPageReference,
   DocsPreviewProps,
   DocsRelationship,
   DocsSetReference,
+  DocsWhere,
   SkillCTAGroupInput,
 } from '../marketing/types.js'
 
@@ -28,43 +30,164 @@ import {
   getDocsPageTitle,
   getDocsRelationshipId,
   getDocsSetTitle,
+  getText,
   getTypedDocsPageHref,
   getTypedDocsSetPublicHref,
 } from '../utilities/normalizeShared.js'
 
-let payloadPromise: Promise<DocsMarketingPayloadOperations | undefined> | undefined
-
 type FindArgs = Parameters<NonNullable<DocsMarketingPayloadOperations['find']>>[0]
 type FindByIDArgs = Parameters<DocsMarketingPayloadOperations['findByID']>[0]
-
-const getConfiguredPayload = async (): Promise<DocsMarketingPayloadOperations | undefined> => {
-  if (!payloadPromise) {
-    payloadPromise = Promise.all([import('payload'), import('@payload-config')])
-      .then(async ([payloadModule, payloadConfigModule]) => {
-        const payload = await payloadModule.getPayload({
-          config: payloadConfigModule.default,
-        })
-
-        return {
-          find: async (args: FindArgs): Promise<{ docs: DocsAssetReference[] }> => {
-            const result = await payload.find(args)
-
-            return {
-              docs: result.docs as DocsAssetReference[],
-            }
-          },
-          findByID: (args: FindByIDArgs) => payload.findByID(args),
-        }
-      })
-      .catch(() => undefined)
-  }
-
-  return payloadPromise
+type DocsFindResponse = {
+  docs?: DocsAssetReference[]
 }
 
-const getPayloadForProps = async (
+const trimTrailingSlashes = (value: string): string => value.replace(/\/+$/, '')
+
+const normalizeRoutePrefix = (value: null | string | undefined): string => {
+  const routePrefix = getText(value) ?? '/api'
+  const withLeadingSlash = routePrefix.startsWith('/') ? routePrefix : `/${routePrefix}`
+
+  return trimTrailingSlashes(withLeadingSlash)
+}
+
+const getEnvironmentOrigin = (): string | undefined => {
+  const configuredOrigin =
+    getText(process.env.PAYLOAD_PUBLIC_SERVER_URL) ??
+    getText(process.env.NEXT_PUBLIC_SERVER_URL) ??
+    getText(process.env.SERVER_URL)
+
+  if (configuredOrigin) {
+    return trimTrailingSlashes(configuredOrigin)
+  }
+
+  const vercelURL = getText(process.env.VERCEL_URL)
+
+  return vercelURL ? `https://${trimTrailingSlashes(vercelURL)}` : undefined
+}
+
+const getAPIBaseURL = (props: DocsMarketingPayloadBlockProps): string => {
+  const routePrefix = normalizeRoutePrefix(props.apiRoutePrefix)
+  const explicitBaseURL = getText(props.apiBaseURL)
+
+  if (explicitBaseURL?.startsWith('http://') || explicitBaseURL?.startsWith('https://')) {
+    return trimTrailingSlashes(explicitBaseURL)
+  }
+
+  if (explicitBaseURL?.startsWith('/')) {
+    return trimTrailingSlashes(explicitBaseURL)
+  }
+
+  const origin = getEnvironmentOrigin()
+
+  return origin ? `${trimTrailingSlashes(origin)}${routePrefix}` : routePrefix
+}
+
+const getFetchForProps = (
   props: DocsMarketingPayloadBlockProps,
-): Promise<DocsMarketingPayloadOperations | undefined> => props.payload ?? getConfiguredPayload()
+): DocsMarketingFetch | undefined => props.fetch ?? globalThis.fetch
+
+const appendWhereParams = (
+  params: URLSearchParams,
+  where: DocsWhere,
+  prefix = 'where',
+): void => {
+  for (const [key, value] of Object.entries(where)) {
+    const nextPrefix = `${prefix}[${key}]`
+
+    if (Array.isArray(value)) {
+      value.forEach((item, index) => appendWhereParams(params, item, `${nextPrefix}[${index}]`))
+      continue
+    }
+
+    const condition = value
+
+    if (condition.equals !== undefined) {
+      params.set(`${nextPrefix}[equals]`, String(condition.equals))
+    }
+  }
+}
+
+const fetchJSON = async <TData,>({
+  fetchFn,
+  url,
+}: {
+  fetchFn: DocsMarketingFetch
+  url: string
+}): Promise<TData | undefined> => {
+  const response = await fetchFn(url, {
+    headers: {
+      accept: 'application/json',
+    },
+  })
+
+  if (!response.ok) {
+    return undefined
+  }
+
+  return response.json() as Promise<TData>
+}
+
+const createRestPayloadOperations = (
+  props: DocsMarketingPayloadBlockProps,
+): DocsMarketingPayloadOperations | undefined => {
+  const apiBaseURL = getAPIBaseURL(props)
+  const fetchFn = getFetchForProps(props)
+
+  if (!fetchFn) {
+    return undefined
+  }
+
+  return {
+    find: async (args: FindArgs): Promise<{ docs: DocsAssetReference[] }> => {
+      const searchParams = new URLSearchParams()
+
+      if (args.depth !== undefined) {
+        searchParams.set('depth', String(args.depth))
+      }
+
+      if (args.limit !== undefined) {
+        searchParams.set('limit', String(args.limit))
+      }
+
+      if (args.sort) {
+        searchParams.set('sort', args.sort)
+      }
+
+      if (args.where) {
+        appendWhereParams(searchParams, args.where)
+      }
+
+      const query = searchParams.size > 0 ? `?${searchParams.toString()}` : ''
+      const result = await fetchJSON<DocsFindResponse>({
+        fetchFn,
+        url: `${apiBaseURL}/${args.collection}${query}`,
+      })
+
+      return {
+        docs: result?.docs ?? [],
+      }
+    },
+    findByID: (args: FindByIDArgs) => {
+      const searchParams = new URLSearchParams()
+
+      if (args.depth !== undefined) {
+        searchParams.set('depth', String(args.depth))
+      }
+
+      const query = searchParams.size > 0 ? `?${searchParams.toString()}` : ''
+
+      return fetchJSON<DocsPageReference | DocsSetReference>({
+        fetchFn,
+        url: `${apiBaseURL}/${args.collection}/${encodeURIComponent(args.id)}${query}`,
+      }).then((result) => result ?? null)
+    },
+  }
+}
+
+const getPayloadForProps = (
+  props: DocsMarketingPayloadBlockProps,
+): DocsMarketingPayloadOperations | undefined =>
+  props.payload ?? createRestPayloadOperations(props)
 
 const shouldHydrateDocsSet = (
   docsSet: DocsRelationship<DocsSetReference> | null | undefined,
@@ -73,6 +196,9 @@ const shouldHydrateDocsSet = (
 const shouldHydrateDocsPage = (
   docsPage: DocsRelationship<DocsPageReference> | null | undefined,
 ): boolean => Boolean(getDocsRelationshipId(docsPage) && (!getDocsPageTitle(docsPage) || !getTypedDocsPageHref(docsPage)))
+
+const shouldResolveSkills = (skills: null | SkillCTAGroupInput | undefined): boolean =>
+  skills?.enabled === true
 
 const resolveDocsSet = async ({
   docsSet,
@@ -158,7 +284,10 @@ const resolveDocsSetBlockProps = async <
 >(
   props: TProps,
 ): Promise<TProps> => {
-  const payload = await getPayloadForProps(props)
+  const payload =
+    shouldHydrateDocsSet(props.docsSet) || shouldResolveSkills(props.skills)
+      ? getPayloadForProps(props)
+      : undefined
   const docsSet = await resolveDocsSet({
     docsSet: props.docsSet,
     payload,
@@ -197,7 +326,12 @@ export const DocsPreview = async (props: DocsPreviewProps): Promise<ReactNode> =
 }
 
 export const DocsCallout = async (props: DocsCalloutProps): Promise<ReactNode> => {
-  const payload = await getPayloadForProps(props)
+  const payload =
+    shouldHydrateDocsSet(props.docsSet) ||
+    shouldHydrateDocsPage(props.docsPage) ||
+    shouldResolveSkills(props.skills)
+      ? getPayloadForProps(props)
+      : undefined
   const docsSet = await resolveDocsSet({
     docsSet: props.docsSet,
     payload,
