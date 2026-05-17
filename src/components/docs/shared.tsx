@@ -3,12 +3,14 @@ import type { CSSProperties, ElementType, ReactNode } from 'react'
 import type {
   DocsBackgroundMediaInput,
   DocsCTAButtonInput,
+  DocsRelationship,
+  DocsSetReference,
   NormalizedDocsBackgroundMedia,
   NormalizedDocsCTAButton,
 } from '../../marketing/types.js'
 
 import { normalizeBackgroundMedia } from '../../utilities/index.js'
-import { getRouteLikeTitle, getString } from '../../utilities/normalizeShared.js'
+import { getText } from '../../utilities/normalizeShared.js'
 
 export const cx = (...values: (false | null | string | undefined)[]): string =>
   values.filter(Boolean).join(' ')
@@ -62,16 +64,16 @@ export const resolveOptionalText = (
 
 export const resolveRequiredHeading = ({
   blockType,
-  fallback,
   fallbackLabel,
+  fallbackTitle,
   value,
 }: {
   blockType: string
-  fallback?: unknown
   fallbackLabel: string
+  fallbackTitle?: string
   value?: null | string
 }): string => {
-  const heading = getString(value) ?? getRouteLikeTitle(fallback)
+  const heading = getText(value) ?? fallbackTitle
 
   if (heading) {
     return heading
@@ -161,7 +163,7 @@ export const getFallbackAction = ({
   docsUrl,
 }: {
   docsLabel?: null | string
-  docsSet?: unknown
+  docsSet?: DocsRelationship<DocsSetReference> | null
   docsUrl?: null | string
 }): DocsCTAButtonInput | undefined =>
   docsUrl || docsSet

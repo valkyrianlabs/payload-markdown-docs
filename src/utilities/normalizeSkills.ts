@@ -1,4 +1,9 @@
 import type {
+  DocsAssetReference,
+  DocsPageReference,
+  DocsRelationship,
+  DocsSetReference,
+  DocsWhere,
   NormalizedSkillCTAGroup,
   NormalizedSkillCTAItem,
   SkillCTAGroupInput,
@@ -25,19 +30,23 @@ export type SkillAssetPayloadOperations = {
     limit?: number
     overrideAccess?: boolean
     sort?: string
-    where?: unknown
+    where?: DocsWhere
   }) => Promise<{
-    docs: unknown[]
+    docs: DocsAssetReference[]
   }>
 }
 
-const getSkillType = (value: unknown): SkillCTAType =>
+const getSkillType = (value: null | string | undefined): SkillCTAType =>
   typeof value === 'string' && skillTypes.includes(value as SkillCTAType)
     ? (value as SkillCTAType)
     : 'custom'
 
 const formatAgentLabel = (agent: string): string =>
   `${agent.charAt(0).toUpperCase()}${agent.slice(1)} skill`
+
+type LegacySkillCTAItemInput = {
+  routeReference?: DocsRelationship<DocsPageReference> | null
+} & SkillCTAItemInput
 
 const normalizePathSegments = (value: string): string[] =>
   value
@@ -46,7 +55,7 @@ const normalizePathSegments = (value: string): string[] =>
     .map((segment) => segment.trim())
     .filter(Boolean)
 
-const getAgentFromSkillPath = (value: unknown): string | undefined => {
+const getAgentFromSkillPath = (value: null | string | undefined): string | undefined => {
   const path = getString(value)
 
   if (!path) {
@@ -73,15 +82,17 @@ const getAgentFromSkillPath = (value: unknown): string | undefined => {
   return afterSkills.length > 1 ? afterSkills[1] : afterSkills[0]
 }
 
-const isRootSkillAsset = (asset: Record<string, unknown>): boolean => {
+const isRootSkillAsset = (asset: DocsAssetReference): boolean => {
   const route = getString(asset.route)
   const sourcePath = getString(asset.sourcePath)
 
   return [route, sourcePath].some((value) => value?.toLowerCase().endsWith('/skill.md'))
 }
 
-const normalizeSkillItem = (input: unknown): NormalizedSkillCTAItem | undefined => {
-  if (!isRecord(input)) {
+const normalizeSkillItem = (
+  input: LegacySkillCTAItemInput | null | undefined,
+): NormalizedSkillCTAItem | undefined => {
+  if (!input) {
     return undefined
   }
 
@@ -101,10 +112,10 @@ const normalizeSkillItem = (input: unknown): NormalizedSkillCTAItem | undefined 
 }
 
 const normalizeSkillAssetItem = (
-  input: unknown,
+  input: DocsAssetReference,
   options: { docsSetId?: string } = {},
 ): NormalizedSkillCTAItem | undefined => {
-  if (!isRecord(input) || input.kind !== 'skill') {
+  if (input.kind !== 'skill') {
     return undefined
   }
 
@@ -133,7 +144,7 @@ const normalizeSkillAssetItem = (
 }
 
 export const normalizeSkillAssetItems = (
-  input: unknown[],
+  input: DocsAssetReference[],
   options: { docsSetId?: string } = {},
 ): NormalizedSkillCTAItem[] => {
   const itemsByAgent = new Map<
@@ -153,7 +164,7 @@ export const normalizeSkillAssetItems = (
 
     const key = item.icon ?? item.label
     const existing = itemsByAgent.get(key)
-    const root = isRecord(asset) ? isRootSkillAsset(asset) : false
+    const root = isRootSkillAsset(asset)
 
     if (!existing || (root && !existing.root)) {
       itemsByAgent.set(key, {
@@ -175,7 +186,7 @@ export const resolveDocsSetSkills = async ({
   skills,
 }: {
   collectionSlug?: string
-  docsSet: unknown
+  docsSet: DocsRelationship<DocsSetReference> | null | undefined
   payload: SkillAssetPayloadOperations
   skills: null | SkillCTAGroupInput | undefined
 }): Promise<SkillCTAGroupInput | undefined> => {

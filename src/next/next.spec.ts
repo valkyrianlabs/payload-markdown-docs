@@ -1,8 +1,9 @@
 import { readFileSync } from 'node:fs'
 import { createElement, Fragment, type ReactNode } from 'react'
-import { renderToStaticMarkup } from 'react-dom/server'
+import { renderToReadableStream, renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 
+import type { DocsMarketingPayloadOperations } from '../marketing/types.js'
 import type {
   PayloadMarkdownDocsReadPayload,
   ResolvedPayloadMarkdownDocsRecord,
@@ -47,6 +48,12 @@ vi.mock('next/cache', () => ({
 vi.mock('@valkyrianlabs/payload-markdown/server', () => ({
   MarkdownRenderer: ({ markdown }: { markdown?: string }) => markdown ?? null,
 }))
+
+const renderServerMarkup = async (node: ReactNode): Promise<string> => {
+  const stream = await renderToReadableStream(node)
+
+  return new Response(stream).text()
+}
 
 type TestPayloadData = {
   docs?: Record<string, unknown>[]
@@ -2232,38 +2239,38 @@ describe('Payload Markdown Docs page component', () => {
 })
 
 describe('Payload Markdown Docs marketing components', () => {
-  it('exports renderable docs marketing blocks from /next', () => {
+  it('exports renderable docs marketing blocks from /next', async () => {
     const docsSet = {
       id: 'set-1',
       slug: 'payload-markdown',
       description: 'Guides and API references.',
       routeMode: 'product-nested',
       title: 'Payload Markdown',
-    }
+    } as const
     const docsPage = {
       description: 'Configuration reference.',
       route: '/payload-markdown/docs/configuration',
       title: 'Need options?',
     }
-    const ctaMarkup = renderToStaticMarkup(
-      DocsCTA({
+    const ctaMarkup = await renderServerMarkup(
+      createElement(DocsCTA, {
         docsLabel: 'Read the docs',
         docsSet,
       }),
     )
-    const previewMarkup = renderToStaticMarkup(
-      DocsPreview({
+    const previewMarkup = await renderServerMarkup(
+      createElement(DocsPreview, {
         docsSet,
         viewAllLabel: 'Explore docs',
       }),
     )
-    const calloutMarkup = renderToStaticMarkup(
-      DocsCallout({
+    const calloutMarkup = await renderServerMarkup(
+      createElement(DocsCallout, {
         docsPage,
       }),
     )
-    const bannerMarkup = renderToStaticMarkup(
-      DocsBanner({
+    const bannerMarkup = await renderServerMarkup(
+      createElement(DocsBanner, {
         ctaButtons: [
           {
             label: 'Open docs',
@@ -2284,19 +2291,19 @@ describe('Payload Markdown Docs marketing components', () => {
     expect(bannerMarkup).toContain('Open docs')
   })
 
-  it('renders docs set fallback headings without relying on badges or actions', () => {
+  it('renders docs set fallback headings without relying on badges or actions', async () => {
     const docsSet = {
       description: 'Docs set fallback description.',
       title: 'Docs set fallback title',
     }
-    const bannerMarkup = renderToStaticMarkup(
-      DocsBanner({
+    const bannerMarkup = await renderServerMarkup(
+      createElement(DocsBanner, {
         ctaButtons: [],
         docsSet,
       }),
     )
-    const ctaMarkup = renderToStaticMarkup(
-      DocsCTA({
+    const ctaMarkup = await renderServerMarkup(
+      createElement(DocsCTA, {
         ctaButtons: [],
         docsSet,
       }),
@@ -2308,22 +2315,107 @@ describe('Payload Markdown Docs marketing components', () => {
     expect(ctaMarkup).toContain('Docs set fallback description.')
   })
 
-  it('throws a clear error when a required docs marketing heading cannot resolve', () => {
-    expect(() =>
-      DocsBanner({
-        ctaButtons: [],
-      }),
-    ).toThrow('docsBanner requires a heading or a selected docs set with a title')
-    expect(() =>
-      DocsCallout({
-        docsPage: {
-          route: '/docs/configuration',
-        },
-      }),
-    ).toThrow('docsCallout requires a heading or a selected docs page with a title')
+  it('throws a clear error when a required docs marketing heading cannot resolve', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+    try {
+      await expect(
+        renderServerMarkup(
+          createElement(DocsBanner, {
+            ctaButtons: [],
+          }),
+        ),
+      ).rejects.toThrow('docsBanner requires a heading or a selected docs set with a title')
+      await expect(
+        renderServerMarkup(
+          createElement(DocsCallout, {
+            docsPage: {
+              route: '/docs/configuration',
+            },
+          }),
+        ),
+      ).rejects.toThrow('docsCallout requires a heading or a selected docs page with a title')
+    } finally {
+      consoleError.mockRestore()
+    }
   })
 
-  it('renders docs marketing blocks through the standard Payload block component map', () => {
+  it('hydrates id-only docs relationships through the Payload local API before rendering', async () => {
+    const payload: DocsMarketingPayloadOperations = {
+      find: vi.fn(() =>
+        Promise.resolve({
+          docs: [
+            {
+              docsSet: 'set-1',
+              kind: 'skill',
+              route: '/plugins/payload-markdown/skills/codex/skill.md',
+              sourcePath: 'skills/codex/SKILL.md',
+            },
+          ],
+        }),
+      ),
+      findByID: vi.fn(({ id, collection }) =>
+        Promise.resolve(
+          collection === 'docs'
+            ? {
+                id,
+                description: 'Resolved page description.',
+                route: '/plugins/payload-markdown/docs/configuration',
+                title: 'Resolved page title',
+              }
+            : {
+                id,
+                slug: 'payload-markdown',
+                description: 'Resolved set description.',
+                group: {
+                  id: 'group-1',
+                  slug: 'plugins',
+                },
+                routeMode: 'product-nested',
+                title: 'Resolved set title',
+              },
+        ),
+      ),
+    }
+
+    const previewMarkup = await renderServerMarkup(
+      createElement(DocsPreview, {
+        docsSet: 'set-1',
+        payload,
+        skills: {
+          enabled: true,
+        },
+      }),
+    )
+    const calloutMarkup = await renderServerMarkup(
+      createElement(DocsCallout, {
+        docsPage: 'page-1',
+        payload,
+      }),
+    )
+
+    expect(previewMarkup).toContain('Resolved set title')
+    expect(previewMarkup).toContain('Resolved set description.')
+    expect(previewMarkup).toContain('href="/plugins/payload-markdown"')
+    expect(previewMarkup).toContain('Codex skill')
+    expect(calloutMarkup).toContain('Resolved page title')
+    expect(calloutMarkup).toContain('Resolved page description.')
+    expect(calloutMarkup).toContain('href="/plugins/payload-markdown/docs/configuration"')
+    expect(payload.findByID).toHaveBeenCalledWith({
+      id: 'set-1',
+      collection: 'docs-sets',
+      depth: 2,
+      overrideAccess: true,
+    })
+    expect(payload.findByID).toHaveBeenCalledWith({
+      id: 'page-1',
+      collection: 'docs',
+      depth: 1,
+      overrideAccess: true,
+    })
+  })
+
+  it('renders docs marketing blocks through the standard Payload block component map', async () => {
     const docsSet = {
       id: 2,
       slug: 'payload-markdown',
@@ -2335,17 +2427,17 @@ describe('Payload Markdown Docs marketing components', () => {
       },
       routeMode: 'product-nested',
       title: 'Payload Markdown',
-    }
+    } as const
     const blockComponents = {
       docsBanner: DocsBanner,
       docsCallout: DocsCallout,
       docsCTA: DocsCTA,
       docsPreview: DocsPreview,
     }
-    const blocks: ({ blockType: keyof typeof blockComponents; id: string } & Record<
-      string,
-      unknown
-    >)[] = [
+    const blocks: (
+      | ({ blockType: 'docsBanner'; id: string } & Parameters<typeof DocsBanner>[0])
+      | ({ blockType: 'docsPreview'; id: string } & Parameters<typeof DocsPreview>[0])
+    )[] = [
       {
         id: 'banner-block',
         background: {
@@ -2381,14 +2473,14 @@ describe('Payload Markdown Docs marketing components', () => {
         viewAllLabel: 'Documentation',
       },
     ]
-    const markup = renderToStaticMarkup(
+    const markup = await renderServerMarkup(
       createElement(
         Fragment,
         null,
         ...blocks.map((block) => {
           const Block = blockComponents[block.blockType] as (props: {
             collectionSlug: string
-          } & typeof block) => ReactNode
+          } & typeof block) => Promise<ReactNode>
 
           return createElement(Block, {
             ...block,

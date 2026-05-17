@@ -1,15 +1,113 @@
 import type { ReactNode } from 'react'
 
+import type { DocsSetRouteMode } from '../routing/index.js'
+
+export type DocsRelationshipID = number | string
+
+export type DocsRelationship<TRecord> =
+  | {
+      relationTo?: null | string
+      value: DocsRelationshipID | TRecord
+    }
+  | DocsRelationshipID
+  | TRecord
+
+export type DocsGroupReference = {
+  id?: DocsRelationshipID
+  parent?: DocsRelationship<DocsGroupReference> | null
+  routePath?: null | string
+  slug?: null | string
+  title?: null | string
+}
+
+export type DocsSetReference = {
+  description?: null | string
+  group?: DocsRelationship<DocsGroupReference> | null
+  id?: DocsRelationshipID
+  label?: null | string
+  navTitle?: null | string
+  productRoute?: null | string
+  routeBase?: null | string
+  routeMode?: DocsSetRouteMode | null
+  slug?: null | string
+  title?: null | string
+}
+
+export type DocsPageReference = {
+  description?: null | string
+  docsSet?: DocsRelationship<DocsSetReference> | null
+  excerpt?: null | string
+  href?: null | string
+  id?: DocsRelationshipID
+  label?: null | string
+  navTitle?: null | string
+  route?: null | string
+  title?: null | string
+  url?: null | string
+}
+
+export type DocsAssetReference = {
+  docsSet?: DocsRelationship<DocsSetReference> | null
+  id?: DocsRelationshipID
+  kind?: null | string
+  route?: null | string
+  sourcePath?: null | string
+}
+
+export type DocsMediaReference = {
+  alt?: null | string
+  height?: null | number
+  id?: DocsRelationshipID
+  relationTo?: null | string
+  url?: null | string
+  width?: null | number
+}
+
+export type DocsRelationshipCollections = {
+  docs?: string
+  docsAssets?: string
+  docsSets?: string
+}
+
+export type DocsWhereValue = boolean | null | number | string
+
+export type DocsWhereCondition = {
+  equals?: DocsWhereValue
+}
+
+export type DocsWhere = {
+  [field: string]: DocsWhere[] | DocsWhereCondition
+}
+
+export type DocsMarketingPayloadOperations = {
+  find?: (args: {
+    collection: string
+    depth?: number
+    limit?: number
+    overrideAccess?: boolean
+    sort?: string
+    where?: DocsWhere
+  }) => Promise<{
+    docs: DocsAssetReference[]
+  }>
+  findByID: (args: {
+    collection: string
+    depth?: number
+    id: DocsRelationshipID
+    overrideAccess?: boolean
+  }) => Promise<DocsPageReference | DocsSetReference | null>
+}
+
 export type DocsActionVariant = 'ghost' | 'link' | 'outline' | 'primary' | 'secondary'
 export type DocsCTAButtonTarget = 'custom' | 'set' | 'setPage'
 
 export type DocsCTAButtonInput = {
-  docsSet?: unknown
+  docsSet?: DocsRelationship<DocsSetReference> | null
   href?: null | string
   icon?: null | string
   label?: null | string
   newTab?: boolean | null
-  page?: unknown
+  page?: DocsRelationship<DocsPageReference> | null
   target?: DocsCTAButtonTarget | null
   url?: null | string
   variant?: DocsActionVariant | null
@@ -36,9 +134,11 @@ export type DocsBackgroundOverlayVariant = 'brand' | 'dark' | 'gradient' | 'ligh
 
 export type DocsBackgroundMediaInput = {
   advancedControls?: boolean | null
+  backgroundImage?: DocsRelationship<DocsMediaReference> | null
   fit?: DocsBackgroundFit | null
   gradient?: 'brand' | 'none' | 'subtle' | null
-  media?: unknown
+  image?: DocsRelationship<DocsMediaReference> | null
+  media?: DocsRelationship<DocsMediaReference> | null
   overlay?: boolean | null
   overlayOpacity?: null | number
   overlayVariant?: DocsBackgroundOverlayVariant | null
@@ -104,7 +204,9 @@ export type DocsPreviewItemInput = {
   excerpt?: null | string
   href?: null | string
   icon?: null | string
+  reference?: DocsRelationship<DocsPageReference> | null
   route?: null | string
+  routeReference?: DocsRelationship<DocsPageReference> | null
   title?: null | string
   url?: null | string
 }
@@ -120,11 +222,12 @@ export type NormalizedDocsPreviewItem = {
 export type DocsTheme = 'brand' | 'dark' | 'default' | 'muted'
 
 export type DocsMarketingPayloadBlockProps = {
-  [key: string]: unknown
   blockName?: null | string
   blockType?: null | string
+  collections?: DocsRelationshipCollections
   collectionSlug?: null | string
   id?: null | number | string
+  payload?: DocsMarketingPayloadOperations
 }
 
 export type DocsCTAProps = {
@@ -135,7 +238,7 @@ export type DocsCTAProps = {
   ctaButtons?: DocsCTAButtonInput[] | null
   description?: ReactNode
   docsLabel?: null | string
-  docsSet?: unknown
+  docsSet?: DocsRelationship<DocsSetReference> | null
   eyebrow?: null | string
   heading?: null | string
   headingLevel?: 1 | 2 | 3 | 4
@@ -149,7 +252,7 @@ export type DocsPreviewProps = {
   containerClassName?: string
   ctaButtons?: DocsCTAButtonInput[] | null
   description?: ReactNode
-  docsSet?: unknown
+  docsSet?: DocsRelationship<DocsSetReference> | null
   heading?: null | string
   headingLevel?: 1 | 2 | 3 | 4
   layout?: 'cards' | 'compact' | 'featured' | 'list' | null
@@ -163,8 +266,8 @@ export type DocsCalloutProps = {
   containerClassName?: string
   ctaLabel?: null | string
   description?: ReactNode
-  docsPage?: unknown
-  docsSet?: unknown
+  docsPage?: DocsRelationship<DocsPageReference> | null
+  docsSet?: DocsRelationship<DocsSetReference> | null
   excerpt?: null | string
   heading?: null | string
   icon?: null | string
@@ -180,7 +283,7 @@ export type DocsBannerProps = {
   containerClassName?: string
   ctaButtons?: DocsCTAButtonInput[] | null
   description?: ReactNode
-  docsSet?: unknown
+  docsSet?: DocsRelationship<DocsSetReference> | null
   eyebrow?: null | string
   heading?: null | string
   headingLevel?: 1 | 2 | 3 | 4

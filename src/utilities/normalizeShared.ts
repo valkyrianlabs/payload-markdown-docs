@@ -1,3 +1,11 @@
+import type {
+  DocsGroupReference,
+  DocsPageReference,
+  DocsRelationship,
+  DocsRelationshipID,
+  DocsSetReference,
+} from '../marketing/types.js'
+
 import {
   DEFAULT_DOCS_SET_ROUTE_MODE,
   deriveDocsSetProductRoutePath,
@@ -45,10 +53,116 @@ export const getRelationshipId = (value: unknown): string | undefined => {
   return undefined
 }
 
+export const getText = (value: null | string | undefined): string | undefined => {
+  const trimmed = value?.trim()
+
+  return trimmed ? trimmed : undefined
+}
+
+export const getDocsRelationshipValue = <TRecord>(
+  value: DocsRelationship<TRecord> | null | undefined,
+): DocsRelationshipID | TRecord | undefined => {
+  if (value === null || value === undefined) {
+    return undefined
+  }
+
+  if (typeof value === 'object' && 'value' in value) {
+    return value.value
+  }
+
+  return value
+}
+
+export const getDocsRelationshipRecord = <TRecord extends object>(
+  value: DocsRelationship<TRecord> | null | undefined,
+): TRecord | undefined => {
+  const relationshipValue = getDocsRelationshipValue(value)
+
+  return typeof relationshipValue === 'object' ? relationshipValue : undefined
+}
+
+export const getDocsRelationshipId = <TRecord extends { id?: DocsRelationshipID }>(
+  value: DocsRelationship<TRecord> | null | undefined,
+): string | undefined => {
+  const relationshipValue = getDocsRelationshipValue(value)
+
+  if (typeof relationshipValue === 'string' || typeof relationshipValue === 'number') {
+    return String(relationshipValue)
+  }
+
+  return relationshipValue?.id === undefined ? undefined : String(relationshipValue.id)
+}
+
+export const getDocsSetTitle = (
+  value: DocsRelationship<DocsSetReference> | null | undefined,
+): string | undefined => {
+  const record = getDocsRelationshipRecord(value)
+
+  return getText(record?.navTitle) ?? getText(record?.title) ?? getText(record?.label)
+}
+
+export const getDocsPageTitle = (
+  value: DocsRelationship<DocsPageReference> | null | undefined,
+): string | undefined => {
+  const record = getDocsRelationshipRecord(value)
+
+  return getText(record?.navTitle) ?? getText(record?.title) ?? getText(record?.label)
+}
+
+export const getDocsSetDescription = (
+  value: DocsRelationship<DocsSetReference> | null | undefined,
+): string | undefined => getText(getDocsRelationshipRecord(value)?.description)
+
+export const getDocsPageDescription = (
+  value: DocsRelationship<DocsPageReference> | null | undefined,
+): string | undefined => {
+  const record = getDocsRelationshipRecord(value)
+
+  return getText(record?.description) ?? getText(record?.excerpt)
+}
+
 const getDocsSetRouteMode = (value: unknown): DocsSetRouteMode =>
   value === 'product-nested' || value === 'docs-root'
     ? value
     : DEFAULT_DOCS_SET_ROUTE_MODE
+
+const getTypedDocsSetRouteMode = (
+  value: DocsSetReference['routeMode'],
+): DocsSetRouteMode => value ?? DEFAULT_DOCS_SET_ROUTE_MODE
+
+const getTypedGroupRoutePath = (
+  value: DocsRelationship<DocsGroupReference> | null | undefined,
+  seen = new Set<string>(),
+): string | undefined => {
+  const group = getDocsRelationshipRecord(value)
+
+  if (!group) {
+    return undefined
+  }
+
+  const explicitRoutePath = getText(group.routePath)
+
+  if (explicitRoutePath) {
+    return normalizeRoutePath(explicitRoutePath)
+  }
+
+  const slug = getText(group.slug)
+
+  if (!slug) {
+    return undefined
+  }
+
+  const groupId = getDocsRelationshipId(group)
+
+  if (groupId && seen.has(groupId)) {
+    return joinRouteSegments(slug)
+  }
+
+  const nextSeen = groupId ? new Set([groupId, ...seen]) : seen
+  const parentRoutePath = getTypedGroupRoutePath(group.parent, nextSeen)
+
+  return joinRouteSegments(parentRoutePath, slug)
+}
 
 const getGroupRoutePath = (value: unknown, seen = new Set<string>()): string | undefined => {
   const group = getRelationshipValue(value)
@@ -135,6 +249,74 @@ export const getDocsSetPublicHref = (value: unknown): string | undefined => {
   return routes.routeMode === 'product-nested'
     ? routes.productRoute ?? routes.routeBase
     : routes.routeBase ?? routes.productRoute
+}
+
+const getTypedDocsSetRoutes = (
+  value: DocsRelationship<DocsSetReference> | null | undefined,
+): { productRoute?: string; routeBase?: string; routeMode: DocsSetRouteMode } | undefined => {
+  const record = getDocsRelationshipRecord(value)
+
+  if (!record) {
+    return undefined
+  }
+
+  const routeMode = getTypedDocsSetRouteMode(record.routeMode)
+  const storedProductRoute = getText(record.productRoute)
+  const storedRouteBase = getText(record.routeBase)
+  const slug = getText(record.slug)
+  const groupRoutePath = getTypedGroupRoutePath(record.group)
+  const canDeriveRoute = Boolean(slug && (groupRoutePath || (!storedProductRoute && !storedRouteBase)))
+  const productRoute =
+    canDeriveRoute && slug
+      ? deriveDocsSetProductRoutePath({
+          docsSetSlug: slug,
+          groupRoutePath,
+        })
+      : storedProductRoute
+  const routeBase =
+    canDeriveRoute && slug
+      ? deriveDocsSetRouteBase({
+          docsSetSlug: slug,
+          groupRoutePath,
+          routeMode,
+        })
+      : storedRouteBase
+
+  return {
+    productRoute: productRoute ? normalizeRoutePath(productRoute) : undefined,
+    routeBase: routeBase ? normalizeRoutePath(routeBase) : undefined,
+    routeMode,
+  }
+}
+
+export const getTypedDocsSetPublicHref = (
+  value: DocsRelationship<DocsSetReference> | null | undefined,
+): string | undefined => {
+  const routes = getTypedDocsSetRoutes(value)
+
+  if (!routes) {
+    return undefined
+  }
+
+  return routes.routeMode === 'product-nested'
+    ? routes.productRoute ?? routes.routeBase
+    : routes.routeBase ?? routes.productRoute
+}
+
+export const getTypedDocsSetDocsHref = (
+  value: DocsRelationship<DocsSetReference> | null | undefined,
+): string | undefined => {
+  const routes = getTypedDocsSetRoutes(value)
+
+  return routes?.routeBase ?? routes?.productRoute
+}
+
+export const getTypedDocsPageHref = (
+  value: DocsRelationship<DocsPageReference> | null | undefined,
+): string | undefined => {
+  const record = getDocsRelationshipRecord(value)
+
+  return getText(record?.route) ?? getText(record?.href) ?? getText(record?.url)
 }
 
 export const getDocsPageHref = (value: unknown): string | undefined => {

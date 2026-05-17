@@ -1,7 +1,7 @@
 import type { DocsBannerProps } from '../../marketing/types.js'
 
 import { normalizeCTAButtons } from '../../utilities/index.js'
-import { getRouteLikeDescription } from '../../utilities/normalizeShared.js'
+import { getDocsSetDescription, getDocsSetTitle } from '../../utilities/normalizeShared.js'
 import { SkillCTAGroup } from '../skills/SkillCTAGroup.js'
 import {
   ActionGroup,
@@ -45,11 +45,11 @@ export const DocsBanner = ({
 }: DocsBannerProps) => {
   const resolvedHeading = resolveRequiredHeading({
     blockType: 'docsBanner',
-    fallback: docsSet,
     fallbackLabel: 'selected docs set',
+    fallbackTitle: getDocsSetTitle(docsSet),
     value: heading,
   })
-  const resolvedDescription = resolveOptionalText(description, getRouteLikeDescription(docsSet))
+  const resolvedDescription = resolveOptionalText(description, getDocsSetDescription(docsSet))
   const actions = normalizeCTAButtons(ctaButtons, undefined, {
     docsSet,
   })

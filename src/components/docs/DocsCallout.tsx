@@ -1,10 +1,15 @@
-import type { DocsCalloutProps } from '../../marketing/types.js'
+import type {
+  DocsCalloutProps,
+  DocsPageReference,
+  DocsRelationship,
+} from '../../marketing/types.js'
 
 import {
-  getDocsPageHref,
-  getRouteLikeDescription,
+  getDocsPageDescription,
+  getDocsPageTitle,
   getRouteLikeHref,
-  getString,
+  getText,
+  getTypedDocsPageHref,
 } from '../../utilities/normalizeShared.js'
 import { SkillCTAGroup } from '../skills/SkillCTAGroup.js'
 import { DocsCalloutCard } from './DocsCalloutCard.js'
@@ -24,21 +29,25 @@ export const DocsCallout = (props: DocsCalloutProps) => {
     skills,
     variant = 'info',
   } = props
-  const legacyProps = props as Record<string, unknown>
+  const legacyCalloutProps = props as {
+    href?: null | string
+    manualHref?: null | string
+    routeReference?: DocsRelationship<DocsPageReference> | null
+  } & DocsCalloutProps
   const resolvedHref =
-    getDocsPageHref(docsPage) ??
-    getString(legacyProps.href) ??
-    getString(legacyProps.manualHref) ??
-    getRouteLikeHref(legacyProps.routeReference)
+    getTypedDocsPageHref(docsPage) ??
+    getText(legacyCalloutProps.href) ??
+    getText(legacyCalloutProps.manualHref) ??
+    getRouteLikeHref(legacyCalloutProps.routeReference)
   const resolvedHeading = resolveRequiredHeading({
     blockType: 'docsCallout',
-    fallback: docsPage,
     fallbackLabel: 'selected docs page',
+    fallbackTitle: getDocsPageTitle(docsPage),
     value: heading,
   })
   const resolvedDescription = resolveOptionalText(
     description ?? excerpt,
-    getRouteLikeDescription(docsPage),
+    getDocsPageDescription(docsPage),
   )
 
   return (

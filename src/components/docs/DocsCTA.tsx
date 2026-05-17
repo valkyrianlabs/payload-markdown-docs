@@ -1,7 +1,11 @@
 import type { DocsCTAProps } from '../../marketing/types.js'
 
 import { normalizeCTAButtons } from '../../utilities/index.js'
-import { getRouteLikeDescription, getString } from '../../utilities/normalizeShared.js'
+import {
+  getDocsSetDescription,
+  getDocsSetTitle,
+  getText,
+} from '../../utilities/normalizeShared.js'
 import { SkillCTAGroup } from '../skills/SkillCTAGroup.js'
 import {
   ActionGroup,
@@ -33,14 +37,15 @@ export const DocsCTA = (props: DocsCTAProps) => {
     skills,
     theme = 'default',
   } = props
-  const legacyDocsUrl = getString((props as Record<string, unknown>).docsUrl)
+  const legacyProps = props as { docsUrl?: null | string } & DocsCTAProps
+  const legacyDocsUrl = getText(legacyProps.docsUrl)
   const resolvedHeading = resolveRequiredHeading({
     blockType: 'docsCTA',
-    fallback: docsSet,
     fallbackLabel: 'selected docs set',
+    fallbackTitle: getDocsSetTitle(docsSet),
     value: heading,
   })
-  const resolvedDescription = resolveOptionalText(description, getRouteLikeDescription(docsSet))
+  const resolvedDescription = resolveOptionalText(description, getDocsSetDescription(docsSet))
   const actions = normalizeCTAButtons(
     ctaButtons,
     getFallbackAction({

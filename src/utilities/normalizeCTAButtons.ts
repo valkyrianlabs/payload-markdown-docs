@@ -1,6 +1,9 @@
 import type {
   DocsActionVariant,
   DocsCTAButtonInput,
+  DocsPageReference,
+  DocsRelationship,
+  DocsSetReference,
   NormalizedDocsCTAButton,
 } from '../marketing/types.js'
 
@@ -10,26 +13,41 @@ import {
   getDocsSetPublicHref,
   getRouteLikeHref,
   getString,
-  isRecord,
 } from './normalizeShared.js'
 
 const variants: DocsActionVariant[] = ['primary', 'secondary', 'outline', 'ghost', 'link']
 
-const getVariant = (value: unknown): DocsActionVariant =>
-  typeof value === 'string' && variants.includes(value as DocsActionVariant)
-    ? (value as DocsActionVariant)
+type LegacyCTAButtonInput = {
+  appearance?: DocsActionVariant | null
+  link?: LegacyCTAButtonInput | null
+  reference?: DocsRelationship<DocsPageReference | DocsSetReference> | null
+  routeReference?: DocsRelationship<DocsPageReference> | null
+} & DocsCTAButtonInput
+
+type CTAButtonCollectionInput =
+  | (LegacyCTAButtonInput | null | undefined)[]
+  | {
+      actions?: LegacyCTAButtonInput[] | null
+      ctaButtons?: LegacyCTAButtonInput[] | null
+      links?: LegacyCTAButtonInput[] | null
+    }
+  | null
+  | undefined
+
+const getVariant = (value: DocsActionVariant | null | undefined): DocsActionVariant =>
+  typeof value === 'string' && variants.includes(value)
+    ? (value)
     : 'primary'
 
 const normalizeCTAButton = (
-  input: unknown,
-  options: { docsSet?: unknown } = {},
+  input: LegacyCTAButtonInput | null | undefined,
+  options: { docsSet?: DocsRelationship<DocsSetReference> | null } = {},
 ): NormalizedDocsCTAButton | undefined => {
-  const candidate = isRecord(input) && isRecord(input.link) ? input.link : input
-
-  if (!isRecord(candidate)) {
+  if (!input) {
     return undefined
   }
 
+  const candidate = input.link ?? input
   const target = candidate.target
   const docsSet = candidate.docsSet ?? options.docsSet
   const href =
@@ -60,12 +78,14 @@ const normalizeCTAButton = (
   }
 }
 
-const getInputArray = (input: unknown): unknown[] => {
+const getInputArray = (
+  input: CTAButtonCollectionInput,
+): (LegacyCTAButtonInput | null | undefined)[] => {
   if (Array.isArray(input)) {
     return input
   }
 
-  if (!isRecord(input)) {
+  if (!input) {
     return []
   }
 
@@ -85,9 +105,9 @@ const getInputArray = (input: unknown): unknown[] => {
 }
 
 export const normalizeCTAButtons = (
-  input: unknown,
+  input: CTAButtonCollectionInput,
   fallback?: DocsCTAButtonInput,
-  options: { docsSet?: unknown } = {},
+  options: { docsSet?: DocsRelationship<DocsSetReference> | null } = {},
 ): NormalizedDocsCTAButton[] => {
   const buttons = getInputArray(input)
     .map((button) => normalizeCTAButton(button, options))

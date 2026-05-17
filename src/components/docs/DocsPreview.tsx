@@ -1,7 +1,7 @@
-import type { DocsPreviewProps } from '../../marketing/types.js'
+import type { DocsPreviewItemInput, DocsPreviewProps } from '../../marketing/types.js'
 
 import { normalizeCTAButtons, normalizeDocsPreviewItems } from '../../utilities/index.js'
-import { getRouteLikeDescription } from '../../utilities/normalizeShared.js'
+import { getDocsSetDescription, getDocsSetTitle } from '../../utilities/normalizeShared.js'
 import { SkillCTAGroup } from '../skills/SkillCTAGroup.js'
 import { DocsPreviewCard } from './DocsPreviewCard.js'
 import {
@@ -30,19 +30,19 @@ export const DocsPreview = (props: DocsPreviewProps) => {
     viewAllLabel,
   } = props
   const legacyProps = props as {
-    docs?: null | unknown[]
-    items?: null | unknown[]
-    manualItems?: null | unknown[]
+    docs?: DocsPreviewItemInput[] | null
+    items?: DocsPreviewItemInput[] | null
+    manualItems?: DocsPreviewItemInput[] | null
     maxItems?: null | number
     viewAllUrl?: null | string
   } & DocsPreviewProps
   const resolvedHeading = resolveRequiredHeading({
     blockType: 'docsPreview',
-    fallback: docsSet,
     fallbackLabel: 'selected docs set',
+    fallbackTitle: getDocsSetTitle(docsSet),
     value: heading,
   })
-  const resolvedDescription = resolveOptionalText(description, getRouteLikeDescription(docsSet))
+  const resolvedDescription = resolveOptionalText(description, getDocsSetDescription(docsSet))
   const previewItems = normalizeDocsPreviewItems(
     [...(legacyProps.manualItems ?? legacyProps.items ?? []), ...(legacyProps.docs ?? [])],
     {

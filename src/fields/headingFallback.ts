@@ -1,18 +1,28 @@
 import type { Validate } from 'payload'
 
+import type {
+  DocsPageReference,
+  DocsRelationship,
+  DocsSetReference,
+} from '../marketing/types.js'
+
 import {
   DEFAULT_DOCS_COLLECTION_SLUG,
   DEFAULT_DOCS_SETS_COLLECTION_SLUG,
 } from '../constants.js'
 import {
-  getRelationshipId,
-  getRelationshipValue,
-  getRouteLikeTitle,
-  getString,
-  isRecord,
+  getDocsPageTitle,
+  getDocsRelationshipId,
+  getDocsRelationshipRecord,
+  getDocsSetTitle,
+  getText,
 } from '../utilities/normalizeShared.js'
 
-type HeadingFallbackData = Record<string, unknown>
+type HeadingFallbackRelationship = DocsRelationship<DocsPageReference | DocsSetReference> | null
+
+type HeadingFallbackData = {
+  [field: string]: HeadingFallbackRelationship | null | string | undefined
+}
 
 type HeadingFallbackPayload = {
   findByID?: (args: {
@@ -20,11 +30,17 @@ type HeadingFallbackPayload = {
     depth?: number
     id: number | string
     overrideAccess?: boolean
-  }) => Promise<unknown>
+  }) => Promise<DocsPageReference | DocsSetReference | null>
 }
 
 const missingHeadingMessage = (fallbackLabel: string): string =>
   `Add a heading or select a ${fallbackLabel} with a title.`
+
+const getHeadingFallbackTitle = (
+  fallback: HeadingFallbackRelationship | string | undefined,
+): string | undefined =>
+  getDocsSetTitle(fallback as DocsRelationship<DocsSetReference> | null | undefined) ??
+  getDocsPageTitle(fallback as DocsRelationship<DocsPageReference> | null | undefined)
 
 export const validateHeadingFallback =
   ({
@@ -37,18 +53,17 @@ export const validateHeadingFallback =
     fallbackLabel: string
   }): Validate<null | string | undefined, HeadingFallbackData, HeadingFallbackData> =>
   async (value, { req, siblingData }) => {
-    if (getString(value)) {
+    if (getText(value)) {
       return true
     }
 
     const fallback = siblingData?.[fallbackField]
-    const fallbackValue = getRelationshipValue(fallback)
 
-    if (getRouteLikeTitle(fallbackValue)) {
+    if (getHeadingFallbackTitle(fallback)) {
       return true
     }
 
-    const fallbackId = getRelationshipId(fallback)
+    const fallbackId = getDocsRelationshipId(fallback)
 
     if (!fallbackId) {
       return missingHeadingMessage(fallbackLabel)
@@ -57,7 +72,9 @@ export const validateHeadingFallback =
     const payload = req?.payload as HeadingFallbackPayload | undefined
 
     if (!payload?.findByID) {
-      return isRecord(fallbackValue) ? missingHeadingMessage(fallbackLabel) : true
+      return getDocsRelationshipRecord(fallback)
+        ? missingHeadingMessage(fallbackLabel)
+        : true
     }
 
     const fallbackRecord = await payload.findByID({
@@ -67,7 +84,7 @@ export const validateHeadingFallback =
       overrideAccess: true,
     })
 
-    return getRouteLikeTitle(fallbackRecord) ? true : missingHeadingMessage(fallbackLabel)
+    return getHeadingFallbackTitle(fallbackRecord) ? true : missingHeadingMessage(fallbackLabel)
   }
 
 export const validateDocsSetHeadingFallback = ({
