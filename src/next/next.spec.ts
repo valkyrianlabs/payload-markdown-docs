@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs'
+import { createElement, Fragment, type ReactNode } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -2281,6 +2282,88 @@ describe('Payload Markdown Docs marketing components', () => {
     expect(calloutMarkup).toContain('Configuration reference.')
     expect(calloutMarkup).toContain('href="/payload-markdown/docs/configuration"')
     expect(bannerMarkup).toContain('Open docs')
+  })
+
+  it('renders docs marketing blocks through the standard Payload block component map', () => {
+    const docsSet = {
+      id: 2,
+      slug: 'payload-markdown',
+      description: 'Layout-aware Markdown for Payload CMS',
+      group: {
+        id: 1,
+        slug: 'plugins',
+        title: 'Plugins',
+      },
+      routeMode: 'product-nested',
+      title: 'Payload Markdown',
+    }
+    const blockComponents = {
+      docsBanner: DocsBanner,
+      docsCallout: DocsCallout,
+      docsCTA: DocsCTA,
+      docsPreview: DocsPreview,
+    }
+    const blocks: ({ blockType: keyof typeof blockComponents; id: string } & Record<
+      string,
+      unknown
+    >)[] = [
+      {
+        id: 'banner-block',
+        background: {
+          fit: 'cover',
+          media: {
+            url: 'https://media.example.com/banner.png',
+          },
+          position: 'center',
+        },
+        blockType: 'docsBanner',
+        ctaButtons: [
+          {
+            label: 'Documentation',
+            target: 'set',
+            variant: 'primary',
+          },
+        ],
+        description: null,
+        docsSet,
+        heading: null,
+        size: 'md',
+        textAlign: 'center',
+        theme: 'dark',
+      },
+      {
+        id: 'preview-block',
+        blockType: 'docsPreview',
+        ctaButtons: [],
+        description: null,
+        docsSet,
+        heading: null,
+        layout: 'cards',
+        viewAllLabel: 'Documentation',
+      },
+    ]
+    const markup = renderToStaticMarkup(
+      createElement(
+        Fragment,
+        null,
+        ...blocks.map((block) => {
+          const Block = blockComponents[block.blockType] as (props: {
+            collectionSlug: string
+          } & typeof block) => ReactNode
+
+          return createElement(Block, {
+            ...block,
+            collectionSlug: 'pages',
+            key: block.id,
+          })
+        }),
+      ),
+    )
+
+    expect(markup).toContain('data-payload-markdown-docs-block="docsBanner"')
+    expect(markup).toContain('data-payload-markdown-docs-block="docsPreview"')
+    expect(markup).toContain('Payload Markdown')
+    expect(markup).toContain('href="/plugins/payload-markdown"')
   })
 
   it('exports renderable heroes and skill CTAs from /next', () => {

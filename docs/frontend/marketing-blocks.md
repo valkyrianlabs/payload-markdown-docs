@@ -185,8 +185,9 @@ existing block and skips the duplicate.
 
 ## Rendering Blocks
 
-Render the blocks in your app's normal `RenderBlocks.tsx` switch or component
-map.
+Render the blocks in your app's normal `RenderBlocks.tsx` component map. The
+docs block components accept the same spread Payload block props shape used by
+generated `layout` arrays.
 
 ```tsx
 import {
@@ -197,23 +198,19 @@ import {
 } from '@valkyrianlabs/payload-markdown-docs/next'
 
 const blockComponents = {
-  docsCTA: DocsCTA,
   docsPreview: DocsPreview,
-  docsCallout: DocsCallout,
   docsBanner: DocsBanner,
+  docsCallout: DocsCallout,
+  docsCTA: DocsCTA,
 }
 
 export function RenderBlocks({ blocks }: { blocks?: { blockType?: string }[] }) {
-  if (!blocks?.length) {
-    return null
-  }
-
-  return blocks.map((block, index) => {
-    const Component = block.blockType
+  return blocks?.map((block, index) => {
+    const Block = block.blockType
       ? blockComponents[block.blockType as keyof typeof blockComponents]
       : undefined
 
-    return Component ? <Component key={index} {...block} /> : null
+    return Block ? <Block key={index} {...block} /> : null
   })
 }
 ```

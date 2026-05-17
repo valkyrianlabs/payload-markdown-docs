@@ -119,6 +119,14 @@ export type NormalizedDocsPreviewItem = {
 
 export type DocsTheme = 'brand' | 'dark' | 'default' | 'muted'
 
+export type DocsMarketingPayloadBlockProps = {
+  [key: string]: unknown
+  blockName?: null | string
+  blockType?: null | string
+  collectionSlug?: null | string
+  id?: null | number | string
+}
+
 export type DocsCTAProps = {
   background?: DocsBackgroundMediaInput | null
   badges?: { label?: null | string }[] | null | string[]
@@ -134,7 +142,7 @@ export type DocsCTAProps = {
   layout?: 'card' | 'centered' | 'inline' | 'split' | null
   skills?: null | SkillCTAGroupInput
   theme?: DocsTheme | null
-}
+} & DocsMarketingPayloadBlockProps
 
 export type DocsPreviewProps = {
   className?: string
@@ -148,7 +156,7 @@ export type DocsPreviewProps = {
   skills?: null | SkillCTAGroupInput
   theme?: DocsTheme | null
   viewAllLabel?: null | string
-}
+} & DocsMarketingPayloadBlockProps
 
 export type DocsCalloutProps = {
   className?: string
@@ -163,7 +171,7 @@ export type DocsCalloutProps = {
   layout?: 'card' | 'fullWidth' | 'inline' | 'sidebar' | null
   skills?: null | SkillCTAGroupInput
   variant?: 'brand' | 'info' | 'neutral' | 'success' | 'warning' | null
-}
+} & DocsMarketingPayloadBlockProps
 
 export type DocsBannerProps = {
   background?: DocsBackgroundMediaInput | null
@@ -180,7 +188,7 @@ export type DocsBannerProps = {
   skills?: null | SkillCTAGroupInput
   textAlign?: 'center' | 'left' | 'right' | null
   theme?: DocsTheme | null
-}
+} & DocsMarketingPayloadBlockProps
 
 export type DocsProductHeroPreview = {
   groupName?: string

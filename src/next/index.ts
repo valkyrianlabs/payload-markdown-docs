@@ -9,6 +9,7 @@ export type {
   DocsBannerProps,
   DocsCalloutProps,
   DocsCTAProps,
+  DocsMarketingPayloadBlockProps,
   DocsNativeHeroProps,
   DocsPreviewProps,
   DocsProductHeroProps,
