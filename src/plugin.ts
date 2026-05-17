@@ -29,6 +29,7 @@ import {
 } from './constants.js'
 import { createDocsAssetsEndpoints, createSyncEndpoint } from './endpoints/index.js'
 import { installDocsMarketingBlocks } from './install/blocks.js'
+import { resolveDocsMarketingBlocksAfterRead } from './payload/index.js'
 
 type ResolvedCollectionOptions = {
   docsAccessCollectionSlug: string
@@ -164,6 +165,47 @@ const assertNoCollectionSlugConflicts = (
   }
 }
 
+const addDocsMarketingBlocksAfterReadHooks = ({
+  collections,
+  docsAssetsCollectionSlug,
+  docsCollectionSlug,
+  docsSetsCollectionSlug,
+  installedCollectionSlugs,
+}: {
+  collections: NonNullable<Config['collections']>
+  docsAssetsCollectionSlug: string
+  docsCollectionSlug: string
+  docsSetsCollectionSlug: string
+  installedCollectionSlugs: string[]
+}): NonNullable<Config['collections']> => {
+  if (installedCollectionSlugs.length === 0) {
+    return collections
+  }
+
+  const installedSlugs = new Set(installedCollectionSlugs)
+
+  return collections.map((collection) => {
+    if (!installedSlugs.has(collection.slug)) {
+      return collection
+    }
+
+    return {
+      ...collection,
+      hooks: {
+        ...collection.hooks,
+        afterRead: [
+          ...(collection.hooks?.afterRead ?? []),
+          resolveDocsMarketingBlocksAfterRead({
+            docsAssetsCollectionSlug,
+            docsCollectionSlug,
+            docsSetsCollectionSlug,
+          }),
+        ],
+      },
+    }
+  })
+}
+
 export const payloadMarkdownDocs =
   (pluginOptions: PayloadMarkdownDocsConfig = {}): Plugin =>
   (incomingConfig: Config): Config => {
@@ -289,10 +331,17 @@ export const payloadMarkdownDocs =
         : []),
     ]
 
-    const incomingCollections = installDocsMarketingBlocks({
+    const marketingBlocksInstall = installDocsMarketingBlocks({
       collectionConfigs: pluginOptions.collections,
       collections: incomingConfig.collections ?? [],
       globalSelection: pluginOptions.blocks,
+    })
+    const incomingCollections = addDocsMarketingBlocksAfterReadHooks({
+      collections: marketingBlocksInstall.collections,
+      docsAssetsCollectionSlug,
+      docsCollectionSlug,
+      docsSetsCollectionSlug,
+      installedCollectionSlugs: marketingBlocksInstall.installedCollectionSlugs,
     })
 
     return {

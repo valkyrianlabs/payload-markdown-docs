@@ -229,6 +229,8 @@ describe('docs marketing block installer', () => {
 
     expect(pages ? getBlockFieldSlugs(pages) : []).toEqual(['docsCTA', 'docsBanner'])
     expect(posts ? getBlockFieldSlugs(posts) : []).toEqual(['docsCTA'])
+    expect(pages?.hooks?.afterRead).toHaveLength(1)
+    expect(posts?.hooks?.afterRead).toHaveLength(1)
   })
 })
 

@@ -63,12 +63,6 @@ export type DocsMediaReference = {
   width?: null | number
 }
 
-export type DocsRelationshipCollections = {
-  docs?: string
-  docsAssets?: string
-  docsSets?: string
-}
-
 export type DocsWhereValue = boolean | null | number | string
 
 export type DocsWhereCondition = {
@@ -78,30 +72,6 @@ export type DocsWhereCondition = {
 export type DocsWhere = {
   [field: string]: DocsWhere[] | DocsWhereCondition
 }
-
-export type DocsMarketingPayloadOperations = {
-  find?: (args: {
-    collection: string
-    depth?: number
-    limit?: number
-    overrideAccess?: boolean
-    sort?: string
-    where?: DocsWhere
-  }) => Promise<{
-    docs: DocsAssetReference[]
-  }>
-  findByID: (args: {
-    collection: string
-    depth?: number
-    id: DocsRelationshipID
-    overrideAccess?: boolean
-  }) => Promise<DocsPageReference | DocsSetReference | null>
-}
-
-export type DocsMarketingFetch = (
-  input: RequestInfo | URL,
-  init?: RequestInit,
-) => Promise<Response>
 
 export type DocsActionVariant = 'ghost' | 'link' | 'outline' | 'primary' | 'secondary'
 export type DocsCTAButtonTarget = 'custom' | 'set' | 'setPage'
@@ -227,15 +197,10 @@ export type NormalizedDocsPreviewItem = {
 export type DocsTheme = 'brand' | 'dark' | 'default' | 'muted'
 
 export type DocsMarketingPayloadBlockProps = {
-  apiBaseURL?: null | string
-  apiRoutePrefix?: null | string
   blockName?: null | string
   blockType?: null | string
-  collections?: DocsRelationshipCollections
   collectionSlug?: null | string
-  fetch?: DocsMarketingFetch
   id?: null | number | string
-  payload?: DocsMarketingPayloadOperations
 }
 
 export type DocsCTAProps = {

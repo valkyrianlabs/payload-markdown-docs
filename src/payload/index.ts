@@ -36,6 +36,8 @@ export type {
 export { findExistingDocsRecords } from './existingDocs.js'
 export { findExistingPayloadDocsRecords, toExistingDocsRecord } from './existingDocs.js'
 export type { ExistingDocsPayloadOperations, ExistingPayloadDocsRecord } from './existingDocs.js'
+export { resolveDocsMarketingBlocksAfterRead } from './resolveDocsMarketingBlocks.js'
+export type { ResolveDocsMarketingBlocksOptions } from './resolveDocsMarketingBlocks.js'
 export {
   findConfiguredPagesRouteCollisions,
   findDuplicateDesiredRouteCollisions,

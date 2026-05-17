@@ -4,10 +4,6 @@ import { renderToReadableStream, renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 
 import type {
-  DocsMarketingFetch,
-  DocsMarketingPayloadOperations,
-} from '../marketing/types.js'
-import type {
   PayloadMarkdownDocsReadPayload,
   ResolvedPayloadMarkdownDocsRecord,
   ResolvedPayloadMarkdownDocsSet,
@@ -2343,146 +2339,6 @@ describe('Payload Markdown Docs marketing components', () => {
     }
   })
 
-  it('hydrates id-only docs relationships through the Payload local API before rendering', async () => {
-    const payload: DocsMarketingPayloadOperations = {
-      find: vi.fn(() =>
-        Promise.resolve({
-          docs: [
-            {
-              docsSet: 'set-1',
-              kind: 'skill',
-              route: '/plugins/payload-markdown/skills/codex/skill.md',
-              sourcePath: 'skills/codex/SKILL.md',
-            },
-          ],
-        }),
-      ),
-      findByID: vi.fn(({ id, collection }) =>
-        Promise.resolve(
-          collection === 'docs'
-            ? {
-                id,
-                description: 'Resolved page description.',
-                route: '/plugins/payload-markdown/docs/configuration',
-                title: 'Resolved page title',
-              }
-            : {
-                id,
-                slug: 'payload-markdown',
-                description: 'Resolved set description.',
-                group: {
-                  id: 'group-1',
-                  slug: 'plugins',
-                },
-                routeMode: 'product-nested',
-                title: 'Resolved set title',
-              },
-        ),
-      ),
-    }
-
-    const previewMarkup = await renderServerMarkup(
-      createElement(DocsPreview, {
-        docsSet: 'set-1',
-        payload,
-        skills: {
-          enabled: true,
-        },
-      }),
-    )
-    const calloutMarkup = await renderServerMarkup(
-      createElement(DocsCallout, {
-        docsPage: 'page-1',
-        payload,
-      }),
-    )
-
-    expect(previewMarkup).toContain('Resolved set title')
-    expect(previewMarkup).toContain('Resolved set description.')
-    expect(previewMarkup).toContain('href="/plugins/payload-markdown"')
-    expect(previewMarkup).toContain('Codex skill')
-    expect(calloutMarkup).toContain('Resolved page title')
-    expect(calloutMarkup).toContain('Resolved page description.')
-    expect(calloutMarkup).toContain('href="/plugins/payload-markdown/docs/configuration"')
-    expect(payload.findByID).toHaveBeenCalledWith({
-      id: 'set-1',
-      collection: 'docs-sets',
-      depth: 2,
-      overrideAccess: true,
-    })
-    expect(payload.findByID).toHaveBeenCalledWith({
-      id: 'page-1',
-      collection: 'docs',
-      depth: 1,
-      overrideAccess: true,
-    })
-  })
-
-  it('hydrates id-only docs relationships through the Payload REST API without app config imports', async () => {
-    const fetchDocs: DocsMarketingFetch = vi.fn((input) => {
-      const url = new URL(String(input), 'https://docs.example.test')
-
-      if (url.pathname === '/api/docs-sets/set-1') {
-        return Promise.resolve(
-          Response.json({
-            id: 'set-1',
-            slug: 'payload-markdown',
-            description: 'REST set description.',
-            group: {
-              id: 'group-1',
-              slug: 'plugins',
-            },
-            routeMode: 'product-nested',
-            title: 'REST set title',
-          }),
-        )
-      }
-
-      if (url.pathname === '/api/payload-markdown-docs-assets') {
-        return Promise.resolve(
-          Response.json({
-            docs: [
-              {
-                docsSet: 'set-1',
-                kind: 'skill',
-                route: '/plugins/payload-markdown/skills/claude/skill.md',
-                sourcePath: 'skills/claude/SKILL.md',
-              },
-            ],
-          }),
-        )
-      }
-
-      return Promise.resolve(Response.json({}, { status: 404 }))
-    })
-
-    const markup = await renderServerMarkup(
-      createElement(DocsPreview, {
-        docsSet: 'set-1',
-        fetch: fetchDocs,
-        skills: {
-          enabled: true,
-        },
-      }),
-    )
-
-    expect(markup).toContain('REST set title')
-    expect(markup).toContain('REST set description.')
-    expect(markup).toContain('href="/plugins/payload-markdown"')
-    expect(markup).toContain('Claude skill')
-    expect(fetchDocs).toHaveBeenCalledWith(
-      '/api/docs-sets/set-1?depth=2',
-      {
-        headers: {
-          accept: 'application/json',
-        },
-      },
-    )
-    expect(String((fetchDocs as ReturnType<typeof vi.fn>).mock.calls[1]?.[0])).toContain(
-      '/api/payload-markdown-docs-assets?',
-    )
-  })
-
   it('renders docs marketing blocks through the standard Payload block component map', async () => {
     const docsSet = {
       id: 2,
@@ -2548,7 +2404,7 @@ describe('Payload Markdown Docs marketing components', () => {
         ...blocks.map((block) => {
           const Block = blockComponents[block.blockType] as (props: {
             collectionSlug: string
-          } & typeof block) => Promise<ReactNode>
+          } & typeof block) => ReactNode
 
           return createElement(Block, {
             ...block,

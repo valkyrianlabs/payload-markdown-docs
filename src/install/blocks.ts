@@ -32,6 +32,11 @@ type InstallCollectionResult = {
   collection: CollectionConfig
 }
 
+type InstallDocsMarketingBlocksResult = {
+  collections: CollectionConfig[]
+  installedCollectionSlugs: string[]
+}
+
 type FieldRecord = {
   blocks?: Block[]
   fields?: Field[]
@@ -167,9 +172,12 @@ export const installDocsMarketingBlocks = ({
   collectionConfigs?: PayloadMarkdownDocsCollectionsConfig
   collections: CollectionConfig[]
   globalSelection?: DocsBlockInstallSelection
-}): CollectionConfig[] => {
+}): InstallDocsMarketingBlocksResult => {
   if (globalSelection === undefined && !collectionConfigs) {
-    return collections
+    return {
+      collections,
+      installedCollectionSlugs: [],
+    }
   }
 
   const explicitCollectionSlugs = new Set(
@@ -178,7 +186,8 @@ export const installDocsMarketingBlocks = ({
     ),
   )
 
-  return collections.map((collection) => {
+  const installedCollectionSlugs: string[] = []
+  const nextCollections = collections.map((collection) => {
     const collectionConfig = collectionConfigs?.[collection.slug]
     const hasExplicitCollectionConfig = explicitCollectionSlugs.has(collection.slug)
 
@@ -198,6 +207,17 @@ export const installDocsMarketingBlocks = ({
       return collection
     }
 
-    return installBlocksIntoCollection(collection, blocksToInstall).collection
+    const result = installBlocksIntoCollection(collection, blocksToInstall)
+
+    if (result.blockFieldFound) {
+      installedCollectionSlugs.push(collection.slug)
+    }
+
+    return result.collection
   })
+
+  return {
+    collections: nextCollections,
+    installedCollectionSlugs,
+  }
 }

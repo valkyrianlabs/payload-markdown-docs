@@ -1,3 +1,7 @@
+export { DocsBanner } from '../components/docs/DocsBanner.js'
+export { DocsCallout } from '../components/docs/DocsCallout.js'
+export { DocsCTA } from '../components/docs/DocsCTA.js'
+export { DocsPreview } from '../components/docs/DocsPreview.js'
 export { DocsNativeHero, DocsProductHero } from '../components/heroes/index.js'
 export { SkillCTAGroup } from '../components/skills/SkillCTAGroup.js'
 export { SkillTabs } from '../components/skills/SkillTabs.js'
@@ -6,13 +10,11 @@ export type {
   DocsCalloutProps,
   DocsCTAProps,
   DocsMarketingPayloadBlockProps,
-  DocsMarketingPayloadOperations,
   DocsNativeHeroProps,
   DocsPageReference,
   DocsPreviewProps,
   DocsProductHeroProps,
   DocsRelationship,
-  DocsRelationshipCollections,
   DocsRelationshipID,
   DocsSetReference,
   SkillCTAGroupProps,
@@ -41,7 +43,6 @@ export type {
   PayloadMarkdownDocsNavItem,
   PayloadMarkdownDocsNavItemType,
 } from './links.js'
-export { DocsBanner, DocsCallout, DocsCTA, DocsPreview } from './marketingBlocks.js'
 export { generatePayloadMarkdownDocsMetadata, getPayloadMarkdownDocsMetadata } from './metadata.js'
 export { PayloadMarkdownDocsNavbar } from './PayloadMarkdownDocsNavbar.js'
 export type {
