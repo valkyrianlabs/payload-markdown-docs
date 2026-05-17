@@ -215,58 +215,11 @@ export function RenderBlocks({ blocks }: { blocks?: { blockType?: string }[] }) 
 }
 ```
 
-## Hero Usage
+## Docs Heroes
 
-Use heroes directly on custom Set or Group pages. Pass URLs from your own route
-logic or from already-resolved docs data.
-
-```tsx
-import { DocsProductHero } from '@valkyrianlabs/payload-markdown-docs/next'
-
-export function SetLandingPage({
-  set,
-}: {
-  set?: { description?: string; href?: string; title?: string }
-}) {
-  return (
-    <DocsProductHero
-      eyebrow={set?.title}
-      heading="Build faster with the docs"
-      description={set?.description ?? 'Explore guides, API references, and downloadable skills.'}
-      primaryAction={{
-        label: 'Read the docs',
-        href: set?.href ?? '/docs',
-      }}
-      skills={{
-        enabled: true,
-        display: 'buttons',
-        resolvedItems: [
-          {
-            label: 'Codex skill',
-            type: 'codex',
-            href: '/plugins/payload-markdown-docs/skills/codex',
-          },
-        ],
-      }}
-    />
-  )
-}
-```
-
-For docs-native pages, use `DocsNativeHero`:
-
-```tsx
-import { DocsNativeHero } from '@valkyrianlabs/payload-markdown-docs/next'
-
-<DocsNativeHero
-  breadcrumb={[
-    { label: 'Docs', href: '/docs' },
-    { label: 'Configuration' },
-  ]}
-  title="Configuration"
-  description="Plugin options, routing behavior, and sync settings."
-/>
-```
+Docs hero fields and components are documented separately. See
+[Docs Heroes](/frontend/docs-heroes) for `docsHeroField`, plugin
+`heros`/`heroes` wrapping, and `DocsSetHero` rendering.
 
 ## Included Blocks
 

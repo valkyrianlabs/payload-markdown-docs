@@ -29,6 +29,7 @@ import {
 } from './constants.js'
 import { createDocsAssetsEndpoints, createSyncEndpoint } from './endpoints/index.js'
 import { installDocsMarketingBlocks } from './install/blocks.js'
+import { installDocsHeroFields } from './install/heroes.js'
 import { resolveDocsMarketingBlocksAfterRead } from './payload/index.js'
 
 type ResolvedCollectionOptions = {
@@ -165,24 +166,24 @@ const assertNoCollectionSlugConflicts = (
   }
 }
 
-const addDocsMarketingBlocksAfterReadHooks = ({
+const addDocsMarketingAfterReadHooks = ({
   collections,
+  collectionSlugs,
   docsAssetsCollectionSlug,
   docsCollectionSlug,
   docsSetsCollectionSlug,
-  installedCollectionSlugs,
 }: {
   collections: NonNullable<Config['collections']>
+  collectionSlugs: string[]
   docsAssetsCollectionSlug: string
   docsCollectionSlug: string
   docsSetsCollectionSlug: string
-  installedCollectionSlugs: string[]
 }): NonNullable<Config['collections']> => {
-  if (installedCollectionSlugs.length === 0) {
+  if (collectionSlugs.length === 0) {
     return collections
   }
 
-  const installedSlugs = new Set(installedCollectionSlugs)
+  const installedSlugs = new Set(collectionSlugs)
 
   return collections.map((collection) => {
     if (!installedSlugs.has(collection.slug)) {
@@ -336,12 +337,22 @@ export const payloadMarkdownDocs =
       collections: incomingConfig.collections ?? [],
       globalSelection: pluginOptions.blocks,
     })
-    const incomingCollections = addDocsMarketingBlocksAfterReadHooks({
+    const docsHeroInstall = installDocsHeroFields({
+      collectionConfigs: pluginOptions.collections,
       collections: marketingBlocksInstall.collections,
+      defaultPagesCollectionSlug: pluginOptions.routing?.pages?.collection ?? DEFAULT_PAGES_COLLECTION_SLUG,
+      globalSelection: pluginOptions.heroes ?? pluginOptions.heros,
+      pagesSelection: pluginOptions.pages?.heroes ?? pluginOptions.pages?.heros,
+    })
+    const incomingCollections = addDocsMarketingAfterReadHooks({
+      collections: docsHeroInstall.collections,
+      collectionSlugs: [
+        ...marketingBlocksInstall.installedCollectionSlugs,
+        ...docsHeroInstall.installedCollectionSlugs,
+      ],
       docsAssetsCollectionSlug,
       docsCollectionSlug,
       docsSetsCollectionSlug,
-      installedCollectionSlugs: marketingBlocksInstall.installedCollectionSlugs,
     })
 
     return {

@@ -7,6 +7,8 @@ export {
   docsSetRelationshipField,
   getDocsPageFilter,
 } from './docsReferences.js'
+export { docsHeroField, docsSetHeroTypes, isDocsSetHeroType } from './docsSetHero.js'
+export type { DocsHeroFieldOptions, DocsSetHeroType } from './docsSetHero.js'
 export {
   validateDocsPageHeadingFallback,
   validateDocsSetHeadingFallback,

@@ -12,7 +12,7 @@ dependencies:
 
 # Payload Markdown Docs
 
-<span class="flex flex-row gap-x-3">
+<span class="flex flex-row gap-x-3 [&_img]:my-0">
   <a href="https://github.com/valkyrianlabs/payload-markdown-docs/actions">
     <img alt="GitHub Workflow Status" src="https://img.shields.io/github/actions/workflow/status/valkyrianlabs/payload-markdown-docs/deploy.yml">
   </a>
@@ -28,6 +28,17 @@ dependencies:
 </span>
 
 `@valkyrianlabs/payload-markdown-docs` publishes Git-backed Markdown documentation into Payload CMS. Developers and agents edit files in a repo-local `docs/` folder, CI validates and authenticates a manifest, and the Payload plugin decides what can be synced.
+
+:::callout[Early release notice]{variant="warning"}
+`@valkyrianlabs/payload-markdown-docs` is still in active pre-v1 development as
+of v0.14.0. The project is currently in a particularly volatile stabilization
+phase ahead of the planned v1.0.0 release. APIs, collections, configuration
+shape, CLI behavior, and documentation structure may change quickly in the
+interim.
+
+Use thoughtfully, pin versions, review changelogs, and expect sharper
+compatibility guarantees after v1.0.0.
+:::
 
 :::callout {variant="info" title="CMS-owned authority"}
 The client sends docs content. Payload docs sets decide where it may go and

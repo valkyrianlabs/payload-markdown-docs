@@ -11,6 +11,7 @@ import type {
   SkillCTAGroupInput,
 } from '../marketing/types.js'
 
+import { isDocsSetHeroType } from '../fields/index.js'
 import { resolveDocsSetSkills } from '../utilities/index.js'
 import {
   getDocsPageTitle,
@@ -72,8 +73,8 @@ const docsMarketingBlockTypes = new Set<string>([
 
 const isDocsMarketingBlockRecord = (value: unknown): value is DocsMarketingBlockRecord =>
   isRecord(value) &&
-  typeof value.blockType === 'string' &&
-  docsMarketingBlockTypes.has(value.blockType)
+  ((typeof value.blockType === 'string' && docsMarketingBlockTypes.has(value.blockType)) ||
+    isDocsSetHeroType(value.type))
 
 const shouldHydrateDocsSet = (
   docsSet: DocsRelationship<DocsSetReference> | null | undefined,

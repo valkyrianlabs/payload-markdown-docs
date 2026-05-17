@@ -1,4 +1,5 @@
 export { docsMarketingBlocks, installBlocksIntoCollection, installDocsMarketingBlocks } from './blocks.js'
+export { installDocsHeroFields } from './heroes.js'
 export {
   docsMarketingBlockKeys,
   getSelectedBlockKeys,

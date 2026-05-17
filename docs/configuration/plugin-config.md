@@ -62,6 +62,8 @@ export default buildConfig({
 - `routing` configures route collision checks.
 - `collections` customizes infrastructure collection slugs.
 - `blocks` optionally installs docs marketing blocks into existing layout block fields.
+- `heroes` / `heros` optionally wraps or installs docs-set hero fields on the
+  pages collection. See [Docs Heroes](/frontend/docs-heroes).
 - `seo` controls docs set SEO fields. It defaults to `true`; set `false` to omit them.
 
 GitHub OIDC trust records and Ed25519 public keys both belong in

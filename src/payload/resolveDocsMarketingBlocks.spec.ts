@@ -29,11 +29,12 @@ type FindByIDArgs = {
 }
 
 type TestMarketingBlock = {
-  blockType: 'docsBanner' | 'docsCallout' | 'docsCTA' | 'docsPreview'
+  blockType?: 'docsBanner' | 'docsCallout' | 'docsCTA' | 'docsPreview'
   ctaButtons?: DocsCTAButtonInput[] | null
   docsPage?: DocsRelationship<DocsPageReference> | null
   docsSet?: DocsRelationship<DocsSetReference> | null
   skills?: null | SkillCTAGroupInput
+  type?: 'docsSetFullWidth' | 'docsSetSideImage'
 } & Record<string, unknown>
 
 type TestPageDoc = {
@@ -123,6 +124,13 @@ describe('resolveDocsMarketingBlocksAfterRead', () => {
           ],
           docsSet: 'set-1',
         },
+        {
+          type: 'docsSetFullWidth',
+          docsSet: 'set-1',
+          skills: {
+            enabled: true,
+          },
+        },
       ],
     }
 
@@ -154,6 +162,17 @@ describe('resolveDocsMarketingBlocksAfterRead', () => {
     expect(result.layout[2]?.ctaButtons?.[0]?.page).toMatchObject({
       title: 'Resolved page title',
     })
+    expect(result.layout[3]?.docsSet).toMatchObject({
+      title: 'Resolved set title',
+    })
+    expect(result.layout[3]?.skills?.resolvedItems).toEqual([
+      {
+        type: 'codex',
+        href: '/plugins/payload-markdown/skills/codex/SKILL.md',
+        icon: 'codex',
+        label: 'Codex skill',
+      },
+    ])
     expect(findByID).toHaveBeenCalledTimes(2)
     expect(findByID).toHaveBeenCalledWith({
       id: 'set-1',

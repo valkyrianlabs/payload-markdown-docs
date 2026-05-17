@@ -1,6 +1,6 @@
 {
   "name": "@valkyrianlabs/payload-markdown-docs",
-  "version": "0.13.7",
+  "version": "0.14.0",
   "description": "Git-backed Markdown documentation sync for Payload CMS, powered by payload-markdown.",
   "bin": {
     "payload-markdown-docs": "./dist/cli/index.js"
@@ -33,6 +33,11 @@
       "types": "./dist/blocks/index.d.ts",
       "import": "./dist/blocks/index.js",
       "default": "./dist/blocks/index.js"
+    },
+    "./fields": {
+      "types": "./dist/fields/index.d.ts",
+      "import": "./dist/fields/index.js",
+      "default": "./dist/fields/index.js"
     },
     "./next": {
       "types": "./dist/next/index.d.ts",

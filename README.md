@@ -18,6 +18,13 @@ Next/Payload site with [@valkyrianlabs/payload-markdown](https://github.com/valk
 It is the documentation delivery pipeline for teams who want docs to move as
 fast as the code they describe.
 
+> ⚠️ **Early release notice:** `@valkyrianlabs/payload-markdown-docs` is still
+> in active pre-v1 development as of v0.14.0. The project is currently in a
+> particularly volatile stabilization phase ahead of the planned v1.0.0 release.
+> APIs, collections, configuration shape, CLI behavior, and documentation
+> structure may change quickly in the interim. Use thoughtfully, pin versions,
+> review changelogs, and expect sharper compatibility guarantees after v1.0.0.
+
 ---
 
 ## [📖 Explore the Docs](https://valkyrianlabs.com/plugins/payload-markdown-docs/docs)

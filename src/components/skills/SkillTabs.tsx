@@ -3,7 +3,7 @@ import type { SkillTabsProps } from '../../marketing/types.js'
 import { normalizeSkillItems } from '../../utilities/index.js'
 import { cx } from '../docs/shared.js'
 
-export const SkillTabs = ({ className, items: inputItems }: SkillTabsProps) => {
+export const SkillTabs = ({ align = 'left', className, items: inputItems }: SkillTabsProps) => {
   const items = normalizeSkillItems(inputItems)
 
   if (items.length === 0) {
@@ -11,11 +11,17 @@ export const SkillTabs = ({ className, items: inputItems }: SkillTabsProps) => {
   }
 
   return (
-    <div className={cx('grid gap-3 sm:grid-cols-2', className)}>
+    <div
+      className={cx(
+        'inline-flex max-w-full flex-wrap gap-1 rounded-xl border border-border bg-white/[0.03] p-1',
+        align === 'center' ? 'justify-center' : '',
+        className,
+      )}
+    >
       {items.map((item) => {
         const content = (
           <>
-            <span className="flex items-center gap-2 text-sm font-semibold text-foreground">
+            <span className="inline-flex items-center justify-center gap-2 text-sm font-semibold text-foreground">
               {item.icon ? (
                 <span aria-hidden="true" className="text-xs uppercase tracking-wide text-cyan-300">
                   {item.icon}
@@ -24,13 +30,8 @@ export const SkillTabs = ({ className, items: inputItems }: SkillTabsProps) => {
               {item.label}
             </span>
             {item.description ? (
-              <span className="mt-1 block text-sm leading-6 text-foreground/65">
+              <span className="block text-xs leading-5 text-foreground/60">
                 {item.description}
-              </span>
-            ) : null}
-            {item.href ? (
-              <span className="mt-3 inline-flex text-sm font-medium text-cyan-300">
-                Download
               </span>
             ) : null}
           </>
@@ -38,7 +39,7 @@ export const SkillTabs = ({ className, items: inputItems }: SkillTabsProps) => {
 
         return item.href ? (
           <a
-            className="rounded-lg border border-border bg-white/3 p-4 transition-colors hover:bg-white/6"
+            className="inline-flex min-h-11 min-w-28 flex-col items-center justify-center rounded-lg px-4 py-2 text-center transition-colors hover:bg-white/[0.06]"
             href={item.href}
             key={`${item.type}-${item.label}`}
           >
@@ -46,7 +47,7 @@ export const SkillTabs = ({ className, items: inputItems }: SkillTabsProps) => {
           </a>
         ) : (
           <div
-            className="rounded-lg border border-border bg-white/3 p-4"
+            className="inline-flex min-h-11 min-w-28 flex-col items-center justify-center rounded-lg px-4 py-2 text-center"
             key={`${item.type}-${item.label}`}
           >
             {content}

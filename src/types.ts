@@ -4,6 +4,9 @@ export type PayloadMarkdownDocsConfig = {
   collections?: PayloadMarkdownDocsCollectionsConfig
   enabled?: boolean
   endpoint?: PayloadMarkdownDocsEndpointConfig
+  heroes?: DocsHeroInstallSelection
+  heros?: DocsHeroInstallSelection
+  pages?: PayloadMarkdownDocsPagesConfig
   routing?: PayloadMarkdownDocsRoutingConfig
   seo?: boolean
   sync?: PayloadMarkdownDocsSyncConfig
@@ -31,12 +34,22 @@ export type PayloadMarkdownDocsAuthToggle = {
 export type PayloadMarkdownDocsCollectionConfig = {
   blocks?: DocsBlockInstallSelection
   enabled?: boolean
+  heroes?: DocsHeroInstallSelection
+  heros?: DocsHeroInstallSelection
   slug?: string
 }
 
 export type DocsMarketingBlockKey = 'banner' | 'callout' | 'cta' | 'preview'
 
 export type DocsBlockInstallSelection = boolean | Partial<Record<DocsMarketingBlockKey, boolean>>
+
+export type DocsHeroInstallConfig = {
+  enabled?: boolean
+  fieldName?: string
+  installIfMissing?: boolean
+}
+
+export type DocsHeroInstallSelection = boolean | DocsHeroInstallConfig
 
 export type DocsCollectionInstallConfig = boolean | PayloadMarkdownDocsCollectionConfig
 
@@ -60,6 +73,11 @@ export type PayloadMarkdownDocsPagesRoutingConfig = {
 
 export type PayloadMarkdownDocsRoutingConfig = {
   pages?: PayloadMarkdownDocsPagesRoutingConfig
+}
+
+export type PayloadMarkdownDocsPagesConfig = {
+  heroes?: DocsHeroInstallSelection
+  heros?: DocsHeroInstallSelection
 }
 
 export type PayloadMarkdownDocsTargetConfig = {

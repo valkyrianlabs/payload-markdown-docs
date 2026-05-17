@@ -25,6 +25,11 @@ export type DocsSetReference = {
   group?: DocsRelationship<DocsGroupReference> | null
   id?: DocsRelationshipID
   label?: null | string
+  meta?: {
+    description?: null | string
+    image?: DocsRelationship<DocsMediaReference> | null
+    title?: null | string
+  } | null
   navTitle?: null | string
   productRoute?: null | string
   routeBase?: null | string
@@ -195,6 +200,7 @@ export type NormalizedDocsPreviewItem = {
 }
 
 export type DocsTheme = 'brand' | 'dark' | 'default' | 'muted'
+export type DocsSetHeroType = 'docsSetFullWidth' | 'docsSetSideImage'
 
 export type DocsMarketingPayloadBlockProps = {
   blockName?: null | string
@@ -307,12 +313,32 @@ export type DocsNativeHeroProps = {
   title?: null | string
 }
 
+export type DocsSetHeroProps = {
+  background?: DocsBackgroundMediaInput | null
+  badge?: null | string
+  className?: string
+  containerClassName?: string
+  ctaButtons?: DocsCTAButtonInput[] | null
+  description?: ReactNode
+  docsLabel?: null | string
+  docsSet?: DocsRelationship<DocsSetReference> | null
+  eyebrow?: null | string
+  heading?: null | string
+  image?: DocsRelationship<DocsMediaReference> | null
+  imagePosition?: 'left' | 'right' | null
+  skills?: null | SkillCTAGroupInput
+  theme?: DocsTheme | null
+  type?: DocsSetHeroType | null
+} & DocsMarketingPayloadBlockProps
+
 export type SkillCTAGroupProps = {
+  align?: 'center' | 'left'
   className?: string
   skills?: null | SkillCTAGroupInput
 }
 
 export type SkillTabsProps = {
+  align?: 'center' | 'left'
   className?: string
   items?: NormalizedSkillCTAItem[] | null | SkillCTAItemInput[]
 }

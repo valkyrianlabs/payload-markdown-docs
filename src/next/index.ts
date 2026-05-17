@@ -2,7 +2,7 @@ export { DocsBanner } from '../components/docs/DocsBanner.js'
 export { DocsCallout } from '../components/docs/DocsCallout.js'
 export { DocsCTA } from '../components/docs/DocsCTA.js'
 export { DocsPreview } from '../components/docs/DocsPreview.js'
-export { DocsNativeHero, DocsProductHero } from '../components/heroes/index.js'
+export { DocsNativeHero, DocsProductHero, DocsSetHero, isDocsSetHeroType } from '../components/heroes/index.js'
 export { SkillCTAGroup } from '../components/skills/SkillCTAGroup.js'
 export { SkillTabs } from '../components/skills/SkillTabs.js'
 export type {
@@ -16,6 +16,7 @@ export type {
   DocsProductHeroProps,
   DocsRelationship,
   DocsRelationshipID,
+  DocsSetHeroProps,
   DocsSetReference,
   SkillCTAGroupProps,
   SkillTabsProps,

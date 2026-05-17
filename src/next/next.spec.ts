@@ -17,6 +17,8 @@ import {
   DocsNativeHero,
   DocsPreview,
   DocsProductHero,
+  DocsSetHero,
+  isDocsSetHeroType,
   SkillCTAGroup,
   SkillTabs,
 } from './index.js'
@@ -2421,6 +2423,59 @@ describe('Payload Markdown Docs marketing components', () => {
     expect(markup).toContain('href="/plugins/payload-markdown"')
   })
 
+  it('renders docs set hero variants from spread props', async () => {
+    const heroDocsSet = {
+      id: 'set-1',
+      slug: 'payload-markdown',
+      description: 'Docs set hero description.',
+      group: {
+        id: 'group-1',
+        slug: 'plugins',
+      },
+      meta: {
+        image: {
+          alt: 'Payload Markdown preview',
+          url: '/media/payload-markdown.png',
+        },
+      },
+      routeMode: 'product-nested',
+      title: 'Payload Markdown',
+    } as const
+    const fullWidthMarkup = await renderServerMarkup(
+      createElement(DocsSetHero, {
+        type: 'docsSetFullWidth',
+        docsSet: heroDocsSet,
+        skills: {
+          enabled: true,
+          resolvedItems: [
+            {
+              type: 'codex',
+              href: '/skills/codex',
+              label: 'Codex skill',
+            },
+          ],
+        },
+      }),
+    )
+    const sideImageMarkup = await renderServerMarkup(
+      createElement(DocsSetHero, {
+        type: 'docsSetSideImage',
+        docsSet: heroDocsSet,
+        imagePosition: 'left',
+      }),
+    )
+
+    expect(isDocsSetHeroType('docsSetFullWidth')).toBe(true)
+    expect(isDocsSetHeroType('highImpact')).toBe(false)
+    expect(fullWidthMarkup).toContain('data-payload-markdown-docs-hero="docsSetFullWidth"')
+    expect(fullWidthMarkup).toContain('Payload Markdown')
+    expect(fullWidthMarkup).toContain('Docs set hero description.')
+    expect(fullWidthMarkup).toContain('href="/plugins/payload-markdown"')
+    expect(fullWidthMarkup).toContain('Codex skill')
+    expect(sideImageMarkup).toContain('data-payload-markdown-docs-hero="docsSetSideImage"')
+    expect(sideImageMarkup).toContain('src="/media/payload-markdown.png"')
+  })
+
   it('exports renderable heroes and skill CTAs from /next', () => {
     const productHeroMarkup = renderToStaticMarkup(
       DocsProductHero({
@@ -2441,6 +2496,7 @@ describe('Payload Markdown Docs marketing components', () => {
     )
     const skillGroupMarkup = renderToStaticMarkup(
       SkillCTAGroup({
+        align: 'center',
         skills: {
           enabled: true,
           resolvedItems: [
@@ -2468,7 +2524,9 @@ describe('Payload Markdown Docs marketing components', () => {
     expect(productHeroMarkup).toContain('Payload Markdown Docs')
     expect(nativeHeroMarkup).toContain('Configuration')
     expect(skillGroupMarkup).toContain('Codex skill')
+    expect(skillGroupMarkup).toContain('justify-center')
     expect(skillTabsMarkup).toContain('Claude skill')
+    expect(skillTabsMarkup).toContain('min-h-11')
   })
 })
 
