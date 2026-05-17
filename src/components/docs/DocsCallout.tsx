@@ -1,29 +1,40 @@
 import type { DocsCalloutProps } from '../../marketing/types.js'
 
-import { getRouteLikeHref } from '../../utilities/normalizeShared.js'
+import {
+  getDocsPageHref,
+  getRouteLikeDescription,
+  getRouteLikeHref,
+  getRouteLikeTitle,
+  getString,
+} from '../../utilities/normalizeShared.js'
 import { SkillCTAGroup } from '../skills/SkillCTAGroup.js'
 import { DocsCalloutCard } from './DocsCalloutCard.js'
 import { cx } from './shared.js'
 
-export const DocsCallout = ({
-  className,
-  containerClassName,
-  ctaLabel,
-  description,
-  excerpt,
-  heading,
-  href,
-  icon,
-  layout = 'card',
-  manualHref,
-  routeReference,
-  skills,
-  variant = 'info',
-}: DocsCalloutProps) => {
-  const resolvedHref = href ?? manualHref ?? getRouteLikeHref(routeReference)
-  const resolvedDescription = description ?? excerpt
+export const DocsCallout = (props: DocsCalloutProps) => {
+  const {
+    className,
+    containerClassName,
+    ctaLabel,
+    description,
+    docsPage,
+    excerpt,
+    heading,
+    icon,
+    layout = 'card',
+    skills,
+    variant = 'info',
+  } = props
+  const legacyProps = props as Record<string, unknown>
+  const resolvedHref =
+    getDocsPageHref(docsPage) ??
+    getString(legacyProps.href) ??
+    getString(legacyProps.manualHref) ??
+    getRouteLikeHref(legacyProps.routeReference)
+  const resolvedHeading = heading ?? getRouteLikeTitle(docsPage)
+  const resolvedDescription = description ?? excerpt ?? getRouteLikeDescription(docsPage)
 
-  if (!heading && !resolvedDescription && !resolvedHref) {
+  if (!resolvedHeading && !resolvedDescription && !resolvedHref) {
     return null
   }
 
@@ -36,7 +47,7 @@ export const DocsCallout = ({
         <DocsCalloutCard
           ctaLabel={ctaLabel || 'Read more'}
           description={resolvedDescription}
-          heading={heading}
+          heading={resolvedHeading}
           href={resolvedHref}
           icon={icon}
           layout={layout}

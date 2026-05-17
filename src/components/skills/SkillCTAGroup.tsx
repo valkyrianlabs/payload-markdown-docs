@@ -1,6 +1,6 @@
 import type { SkillCTAGroupProps } from '../../marketing/types.js'
 
-import { normalizeSkills } from '../../utilities/normalizeSkills.js'
+import { normalizeSkills } from '../../utilities/index.js'
 import { cx, TextContent } from '../docs/shared.js'
 import { SkillTabs } from './SkillTabs.js'
 
@@ -49,7 +49,7 @@ export const SkillCTAGroup = ({ className, skills: inputSkills }: SkillCTAGroupP
 
             return item.href ? (
               <a
-                className="rounded-lg border border-border bg-white/[0.03] p-4 transition-colors hover:bg-white/[0.06]"
+                className="rounded-lg border border-border bg-white/3 p-4 transition-colors hover:bg-white/6"
                 href={item.href}
                 key={`${item.type}-${item.label}`}
               >
@@ -57,7 +57,7 @@ export const SkillCTAGroup = ({ className, skills: inputSkills }: SkillCTAGroupP
               </a>
             ) : (
               <div
-                className="rounded-lg border border-border bg-white/[0.03] p-4"
+                className="rounded-lg border border-border bg-white/3 p-4"
                 key={`${item.type}-${item.label}`}
               >
                 {body}
@@ -81,15 +81,15 @@ export const SkillCTAGroup = ({ className, skills: inputSkills }: SkillCTAGroupP
         {skills.items.map((item) =>
           item.href ? (
             <a
-              className="inline-flex items-center rounded-lg border border-border bg-white/[0.04] px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-white/[0.08]"
+              className="inline-flex items-center rounded-lg border border-border bg-white/4 px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-white/8"
               href={item.href}
               key={`${item.type}-${item.label}`}
             >
-              {item.downloadLabel ?? item.label}
+              {item.label}
             </a>
           ) : (
             <span
-              className="inline-flex items-center rounded-lg border border-border bg-white/[0.03] px-4 py-2 text-sm font-medium text-foreground/70"
+              className="inline-flex items-center rounded-lg border border-border bg-white/3 px-4 py-2 text-sm font-medium text-foreground/70"
               key={`${item.type}-${item.label}`}
             >
               {item.label}

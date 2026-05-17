@@ -31,5 +31,5 @@
     "./src/**/*.tsx",
     "./dev/next-env.d.ts",
     ".next/dev/types/**/*.ts"
-  ]
+  ],
 }

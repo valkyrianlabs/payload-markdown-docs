@@ -3,11 +3,14 @@ import type { Block, CollectionConfig, Config, Field } from 'payload'
 import { describe, expect, it } from 'vitest'
 
 import {
+  backgroundMediaFields,
   ctaButtonsField,
   DocsCTABlock,
+  docsPageRelationshipField,
   DocsPreviewBlock,
   DocsBannerBlock as PublicDocsBannerBlock,
   DocsCalloutBlock as PublicDocsCalloutBlock,
+  skillCTAFields,
 } from '../blocks/index.js'
 import { payloadMarkdownDocs } from '../plugin.js'
 import { installBlocksIntoCollection } from './blocks.js'
@@ -34,6 +37,37 @@ const getBlockFieldSlugs = (collection: CollectionConfig): string[] => {
 
   return field?.blocks?.map((block) => block.slug) ?? []
 }
+
+const getTopLevelFieldNames = (block: Block): string[] =>
+  block.fields.flatMap((field) =>
+    'name' in field && typeof field.name === 'string' ? [field.name] : [],
+  )
+
+const getNestedFields = (fields: Field[]): Field[] =>
+  fields.flatMap((field) => {
+    const candidate = field as {
+      fields?: Field[]
+      tabs?: { fields?: Field[] }[]
+    } & Field
+    const childFields = [
+      ...(Array.isArray(candidate.fields) ? getNestedFields(candidate.fields) : []),
+      ...(Array.isArray(candidate.tabs)
+        ? candidate.tabs.flatMap((tab) => getNestedFields(tab.fields ?? []))
+        : []),
+    ]
+
+    return [field, ...childFields]
+  })
+
+const getNestedFieldNames = (fields: Field[]): string[] =>
+  getNestedFields(fields).flatMap((field) =>
+    'name' in field && typeof field.name === 'string' ? [field.name] : [],
+  )
+
+const getNamedNestedField = (fields: Field[], name: string): Field | undefined =>
+  getNestedFields(fields).find(
+    (field) => 'name' in field && typeof field.name === 'string' && field.name === name,
+  )
 
 describe('docs marketing block selection', () => {
   it('selects all blocks with blocks true', () => {
@@ -190,5 +224,106 @@ describe('docs marketing block installer', () => {
 
     expect(pages ? getBlockFieldSlugs(pages) : []).toEqual(['docsCTA', 'docsBanner'])
     expect(posts ? getBlockFieldSlugs(posts) : []).toEqual(['docsCTA'])
+  })
+})
+
+describe('docs marketing block field shapes', () => {
+  it('keeps DocsPreview docsSet-first and removes broad item modes', () => {
+    expect(getTopLevelFieldNames(DocsPreviewBlock)).toEqual([
+      'docsSet',
+      'heading',
+      'description',
+      'ctaButtons',
+      'skills',
+    ])
+    expect(getNestedFieldNames(DocsPreviewBlock.fields)).not.toEqual(
+      expect.arrayContaining(['mode', 'items', 'docs', 'maxItems', 'viewAllUrl']),
+    )
+    expect(getNestedFieldNames(DocsPreviewBlock.fields)).toContain('viewAllLabel')
+  })
+
+  it('keeps DocsCTA badges and removes manual docs URL', () => {
+    const names = getTopLevelFieldNames(DocsCTABlock)
+
+    expect(names).toContain('docsSet')
+    expect(names).toContain('badges')
+    expect(names).not.toContain('docsUrl')
+  })
+
+  it('keeps DocsBanner badge and removes no retained visual controls', () => {
+    const names = getTopLevelFieldNames(PublicDocsBannerBlock)
+
+    expect(names).toContain('docsSet')
+    expect(names).toContain('badge')
+    expect(getNestedFieldNames(PublicDocsBannerBlock.fields)).toEqual(
+      expect.arrayContaining(['textAlign', 'size', 'theme']),
+    )
+  })
+
+  it('keeps DocsCallout scoped to docs pages in the selected docs set', () => {
+    const names = getNestedFieldNames(PublicDocsCalloutBlock.fields)
+
+    expect(names).toEqual(expect.arrayContaining(['docsSet', 'docsPage', 'ctaLabel']))
+    expect(names).not.toEqual(
+      expect.arrayContaining(['manualHref', 'routeReference', 'calloutType']),
+    )
+  })
+
+  it('hides advanced background controls and removes decorative alt and captions', () => {
+    const backgroundField = backgroundMediaFields()
+    const names = getNestedFieldNames(backgroundField.fields)
+
+    expect(names).toEqual(expect.arrayContaining(['media', 'position', 'advancedControls']))
+    expect(names).not.toEqual(expect.arrayContaining(['alt', 'caption']))
+
+    for (const name of ['fit', 'overlay', 'overlayOpacity', 'overlayVariant', 'gradient']) {
+      const field = getNamedNestedField(backgroundField.fields, name) as
+        | ({
+            admin?: {
+              condition?: (data: unknown, siblingData: Record<string, unknown>) => boolean
+            }
+          } & Field)
+        | undefined
+
+      expect(field?.admin?.condition?.({}, {})).toBe(false)
+      expect(field?.admin?.condition?.({}, { advancedControls: true })).toBe(true)
+    }
+  })
+
+  it('keeps CTA buttons scoped to docs sets without polymorphic references', () => {
+    const names = getNestedFieldNames(ctaButtonsField().fields)
+
+    expect(names).toEqual(expect.arrayContaining(['label', 'variant', 'target', 'page', 'url']))
+    expect(names).not.toEqual(expect.arrayContaining(['type', 'reference', 'description']))
+  })
+
+  it('keeps skills automatic without author-managed item arrays', () => {
+    const names = getNestedFieldNames(skillCTAFields().fields)
+
+    expect(names).toEqual(expect.arrayContaining(['enabled', 'display', 'heading', 'description']))
+    expect(names).not.toEqual(
+      expect.arrayContaining(['items', 'href', 'routeReference', 'downloadLabel']),
+    )
+  })
+
+  it('filters docs page choices by the selected docs set', () => {
+    const field = docsPageRelationshipField() as {
+      filterOptions: (args: {
+        blockData?: Record<string, unknown>
+        siblingData?: Record<string, unknown>
+      }) => unknown
+    } & Field
+
+    expect(field.filterOptions({ blockData: { docsSet: 'set-1' } })).toEqual({
+      docsSet: {
+        equals: 'set-1',
+      },
+    })
+    expect(field.filterOptions({ siblingData: { docsSet: { id: 'set-2' } } })).toEqual({
+      docsSet: {
+        equals: 'set-2',
+      },
+    })
+    expect(field.filterOptions({})).toBe(false)
   })
 })

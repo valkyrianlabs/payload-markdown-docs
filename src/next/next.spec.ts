@@ -54,6 +54,25 @@ type TestPayloadData = {
   docsSets?: Record<string, unknown>[]
 }
 
+type TestFindArgs = {
+  collection: string
+  draft?: boolean
+  where?: unknown
+} & Parameters<PayloadMarkdownDocsReadPayload['find']>[0]
+
+const createPaginatedDocs = (docs: Record<string, unknown>[]) => ({
+  docs,
+  hasNextPage: false,
+  hasPrevPage: false,
+  limit: docs.length,
+  nextPage: null,
+  page: 1,
+  pagingCounter: 1,
+  prevPage: null,
+  totalDocs: docs.length,
+  totalPages: docs.length > 0 ? 1 : 0,
+})
+
 const docsSet = {
   id: 'set-1',
   slug: 'payload-markdown',
@@ -159,14 +178,18 @@ const createPayloadMock = ({
     'payload-markdown-docs-assets': docsAssets,
   }
 
-  return {
-    find: vi.fn((args) =>
-      Promise.resolve({
-        docs: (collections[args.collection] ?? [])
+  const find = vi.fn((args: TestFindArgs) =>
+    Promise.resolve(
+      createPaginatedDocs(
+        (collections[args.collection] ?? [])
           .filter((doc) => args.draft === true || doc._status !== 'draft')
           .filter((doc) => matchesWhere(doc, args.where)),
-      }),
+      ),
     ),
+  ) as unknown as PayloadMarkdownDocsReadPayload['find'] & ReturnType<typeof vi.fn>
+
+  return {
+    find,
   }
 }
 
@@ -2209,47 +2232,54 @@ describe('Payload Markdown Docs page component', () => {
 
 describe('Payload Markdown Docs marketing components', () => {
   it('exports renderable docs marketing blocks from /next', () => {
+    const docsSet = {
+      id: 'set-1',
+      slug: 'payload-markdown',
+      description: 'Guides and API references.',
+      routeMode: 'product-nested',
+      title: 'Payload Markdown',
+    }
+    const docsPage = {
+      description: 'Configuration reference.',
+      route: '/payload-markdown/docs/configuration',
+      title: 'Need options?',
+    }
     const ctaMarkup = renderToStaticMarkup(
       DocsCTA({
-        docsUrl: '/payload-markdown/docs',
-        heading: 'Read the docs',
+        docsLabel: 'Read the docs',
+        docsSet,
       }),
     )
     const previewMarkup = renderToStaticMarkup(
       DocsPreview({
-        heading: 'Explore docs',
-        items: [
-          {
-            excerpt: 'Install the package.',
-            href: '/payload-markdown/docs/install',
-            title: 'Installation',
-          },
-        ],
+        docsSet,
+        viewAllLabel: 'Explore docs',
       }),
     )
     const calloutMarkup = renderToStaticMarkup(
       DocsCallout({
-        excerpt: 'Configuration reference.',
-        heading: 'Need options?',
-        manualHref: '/payload-markdown/docs/configuration',
+        docsPage,
       }),
     )
     const bannerMarkup = renderToStaticMarkup(
       DocsBanner({
         ctaButtons: [
           {
-            href: '/payload-markdown/docs',
             label: 'Open docs',
+            target: 'set',
           },
         ],
+        docsSet,
         heading: 'Ship with documentation',
       }),
     )
 
     expect(ctaMarkup).toContain('Read the docs')
-    expect(ctaMarkup).toContain('href="/payload-markdown/docs"')
-    expect(previewMarkup).toContain('Installation')
+    expect(ctaMarkup).toContain('href="/payload-markdown"')
+    expect(previewMarkup).toContain('Payload Markdown')
+    expect(previewMarkup).toContain('href="/payload-markdown"')
     expect(calloutMarkup).toContain('Configuration reference.')
+    expect(calloutMarkup).toContain('href="/payload-markdown/docs/configuration"')
     expect(bannerMarkup).toContain('Open docs')
   })
 
@@ -2275,7 +2305,7 @@ describe('Payload Markdown Docs marketing components', () => {
       SkillCTAGroup({
         skills: {
           enabled: true,
-          items: [
+          resolvedItems: [
             {
               type: 'codex',
               href: '/skills/codex',

@@ -1,20 +1,29 @@
 import type { Block } from 'payload'
 
-import { backgroundMediaFields } from '../../fields/backgroundMedia.js'
-import { ctaButtonsField } from '../../fields/ctaButtons.js'
+import {
+  backgroundMediaFields,
+  ctaButtonsField,
+  docsSetRelationshipField,
+} from '../../fields/index.js'
 import { skillCTAFields } from '../../fields/skills.js'
 
 export const DocsCTABlock: Block = {
   slug: 'docsCTA',
   fields: [
+    docsSetRelationshipField(),
     {
       name: 'eyebrow',
       type: 'text',
+      admin: {
+        description: 'Small uppercase pre-heading text rendered above the main heading.',
+      },
     },
     {
       name: 'badges',
       type: 'array',
       admin: {
+        description:
+          'Small pill labels rendered near the heading for status, version, category, or launch metadata.',
         initCollapsed: true,
       },
       fields: [
@@ -28,11 +37,16 @@ export const DocsCTABlock: Block = {
     {
       name: 'heading',
       type: 'text',
-      required: true,
+      admin: {
+        description: 'Optional heading override. Defaults to the selected docs set title.',
+      },
     },
     {
       name: 'description',
       type: 'textarea',
+      admin: {
+        description: 'Optional description override. Defaults to the selected docs set description.',
+      },
     },
     {
       type: 'row',
@@ -92,26 +106,12 @@ export const DocsCTABlock: Block = {
       ],
     },
     {
-      type: 'row',
-      fields: [
-        {
-          name: 'docsUrl',
-          type: 'text',
-          admin: {
-            description: 'Optional docs URL used when no CTA buttons are configured.',
-            width: '50%',
-          },
-          label: 'Docs URL',
-        },
-        {
-          name: 'docsLabel',
-          type: 'text',
-          admin: {
-            width: '50%',
-          },
-          defaultValue: 'Read the docs',
-        },
-      ],
+      name: 'docsLabel',
+      type: 'text',
+      admin: {
+        description: 'Label for the fallback link to the selected docs set.',
+      },
+      defaultValue: 'Read the docs',
     },
     ctaButtonsField(),
     backgroundMediaFields(),

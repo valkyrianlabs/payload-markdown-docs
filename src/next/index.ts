@@ -15,6 +15,8 @@ export type {
   SkillCTAGroupProps,
   SkillTabsProps,
 } from '../marketing/types.js'
+export { normalizeSkillAssetItems, normalizeSkills, resolveDocsSetSkills } from '../utilities/index.js'
+export type { SkillAssetPayloadOperations } from '../utilities/normalizeSkills.js'
 export { createPayloadMarkdownDocsAssetRouteHandler } from './assetRoute.js'
 export type {
   CreatePayloadMarkdownDocsAssetRouteHandlerOptions,

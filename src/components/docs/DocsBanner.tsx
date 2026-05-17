@@ -1,6 +1,7 @@
 import type { DocsBannerProps } from '../../marketing/types.js'
 
-import { normalizeCTAButtons } from '../../utilities/normalizeCTAButtons.js'
+import { normalizeCTAButtons } from '../../utilities/index.js'
+import { getRouteLikeDescription, getRouteLikeTitle } from '../../utilities/normalizeShared.js'
 import { SkillCTAGroup } from '../skills/SkillCTAGroup.js'
 import {
   ActionGroup,
@@ -31,6 +32,7 @@ export const DocsBanner = ({
   containerClassName,
   ctaButtons,
   description,
+  docsSet,
   eyebrow,
   heading,
   headingLevel = 2,
@@ -39,12 +41,16 @@ export const DocsBanner = ({
   textAlign = 'center',
   theme = 'dark',
 }: DocsBannerProps) => {
-  const actions = normalizeCTAButtons(ctaButtons)
+  const resolvedHeading = heading ?? getRouteLikeTitle(docsSet)
+  const resolvedDescription = description ?? getRouteLikeDescription(docsSet)
+  const actions = normalizeCTAButtons(ctaButtons, undefined, {
+    docsSet,
+  })
   const resolvedSize = size ?? 'md'
   const resolvedAlign = textAlign ?? 'center'
   const resolvedTheme = theme ?? 'dark'
 
-  if (!heading && !description && actions.length === 0 && !badge && !eyebrow) {
+  if (!resolvedHeading && !resolvedDescription && actions.length === 0 && !badge && !eyebrow) {
     return null
   }
 
@@ -80,10 +86,10 @@ export const DocsBanner = ({
           className="max-w-3xl text-3xl font-semibold tracking-tight text-foreground md:text-5xl"
           level={headingLevel}
         >
-          {heading}
+          {resolvedHeading}
         </Heading>
         <TextContent className="mt-4 max-w-2xl text-base leading-7 text-foreground/75 md:text-lg">
-          {description}
+          {resolvedDescription}
         </TextContent>
         <ActionGroup
           actions={actions}

@@ -1,22 +1,21 @@
 import type { ReactNode } from 'react'
 
 export type DocsActionVariant = 'ghost' | 'link' | 'outline' | 'primary' | 'secondary'
+export type DocsCTAButtonTarget = 'custom' | 'set' | 'setPage'
 
 export type DocsCTAButtonInput = {
-  description?: null | string
+  docsSet?: unknown
   href?: null | string
   icon?: null | string
   label?: null | string
   newTab?: boolean | null
-  reference?: unknown
-  routeReference?: unknown
-  type?: 'custom' | 'reference' | null
+  page?: unknown
+  target?: DocsCTAButtonTarget | null
   url?: null | string
   variant?: DocsActionVariant | null
 }
 
 export type NormalizedDocsCTAButton = {
-  description?: string
   href: string
   icon?: string
   label: string
@@ -36,8 +35,7 @@ export type DocsBackgroundPosition =
 export type DocsBackgroundOverlayVariant = 'brand' | 'dark' | 'gradient' | 'light'
 
 export type DocsBackgroundMediaInput = {
-  alt?: null | string
-  caption?: null | string
+  advancedControls?: boolean | null
   fit?: DocsBackgroundFit | null
   gradient?: 'brand' | 'none' | 'subtle' | null
   media?: unknown
@@ -57,7 +55,6 @@ export type NormalizedDocsMedia = {
 }
 
 export type NormalizedDocsBackgroundMedia = {
-  caption?: string
   fit: DocsBackgroundFit
   gradient?: 'brand' | 'none' | 'subtle'
   media?: NormalizedDocsMedia
@@ -71,11 +68,9 @@ export type SkillCTAType = 'claude' | 'codex' | 'custom'
 
 export type SkillCTAItemInput = {
   description?: null | string
-  downloadLabel?: null | string
   href?: null | string
   icon?: null | string
   label?: null | string
-  routeReference?: unknown
   type?: null | SkillCTAType
   url?: null | string
 }
@@ -85,12 +80,11 @@ export type SkillCTAGroupInput = {
   display?: 'buttons' | 'cards' | 'tabs' | null
   enabled?: boolean | null
   heading?: null | string
-  items?: null | SkillCTAItemInput[]
+  resolvedItems?: NormalizedSkillCTAItem[] | null
 }
 
 export type NormalizedSkillCTAItem = {
   description?: string
-  downloadLabel?: string
   href?: string
   icon?: string
   label: string
@@ -110,9 +104,7 @@ export type DocsPreviewItemInput = {
   excerpt?: null | string
   href?: null | string
   icon?: null | string
-  reference?: unknown
   route?: null | string
-  routeReference?: unknown
   title?: null | string
   url?: null | string
 }
@@ -135,7 +127,7 @@ export type DocsCTAProps = {
   ctaButtons?: DocsCTAButtonInput[] | null
   description?: ReactNode
   docsLabel?: null | string
-  docsUrl?: null | string
+  docsSet?: unknown
   eyebrow?: null | string
   heading?: null | string
   headingLevel?: 1 | 2 | 3 | 4
@@ -149,33 +141,26 @@ export type DocsPreviewProps = {
   containerClassName?: string
   ctaButtons?: DocsCTAButtonInput[] | null
   description?: ReactNode
-  docs?: null | unknown[]
+  docsSet?: unknown
   heading?: null | string
   headingLevel?: 1 | 2 | 3 | 4
-  items?: DocsPreviewItemInput[] | null
   layout?: 'cards' | 'compact' | 'featured' | 'list' | null
-  manualItems?: DocsPreviewItemInput[] | null
-  maxItems?: null | number
-  mode?: 'group' | 'manual' | 'pages' | 'route' | 'set' | null
   skills?: null | SkillCTAGroupInput
   theme?: DocsTheme | null
   viewAllLabel?: null | string
-  viewAllUrl?: null | string
 }
 
 export type DocsCalloutProps = {
-  calloutType?: 'custom' | 'page' | 'section' | null
   className?: string
   containerClassName?: string
   ctaLabel?: null | string
   description?: ReactNode
+  docsPage?: unknown
+  docsSet?: unknown
   excerpt?: null | string
   heading?: null | string
-  href?: null | string
   icon?: null | string
   layout?: 'card' | 'fullWidth' | 'inline' | 'sidebar' | null
-  manualHref?: null | string
-  routeReference?: unknown
   skills?: null | SkillCTAGroupInput
   variant?: 'brand' | 'info' | 'neutral' | 'success' | 'warning' | null
 }
@@ -187,6 +172,7 @@ export type DocsBannerProps = {
   containerClassName?: string
   ctaButtons?: DocsCTAButtonInput[] | null
   description?: ReactNode
+  docsSet?: unknown
   eyebrow?: null | string
   heading?: null | string
   headingLevel?: 1 | 2 | 3 | 4

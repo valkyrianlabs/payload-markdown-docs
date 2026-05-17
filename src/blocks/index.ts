@@ -2,6 +2,8 @@ export {
   backgroundMediaFields,
   buttonField,
   ctaButtonsField,
+  docsPageRelationshipField,
+  docsSetRelationshipField,
   linkField,
   linksArrayField,
   skillCTAFields,

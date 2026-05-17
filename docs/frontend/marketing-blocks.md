@@ -13,8 +13,8 @@ tags:
 
 `payload-markdown-docs/blocks` exports optional Payload Blocks and field
 helpers. `/next` exports the matching render components for building product
-pages, group landing pages, docs previews, and skill download CTAs around
-generated docs routes.
+pages, docs previews, callouts, banners, and skill download CTAs around selected
+docs sets.
 
 The blocks are opt-in. Generated docs routes keep working the same way.
 
@@ -48,9 +48,50 @@ Reusable field helpers are also exported:
 import {
   backgroundMediaFields,
   ctaButtonsField,
+  docsPageRelationshipField,
+  docsSetRelationshipField,
   skillCTAFields,
 } from '@valkyrianlabs/payload-markdown-docs/blocks'
 ```
+
+## Authoring Model
+
+The included marketing blocks are docs-set-first. Editors select a `Docs set`,
+and block links, page choices, fallback actions, and skill buttons derive from
+that set.
+
+- `docsPreview` links to the selected docs set and can use the set title and
+  description as defaults.
+- `docsCTA` links to the selected docs set when no CTA buttons are configured.
+- `docsCallout` selects a docs page filtered to the selected docs set.
+- `docsBanner` uses the selected docs set title and description as defaults.
+
+CTA buttons are scoped to the same selected docs set. Each button targets the
+selected set, a page inside the selected set, or a custom URL. Generic docs
+page, docs group, route, and manual-reference targets are not exposed.
+
+Skill CTAs are automatic. When skills are enabled, renderers should resolve
+available `payload-markdown-docs-assets` records for the selected docs set with
+`kind: 'skill'` and pass the generated items to the component. Editors do not
+paste skill download URLs.
+
+```ts
+import { resolveDocsSetSkills } from '@valkyrianlabs/payload-markdown-docs/next'
+
+const skills = await resolveDocsSetSkills({
+  docsSet: block.docsSet,
+  payload,
+  skills: block.skills,
+})
+```
+
+Badges and eyebrow fields remain optional visual metadata. `eyebrow` is small
+uppercase pre-heading text. `badges` and `badge` render pill labels near a
+heading for status, version, category, or launch metadata.
+
+Background media is decorative. Blocks keep media and position controls by
+default; fit, overlay, opacity, overlay variant, and gradient are hidden until
+advanced background controls are enabled. Background captions are not rendered.
 
 ## Global Auto Install
 
@@ -202,12 +243,11 @@ export function SetLandingPage({
       skills={{
         enabled: true,
         display: 'buttons',
-        items: [
+        resolvedItems: [
           {
             label: 'Codex skill',
             type: 'codex',
             href: '/plugins/payload-markdown-docs/skills/codex',
-            downloadLabel: 'Download Codex skill',
           },
         ],
       }}
@@ -233,11 +273,11 @@ import { DocsNativeHero } from '@valkyrianlabs/payload-markdown-docs/next'
 
 ## Included Blocks
 
-- `docsCTA`: a configurable docs call-to-action section.
-- `docsPreview`: manual or reference-backed docs preview cards.
-- `docsCallout`: linked docs callouts for pages, sections, or custom URLs.
-- `docsBanner`: a large media-backed banner with required background media in Payload.
+- `docsCTA`: a docs-set-scoped call-to-action section with optional badges.
+- `docsPreview`: a selected-docs-set preview with set-aware actions.
+- `docsCallout`: a callout for a page inside the selected docs set.
+- `docsBanner`: a large media-backed banner scoped to a selected docs set.
 
 All blocks support partial data at render time. Missing media, empty CTAs,
-unresolved references, and empty skill groups are ignored instead of crashing the
+unresolved relationships, and empty skill groups are ignored instead of crashing the
 page.

@@ -7,7 +7,7 @@ import type {
   NormalizedDocsCTAButton,
 } from '../../marketing/types.js'
 
-import { normalizeBackgroundMedia } from '../../utilities/normalizeMedia.js'
+import { normalizeBackgroundMedia } from '../../utilities/index.js'
 
 export const cx = (...values: (false | null | string | undefined)[]): string =>
   values.filter(Boolean).join(' ')
@@ -123,15 +123,20 @@ export const ActionGroup = ({
 
 export const getFallbackAction = ({
   docsLabel,
+  docsSet,
   docsUrl,
 }: {
   docsLabel?: null | string
+  docsSet?: unknown
   docsUrl?: null | string
 }): DocsCTAButtonInput | undefined =>
-  docsUrl
+  docsUrl || docsSet
     ? {
+        docsSet,
         href: docsUrl,
         label: docsLabel || 'Read the docs',
+        target: docsUrl ? 'custom' : 'set',
+        url: docsUrl,
         variant: 'primary',
       }
     : undefined

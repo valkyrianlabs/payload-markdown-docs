@@ -1,7 +1,10 @@
 import type { DocsPreviewProps } from '../../marketing/types.js'
 
-import { normalizeCTAButtons } from '../../utilities/normalizeCTAButtons.js'
-import { normalizeDocsPreviewItems } from '../../utilities/normalizeDocsPreviewItems.js'
+import { normalizeCTAButtons, normalizeDocsPreviewItems } from '../../utilities/index.js'
+import {
+  getRouteLikeDescription,
+  getRouteLikeTitle,
+} from '../../utilities/normalizeShared.js'
 import { SkillCTAGroup } from '../skills/SkillCTAGroup.js'
 import { DocsPreviewCard } from './DocsPreviewCard.js'
 import {
@@ -13,40 +16,50 @@ import {
   themeClasses,
 } from './shared.js'
 
-export const DocsPreview = ({
-  className,
-  containerClassName,
-  ctaButtons,
-  description,
-  docs,
-  heading,
-  headingLevel = 2,
-  items,
-  layout = 'cards',
-  manualItems,
-  maxItems,
-  skills,
-  theme = 'default',
-  viewAllLabel,
-  viewAllUrl,
-}: DocsPreviewProps) => {
+export const DocsPreview = (props: DocsPreviewProps) => {
+  const {
+    className,
+    containerClassName,
+    ctaButtons,
+    description,
+    docsSet,
+    heading,
+    headingLevel = 2,
+    layout = 'cards',
+    skills,
+    theme = 'default',
+    viewAllLabel,
+  } = props
+  const legacyProps = props as {
+    docs?: null | unknown[]
+    items?: null | unknown[]
+    manualItems?: null | unknown[]
+    maxItems?: null | number
+    viewAllUrl?: null | string
+  } & DocsPreviewProps
+  const resolvedHeading = heading ?? getRouteLikeTitle(docsSet)
+  const resolvedDescription = description ?? getRouteLikeDescription(docsSet)
   const previewItems = normalizeDocsPreviewItems(
-    [...(manualItems ?? items ?? []), ...(docs ?? [])],
+    [...(legacyProps.manualItems ?? legacyProps.items ?? []), ...(legacyProps.docs ?? [])],
     {
-      maxItems,
+      maxItems: legacyProps.maxItems,
     },
   )
   const actions = normalizeCTAButtons(
     ctaButtons,
     getFallbackAction({
       docsLabel: viewAllLabel || 'View all docs',
-      docsUrl: viewAllUrl,
+      docsSet,
+      docsUrl: legacyProps.viewAllUrl,
     }),
+    {
+      docsSet,
+    },
   )
   const resolvedLayout = layout ?? 'cards'
   const resolvedTheme = theme ?? 'default'
 
-  if (!heading && !description && previewItems.length === 0 && actions.length === 0) {
+  if (!resolvedHeading && !resolvedDescription && previewItems.length === 0 && actions.length === 0) {
     return null
   }
 
@@ -62,10 +75,10 @@ export const DocsPreview = ({
               className="text-3xl font-semibold tracking-tight text-foreground md:text-4xl"
               level={headingLevel}
             >
-              {heading}
+              {resolvedHeading}
             </Heading>
             <TextContent className="mt-4 text-base leading-7 text-foreground/70">
-              {description}
+              {resolvedDescription}
             </TextContent>
           </div>
           <ActionGroup actions={actions} />

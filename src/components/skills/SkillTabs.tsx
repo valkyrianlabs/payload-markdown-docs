@@ -1,6 +1,6 @@
 import type { SkillTabsProps } from '../../marketing/types.js'
 
-import { normalizeSkillItems } from '../../utilities/normalizeSkills.js'
+import { normalizeSkillItems } from '../../utilities/index.js'
 import { cx } from '../docs/shared.js'
 
 export const SkillTabs = ({ className, items: inputItems }: SkillTabsProps) => {
@@ -30,7 +30,7 @@ export const SkillTabs = ({ className, items: inputItems }: SkillTabsProps) => {
             ) : null}
             {item.href ? (
               <span className="mt-3 inline-flex text-sm font-medium text-cyan-300">
-                {item.downloadLabel ?? 'Download'}
+                Download
               </span>
             ) : null}
           </>
@@ -38,7 +38,7 @@ export const SkillTabs = ({ className, items: inputItems }: SkillTabsProps) => {
 
         return item.href ? (
           <a
-            className="rounded-lg border border-border bg-white/[0.03] p-4 transition-colors hover:bg-white/[0.06]"
+            className="rounded-lg border border-border bg-white/3 p-4 transition-colors hover:bg-white/6"
             href={item.href}
             key={`${item.type}-${item.label}`}
           >
@@ -46,7 +46,7 @@ export const SkillTabs = ({ className, items: inputItems }: SkillTabsProps) => {
           </a>
         ) : (
           <div
-            className="rounded-lg border border-border bg-white/[0.03] p-4"
+            className="rounded-lg border border-border bg-white/3 p-4"
             key={`${item.type}-${item.label}`}
           >
             {content}

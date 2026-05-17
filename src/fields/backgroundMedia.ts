@@ -8,6 +8,11 @@ export type DocsBackgroundMediaFieldOptions = {
   relationTo?: string[]
 }
 
+const advancedCondition = (
+  _data: Partial<unknown>,
+  siblingData: Partial<Record<string, unknown>>,
+) => siblingData?.advancedControls === true
+
 const createMediaField = ({
   mediaRequired,
   relationTo,
@@ -49,7 +54,7 @@ export const backgroundMediaFields = ({
   name,
   type: 'group',
   admin: {
-    description: 'Optional background media and overlay controls.',
+    description: 'Optional decorative background media and overlay controls.',
   },
   fields: [
     {
@@ -60,14 +65,33 @@ export const backgroundMediaFields = ({
           relationTo,
         }),
         {
-          name: 'alt',
-          type: 'text',
+          name: 'position',
+          type: 'select',
           admin: {
-            description: 'Optional alt text when this image is also rendered as content.',
             width: '50%',
           },
+          defaultValue: 'center',
+          options: [
+            'center',
+            'top',
+            'bottom',
+            'left',
+            'right',
+          ].map((value) => ({
+            label: value.charAt(0).toUpperCase() + value.slice(1),
+            value,
+          })),
         },
       ],
+    },
+    {
+      name: 'advancedControls',
+      type: 'checkbox',
+      admin: {
+        description: 'Show fit, overlay, opacity, variant, and gradient controls.',
+      },
+      defaultValue: false,
+      label: 'Advanced background controls',
     },
     {
       type: 'row',
@@ -76,6 +100,7 @@ export const backgroundMediaFields = ({
           name: 'overlay',
           type: 'checkbox',
           admin: {
+            condition: advancedCondition,
             width: '33%',
           },
           defaultValue: true,
@@ -84,6 +109,7 @@ export const backgroundMediaFields = ({
           name: 'overlayOpacity',
           type: 'number',
           admin: {
+            condition: advancedCondition,
             description: '0 to 95.',
             width: '33%',
           },
@@ -95,6 +121,7 @@ export const backgroundMediaFields = ({
           name: 'overlayVariant',
           type: 'select',
           admin: {
+            condition: advancedCondition,
             width: '33%',
           },
           defaultValue: 'dark',
@@ -123,28 +150,11 @@ export const backgroundMediaFields = ({
       type: 'row',
       fields: [
         {
-          name: 'position',
-          type: 'select',
-          admin: {
-            width: '33%',
-          },
-          defaultValue: 'center',
-          options: [
-            'center',
-            'top',
-            'bottom',
-            'left',
-            'right',
-          ].map((value) => ({
-            label: value.charAt(0).toUpperCase() + value.slice(1),
-            value,
-          })),
-        },
-        {
           name: 'fit',
           type: 'select',
           admin: {
-            width: '33%',
+            condition: advancedCondition,
+            width: '50%',
           },
           defaultValue: 'cover',
           options: [
@@ -166,7 +176,8 @@ export const backgroundMediaFields = ({
           name: 'gradient',
           type: 'select',
           admin: {
-            width: '33%',
+            condition: advancedCondition,
+            width: '50%',
           },
           defaultValue: 'none',
           options: [
@@ -185,10 +196,6 @@ export const backgroundMediaFields = ({
           ],
         },
       ],
-    },
-    {
-      name: 'caption',
-      type: 'text',
     },
   ] satisfies Field[],
 })

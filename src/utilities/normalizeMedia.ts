@@ -7,7 +7,7 @@ import type {
   NormalizedDocsMedia,
 } from '../marketing/types.js'
 
-import { getBoolean, getNumber, getRecordString, getString, isRecord } from './normalizeShared.js'
+import { getBoolean, getNumber, getRecordString, isRecord } from './normalizeShared.js'
 
 const fits: DocsBackgroundFit[] = ['cover', 'contain', 'fill']
 const positions: DocsBackgroundPosition[] = ['center', 'top', 'bottom', 'left', 'right']
@@ -77,7 +77,6 @@ export const normalizeBackgroundMedia = (
   const media = normalizeMedia(record.media ?? record.image ?? record.backgroundImage ?? input)
 
   return {
-    caption: getString(record.caption),
     fit: getFit(record.fit),
     gradient:
       record.gradient === 'brand' || record.gradient === 'subtle' || record.gradient === 'none'

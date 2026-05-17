@@ -1,6 +1,7 @@
 import type { DocsCTAProps } from '../../marketing/types.js'
 
-import { normalizeCTAButtons } from '../../utilities/normalizeCTAButtons.js'
+import { normalizeCTAButtons } from '../../utilities/index.js'
+import { getRouteLikeDescription, getRouteLikeTitle, getString } from '../../utilities/normalizeShared.js'
 import { SkillCTAGroup } from '../skills/SkillCTAGroup.js'
 import {
   ActionGroup,
@@ -13,34 +14,42 @@ import {
   themeClasses,
 } from './shared.js'
 
-export const DocsCTA = ({
-  background,
-  badges: inputBadges,
-  className,
-  containerClassName,
-  ctaButtons,
-  description,
-  docsLabel,
-  docsUrl,
-  eyebrow,
-  heading,
-  headingLevel = 2,
-  layout = 'centered',
-  skills,
-  theme = 'default',
-}: DocsCTAProps) => {
+export const DocsCTA = (props: DocsCTAProps) => {
+  const {
+    background,
+    badges: inputBadges,
+    className,
+    containerClassName,
+    ctaButtons,
+    description,
+    docsLabel,
+    docsSet,
+    eyebrow,
+    heading,
+    headingLevel = 2,
+    layout = 'centered',
+    skills,
+    theme = 'default',
+  } = props
+  const legacyDocsUrl = getString((props as Record<string, unknown>).docsUrl)
+  const resolvedHeading = heading ?? getRouteLikeTitle(docsSet)
+  const resolvedDescription = description ?? getRouteLikeDescription(docsSet)
   const actions = normalizeCTAButtons(
     ctaButtons,
     getFallbackAction({
       docsLabel,
-      docsUrl,
+      docsSet,
+      docsUrl: legacyDocsUrl,
     }),
+    {
+      docsSet,
+    },
   )
   const badges = normalizeBadges(inputBadges)
   const resolvedTheme = theme ?? 'default'
   const centered = layout === 'centered' || layout === 'card'
 
-  if (!heading && !description && actions.length === 0 && badges.length === 0) {
+  if (!resolvedHeading && !resolvedDescription && actions.length === 0 && badges.length === 0) {
     return null
   }
 
@@ -88,10 +97,10 @@ export const DocsCTA = ({
             className="text-3xl font-semibold tracking-tight text-foreground md:text-4xl"
             level={headingLevel}
           >
-            {heading}
+            {resolvedHeading}
           </Heading>
           <TextContent className="mt-4 text-base leading-7 text-foreground/70 md:text-lg">
-            {description}
+            {resolvedDescription}
           </TextContent>
         </div>
         <ActionGroup actions={actions} className={centered ? 'justify-center' : undefined} />

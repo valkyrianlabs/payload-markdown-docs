@@ -1,28 +1,44 @@
 import type { Block } from 'payload'
 
-import { backgroundMediaFields } from '../../fields/backgroundMedia.js'
-import { ctaButtonsField } from '../../fields/ctaButtons.js'
+import {
+  backgroundMediaFields,
+  ctaButtonsField,
+  docsSetRelationshipField,
+} from '../../fields/index.js'
 import { skillCTAFields } from '../../fields/skills.js'
 
 export const DocsBannerBlock: Block = {
   slug: 'docsBanner',
   fields: [
+    docsSetRelationshipField(),
     {
       name: 'eyebrow',
       type: 'text',
+      admin: {
+        description: 'Small uppercase pre-heading text rendered above the main heading.',
+      },
     },
     {
       name: 'badge',
       type: 'text',
+      admin: {
+        description:
+          'Single pill label rendered near the banner heading for status, version, category, or launch metadata.',
+      },
     },
     {
       name: 'heading',
       type: 'text',
-      required: true,
+      admin: {
+        description: 'Optional heading override. Defaults to the selected docs set title.',
+      },
     },
     {
       name: 'description',
       type: 'textarea',
+      admin: {
+        description: 'Optional description override. Defaults to the selected docs set description.',
+      },
     },
     backgroundMediaFields({
       mediaRequired: true,
@@ -34,6 +50,7 @@ export const DocsBannerBlock: Block = {
           name: 'textAlign',
           type: 'select',
           admin: {
+            description: 'Controls horizontal text and action alignment.',
             width: '33%',
           },
           defaultValue: 'center',
@@ -56,6 +73,7 @@ export const DocsBannerBlock: Block = {
           name: 'size',
           type: 'select',
           admin: {
+            description: 'Controls banner height and vertical spacing.',
             width: '33%',
           },
           defaultValue: 'md',
@@ -82,6 +100,7 @@ export const DocsBannerBlock: Block = {
           name: 'theme',
           type: 'select',
           admin: {
+            description: 'Controls the banner color treatment used by the renderer.',
             width: '33%',
           },
           defaultValue: 'dark',

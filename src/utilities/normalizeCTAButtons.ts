@@ -4,7 +4,14 @@ import type {
   NormalizedDocsCTAButton,
 } from '../marketing/types.js'
 
-import { getBoolean, getRouteLikeHref, getString, isRecord } from './normalizeShared.js'
+import {
+  getBoolean,
+  getDocsPageHref,
+  getDocsSetPublicHref,
+  getRouteLikeHref,
+  getString,
+  isRecord,
+} from './normalizeShared.js'
 
 const variants: DocsActionVariant[] = ['primary', 'secondary', 'outline', 'ghost', 'link']
 
@@ -13,18 +20,31 @@ const getVariant = (value: unknown): DocsActionVariant =>
     ? (value as DocsActionVariant)
     : 'primary'
 
-const normalizeCTAButton = (input: unknown): NormalizedDocsCTAButton | undefined => {
+const normalizeCTAButton = (
+  input: unknown,
+  options: { docsSet?: unknown } = {},
+): NormalizedDocsCTAButton | undefined => {
   const candidate = isRecord(input) && isRecord(input.link) ? input.link : input
 
   if (!isRecord(candidate)) {
     return undefined
   }
 
+  const target = candidate.target
+  const docsSet = candidate.docsSet ?? options.docsSet
   const href =
-    getString(candidate.href) ??
-    getString(candidate.url) ??
-    getRouteLikeHref(candidate.routeReference) ??
-    getRouteLikeHref(candidate.reference)
+    target === 'set'
+      ? getDocsSetPublicHref(docsSet)
+      : target === 'setPage'
+        ? getDocsPageHref(candidate.page)
+        : target === 'custom'
+          ? getString(candidate.url) ?? getString(candidate.href)
+          : (getString(candidate.href) ??
+            getString(candidate.url) ??
+            getDocsPageHref(candidate.page) ??
+            getDocsSetPublicHref(docsSet) ??
+            getRouteLikeHref(candidate.routeReference) ??
+            getRouteLikeHref(candidate.reference))
   const label = getString(candidate.label)
 
   if (!href || !label) {
@@ -32,7 +52,6 @@ const normalizeCTAButton = (input: unknown): NormalizedDocsCTAButton | undefined
   }
 
   return {
-    description: getString(candidate.description),
     href,
     icon: getString(candidate.icon),
     label,
@@ -68,12 +87,13 @@ const getInputArray = (input: unknown): unknown[] => {
 export const normalizeCTAButtons = (
   input: unknown,
   fallback?: DocsCTAButtonInput,
+  options: { docsSet?: unknown } = {},
 ): NormalizedDocsCTAButton[] => {
   const buttons = getInputArray(input)
-    .map(normalizeCTAButton)
+    .map((button) => normalizeCTAButton(button, options))
     .filter((button): button is NormalizedDocsCTAButton => button !== undefined)
 
-  const fallbackButton = normalizeCTAButton(fallback)
+  const fallbackButton = normalizeCTAButton(fallback, options)
 
   if (buttons.length === 0 && fallbackButton) {
     return [fallbackButton]

@@ -1,30 +1,18 @@
 import type { ArrayField, Field, GroupField } from 'payload'
 
-import {
-  DEFAULT_DOCS_COLLECTION_SLUG,
-  DEFAULT_DOCS_GROUPS_COLLECTION_SLUG,
-  DEFAULT_DOCS_SETS_COLLECTION_SLUG,
-} from '../constants.js'
+import { docsPageRelationshipField } from './docsReferences.js'
 
 export type DocsCTAButtonFieldOptions = {
   maxRows?: number
   minRows?: number
   name?: string
-  relationTo?: string[]
   required?: boolean
 }
 
 export type DocsLinkFieldOptions = {
   name?: string
-  relationTo?: string[]
   required?: boolean
 }
-
-const defaultReferenceCollections = [
-  DEFAULT_DOCS_COLLECTION_SLUG,
-  DEFAULT_DOCS_GROUPS_COLLECTION_SLUG,
-  DEFAULT_DOCS_SETS_COLLECTION_SLUG,
-]
 
 const variantOptions = [
   { label: 'Primary', value: 'primary' },
@@ -34,40 +22,9 @@ const variantOptions = [
   { label: 'Link', value: 'link' },
 ]
 
-const createReferenceField = ({
-  relationTo = defaultReferenceCollections,
-  required = false,
-}: Pick<DocsLinkFieldOptions, 'relationTo' | 'required'> = {}): Field => {
-  const fieldBase = {
-    name: 'reference',
-    type: 'relationship' as const,
-    admin: {
-      condition: (_data: Partial<unknown>, siblingData: Partial<Record<string, unknown>>) =>
-        siblingData?.type === 'reference',
-      description: 'Optional populated docs, group, or set reference.',
-    },
-    label: 'Internal reference',
-    maxDepth: 1,
-    required,
-  }
-
-  if (relationTo.length === 1) {
-    return {
-      ...fieldBase,
-      relationTo: relationTo[0] ?? DEFAULT_DOCS_COLLECTION_SLUG,
-    }
-  }
-
-  return {
-    ...fieldBase,
-    relationTo,
-  }
-}
-
 const createLinkFields = ({
-  relationTo = defaultReferenceCollections,
   required = false,
-}: Pick<DocsLinkFieldOptions, 'relationTo' | 'required'> = {}): Field[] => [
+}: Pick<DocsLinkFieldOptions, 'required'> = {}): Field[] => [
   {
     type: 'row',
     fields: [
@@ -94,21 +51,25 @@ const createLinkFields = ({
     type: 'row',
     fields: [
       {
-        name: 'type',
+        name: 'target',
         type: 'radio',
         admin: {
           layout: 'horizontal',
           width: '50%',
         },
-        defaultValue: 'custom',
+        defaultValue: 'set',
         options: [
+          {
+            label: 'Selected docs set',
+            value: 'set',
+          },
+          {
+            label: 'Page in selected docs set',
+            value: 'setPage',
+          },
           {
             label: 'Custom URL',
             value: 'custom',
-          },
-          {
-            label: 'Internal reference',
-            value: 'reference',
           },
         ],
       },
@@ -125,45 +86,32 @@ const createLinkFields = ({
       },
     ],
   },
+  docsPageRelationshipField({
+    name: 'page',
+    condition: (_data, siblingData) => siblingData?.target === 'setPage',
+  }),
   {
     name: 'url',
     type: 'text',
     admin: {
-      condition: (_data, siblingData) => siblingData?.type !== 'reference',
-      description: 'Use a docs route, product skills route, or external URL.',
+      condition: (_data, siblingData) => siblingData?.target === 'custom',
+      description: 'Custom URL used only when the button target is Custom URL.',
     },
     label: 'URL',
     required,
   },
-  createReferenceField({
-    relationTo,
-    required,
-  }),
   {
-    type: 'row',
-    fields: [
-      {
-        name: 'icon',
-        type: 'text',
-        admin: {
-          description: 'Optional icon name for user renderers that support icons.',
-          width: '50%',
-        },
-      },
-      {
-        name: 'description',
-        type: 'text',
-        admin: {
-          width: '50%',
-        },
-      },
-    ],
+    name: 'icon',
+    type: 'text',
+    admin: {
+      description: 'Optional icon name. SVG/icon rendering requires renderer or plugin icon support.',
+      width: '50%',
+    },
   },
 ]
 
 export const linkField = ({
   name = 'link',
-  relationTo,
   required,
 }: DocsLinkFieldOptions = {}): GroupField => ({
   name,
@@ -172,7 +120,6 @@ export const linkField = ({
     hideGutter: true,
   },
   fields: createLinkFields({
-    relationTo,
     required,
   }),
 })
@@ -183,7 +130,6 @@ export const ctaButtonsField = ({
   name = 'ctaButtons',
   maxRows,
   minRows,
-  relationTo,
   required = false,
 }: DocsCTAButtonFieldOptions = {}): ArrayField => ({
   name,
@@ -192,7 +138,6 @@ export const ctaButtonsField = ({
     initCollapsed: true,
   },
   fields: createLinkFields({
-    relationTo,
     required,
   }),
   label: 'CTA Buttons',

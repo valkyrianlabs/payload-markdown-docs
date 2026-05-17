@@ -1,40 +1,19 @@
 import type { Block } from 'payload'
 
 import {
-  DEFAULT_DOCS_COLLECTION_SLUG,
-  DEFAULT_DOCS_GROUPS_COLLECTION_SLUG,
-  DEFAULT_DOCS_SETS_COLLECTION_SLUG,
-} from '../../constants.js'
+  docsPageRelationshipField,
+  docsSetRelationshipField,
+} from '../../fields/index.js'
 import { skillCTAFields } from '../../fields/skills.js'
 
 export const DocsCalloutBlock: Block = {
   slug: 'docsCallout',
   fields: [
+    docsSetRelationshipField(),
+    docsPageRelationshipField(),
     {
       type: 'row',
       fields: [
-        {
-          name: 'calloutType',
-          type: 'select',
-          admin: {
-            width: '50%',
-          },
-          defaultValue: 'custom',
-          options: [
-            {
-              label: 'Page',
-              value: 'page',
-            },
-            {
-              label: 'Section',
-              value: 'section',
-            },
-            {
-              label: 'Custom',
-              value: 'custom',
-            },
-          ],
-        },
         {
           name: 'variant',
           type: 'select',
@@ -65,62 +44,6 @@ export const DocsCalloutBlock: Block = {
             },
           ],
         },
-      ],
-    },
-    {
-      name: 'heading',
-      type: 'text',
-      required: true,
-    },
-    {
-      name: 'excerpt',
-      type: 'textarea',
-    },
-    {
-      name: 'routeReference',
-      type: 'relationship',
-      admin: {
-        description: 'Optional populated docs, group, or set reference.',
-      },
-      label: 'Docs reference',
-      maxDepth: 1,
-      relationTo: [
-        DEFAULT_DOCS_COLLECTION_SLUG,
-        DEFAULT_DOCS_GROUPS_COLLECTION_SLUG,
-        DEFAULT_DOCS_SETS_COLLECTION_SLUG,
-      ],
-    },
-    {
-      type: 'row',
-      fields: [
-        {
-          name: 'manualHref',
-          type: 'text',
-          admin: {
-            width: '50%',
-          },
-          label: 'Manual URL',
-        },
-        {
-          name: 'ctaLabel',
-          type: 'text',
-          admin: {
-            width: '50%',
-          },
-          defaultValue: 'Read more',
-        },
-      ],
-    },
-    {
-      type: 'row',
-      fields: [
-        {
-          name: 'icon',
-          type: 'text',
-          admin: {
-            width: '50%',
-          },
-        },
         {
           name: 'layout',
           type: 'select',
@@ -146,6 +69,42 @@ export const DocsCalloutBlock: Block = {
               value: 'sidebar',
             },
           ],
+        },
+      ],
+    },
+    {
+      name: 'heading',
+      type: 'text',
+      admin: {
+        description: 'Optional heading override. Defaults to the selected docs page title.',
+      },
+    },
+    {
+      name: 'excerpt',
+      type: 'textarea',
+      admin: {
+        description: 'Optional excerpt override. Defaults to the selected docs page description.',
+      },
+    },
+    {
+      type: 'row',
+      fields: [
+        {
+          name: 'ctaLabel',
+          type: 'text',
+          admin: {
+            width: '50%',
+          },
+          defaultValue: 'Read more',
+        },
+        {
+          name: 'icon',
+          type: 'text',
+          admin: {
+            description:
+              'Optional icon name. SVG/icon rendering requires app or plugin icon support.',
+            width: '50%',
+          },
         },
       ],
     },
