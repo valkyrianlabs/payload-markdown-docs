@@ -13,33 +13,33 @@ export const SkillTabs = ({ align = 'left', className, items: inputItems }: Skil
   return (
     <div
       className={cx(
-        'inline-flex max-w-full flex-wrap gap-1 rounded-xl border border-border bg-white/[0.03] p-1',
-        align === 'center' ? 'justify-center' : '',
+        'flex w-full max-w-3xl flex-wrap items-stretch gap-1 rounded-xl border border-border bg-white/[0.04] p-1 shadow-sm shadow-slate-950/5',
+        align === 'center' ? 'mx-auto justify-center' : undefined,
+        align === 'left' ? 'justify-start' : undefined,
+        align === 'right' ? 'ml-auto justify-end' : undefined,
         className,
       )}
     >
       {items.map((item) => {
         const content = (
           <>
-            <span className="inline-flex items-center justify-center gap-2 text-sm font-semibold text-foreground">
+            <span className="inline-flex min-w-0 items-center justify-center gap-2 text-sm font-semibold text-foreground">
               {item.icon ? (
                 <span aria-hidden="true" className="text-xs uppercase tracking-wide text-cyan-300">
                   {item.icon}
                 </span>
               ) : null}
-              {item.label}
+              <span className="min-w-0 break-words">{item.label}</span>
             </span>
             {item.description ? (
-              <span className="block text-xs leading-5 text-foreground/60">
-                {item.description}
-              </span>
+              <span className="block text-xs leading-5 text-foreground/60">{item.description}</span>
             ) : null}
           </>
         )
 
         return item.href ? (
           <a
-            className="inline-flex min-h-11 min-w-28 flex-col items-center justify-center rounded-lg px-4 py-2 text-center transition-colors hover:bg-white/[0.06]"
+            className="inline-flex min-h-11 min-w-32 flex-1 basis-36 flex-col items-center justify-center rounded-lg px-4 py-2.5 text-center transition-colors hover:bg-white/[0.08] sm:flex-none"
             href={item.href}
             key={`${item.type}-${item.label}`}
           >
@@ -47,7 +47,7 @@ export const SkillTabs = ({ align = 'left', className, items: inputItems }: Skil
           </a>
         ) : (
           <div
-            className="inline-flex min-h-11 min-w-28 flex-col items-center justify-center rounded-lg px-4 py-2 text-center"
+            className="inline-flex min-h-11 min-w-32 flex-1 basis-36 flex-col items-center justify-center rounded-lg px-4 py-2.5 text-center sm:flex-none"
             key={`${item.type}-${item.label}`}
           >
             {content}

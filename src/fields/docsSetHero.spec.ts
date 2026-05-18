@@ -97,9 +97,38 @@ describe('docsHeroField', () => {
     ])
     expect(richTextField?.admin?.condition?.({}, { type: 'highImpact' })).toBe(true)
     expect(richTextField?.admin?.condition?.({}, { type: 'docsSetFullWidth' })).toBe(false)
-    expect(getField(field.fields, 'docsSet')?.admin?.condition?.({}, { type: 'docsSetFullWidth' })).toBe(
-      true,
-    )
+    expect(
+      getField(field.fields, 'docsSet')?.admin?.condition?.({}, { type: 'docsSetFullWidth' }),
+    ).toBe(true)
+  })
+
+  it('reuses common local hero heading and description fields instead of duplicating them', () => {
+    const field = docsHeroField({
+      hero: {
+        ...localHeroField(),
+        fields: [
+          ...((localHeroField() as FieldRecord).fields ?? []),
+          {
+            name: 'heading',
+            type: 'text',
+          },
+          {
+            name: 'description',
+            type: 'textarea',
+          },
+        ],
+      } as Field,
+    })
+    const fieldNames = field.fields.flatMap((candidate) => {
+      const name = (candidate as FieldRecord).name
+
+      return typeof name === 'string' ? [name] : []
+    })
+
+    expect(fieldNames.filter((name) => name === 'heading')).toHaveLength(1)
+    expect(fieldNames.filter((name) => name === 'description')).toHaveLength(1)
+    expect(getField(field.fields, 'heading')?.admin?.condition).toBeUndefined()
+    expect(getField(field.fields, 'description')?.admin?.condition).toBeUndefined()
   })
 
   it('plugin heros option wraps an existing pages hero field and installs the resolver hook', () => {

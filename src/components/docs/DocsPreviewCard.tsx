@@ -22,7 +22,9 @@ export const DocsPreviewCard = ({ item, layout = 'cards' }: DocsPreviewCardProps
         ) : null}
       </div>
       {item.excerpt ? (
-        <p className={cx('mt-2 text-sm leading-6 text-foreground/65', compact ? 'line-clamp-2' : '')}>
+        <p
+          className={cx('mt-2 text-sm leading-6 text-foreground/65', compact ? 'line-clamp-2' : '')}
+        >
           {item.excerpt}
         </p>
       ) : null}
@@ -30,9 +32,9 @@ export const DocsPreviewCard = ({ item, layout = 'cards' }: DocsPreviewCardProps
   )
 
   const className = cx(
-    'block rounded-lg border border-border bg-white/[0.03] transition-colors',
-    compact ? 'p-4 hover:bg-white/[0.06]' : 'p-5 hover:bg-white/[0.06]',
-    layout === 'featured' ? 'min-h-48' : undefined,
+    'block rounded-xl border border-border bg-white/[0.04] shadow-sm shadow-slate-950/5 transition-colors',
+    compact ? 'p-4 hover:bg-white/[0.08]' : 'p-5 hover:bg-white/[0.08]',
+    layout === 'featured' ? 'min-h-52' : undefined,
   )
 
   return item.href ? (

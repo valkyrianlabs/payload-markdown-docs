@@ -15,7 +15,7 @@ export type DocsCalloutCardProps = {
 const variantClasses = {
   brand: 'border-cyan-300/25 bg-cyan-300/10 text-foreground',
   info: 'border-sky-300/25 bg-sky-300/10 text-foreground',
-  neutral: 'border-border bg-white/[0.03] text-foreground',
+  neutral: 'border-border bg-white/[0.04] text-foreground',
   success: 'border-emerald-300/25 bg-emerald-300/10 text-foreground',
   warning: 'border-amber-300/25 bg-amber-300/10 text-foreground',
 }
@@ -31,11 +31,11 @@ export const DocsCalloutCard = ({
 }: DocsCalloutCardProps) => {
   const content = (
     <>
-      <div className="flex items-start gap-3">
+      <div className="flex items-start gap-4">
         {icon ? (
           <span
             aria-hidden="true"
-            className="mt-0.5 shrink-0 text-xs font-semibold uppercase tracking-wide text-cyan-300"
+            className="mt-0.5 inline-flex min-h-9 min-w-9 shrink-0 items-center justify-center rounded-lg border border-cyan-300/20 bg-cyan-300/10 px-2 text-xs font-semibold uppercase tracking-wide text-cyan-200"
           >
             {icon}
           </span>
@@ -46,7 +46,7 @@ export const DocsCalloutCard = ({
             {description}
           </TextContent>
           {href && ctaLabel ? (
-            <span className="mt-4 inline-flex text-sm font-medium text-cyan-300">{ctaLabel}</span>
+            <span className="mt-5 inline-flex text-sm font-semibold text-cyan-300">{ctaLabel}</span>
           ) : null}
         </div>
       </div>
@@ -54,7 +54,7 @@ export const DocsCalloutCard = ({
   )
 
   const className = cx(
-    'rounded-lg border p-5',
+    'rounded-xl border p-5 shadow-sm shadow-slate-950/5',
     variantClasses[variant ?? 'info'],
     layout === 'fullWidth' ? 'w-full' : undefined,
     layout === 'inline' ? 'p-4' : undefined,

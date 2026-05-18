@@ -121,26 +121,37 @@ standalone docs hero field named `hero`.
 Render docs hero variants inside your existing hero renderer:
 
 ```tsx
-import {
-  DocsSetHero,
-  isDocsSetHeroType,
-} from '@valkyrianlabs/payload-markdown-docs/next'
+import type { FC } from 'react'
+import type { Page } from '@/payload-types'
 
-import { RenderHero as LocalRenderHero } from '@/heros/RenderHero'
+import { docsHeroComponents } from '@valkyrianlabs/payload-markdown-docs/next'
 
-export function RenderHero(props: { type?: string } & Record<string, unknown>) {
-  if (isDocsSetHeroType(props.type)) {
-    return <DocsSetHero {...props} />
-  }
+import { HighImpactHero } from './HighImpact'
+import { LowImpactHero } from './LowImpact'
 
-  return <LocalRenderHero {...props} />
+const heroes: Record<string, FC<Page['hero']>> = {
+  ...docsHeroComponents,
+  highImpact: HighImpactHero,
+  lowImpact: LowImpactHero,
+}
+
+export function RenderHero(props: Page['hero']) {
+  const { type } = props || {}
+
+  if (!type || type === 'none') return null
+
+  const HeroToRender = heroes[type]
+
+  if (!HeroToRender) return null
+
+  return <HeroToRender {...props} />
 }
 ```
 
-The docs hero component accepts the normal spread Payload field shape. Data
+The docs hero components accept the normal spread Payload field shape. Data
 hydration runs through the plugin `afterRead` resolver, so id-only docs set
-relationships are expanded before render when the plugin installed or wrapped
-the field.
+relationships are expanded before render when the plugin installed or wrapped the
+field.
 
 ## Custom Components
 
@@ -186,10 +197,7 @@ For docs-native pages, use `DocsNativeHero`:
 import { DocsNativeHero } from '@valkyrianlabs/payload-markdown-docs/next'
 
 <DocsNativeHero
-  breadcrumb={[
-    { label: 'Docs', href: '/docs' },
-    { label: 'Configuration' },
-  ]}
+  breadcrumb={[{ label: 'Docs', href: '/docs' }, { label: 'Configuration' }]}
   title="Configuration"
   description="Plugin options, routing behavior, and sync settings."
 />

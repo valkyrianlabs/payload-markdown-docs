@@ -3,8 +3,17 @@ import { notFound } from 'next/navigation'
 import { getPayload } from 'payload'
 
 import type { PayloadMarkdownDocsReadPayload } from '../../../../dist/next'
+import type { Page as PageType } from '../../../payload-types'
 
-import { PayloadMarkdownDocsPage, resolvePayloadMarkdownDocsRoute } from '../../../../dist/next'
+import {
+  DocsBanner,
+  DocsCallout,
+  DocsCTA,
+  DocsPreview,
+  PayloadMarkdownDocsPage,
+  resolvePayloadMarkdownDocsRoute,
+} from '../../../../dist/next'
+import { RenderHero } from '../../../heros/RenderHero'
 
 type PageProps = {
   params: Promise<{
@@ -13,6 +22,42 @@ type PageProps = {
 }
 
 export const dynamic = 'force-dynamic'
+
+const getPagePath = (slug: string[]): string => {
+  const path = `/${slug.join('/')}`.replace(/\/+/g, '/')
+
+  return path.length > 1 ? path.replace(/\/+$/g, '') : path
+}
+
+const RenderBlocks = ({ blocks }: { blocks?: PageType['layout'] }) => {
+  if (!Array.isArray(blocks) || blocks.length === 0) {
+    return null
+  }
+
+  return (
+    <>
+      {blocks.map((block, index) => {
+        if (block.blockType === 'docsBanner') {
+          return <DocsBanner {...block} key={block.id ?? index} />
+        }
+
+        if (block.blockType === 'docsPreview') {
+          return <DocsPreview {...block} key={block.id ?? index} />
+        }
+
+        if (block.blockType === 'docsCallout') {
+          return <DocsCallout {...block} key={block.id ?? index} />
+        }
+
+        if (block.blockType === 'docsCTA') {
+          return <DocsCTA {...block} key={block.id ?? index} />
+        }
+
+        return null
+      })}
+    </>
+  )
+}
 
 const Page = async ({ params }: PageProps) => {
   const { slug = [] } = await params
@@ -67,7 +112,30 @@ const Page = async ({ params }: PageProps) => {
     return <PayloadMarkdownDocsPage resolved={resolved} />
   }
 
-  notFound()
+  const pagePath = getPagePath(slug)
+  const pages = await payload.find({
+    collection: 'pages',
+    depth: 2,
+    limit: 1,
+    overrideAccess: false,
+    where: {
+      fullPath: {
+        equals: pagePath,
+      },
+    },
+  })
+  const page = pages.docs[0] as PageType | undefined
+
+  if (!page) {
+    notFound()
+  }
+
+  return (
+    <>
+      <RenderHero {...page.hero} />
+      <RenderBlocks blocks={page.layout} />
+    </>
+  )
 }
 
 export default Page

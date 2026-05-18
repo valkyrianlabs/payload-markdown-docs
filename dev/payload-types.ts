@@ -67,6 +67,7 @@ export interface Config {
   };
   blocks: {};
   collections: {
+    pages: Page;
     posts: Post;
     media: Media;
     'docs-groups': DocsGroup;
@@ -78,12 +79,14 @@ export interface Config {
     'docs-sync-nonces': DocsSyncNonce;
     'payload-kv': PayloadKv;
     users: User;
+    'payload-jobs': PayloadJob;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
     'payload-migrations': PayloadMigration;
   };
   collectionsJoins: {};
   collectionsSelect: {
+    pages: PagesSelect<false> | PagesSelect<true>;
     posts: PostsSelect<false> | PostsSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
     'docs-groups': DocsGroupsSelect<false> | DocsGroupsSelect<true>;
@@ -95,6 +98,7 @@ export interface Config {
     'docs-sync-nonces': DocsSyncNoncesSelect<false> | DocsSyncNoncesSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     users: UsersSelect<false> | UsersSelect<true>;
+    'payload-jobs': PayloadJobsSelect<false> | PayloadJobsSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
     'payload-migrations': PayloadMigrationsSelect<false> | PayloadMigrationsSelect<true>;
@@ -115,7 +119,13 @@ export interface Config {
   };
   user: User;
   jobs: {
-    tasks: unknown;
+    tasks: {
+      schedulePublish: TaskSchedulePublish;
+      inline: {
+        input: unknown;
+        output: unknown;
+      };
+    };
     workflows: unknown;
   };
 }
@@ -139,12 +149,122 @@ export interface UserAuthOperations {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "posts".
+ * via the `definition` "pages".
  */
-export interface Post {
+export interface Page {
   id: number;
+  title: string;
+  /**
+   * Hero picker with docs set hero variants. Docs heroes derive title, description, links, and skill buttons from the selected docs set.
+   */
+  hero: {
+    type:
+      | 'none'
+      | 'highImpact'
+      | 'highImpactCard'
+      | 'mediumImpact'
+      | 'lowImpact'
+      | 'docsSetFullWidth'
+      | 'docsSetSideImage';
+    /**
+     * Local dev hero heading.
+     */
+    heading?: string | null;
+    /**
+     * Local dev hero description.
+     */
+    description?: string | null;
+    media?: (number | null) | Media;
+    /**
+     * Select the docs set this block should reference. Links, page choices, and skill buttons are derived from this set.
+     */
+    docsSet?: (number | null) | DocsSet;
+    /**
+     * Small uppercase pre-heading text rendered above the main heading.
+     */
+    eyebrow?: string | null;
+    /**
+     * Single pill label rendered near the hero heading for status, version, category, or launch metadata.
+     */
+    badge?: string | null;
+    /**
+     * Label for the fallback link to the selected docs set.
+     */
+    docsLabel?: string | null;
+    /**
+     * Optional decorative background media and overlay controls.
+     */
+    background?: {
+      media?: (number | null) | Media;
+      position?: ('center' | 'top' | 'bottom' | 'left' | 'right') | null;
+      /**
+       * Show fit, overlay, opacity, variant, and gradient controls.
+       */
+      advancedControls?: boolean | null;
+      overlay?: boolean | null;
+      /**
+       * 0 to 95.
+       */
+      overlayOpacity?: number | null;
+      overlayVariant?: ('dark' | 'light' | 'brand' | 'gradient') | null;
+      fit?: ('cover' | 'contain' | 'fill') | null;
+      gradient?: ('none' | 'subtle' | 'brand') | null;
+    };
+    /**
+     * Optional side image. Defaults to the selected docs set SEO image when present.
+     */
+    image?: (number | null) | Media;
+    /**
+     * Controls which side the image appears on for the side image hero.
+     */
+    imagePosition?: ('left' | 'right') | null;
+    ctaButtons?:
+      | {
+          label?: string | null;
+          variant?: ('primary' | 'secondary' | 'outline' | 'ghost' | 'link') | null;
+          target?: ('set' | 'setPage' | 'custom') | null;
+          newTab?: boolean | null;
+          /**
+           * Select a docs page from the selected docs set.
+           */
+          page?: (number | null) | Doc;
+          /**
+           * Custom URL used only when the button target is Custom URL.
+           */
+          url?: string | null;
+          /**
+           * Optional icon name. SVG/icon rendering requires renderer or plugin icon support.
+           */
+          icon?: string | null;
+          id?: string | null;
+        }[]
+      | null;
+    /**
+     * Feature available skill downloads from the selected docs set.
+     */
+    skills?: {
+      enabled?: boolean | null;
+      display?: ('buttons' | 'tabs' | 'cards') | null;
+      heading?: string | null;
+      description?: string | null;
+    };
+  };
+  layout: (DocsCTABlock | DocsPreviewBlock | DocsCalloutBlock | DocsBannerBlock)[];
+  meta?: {
+    title?: string | null;
+    description?: string | null;
+    image?: (number | null) | Media;
+  };
+  publishedAt?: string | null;
+  /**
+   * When enabled, the slug will auto-generate from the title field on save and autosave.
+   */
+  generateSlug?: boolean | null;
+  slug: string;
+  fullPath?: string | null;
   updatedAt: string;
   createdAt: string;
+  _status?: ('draft' | 'published') | null;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -163,29 +283,6 @@ export interface Media {
   height?: number | null;
   focalX?: number | null;
   focalY?: number | null;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "docs-groups".
- */
-export interface DocsGroup {
-  id: number;
-  title: string;
-  /**
-   * When enabled, the slug will auto-generate from the title field on save and autosave.
-   */
-  generateSlug?: boolean | null;
-  slug: string;
-  parent?: (number | null) | DocsGroup;
-  description?: string | null;
-  navTitle?: string | null;
-  order?: number | null;
-  /**
-   * auto generates a docs group landing page. custom lets the site own this group route.
-   */
-  pageMode?: ('auto' | 'custom') | null;
-  updatedAt: string;
-  createdAt: string;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -250,6 +347,412 @@ export interface DocsSet {
   updatedAt: string;
   createdAt: string;
   _status?: ('draft' | 'published') | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "docs-groups".
+ */
+export interface DocsGroup {
+  id: number;
+  title: string;
+  /**
+   * When enabled, the slug will auto-generate from the title field on save and autosave.
+   */
+  generateSlug?: boolean | null;
+  slug: string;
+  parent?: (number | null) | DocsGroup;
+  description?: string | null;
+  navTitle?: string | null;
+  order?: number | null;
+  /**
+   * auto generates a docs group landing page. custom lets the site own this group route.
+   */
+  pageMode?: ('auto' | 'custom') | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "docs".
+ */
+export interface Doc {
+  id: number;
+  title: string;
+  navTitle?: string | null;
+  description?: string | null;
+  /**
+   * Optional fully qualified package names used to link related docs sets in generated AI discovery files.
+   */
+  dependencies?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  publishedAt?: string | null;
+  route: string;
+  sourcePath: string;
+  docsSet?: (number | null) | DocsSet;
+  sourceHash?: string | null;
+  depth?: number | null;
+  order?: number | null;
+  parent?: (number | null) | Doc;
+  /**
+   * Optional hero image rendered above generated docs content.
+   */
+  heroImage?: (number | null) | Media;
+  content?: string | null;
+  overrides?: {
+    navTitle?: string | null;
+    hideFromNav?: boolean | null;
+  };
+  sync?: {
+    sourceId?: string | null;
+    sourcePath?: string | null;
+    sourceHashAtLastSync?: string | null;
+    contentHashAtLastSync?: string | null;
+    lastSyncedAt?: string | null;
+    lastSyncRunId?: (number | null) | DocsSyncRun;
+    managedBy?: string | null;
+    archived?: boolean | null;
+    archivedAt?: string | null;
+  };
+  updatedAt: string;
+  createdAt: string;
+  _status?: ('draft' | 'published') | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "docs-sync-runs".
+ */
+export interface DocsSyncRun {
+  id: number;
+  sourceId: string;
+  repository?: string | null;
+  branch?: string | null;
+  commit?: string | null;
+  actor?: string | null;
+  keyId?: string | null;
+  mode: 'dry-run' | 'sync';
+  status: 'pending' | 'success' | 'failed';
+  publishRequested?: boolean | null;
+  deleteBehavior?: ('archive' | 'delete' | 'draft' | 'ignore') | null;
+  bodyHash?: string | null;
+  fileCount?: number | null;
+  totalBytes?: number | null;
+  summary?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  warnings?:
+    | {
+        message?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  errors?:
+    | {
+        message?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  startedAt: string;
+  completedAt?: string | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "DocsCTABlock".
+ */
+export interface DocsCTABlock {
+  /**
+   * Select the docs set this block should reference. Links, page choices, and skill buttons are derived from this set.
+   */
+  docsSet?: (number | null) | DocsSet;
+  /**
+   * Small uppercase pre-heading text rendered above the main heading.
+   */
+  eyebrow?: string | null;
+  /**
+   * Small pill labels rendered near the heading for status, version, category, or launch metadata.
+   */
+  badges?:
+    | {
+        label: string;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Required unless the selected docs set provides a title.
+   */
+  heading?: string | null;
+  /**
+   * Optional description override. Defaults to the selected docs set description.
+   */
+  description?: string | null;
+  layout?: ('centered' | 'split' | 'inline' | 'card') | null;
+  theme?: ('default' | 'muted' | 'dark' | 'brand') | null;
+  /**
+   * Label for the fallback link to the selected docs set.
+   */
+  docsLabel?: string | null;
+  ctaButtons?:
+    | {
+        label?: string | null;
+        variant?: ('primary' | 'secondary' | 'outline' | 'ghost' | 'link') | null;
+        target?: ('set' | 'setPage' | 'custom') | null;
+        newTab?: boolean | null;
+        /**
+         * Select a docs page from the selected docs set.
+         */
+        page?: (number | null) | Doc;
+        /**
+         * Custom URL used only when the button target is Custom URL.
+         */
+        url?: string | null;
+        /**
+         * Optional icon name. SVG/icon rendering requires renderer or plugin icon support.
+         */
+        icon?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Optional decorative background media and overlay controls.
+   */
+  background?: {
+    media?: (number | null) | Media;
+    position?: ('center' | 'top' | 'bottom' | 'left' | 'right') | null;
+    /**
+     * Show fit, overlay, opacity, variant, and gradient controls.
+     */
+    advancedControls?: boolean | null;
+    overlay?: boolean | null;
+    /**
+     * 0 to 95.
+     */
+    overlayOpacity?: number | null;
+    overlayVariant?: ('dark' | 'light' | 'brand' | 'gradient') | null;
+    fit?: ('cover' | 'contain' | 'fill') | null;
+    gradient?: ('none' | 'subtle' | 'brand') | null;
+  };
+  /**
+   * Feature available skill downloads from the selected docs set.
+   */
+  skills?: {
+    enabled?: boolean | null;
+    display?: ('buttons' | 'tabs' | 'cards') | null;
+    heading?: string | null;
+    description?: string | null;
+  };
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'docsCTA';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "DocsPreviewBlock".
+ */
+export interface DocsPreviewBlock {
+  /**
+   * Select the docs set this block should reference. Links, page choices, and skill buttons are derived from this set.
+   */
+  docsSet?: (number | null) | DocsSet;
+  /**
+   * Required unless the selected docs set provides a title.
+   */
+  heading?: string | null;
+  /**
+   * Optional description override. Defaults to the selected docs set description.
+   */
+  description?: string | null;
+  layout?: ('cards' | 'list' | 'featured' | 'compact') | null;
+  /**
+   * Label for the fallback link to the selected docs set.
+   */
+  viewAllLabel?: string | null;
+  ctaButtons?:
+    | {
+        label?: string | null;
+        variant?: ('primary' | 'secondary' | 'outline' | 'ghost' | 'link') | null;
+        target?: ('set' | 'setPage' | 'custom') | null;
+        newTab?: boolean | null;
+        /**
+         * Select a docs page from the selected docs set.
+         */
+        page?: (number | null) | Doc;
+        /**
+         * Custom URL used only when the button target is Custom URL.
+         */
+        url?: string | null;
+        /**
+         * Optional icon name. SVG/icon rendering requires renderer or plugin icon support.
+         */
+        icon?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Feature available skill downloads from the selected docs set.
+   */
+  skills?: {
+    enabled?: boolean | null;
+    display?: ('buttons' | 'tabs' | 'cards') | null;
+    heading?: string | null;
+    description?: string | null;
+  };
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'docsPreview';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "DocsCalloutBlock".
+ */
+export interface DocsCalloutBlock {
+  /**
+   * Select the docs set this block should reference. Links, page choices, and skill buttons are derived from this set.
+   */
+  docsSet?: (number | null) | DocsSet;
+  /**
+   * Select a docs page from the selected docs set.
+   */
+  docsPage?: (number | null) | Doc;
+  variant?: ('info' | 'success' | 'warning' | 'brand' | 'neutral') | null;
+  layout?: ('card' | 'fullWidth' | 'inline' | 'sidebar') | null;
+  /**
+   * Required unless the selected docs page provides a title.
+   */
+  heading?: string | null;
+  /**
+   * Optional excerpt override. Defaults to the selected docs page description.
+   */
+  excerpt?: string | null;
+  ctaLabel?: string | null;
+  /**
+   * Optional icon name. SVG/icon rendering requires app or plugin icon support.
+   */
+  icon?: string | null;
+  /**
+   * Feature available skill downloads from the selected docs set.
+   */
+  skills?: {
+    enabled?: boolean | null;
+    display?: ('buttons' | 'tabs' | 'cards') | null;
+    heading?: string | null;
+    description?: string | null;
+  };
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'docsCallout';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "DocsBannerBlock".
+ */
+export interface DocsBannerBlock {
+  /**
+   * Select the docs set this block should reference. Links, page choices, and skill buttons are derived from this set.
+   */
+  docsSet?: (number | null) | DocsSet;
+  /**
+   * Small uppercase pre-heading text rendered above the main heading.
+   */
+  eyebrow?: string | null;
+  /**
+   * Single pill label rendered near the banner heading for status, version, category, or launch metadata.
+   */
+  badge?: string | null;
+  /**
+   * Required unless the selected docs set provides a title.
+   */
+  heading?: string | null;
+  /**
+   * Optional description override. Defaults to the selected docs set description.
+   */
+  description?: string | null;
+  /**
+   * Optional decorative background media and overlay controls.
+   */
+  background: {
+    media: number | Media;
+    position?: ('center' | 'top' | 'bottom' | 'left' | 'right') | null;
+    /**
+     * Show fit, overlay, opacity, variant, and gradient controls.
+     */
+    advancedControls?: boolean | null;
+    overlay?: boolean | null;
+    /**
+     * 0 to 95.
+     */
+    overlayOpacity?: number | null;
+    overlayVariant?: ('dark' | 'light' | 'brand' | 'gradient') | null;
+    fit?: ('cover' | 'contain' | 'fill') | null;
+    gradient?: ('none' | 'subtle' | 'brand') | null;
+  };
+  /**
+   * Controls horizontal text and action alignment.
+   */
+  textAlign?: ('left' | 'center' | 'right') | null;
+  /**
+   * Controls banner height and vertical spacing.
+   */
+  size?: ('sm' | 'md' | 'lg' | 'xl') | null;
+  /**
+   * Controls the banner color treatment used by the renderer.
+   */
+  theme?: ('default' | 'muted' | 'dark' | 'brand') | null;
+  ctaButtons?:
+    | {
+        label?: string | null;
+        variant?: ('primary' | 'secondary' | 'outline' | 'ghost' | 'link') | null;
+        target?: ('set' | 'setPage' | 'custom') | null;
+        newTab?: boolean | null;
+        /**
+         * Select a docs page from the selected docs set.
+         */
+        page?: (number | null) | Doc;
+        /**
+         * Custom URL used only when the button target is Custom URL.
+         */
+        url?: string | null;
+        /**
+         * Optional icon name. SVG/icon rendering requires renderer or plugin icon support.
+         */
+        icon?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * Feature available skill downloads from the selected docs set.
+   */
+  skills?: {
+    enabled?: boolean | null;
+    display?: ('buttons' | 'tabs' | 'cards') | null;
+    heading?: string | null;
+    description?: string | null;
+  };
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'docsBanner';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "posts".
+ */
+export interface Post {
+  id: number;
+  updatedAt: string;
+  createdAt: string;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -318,104 +821,6 @@ export interface PayloadMarkdownDocsAsset {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "docs-sync-runs".
- */
-export interface DocsSyncRun {
-  id: number;
-  sourceId: string;
-  repository?: string | null;
-  branch?: string | null;
-  commit?: string | null;
-  actor?: string | null;
-  keyId?: string | null;
-  mode: 'dry-run' | 'sync';
-  status: 'pending' | 'success' | 'failed';
-  publishRequested?: boolean | null;
-  deleteBehavior?: ('archive' | 'delete' | 'draft' | 'ignore') | null;
-  bodyHash?: string | null;
-  fileCount?: number | null;
-  totalBytes?: number | null;
-  summary?:
-    | {
-        [k: string]: unknown;
-      }
-    | unknown[]
-    | string
-    | number
-    | boolean
-    | null;
-  warnings?:
-    | {
-        message?: string | null;
-        id?: string | null;
-      }[]
-    | null;
-  errors?:
-    | {
-        message?: string | null;
-        id?: string | null;
-      }[]
-    | null;
-  startedAt: string;
-  completedAt?: string | null;
-  updatedAt: string;
-  createdAt: string;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "docs".
- */
-export interface Doc {
-  id: number;
-  title: string;
-  navTitle?: string | null;
-  description?: string | null;
-  /**
-   * Optional fully qualified package names used to link related docs sets in generated AI discovery files.
-   */
-  dependencies?:
-    | {
-        [k: string]: unknown;
-      }
-    | unknown[]
-    | string
-    | number
-    | boolean
-    | null;
-  publishedAt?: string | null;
-  route: string;
-  sourcePath: string;
-  docsSet?: (number | null) | DocsSet;
-  sourceHash?: string | null;
-  depth?: number | null;
-  order?: number | null;
-  parent?: (number | null) | Doc;
-  /**
-   * Optional hero image rendered above generated docs content.
-   */
-  heroImage?: (number | null) | Media;
-  content?: string | null;
-  overrides?: {
-    navTitle?: string | null;
-    hideFromNav?: boolean | null;
-  };
-  sync?: {
-    sourceId?: string | null;
-    sourcePath?: string | null;
-    sourceHashAtLastSync?: string | null;
-    contentHashAtLastSync?: string | null;
-    lastSyncedAt?: string | null;
-    lastSyncRunId?: (number | null) | DocsSyncRun;
-    managedBy?: string | null;
-    archived?: boolean | null;
-    archivedAt?: string | null;
-  };
-  updatedAt: string;
-  createdAt: string;
-  _status?: ('draft' | 'published') | null;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "docs-sync-nonces".
  */
 export interface DocsSyncNonce {
@@ -474,11 +879,107 @@ export interface User {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "payload-jobs".
+ */
+export interface PayloadJob {
+  id: number;
+  /**
+   * Input data provided to the job
+   */
+  input?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  taskStatus?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  completedAt?: string | null;
+  totalTried?: number | null;
+  /**
+   * If hasError is true this job will not be retried
+   */
+  hasError?: boolean | null;
+  /**
+   * If hasError is true, this is the error that caused it
+   */
+  error?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Task execution log
+   */
+  log?:
+    | {
+        executedAt: string;
+        completedAt: string;
+        taskSlug: 'inline' | 'schedulePublish';
+        taskID: string;
+        input?:
+          | {
+              [k: string]: unknown;
+            }
+          | unknown[]
+          | string
+          | number
+          | boolean
+          | null;
+        output?:
+          | {
+              [k: string]: unknown;
+            }
+          | unknown[]
+          | string
+          | number
+          | boolean
+          | null;
+        state: 'failed' | 'succeeded';
+        error?:
+          | {
+              [k: string]: unknown;
+            }
+          | unknown[]
+          | string
+          | number
+          | boolean
+          | null;
+        id?: string | null;
+      }[]
+    | null;
+  taskSlug?: ('inline' | 'schedulePublish') | null;
+  queue?: string | null;
+  waitUntil?: string | null;
+  processing?: boolean | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-locked-documents".
  */
 export interface PayloadLockedDocument {
   id: number;
   document?:
+    | ({
+        relationTo: 'pages';
+        value: number | Page;
+      } | null)
     | ({
         relationTo: 'posts';
         value: number | Post;
@@ -560,6 +1061,239 @@ export interface PayloadMigration {
   batch?: number | null;
   updatedAt: string;
   createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "pages_select".
+ */
+export interface PagesSelect<T extends boolean = true> {
+  title?: T;
+  hero?:
+    | T
+    | {
+        type?: T;
+        heading?: T;
+        description?: T;
+        media?: T;
+        docsSet?: T;
+        eyebrow?: T;
+        badge?: T;
+        docsLabel?: T;
+        background?:
+          | T
+          | {
+              media?: T;
+              position?: T;
+              advancedControls?: T;
+              overlay?: T;
+              overlayOpacity?: T;
+              overlayVariant?: T;
+              fit?: T;
+              gradient?: T;
+            };
+        image?: T;
+        imagePosition?: T;
+        ctaButtons?:
+          | T
+          | {
+              label?: T;
+              variant?: T;
+              target?: T;
+              newTab?: T;
+              page?: T;
+              url?: T;
+              icon?: T;
+              id?: T;
+            };
+        skills?:
+          | T
+          | {
+              enabled?: T;
+              display?: T;
+              heading?: T;
+              description?: T;
+            };
+      };
+  layout?:
+    | T
+    | {
+        docsCTA?: T | DocsCTABlockSelect<T>;
+        docsPreview?: T | DocsPreviewBlockSelect<T>;
+        docsCallout?: T | DocsCalloutBlockSelect<T>;
+        docsBanner?: T | DocsBannerBlockSelect<T>;
+      };
+  meta?:
+    | T
+    | {
+        title?: T;
+        description?: T;
+        image?: T;
+      };
+  publishedAt?: T;
+  generateSlug?: T;
+  slug?: T;
+  fullPath?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  _status?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "DocsCTABlock_select".
+ */
+export interface DocsCTABlockSelect<T extends boolean = true> {
+  docsSet?: T;
+  eyebrow?: T;
+  badges?:
+    | T
+    | {
+        label?: T;
+        id?: T;
+      };
+  heading?: T;
+  description?: T;
+  layout?: T;
+  theme?: T;
+  docsLabel?: T;
+  ctaButtons?:
+    | T
+    | {
+        label?: T;
+        variant?: T;
+        target?: T;
+        newTab?: T;
+        page?: T;
+        url?: T;
+        icon?: T;
+        id?: T;
+      };
+  background?:
+    | T
+    | {
+        media?: T;
+        position?: T;
+        advancedControls?: T;
+        overlay?: T;
+        overlayOpacity?: T;
+        overlayVariant?: T;
+        fit?: T;
+        gradient?: T;
+      };
+  skills?:
+    | T
+    | {
+        enabled?: T;
+        display?: T;
+        heading?: T;
+        description?: T;
+      };
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "DocsPreviewBlock_select".
+ */
+export interface DocsPreviewBlockSelect<T extends boolean = true> {
+  docsSet?: T;
+  heading?: T;
+  description?: T;
+  layout?: T;
+  viewAllLabel?: T;
+  ctaButtons?:
+    | T
+    | {
+        label?: T;
+        variant?: T;
+        target?: T;
+        newTab?: T;
+        page?: T;
+        url?: T;
+        icon?: T;
+        id?: T;
+      };
+  skills?:
+    | T
+    | {
+        enabled?: T;
+        display?: T;
+        heading?: T;
+        description?: T;
+      };
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "DocsCalloutBlock_select".
+ */
+export interface DocsCalloutBlockSelect<T extends boolean = true> {
+  docsSet?: T;
+  docsPage?: T;
+  variant?: T;
+  layout?: T;
+  heading?: T;
+  excerpt?: T;
+  ctaLabel?: T;
+  icon?: T;
+  skills?:
+    | T
+    | {
+        enabled?: T;
+        display?: T;
+        heading?: T;
+        description?: T;
+      };
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "DocsBannerBlock_select".
+ */
+export interface DocsBannerBlockSelect<T extends boolean = true> {
+  docsSet?: T;
+  eyebrow?: T;
+  badge?: T;
+  heading?: T;
+  description?: T;
+  background?:
+    | T
+    | {
+        media?: T;
+        position?: T;
+        advancedControls?: T;
+        overlay?: T;
+        overlayOpacity?: T;
+        overlayVariant?: T;
+        fit?: T;
+        gradient?: T;
+      };
+  textAlign?: T;
+  size?: T;
+  theme?: T;
+  ctaButtons?:
+    | T
+    | {
+        label?: T;
+        variant?: T;
+        target?: T;
+        newTab?: T;
+        page?: T;
+        url?: T;
+        icon?: T;
+        id?: T;
+      };
+  skills?:
+    | T
+    | {
+        enabled?: T;
+        display?: T;
+        heading?: T;
+        description?: T;
+      };
+  id?: T;
+  blockName?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -819,6 +1553,37 @@ export interface UsersSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "payload-jobs_select".
+ */
+export interface PayloadJobsSelect<T extends boolean = true> {
+  input?: T;
+  taskStatus?: T;
+  completedAt?: T;
+  totalTried?: T;
+  hasError?: T;
+  error?: T;
+  log?:
+    | T
+    | {
+        executedAt?: T;
+        completedAt?: T;
+        taskSlug?: T;
+        taskID?: T;
+        input?: T;
+        output?: T;
+        state?: T;
+        error?: T;
+        id?: T;
+      };
+  taskSlug?: T;
+  queue?: T;
+  waitUntil?: T;
+  processing?: T;
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-locked-documents_select".
  */
 export interface PayloadLockedDocumentsSelect<T extends boolean = true> {
@@ -983,6 +1748,23 @@ export interface CollectionsWidget {
     [k: string]: unknown;
   };
   width: 'full';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "TaskSchedulePublish".
+ */
+export interface TaskSchedulePublish {
+  input: {
+    type?: ('publish' | 'unpublish') | null;
+    locale?: string | null;
+    doc?: {
+      relationTo: 'pages';
+      value: number | Page;
+    } | null;
+    global?: string | null;
+    user?: (number | null) | User;
+  };
+  output?: unknown;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema

@@ -65,14 +65,14 @@ export const DocsPreview = (props: DocsPreviewProps) => {
 
   return (
     <section
-      className={cx('py-14', themeClasses[resolvedTheme], className)}
+      className={cx('relative isolate py-16 md:py-20', themeClasses[resolvedTheme], className)}
       data-payload-markdown-docs-block="docsPreview"
     >
       <div className={cx('mx-auto w-full max-w-6xl px-6 lg:px-8', containerClassName)}>
         <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
           <div className="max-w-3xl">
             <Heading
-              className="text-3xl font-semibold tracking-tight text-foreground md:text-4xl"
+              className="text-3xl font-semibold tracking-tight text-foreground md:text-5xl"
               level={headingLevel}
             >
               {resolvedHeading}
@@ -86,7 +86,7 @@ export const DocsPreview = (props: DocsPreviewProps) => {
         {previewItems.length > 0 ? (
           <div
             className={cx(
-              'mt-8 grid gap-4',
+              'mt-10 grid gap-4',
               resolvedLayout === 'cards' ? 'sm:grid-cols-2 lg:grid-cols-3' : undefined,
               resolvedLayout === 'featured' ? 'lg:grid-cols-[1.2fr_1fr_1fr]' : undefined,
               resolvedLayout === 'compact' || resolvedLayout === 'list' ? 'grid-cols-1' : undefined,

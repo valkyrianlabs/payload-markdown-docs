@@ -1,13 +1,7 @@
 import type { DocsNativeHeroProps } from '../../marketing/types.js'
 
 import { normalizeCTAButtons } from '../../utilities/normalizeCTAButtons.js'
-import {
-  ActionGroup,
-  BackgroundLayer,
-  cx,
-  Heading,
-  TextContent,
-} from '../docs/shared.js'
+import { ActionGroup, cx, DecorativeBackgroundLayer, Heading, TextContent } from '../docs/shared.js'
 import { SkillCTAGroup } from '../skills/SkillCTAGroup.js'
 
 const renderBreadcrumb = (breadcrumb: DocsNativeHeroProps['breadcrumb']) => {
@@ -89,13 +83,17 @@ export const DocsNativeHero = ({
   return (
     <section
       className={cx(
-        'relative isolate overflow-hidden border-b border-border bg-background py-12 text-foreground',
+        'relative isolate overflow-visible border-b border-border bg-background py-14 text-foreground md:py-16',
         className,
       )}
       data-payload-markdown-docs-hero="native"
     >
-      <BackgroundLayer background={background} />
-      <div className={cx('relative mx-auto w-full max-w-7xl px-6 lg:px-8', containerClassName)}>
+      <DecorativeBackgroundLayer background={background}>
+        <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(8,145,178,0.08),transparent_46%,rgba(16,185,129,0.06))]" />
+      </DecorativeBackgroundLayer>
+      <div
+        className={cx('relative z-10 mx-auto w-full max-w-7xl px-6 lg:px-8', containerClassName)}
+      >
         {breadcrumb ? renderBreadcrumb(breadcrumb) : null}
         {!breadcrumb && eyebrow ? (
           <p className="text-sm font-medium uppercase tracking-wide text-cyan-300">{eyebrow}</p>

@@ -5,8 +5,8 @@ import { normalizeDocsPreviewItems } from '../../utilities/normalizeDocsPreviewI
 import { DocsPreviewCard } from '../docs/DocsPreviewCard.js'
 import {
   ActionGroup,
-  BackgroundLayer,
   cx,
+  DecorativeBackgroundLayer,
   getFallbackAction,
   Heading,
   normalizeBadges,
@@ -47,15 +47,17 @@ export const DocsProductHero = ({
   return (
     <section
       className={cx(
-        'relative isolate overflow-hidden bg-background py-20 text-foreground',
+        'relative isolate min-h-[35rem] overflow-visible bg-background pb-20 pt-32 text-foreground md:pt-36',
         className,
       )}
       data-payload-markdown-docs-hero="product"
     >
-      <BackgroundLayer background={background} />
+      <DecorativeBackgroundLayer background={background}>
+        <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(8,145,178,0.1),transparent_44%,rgba(16,185,129,0.08))]" />
+      </DecorativeBackgroundLayer>
       <div
         className={cx(
-          'relative mx-auto grid w-full max-w-7xl gap-10 px-6 lg:grid-cols-[minmax(0,1fr)_26rem] lg:items-center lg:px-8',
+          'relative z-10 mx-auto grid w-full max-w-7xl gap-10 px-6 lg:grid-cols-[minmax(0,1fr)_26rem] lg:items-center lg:px-8',
           containerClassName,
         )}
       >

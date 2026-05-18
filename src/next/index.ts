@@ -2,7 +2,16 @@ export { DocsBanner } from '../components/docs/DocsBanner.js'
 export { DocsCallout } from '../components/docs/DocsCallout.js'
 export { DocsCTA } from '../components/docs/DocsCTA.js'
 export { DocsPreview } from '../components/docs/DocsPreview.js'
-export { DocsNativeHero, DocsProductHero, DocsSetHero, isDocsSetHeroType } from '../components/heroes/index.js'
+export {
+  docsHeroComponents,
+  DocsNativeHero,
+  DocsProductHero,
+  DocsSetFullWidthHero,
+  DocsSetHero,
+  docsSetHeroComponents,
+  DocsSetSideImageHero,
+  isDocsSetHeroType,
+} from '../components/heroes/index.js'
 export { SkillCTAGroup } from '../components/skills/SkillCTAGroup.js'
 export { SkillTabs } from '../components/skills/SkillTabs.js'
 export type {
@@ -21,7 +30,11 @@ export type {
   SkillCTAGroupProps,
   SkillTabsProps,
 } from '../marketing/types.js'
-export { normalizeSkillAssetItems, normalizeSkills, resolveDocsSetSkills } from '../utilities/index.js'
+export {
+  normalizeSkillAssetItems,
+  normalizeSkills,
+  resolveDocsSetSkills,
+} from '../utilities/index.js'
 export type { SkillAssetPayloadOperations } from '../utilities/normalizeSkills.js'
 export { createPayloadMarkdownDocsAssetRouteHandler } from './assetRoute.js'
 export type {

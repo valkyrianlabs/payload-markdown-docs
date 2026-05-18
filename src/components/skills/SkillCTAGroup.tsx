@@ -8,12 +8,20 @@ const alignClasses = {
   center: {
     container: 'items-center text-center',
     description: 'mx-auto',
-    grid: 'justify-center',
+    grid: 'mx-auto justify-center',
+    list: 'mx-auto justify-center',
   },
   left: {
     container: 'items-start text-left',
     description: '',
     grid: '',
+    list: 'justify-start',
+  },
+  right: {
+    container: 'items-end text-right',
+    description: '',
+    grid: 'ml-auto justify-end',
+    list: 'ml-auto justify-end',
   },
 }
 
@@ -30,7 +38,9 @@ export const SkillCTAGroup = ({
 
   const alignment = alignClasses[align]
   const heading = skills.heading ? (
-    <h3 className="text-base font-semibold text-foreground">{skills.heading}</h3>
+    <h3 className="text-sm font-semibold uppercase tracking-wide text-foreground/80">
+      {skills.heading}
+    </h3>
   ) : null
   const description = (
     <TextContent
@@ -61,11 +71,11 @@ export const SkillCTAGroup = ({
       >
         {heading}
         {description}
-        <div className={cx('mt-4 grid w-full max-w-2xl gap-3 sm:grid-cols-2', alignment.grid)}>
+        <div className={cx('mt-4 grid w-full max-w-3xl gap-3 sm:grid-cols-2', alignment.grid)}>
           {skills.items.map((item) => {
             const body = (
               <>
-                <span className="font-semibold">{item.label}</span>
+                <span className="font-semibold text-foreground">{item.label}</span>
                 {item.description ? (
                   <span className="mt-1 block text-sm leading-6 text-foreground/65">
                     {item.description}
@@ -76,7 +86,7 @@ export const SkillCTAGroup = ({
 
             return item.href ? (
               <a
-                className="flex min-h-28 flex-col justify-center rounded-lg border border-border bg-white/3 p-4 transition-colors hover:bg-white/6"
+                className="flex min-h-28 flex-col justify-center rounded-lg border border-border bg-white/[0.04] p-4 shadow-sm shadow-slate-950/5 transition-colors hover:bg-white/[0.08]"
                 href={item.href}
                 key={`${item.type}-${item.label}`}
               >
@@ -84,7 +94,7 @@ export const SkillCTAGroup = ({
               </a>
             ) : (
               <div
-                className="flex min-h-28 flex-col justify-center rounded-lg border border-border bg-white/3 p-4"
+                className="flex min-h-28 flex-col justify-center rounded-lg border border-border bg-white/[0.04] p-4"
                 key={`${item.type}-${item.label}`}
               >
                 {body}
@@ -103,11 +113,13 @@ export const SkillCTAGroup = ({
     >
       {heading}
       {description}
-      <div className={cx('mt-4 flex flex-wrap gap-2', align === 'center' ? 'justify-center' : '')}>
+      <div
+        className={cx('mt-4 flex w-full max-w-3xl flex-wrap items-stretch gap-2', alignment.list)}
+      >
         {skills.items.map((item) =>
           item.href ? (
             <a
-              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-border bg-white/4 px-4 py-2 text-center text-sm font-medium text-foreground transition-colors hover:bg-white/8"
+              className="inline-flex min-h-11 min-w-0 items-center justify-center gap-2 rounded-lg border border-border bg-white/[0.05] px-4 py-2.5 text-center text-sm font-semibold text-foreground shadow-sm shadow-slate-950/5 transition-colors hover:bg-white/[0.1]"
               href={item.href}
               key={`${item.type}-${item.label}`}
             >
@@ -116,11 +128,11 @@ export const SkillCTAGroup = ({
                   {item.icon}
                 </span>
               ) : null}
-              {item.label}
+              <span className="min-w-0 break-words">{item.label}</span>
             </a>
           ) : (
             <span
-              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-border bg-white/3 px-4 py-2 text-center text-sm font-medium text-foreground/70"
+              className="inline-flex min-h-11 min-w-0 items-center justify-center gap-2 rounded-lg border border-border bg-white/[0.04] px-4 py-2.5 text-center text-sm font-semibold text-foreground/70"
               key={`${item.type}-${item.label}`}
             >
               {item.icon ? (
@@ -128,7 +140,7 @@ export const SkillCTAGroup = ({
                   {item.icon}
                 </span>
               ) : null}
-              {item.label}
+              <span className="min-w-0 break-words">{item.label}</span>
             </span>
           ),
         )}

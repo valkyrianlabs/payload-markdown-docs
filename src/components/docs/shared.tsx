@@ -51,10 +51,28 @@ export const TextContent = ({
   return <div className={className}>{children}</div>
 }
 
-export const resolveOptionalText = (
-  value: ReactNode,
-  fallback?: string,
-): ReactNode | undefined => {
+export const DecorativeBackgroundLayer = ({
+  background,
+  children,
+  className,
+}: {
+  background?: DocsBackgroundMediaInput | null
+  children?: ReactNode
+  className?: string
+}) => (
+  <div
+    aria-hidden="true"
+    className={cx(
+      'pointer-events-none absolute inset-0 z-0 overflow-hidden rounded-[inherit]',
+      className,
+    )}
+  >
+    <BackgroundLayer background={background} />
+    {children}
+  </div>
+)
+
+export const resolveOptionalText = (value: ReactNode, fallback?: string): ReactNode | undefined => {
   if (typeof value === 'string') {
     return value.trim() ? value : fallback
   }
@@ -105,14 +123,14 @@ export const normalizeBadges = (
 }
 
 const actionBaseClass =
-  'inline-flex items-center justify-center rounded-lg px-4 py-2.5 text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-cyan-300 focus:ring-offset-2 focus:ring-offset-background'
+  'inline-flex min-h-11 items-center justify-center rounded-lg px-5 py-3 text-center text-sm font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-cyan-300 focus:ring-offset-2 focus:ring-offset-background'
 
 const actionVariantClasses: Record<NormalizedDocsCTAButton['variant'], string> = {
   ghost: 'text-foreground hover:bg-white/[0.06]',
   link: 'px-0 py-0 text-cyan-300 hover:text-cyan-200',
-  outline: 'border border-border bg-transparent text-foreground hover:bg-white/[0.06]',
-  primary: 'bg-cyan-300 text-slate-950 hover:bg-cyan-200',
-  secondary: 'bg-white/[0.08] text-foreground hover:bg-white/[0.12]',
+  outline: 'border border-border bg-background/30 text-foreground hover:bg-white/[0.06]',
+  primary: 'bg-cyan-300 text-slate-950 shadow-lg shadow-cyan-950/20 hover:bg-cyan-200',
+  secondary: 'bg-white/[0.09] text-foreground hover:bg-white/[0.14]',
 }
 
 export const ActionLink = ({

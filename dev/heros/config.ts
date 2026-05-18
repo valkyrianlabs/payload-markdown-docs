@@ -1,8 +1,6 @@
 import type { Field } from 'payload'
 
-import { docsHeroField } from '../../dist/fields'
-
-const localHero: Field = {
+export const hero: Field = {
   name: 'hero',
   type: 'group',
   fields: [
@@ -61,7 +59,3 @@ const localHero: Field = {
   ],
   label: false,
 }
-
-export const hero = docsHeroField({
-  hero: localHero,
-})

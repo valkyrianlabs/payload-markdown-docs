@@ -29,12 +29,20 @@ type FieldRecord = {
   name?: string
   options?: SelectField['options']
   type?: string
+  validate?: HeroFieldValidate
 } & Field
 
 type HeroValidationData = {
   docsSet?: unknown
   type?: unknown
 }
+
+type HeroFieldValidateResult = Promise<string | true> | string | true
+
+type HeroFieldValidate = (
+  value: unknown,
+  options: { req?: unknown; siblingData: HeroValidationData },
+) => HeroFieldValidateResult
 
 type HeroValidationPayload = {
   payload?: {
@@ -151,151 +159,181 @@ const docsSetField = (): Field => {
   )
 }
 
+const validateDocsHeroHeading: HeroFieldValidate = async (value, options) => {
+  if (!isDocsSetHeroType(options.siblingData?.type)) {
+    return true
+  }
+
+  if (getText(value as null | string | undefined)) {
+    return true
+  }
+
+  if (getDocsSetTitle(options.siblingData.docsSet as DocsRelationship<DocsSetReference>)) {
+    return true
+  }
+
+  const docsSetId = getDocsRelationshipId(
+    options.siblingData.docsSet as DocsRelationship<{ id?: DocsRelationshipID }>,
+  )
+
+  if (!docsSetId) {
+    return 'Add a heading or select a docs set with a title.'
+  }
+
+  const payload = (options.req as HeroValidationPayload | undefined)?.payload
+
+  if (!payload?.findByID) {
+    return true
+  }
+
+  const docsSet = await payload.findByID({
+    id: docsSetId,
+    collection: DEFAULT_DOCS_SETS_COLLECTION_SLUG,
+    depth: 0,
+    overrideAccess: true,
+  })
+
+  return getDocsSetTitle(docsSet) ? true : 'Add a heading or select a docs set with a title.'
+}
+
+const withDocsHeroHeadingValidation = (field: Field): Field => {
+  const fieldRecord = field as FieldRecord
+  const existingValidate = fieldRecord.validate
+
+  return {
+    ...fieldRecord,
+    admin: {
+      ...fieldRecord.admin,
+      description:
+        typeof fieldRecord.admin?.description === 'string'
+          ? fieldRecord.admin.description
+          : 'Required unless the selected docs set provides a title.',
+    },
+    validate: async (
+      value: unknown,
+      options: { req?: unknown; siblingData: HeroValidationData },
+    ) => {
+      const existingResult = existingValidate ? await existingValidate(value, options) : true
+
+      if (existingResult !== true) {
+        return existingResult
+      }
+
+      return validateDocsHeroHeading(value, options)
+    },
+  } as Field
+}
+
 const docsHeroHeadingField = (): Field =>
   withCondition(
-    {
+    withDocsHeroHeadingValidation({
       name: 'heading',
       type: 'text',
-      admin: {
-        description: 'Required unless the selected docs set provides a title.',
-      },
-      validate: async (
-        value: unknown,
-        options: { req?: unknown; siblingData: HeroValidationData },
-      ) => {
-        if (!isDocsSetHeroType(options.siblingData?.type)) {
-          return true
-        }
-
-        if (getText(value as null | string | undefined)) {
-          return true
-        }
-
-        if (getDocsSetTitle(options.siblingData.docsSet as DocsRelationship<DocsSetReference>)) {
-          return true
-        }
-
-        const docsSetId = getDocsRelationshipId(
-          options.siblingData.docsSet as DocsRelationship<{ id?: DocsRelationshipID }>,
-        )
-
-        if (!docsSetId) {
-          return 'Add a heading or select a docs set with a title.'
-        }
-
-        const payload = (options.req as HeroValidationPayload | undefined)?.payload
-
-        if (!payload?.findByID) {
-          return true
-        }
-
-        const docsSet = await payload.findByID({
-          id: docsSetId,
-          collection: DEFAULT_DOCS_SETS_COLLECTION_SLUG,
-          depth: 0,
-          overrideAccess: true,
-        })
-
-        return getDocsSetTitle(docsSet) ? true : 'Add a heading or select a docs set with a title.'
-      },
-    } as Field,
+    } as Field),
     docsHeroCondition,
   )
 
-const createDocsHeroFields = (): Field[] => [
-  docsSetField(),
-  withCondition(
-    {
-      name: 'eyebrow',
-      type: 'text',
-      admin: {
-        description: 'Small uppercase pre-heading text rendered above the main heading.',
-      },
-    } as Field,
-    docsHeroCondition,
-  ),
-  withCondition(
-    {
-      name: 'badge',
-      type: 'text',
-      admin: {
-        description:
-          'Single pill label rendered near the hero heading for status, version, category, or launch metadata.',
-      },
-    } as Field,
-    docsHeroCondition,
-  ),
-  docsHeroHeadingField(),
-  withCondition(
-    {
-      name: 'description',
-      type: 'textarea',
-      admin: {
-        description: 'Optional description override. Defaults to the selected docs set description.',
-      },
-    } as Field,
-    docsHeroCondition,
-  ),
-  withCondition(
-    {
-      name: 'docsLabel',
-      type: 'text',
-      admin: {
-        description: 'Label for the fallback link to the selected docs set.',
-      },
-      defaultValue: 'Read the docs',
-    } as Field,
-    docsHeroCondition,
-  ),
-  withCondition(
-    backgroundMediaFields({
-      mediaRequired: false,
-    }),
-    fullWidthCondition,
-  ),
-  withCondition(
-    {
-      name: 'image',
-      type: 'upload',
-      admin: {
-        description: 'Optional side image. Defaults to the selected docs set SEO image when present.',
-      },
-      displayPreview: true,
-      label: 'Image',
-      maxDepth: 1,
-      relationTo: DEFAULT_MEDIA_COLLECTION_SLUG,
-    } as Field,
-    sideImageCondition,
-  ),
-  withCondition(
-    {
-      name: 'imagePosition',
-      type: 'select',
-      admin: {
-        description: 'Controls which side the image appears on for the side image hero.',
-      },
-      defaultValue: 'right',
-      options: [
-        {
-          label: 'Left',
-          value: 'left',
+const createDocsHeroFields = (existingFieldNames = new Set<string>()): Field[] =>
+  [
+    docsSetField(),
+    withCondition(
+      {
+        name: 'eyebrow',
+        type: 'text',
+        admin: {
+          description: 'Small uppercase pre-heading text rendered above the main heading.',
         },
-        {
-          label: 'Right',
-          value: 'right',
+      } as Field,
+      docsHeroCondition,
+    ),
+    withCondition(
+      {
+        name: 'badge',
+        type: 'text',
+        admin: {
+          description:
+            'Single pill label rendered near the hero heading for status, version, category, or launch metadata.',
         },
-      ],
-    } as Field,
-    sideImageCondition,
-  ),
-  withCondition(
-    ctaButtonsField({
-      maxRows: 2,
-    }),
-    docsHeroCondition,
-  ),
-  withCondition(skillCTAFields(), docsHeroCondition),
-]
+      } as Field,
+      docsHeroCondition,
+    ),
+    docsHeroHeadingField(),
+    withCondition(
+      {
+        name: 'description',
+        type: 'textarea',
+        admin: {
+          description:
+            'Optional description override. Defaults to the selected docs set description.',
+        },
+      } as Field,
+      docsHeroCondition,
+    ),
+    withCondition(
+      {
+        name: 'docsLabel',
+        type: 'text',
+        admin: {
+          description: 'Label for the fallback link to the selected docs set.',
+        },
+        defaultValue: 'Read the docs',
+      } as Field,
+      docsHeroCondition,
+    ),
+    withCondition(
+      backgroundMediaFields({
+        mediaRequired: false,
+      }),
+      fullWidthCondition,
+    ),
+    withCondition(
+      {
+        name: 'image',
+        type: 'upload',
+        admin: {
+          description:
+            'Optional side image. Defaults to the selected docs set SEO image when present.',
+        },
+        displayPreview: true,
+        label: 'Image',
+        maxDepth: 1,
+        relationTo: DEFAULT_MEDIA_COLLECTION_SLUG,
+      } as Field,
+      sideImageCondition,
+    ),
+    withCondition(
+      {
+        name: 'imagePosition',
+        type: 'select',
+        admin: {
+          description: 'Controls which side the image appears on for the side image hero.',
+        },
+        defaultValue: 'right',
+        options: [
+          {
+            label: 'Left',
+            value: 'left',
+          },
+          {
+            label: 'Right',
+            value: 'right',
+          },
+        ],
+      } as Field,
+      sideImageCondition,
+    ),
+    withCondition(
+      ctaButtonsField({
+        maxRows: 2,
+      }),
+      docsHeroCondition,
+    ),
+    withCondition(skillCTAFields(), docsHeroCondition),
+  ].filter((field) => {
+    const fieldRecord = field as FieldRecord
+
+    return typeof fieldRecord.name !== 'string' || !existingFieldNames.has(fieldRecord.name)
+  })
 
 const createTypeField = (): Field => ({
   name: 'type',
@@ -322,12 +360,30 @@ const mergeLocalHeroFields = (hero: Field): Field[] => {
       return mergeHeroTypeField(field)
     }
 
+    if (fieldRecord.name === 'heading') {
+      return withDocsHeroHeadingValidation(field)
+    }
+
+    if (fieldRecord.name === 'description') {
+      return field
+    }
+
     return withCondition(field, nonDocsHeroCondition)
   })
 }
 
 export const docsHeroField = ({ name = 'hero', hero }: DocsHeroFieldOptions = {}): GroupField => {
   const heroRecord = hero as FieldRecord | undefined
+  const existingFieldNames =
+    heroRecord?.type === 'group' && Array.isArray(heroRecord.fields)
+      ? new Set(
+          heroRecord.fields.flatMap((field) => {
+            const fieldName = (field as FieldRecord).name
+
+            return typeof fieldName === 'string' ? [fieldName] : []
+          }),
+        )
+      : new Set<string>()
   const localFields =
     heroRecord?.type === 'group' && Array.isArray(heroRecord.fields)
       ? mergeLocalHeroFields(hero as Field)
@@ -345,7 +401,7 @@ export const docsHeroField = ({ name = 'hero', hero }: DocsHeroFieldOptions = {}
       description:
         'Hero picker with docs set hero variants. Docs heroes derive title, description, links, and skill buttons from the selected docs set.',
     },
-    fields: [...localFields, ...createDocsHeroFields()],
+    fields: [...localFields, ...createDocsHeroFields(existingFieldNames)],
     label: heroRecord?.type === 'group' ? heroRecord.label : false,
   }
 }

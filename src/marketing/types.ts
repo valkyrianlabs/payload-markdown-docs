@@ -103,12 +103,7 @@ export type NormalizedDocsCTAButton = {
 
 export type DocsBackgroundFit = 'contain' | 'cover' | 'fill'
 
-export type DocsBackgroundPosition =
-  | 'bottom'
-  | 'center'
-  | 'left'
-  | 'right'
-  | 'top'
+export type DocsBackgroundPosition = 'bottom' | 'center' | 'left' | 'right' | 'top'
 
 export type DocsBackgroundOverlayVariant = 'brand' | 'dark' | 'gradient' | 'light'
 
@@ -332,13 +327,13 @@ export type DocsSetHeroProps = {
 } & DocsMarketingPayloadBlockProps
 
 export type SkillCTAGroupProps = {
-  align?: 'center' | 'left'
+  align?: 'center' | 'left' | 'right'
   className?: string
   skills?: null | SkillCTAGroupInput
 }
 
 export type SkillTabsProps = {
-  align?: 'center' | 'left'
+  align?: 'center' | 'left' | 'right'
   className?: string
   items?: NormalizedSkillCTAItem[] | null | SkillCTAItemInput[]
 }

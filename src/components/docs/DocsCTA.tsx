@@ -1,16 +1,12 @@
 import type { DocsCTAProps } from '../../marketing/types.js'
 
 import { normalizeCTAButtons } from '../../utilities/index.js'
-import {
-  getDocsSetDescription,
-  getDocsSetTitle,
-  getText,
-} from '../../utilities/normalizeShared.js'
+import { getDocsSetDescription, getDocsSetTitle, getText } from '../../utilities/normalizeShared.js'
 import { SkillCTAGroup } from '../skills/SkillCTAGroup.js'
 import {
   ActionGroup,
-  BackgroundLayer,
   cx,
+  DecorativeBackgroundLayer,
   getFallbackAction,
   Heading,
   normalizeBadges,
@@ -64,21 +60,27 @@ export const DocsCTA = (props: DocsCTAProps) => {
   return (
     <section
       className={cx(
-        'relative overflow-hidden py-14',
+        'relative isolate overflow-visible py-16 md:py-20',
         themeClasses[resolvedTheme],
-        layout === 'card' ? 'rounded-xl border border-border' : undefined,
+        layout === 'card'
+          ? 'rounded-2xl border border-border shadow-xl shadow-slate-950/5'
+          : undefined,
         className,
       )}
       data-payload-markdown-docs-block="docsCTA"
     >
-      <BackgroundLayer background={background} />
+      <DecorativeBackgroundLayer background={background}>
+        <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(8,145,178,0.1),transparent_42%,rgba(16,185,129,0.08))]" />
+      </DecorativeBackgroundLayer>
       <div
         className={cx(
-          'relative mx-auto w-full max-w-6xl px-6 lg:px-8',
+          'relative z-10 mx-auto w-full max-w-6xl px-6 lg:px-8',
           layout === 'inline'
-            ? 'flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between'
+            ? 'flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between'
             : 'grid gap-8',
-          layout === 'split' ? 'lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center' : undefined,
+          layout === 'split'
+            ? 'lg:grid-cols-[minmax(0,1fr)_minmax(16rem,auto)] lg:items-center'
+            : undefined,
           centered ? 'text-center' : undefined,
           containerClassName,
         )}
@@ -111,9 +113,16 @@ export const DocsCTA = (props: DocsCTAProps) => {
             {resolvedDescription}
           </TextContent>
         </div>
-        <ActionGroup actions={actions} className={centered ? 'justify-center' : undefined} />
+        <ActionGroup
+          actions={actions}
+          className={cx(
+            centered ? 'justify-center' : undefined,
+            layout === 'split' ? 'lg:justify-end' : undefined,
+          )}
+        />
         <SkillCTAGroup
-          className={cx(layout === 'inline' ? 'lg:col-span-2' : undefined)}
+          align={centered ? 'center' : 'left'}
+          className={cx(layout === 'inline' ? 'w-full lg:basis-full' : undefined)}
           skills={skills}
         />
       </div>

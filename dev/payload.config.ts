@@ -6,9 +6,10 @@ import sharp from 'sharp'
 import { fileURLToPath } from 'url'
 
 import { payloadMarkdownDocs } from '../dist'
+import { Pages } from './collections/Pages'
 import { Header } from './Header/config'
-import { testEmailAdapter } from './helpers/testEmailAdapter'
 import './helpers/loadDevEnv'
+import { testEmailAdapter } from './helpers/testEmailAdapter'
 import { seed } from './seed'
 
 const filename = fileURLToPath(import.meta.url)
@@ -25,6 +26,7 @@ export default buildConfig({
     },
   },
   collections: [
+    Pages,
     {
       slug: 'posts',
       fields: [],
@@ -50,6 +52,12 @@ export default buildConfig({
   },
   plugins: [
     payloadMarkdownDocs({
+      collections: {
+        pages: {
+          blocks: true,
+          heroes: true,
+        },
+      },
       enabled: true,
       sync: {
         allowHardDelete: false,

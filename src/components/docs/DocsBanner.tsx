@@ -5,8 +5,8 @@ import { getDocsSetDescription, getDocsSetTitle } from '../../utilities/normaliz
 import { SkillCTAGroup } from '../skills/SkillCTAGroup.js'
 import {
   ActionGroup,
-  BackgroundLayer,
   cx,
+  DecorativeBackgroundLayer,
   Heading,
   resolveOptionalText,
   resolveRequiredHeading,
@@ -15,10 +15,10 @@ import {
 } from './shared.js'
 
 const sizeClasses = {
-  lg: 'min-h-[28rem] py-20',
-  md: 'min-h-[22rem] py-16',
-  sm: 'min-h-[16rem] py-12',
-  xl: 'min-h-[34rem] py-24',
+  lg: 'min-h-[30rem] py-20 md:py-24',
+  md: 'min-h-[24rem] py-16 md:py-20',
+  sm: 'min-h-[18rem] py-12 md:py-16',
+  xl: 'min-h-[36rem] py-24 md:py-28',
 }
 
 const alignClasses = {
@@ -60,17 +60,20 @@ export const DocsBanner = ({
   return (
     <section
       className={cx(
-        'relative isolate overflow-hidden',
+        'relative isolate overflow-visible',
         sizeClasses[resolvedSize],
         themeClasses[resolvedTheme],
         className,
       )}
       data-payload-markdown-docs-block="docsBanner"
     >
-      <BackgroundLayer background={background} />
+      <DecorativeBackgroundLayer background={background}>
+        <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(8,145,178,0.14),transparent_46%,rgba(16,185,129,0.09))]" />
+        <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-slate-950/25 to-transparent" />
+      </DecorativeBackgroundLayer>
       <div
         className={cx(
-          'relative mx-auto flex w-full max-w-6xl flex-col px-6 lg:px-8',
+          'relative z-10 mx-auto flex w-full max-w-6xl flex-col px-6 lg:px-8',
           alignClasses[resolvedAlign],
           containerClassName,
         )}
@@ -102,7 +105,12 @@ export const DocsBanner = ({
             resolvedAlign === 'right' ? 'justify-end' : undefined,
           )}
         />
-        <SkillCTAGroup skills={skills} />
+        <SkillCTAGroup
+          align={
+            resolvedAlign === 'center' ? 'center' : resolvedAlign === 'right' ? 'right' : 'left'
+          }
+          skills={skills}
+        />
       </div>
     </section>
   )

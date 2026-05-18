@@ -52,7 +52,7 @@ export const DocsCallout = (props: DocsCalloutProps) => {
 
   return (
     <section
-      className={cx('py-8', className)}
+      className={cx('relative isolate py-10 md:py-12', className)}
       data-payload-markdown-docs-block="docsCallout"
     >
       <div className={cx('mx-auto w-full max-w-6xl px-6 lg:px-8', containerClassName)}>

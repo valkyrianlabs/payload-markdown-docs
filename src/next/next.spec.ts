@@ -14,6 +14,7 @@ import {
   DocsBanner,
   DocsCallout,
   DocsCTA,
+  docsHeroComponents,
   DocsNativeHero,
   DocsPreview,
   DocsProductHero,
@@ -29,7 +30,10 @@ import {
 } from './links.js'
 import { getPayloadMarkdownDocsMetadata } from './metadata.js'
 import { PayloadMarkdownDocsNavbar } from './PayloadMarkdownDocsNavbar.js'
-import { PayloadMarkdownDocsPage, rewritePayloadMarkdownDocsLinks } from './PayloadMarkdownDocsPage.js'
+import {
+  PayloadMarkdownDocsPage,
+  rewritePayloadMarkdownDocsLinks,
+} from './PayloadMarkdownDocsPage.js'
 import { getPayloadMarkdownDocsRoutePath, resolvePayloadMarkdownDocsRoute } from './route.js'
 import { buildPayloadMarkdownDocsSidebar, getPayloadMarkdownDocsSidebar } from './sidebar.js'
 import {
@@ -2404,9 +2408,11 @@ describe('Payload Markdown Docs marketing components', () => {
         Fragment,
         null,
         ...blocks.map((block) => {
-          const Block = blockComponents[block.blockType] as (props: {
-            collectionSlug: string
-          } & typeof block) => ReactNode
+          const Block = blockComponents[block.blockType] as (
+            props: {
+              collectionSlug: string
+            } & typeof block,
+          ) => ReactNode
 
           return createElement(Block, {
             ...block,
@@ -2464,6 +2470,12 @@ describe('Payload Markdown Docs marketing components', () => {
         imagePosition: 'left',
       }),
     )
+    const mappedFullWidthMarkup = await renderServerMarkup(
+      createElement(docsHeroComponents.docsSetFullWidth, {
+        type: 'docsSetFullWidth',
+        docsSet: heroDocsSet,
+      }),
+    )
 
     expect(isDocsSetHeroType('docsSetFullWidth')).toBe(true)
     expect(isDocsSetHeroType('highImpact')).toBe(false)
@@ -2474,6 +2486,7 @@ describe('Payload Markdown Docs marketing components', () => {
     expect(fullWidthMarkup).toContain('Codex skill')
     expect(sideImageMarkup).toContain('data-payload-markdown-docs-hero="docsSetSideImage"')
     expect(sideImageMarkup).toContain('src="/media/payload-markdown.png"')
+    expect(mappedFullWidthMarkup).toContain('data-payload-markdown-docs-hero="docsSetFullWidth"')
   })
 
   it('exports renderable heroes and skill CTAs from /next', () => {
