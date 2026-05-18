@@ -562,10 +562,16 @@ Useful stable paths include:
 /plugins/payload-markdown-docs/llms-full.txt
 /plugins/payload-markdown-docs/skills/codex
 /plugins/payload-markdown-docs/skills/codex/SKILL.md
+/plugins/payload-markdown-docs/skills/codex.zip
 /plugins/payload-markdown-docs/skills/claude
 /plugins/payload-markdown-docs/skills/claude/SKILL.md
+/plugins/payload-markdown-docs/skills/claude.zip
 /plugins/payload-markdown-docs/skills/codex/reference/workflow.md
 ```
+
+Skill ZIP routes are generated on demand from synced text skill artifacts in
+`./skills/<sourceId>/<agent>/...`. They are not uploaded or stored as static ZIP
+assets. Archives expand to `<sourceId>/SKILL.md` plus supporting files.
 
 Generated sitemap output includes canonical human docs pages by default. Raw
 AI-facing routes like `llms.txt`, `llms-full.txt`, and native skill Markdown are

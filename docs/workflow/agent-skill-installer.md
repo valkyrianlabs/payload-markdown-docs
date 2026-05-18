@@ -132,14 +132,37 @@ skill routes and generated docs-set AI discovery routes:
 /plugins/payload-markdown-docs/llms-full.txt
 /plugins/payload-markdown-docs/skills/codex
 /plugins/payload-markdown-docs/skills/codex/SKILL.md
+/plugins/payload-markdown-docs/skills/codex.zip
 /plugins/payload-markdown-docs/skills/claude
 /plugins/payload-markdown-docs/skills/claude/SKILL.md
+/plugins/payload-markdown-docs/skills/claude.zip
 /plugins/payload-markdown-docs/skills/codex/reference/workflow.md
 ```
 
 `payload-markdown-docs push` syncs these skill artifacts by convention when they
 live under `./skills/<source>/`. They are sent as manifest `assets`, not as docs
 records, so skill files do not need docs frontmatter.
+
+The public skill route contract is:
+
+```text
+/<group...>/<set>/skills/<agent>
+/<group...>/<set>/skills/<agent>/SKILL.md
+/<group...>/<set>/skills/<agent>.zip
+/<group...>/<set>/skills/<agent>/<path...>
+```
+
+`/skills/<agent>` serves the agent `SKILL.md` for compatibility.
+`/skills/<agent>/SKILL.md` and `/skills/<agent>/<path...>` serve raw synced
+skill artifacts. `/skills/<agent>.zip` is generated on demand from the current
+synced text skill artifacts for that docs set; ZIP files are not uploaded,
+stored, or synced as static ZIP assets.
+
+The source layout remains `./skills/<sourceId>/<agent>/...`. Generated archives
+strip that distributor prefix and expand to `<sourceId>/SKILL.md` plus
+supporting files. For example,
+`skills/payload-markdown-docs/codex/reference/workflow.md` is bundled as
+`payload-markdown-docs/reference/workflow.md`.
 
 ## Installing Public Asset Routes
 

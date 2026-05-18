@@ -50,13 +50,26 @@ type LlmsSkillAsset = {
   contentType: string
   route: string
   sourcePath: string
+}
+
+type LlmsSkillArtifact = {
+  relativePath: string
+} & LlmsSkillAsset
+
+type LlmsSkillBundle = {
+  agent: string
+  archiveRoute: string
+  artifacts: LlmsSkillArtifact[]
+  root: LlmsSkillArtifact
+  rootRoute: string
+  skillRoute: string
   title: string
 }
 
 type DocsSetLlmsData = {
   docs: LlmsDocRecord[]
   relatedDocsSets: ResolvedDocsSet[]
-  skills: LlmsSkillAsset[]
+  skills: LlmsSkillBundle[]
 }
 
 type RootLlmsData = {
@@ -131,10 +144,7 @@ const getRequestOrigin = (req: PayloadRequest): string | undefined => {
   }
 }
 
-const toLlmsDocRecord = (
-  doc: unknown,
-  markdownFieldName: string,
-): LlmsDocRecord | undefined => {
+const toLlmsDocRecord = (doc: unknown, markdownFieldName: string): LlmsDocRecord | undefined => {
   if (!isRecord(doc)) {
     return undefined
   }
@@ -169,17 +179,128 @@ const toLlmsDocRecord = (
   }
 }
 
-const titleFromSkillSourcePath = (sourcePath: string): string => {
-  const segments = sourcePath.split('/').filter(Boolean)
-  const skillsIndex = segments.indexOf('skills')
-  const agent = skillsIndex >= 0 ? segments[skillsIndex + 2] : undefined
-  const fileName = segments.at(-1) ?? sourcePath
-  const label = fileName === 'SKILL.md' ? 'SKILL.md' : fileName
-  const agentTitle = agent
-    ? `${agent.charAt(0).toUpperCase()}${agent.slice(1)}`
-    : undefined
+const formatAgentTitle = (agent: string): string =>
+  agent
+    .split(/[-_\s]+/)
+    .filter(Boolean)
+    .map((segment) => `${segment.charAt(0).toUpperCase()}${segment.slice(1)}`)
+    .join(' ')
 
-  return [agentTitle, label].filter(Boolean).join(' ')
+const getSkillSourceInfo = (
+  sourcePath: string,
+): { agent: string; relativePath: string; sourceId: string } | undefined => {
+  const segments = sourcePath.replace(/\\/g, '/').split('/').filter(Boolean)
+  const [root, sourceId, agent, ...fileSegments] = segments
+
+  if (
+    root !== 'skills' ||
+    !sourceId ||
+    !agent ||
+    fileSegments.length === 0 ||
+    segments.some((segment) => segment === '.' || segment === '..')
+  ) {
+    return undefined
+  }
+
+  return {
+    agent,
+    relativePath: fileSegments.join('/'),
+    sourceId,
+  }
+}
+
+const getSkillRouteInfo = (route: string): { agent: string; relativePath: string } | undefined => {
+  const segments = normalizeRoutePath(route).split('/').filter(Boolean)
+  const skillsIndex = segments.lastIndexOf('skills')
+  const agent = skillsIndex >= 0 ? segments[skillsIndex + 1] : undefined
+  const fileSegments = skillsIndex >= 0 ? segments.slice(skillsIndex + 2) : []
+
+  if (!agent || fileSegments.length === 0) {
+    return undefined
+  }
+
+  return {
+    agent,
+    relativePath: fileSegments.join('/'),
+  }
+}
+
+const deriveSkillRootRoute = (skillRoute: string): string => {
+  const normalizedRoute = normalizeRoutePath(skillRoute)
+  const suffix = '/SKILL.md'
+
+  return normalizedRoute.endsWith(suffix)
+    ? normalizedRoute.slice(0, -suffix.length) || '/'
+    : normalizedRoute
+}
+
+const toLlmsSkillArtifact = (asset: LlmsSkillAsset): LlmsSkillArtifact | undefined => {
+  const sourceInfo = getSkillSourceInfo(asset.sourcePath)
+  const routeInfo = getSkillRouteInfo(asset.route)
+  const relativePath = sourceInfo?.relativePath ?? routeInfo?.relativePath
+
+  if (!relativePath) {
+    return undefined
+  }
+
+  return {
+    ...asset,
+    relativePath,
+  }
+}
+
+const compareSkillArtifacts = (first: LlmsSkillArtifact, second: LlmsSkillArtifact): number => {
+  if (first.relativePath === 'SKILL.md') {
+    return -1
+  }
+
+  if (second.relativePath === 'SKILL.md') {
+    return 1
+  }
+
+  return first.relativePath.localeCompare(second.relativePath)
+}
+
+const bundleSkillAssets = (assets: LlmsSkillAsset[]): LlmsSkillBundle[] => {
+  const artifactsByAgent = new Map<string, LlmsSkillArtifact[]>()
+
+  for (const asset of assets) {
+    const sourceInfo = getSkillSourceInfo(asset.sourcePath)
+    const routeInfo = getSkillRouteInfo(asset.route)
+    const agent = sourceInfo?.agent ?? routeInfo?.agent
+    const artifact = toLlmsSkillArtifact(asset)
+
+    if (!agent || !artifact) {
+      continue
+    }
+
+    artifactsByAgent.set(agent, [...(artifactsByAgent.get(agent) ?? []), artifact])
+  }
+
+  return [...artifactsByAgent.entries()]
+    .flatMap(([agent, artifacts]) => {
+      const sortedArtifacts = [...artifacts].sort(compareSkillArtifacts)
+      const root = sortedArtifacts.find((artifact) => artifact.relativePath === 'SKILL.md')
+
+      if (!root) {
+        return []
+      }
+
+      const rootRoute = deriveSkillRootRoute(root.route)
+
+      return [
+        {
+          agent,
+          archiveRoute: `${rootRoute}.zip`,
+          artifacts: sortedArtifacts,
+          root,
+          rootRoute,
+          skillRoute: root.route,
+          title: `${formatAgentTitle(agent)} skill`,
+        },
+      ]
+    })
+    .sort((first, second) => first.agent.localeCompare(second.agent))
 }
 
 const toLlmsSkillAsset = (asset: unknown): LlmsSkillAsset | undefined => {
@@ -207,7 +328,6 @@ const toLlmsSkillAsset = (asset: unknown): LlmsSkillAsset | undefined => {
     contentType,
     route: normalizeRoutePath(route),
     sourcePath,
-    title: titleFromSkillSourcePath(sourcePath),
   }
 }
 
@@ -355,7 +475,7 @@ const findRelatedDocsSets = ({
 
   for (const dependency of docs.flatMap((doc) => doc.dependencies)) {
     const slug = normalizeDependencySlug(dependency)
-    const docsSet = slug ? docsSetsBySlug.get(slug) ?? docsSetsById.get(slug) : undefined
+    const docsSet = slug ? (docsSetsBySlug.get(slug) ?? docsSetsById.get(slug)) : undefined
 
     if (docsSet && docsSet.id !== currentDocsSet.id) {
       relatedDocsSets.set(String(docsSet.id), docsSet)
@@ -382,7 +502,7 @@ const loadDocsSetLlmsData = async ({
   markdownFieldName: string
   payload: LlmsPayloadOperations
 }): Promise<DocsSetLlmsData> => {
-  const [docs, skills] = await Promise.all([
+  const [docs, skillAssets] = await Promise.all([
     findDocsForDocsSet({
       docsCollectionSlug,
       docsSet,
@@ -403,7 +523,7 @@ const loadDocsSetLlmsData = async ({
       currentDocsSet: docsSet,
       docs,
     }),
-    skills,
+    skills: bundleSkillAssets(skillAssets),
   }
 }
 
@@ -419,6 +539,32 @@ const renderLinkList = (
       ? `- ${compactText(item.title)}: ${item.url} - ${compactText(item.description)}`
       : `- ${compactText(item.title)}: ${item.url}`,
   )
+
+const getSkillBundleLinkItems = ({
+  bundle,
+  origin,
+  titlePrefix = '',
+}: {
+  bundle: LlmsSkillBundle
+  origin?: string
+  titlePrefix?: string
+}): Array<{
+  title: string
+  url: string
+}> => [
+  {
+    title: `${titlePrefix}${bundle.title}`,
+    url: createPublicUrl(origin, bundle.rootRoute),
+  },
+  {
+    title: `${titlePrefix}${formatAgentTitle(bundle.agent)} SKILL.md`,
+    url: createPublicUrl(origin, bundle.skillRoute),
+  },
+  {
+    title: `${titlePrefix}${formatAgentTitle(bundle.agent)} skill archive`,
+    url: createPublicUrl(origin, bundle.archiveRoute),
+  },
+]
 
 const renderDocsSetLlms = ({
   data,
@@ -455,10 +601,12 @@ const renderDocsSetLlms = ({
     lines.push(
       '## Native Agent Skills',
       ...renderLinkList(
-        data.skills.map((skill) => ({
-          title: skill.title,
-          url: createPublicUrl(origin, skill.route),
-        })),
+        data.skills.flatMap((bundle) =>
+          getSkillBundleLinkItems({
+            bundle,
+            origin,
+          }),
+        ),
       ),
       '',
     )
@@ -513,16 +661,27 @@ const renderDocsSetLlmsFull = ({
   if (data.skills.length > 0) {
     lines.push('## Native Agent Skills', '')
 
-    for (const skill of data.skills) {
+    for (const bundle of data.skills) {
       lines.push(
-        `### ${compactText(skill.title)}`,
+        `### ${compactText(bundle.title)}`,
         '',
-        `URL: ${createPublicUrl(origin, skill.route)}`,
-        `Source: ${skill.sourcePath}`,
-        '',
-        skill.content.trim(),
+        `Root: ${createPublicUrl(origin, bundle.rootRoute)}`,
+        `SKILL.md: ${createPublicUrl(origin, bundle.skillRoute)}`,
+        `Archive: ${createPublicUrl(origin, bundle.archiveRoute)}`,
         '',
       )
+
+      for (const artifact of bundle.artifacts) {
+        lines.push(
+          `#### ${compactText(formatAgentTitle(bundle.agent))} ${compactText(artifact.relativePath)}`,
+          '',
+          `URL: ${createPublicUrl(origin, artifact.route)}`,
+          `Source: ${artifact.sourcePath}`,
+          '',
+          artifact.content.trim(),
+          '',
+        )
+      }
     }
   }
 
@@ -553,10 +712,13 @@ const renderRootLlms = ({
   rootData: RootLlmsData[]
 }): string => {
   const skillLinks = rootData.flatMap((entry) =>
-    entry.skills.map((skill) => ({
-      title: `${entry.docsSet.title} ${skill.title}`,
-      url: createPublicUrl(origin, skill.route),
-    })),
+    entry.skills.flatMap((bundle) =>
+      getSkillBundleLinkItems({
+        bundle,
+        origin,
+        titlePrefix: `${entry.docsSet.title} `,
+      }),
+    ),
   )
   const lines = [
     '# Documentation',
@@ -634,13 +796,38 @@ const renderRootLlmsFull = ({
       lines.push(
         '### Native Agent Skills',
         ...renderLinkList(
-          entry.skills.map((skill) => ({
-            title: skill.title,
-            url: createPublicUrl(origin, skill.route),
-          })),
+          entry.skills.flatMap((bundle) =>
+            getSkillBundleLinkItems({
+              bundle,
+              origin,
+            }),
+          ),
         ),
         '',
       )
+
+      for (const bundle of entry.skills) {
+        lines.push(
+          `#### ${compactText(bundle.title)}`,
+          '',
+          `Root: ${createPublicUrl(origin, bundle.rootRoute)}`,
+          `SKILL.md: ${createPublicUrl(origin, bundle.skillRoute)}`,
+          `Archive: ${createPublicUrl(origin, bundle.archiveRoute)}`,
+          '',
+        )
+
+        for (const artifact of bundle.artifacts) {
+          lines.push(
+            `##### ${compactText(formatAgentTitle(bundle.agent))} ${compactText(artifact.relativePath)}`,
+            '',
+            `URL: ${createPublicUrl(origin, artifact.route)}`,
+            `Source: ${artifact.sourcePath}`,
+            '',
+            artifact.content.trim(),
+            '',
+          )
+        }
+      }
     }
   }
 

@@ -1,5 +1,6 @@
 import type { Config, PayloadRequest } from 'payload'
 
+import { strFromU8, unzipSync } from 'fflate'
 import { describe, expect, it, vi } from 'vitest'
 
 import {
@@ -138,6 +139,14 @@ const createRequest = ({
     routeParams,
   }) as unknown as PayloadRequest
 
+const unzipResponse = async (response: Response): Promise<Record<string, string>> => {
+  const archive = unzipSync(new Uint8Array(await response.arrayBuffer()))
+
+  return Object.fromEntries(
+    Object.entries(archive).map(([path, content]) => [path, strFromU8(content)]),
+  )
+}
+
 describe('docs asset endpoints', () => {
   it('registers plugin-owned root asset endpoints', () => {
     const config = payloadMarkdownDocs({ enabled: true })({
@@ -164,11 +173,26 @@ describe('docs asset endpoints', () => {
           root: true,
         }),
         expect.objectContaining({
+          path: '/:routeBase*/skills/:agent.zip',
+          root: true,
+        }),
+        expect.objectContaining({
           path: '/:routeBase*/skills/:agent/:assetPath*',
           root: true,
         }),
       ]),
     )
+
+    const skillZipIndex = endpoints.findIndex(
+      (endpoint) => endpoint.path === '/:routeBase*/skills/:agent.zip',
+    )
+    const rawSkillIndex = endpoints.findIndex(
+      (endpoint) => endpoint.path === '/:routeBase*/skills/:agent/:assetPath*',
+    )
+
+    expect(skillZipIndex).toBeGreaterThanOrEqual(0)
+    expect(rawSkillIndex).toBeGreaterThanOrEqual(0)
+    expect(skillZipIndex).toBeLessThan(rawSkillIndex)
   })
 
   it('serves llms.txt from synced asset storage', async () => {
@@ -269,6 +293,19 @@ describe('docs asset endpoints', () => {
             sourceId: 'payload-markdown-docs',
           },
         },
+        {
+          id: 'skill-2',
+          content: '# Docs Package\n',
+          contentType: 'text/markdown; charset=utf-8',
+          kind: 'skill',
+          route: '/plugins/payload-markdown-docs/skills/codex/reference/docs-package.md',
+          sourceId: 'payload-markdown-docs',
+          sourcePath: 'skills/payload-markdown-docs/codex/reference/docs-package.md',
+          sync: {
+            archived: false,
+            sourceId: 'payload-markdown-docs',
+          },
+        },
       ],
       docs: [
         {
@@ -315,8 +352,15 @@ describe('docs asset endpoints', () => {
       'Payload Markdown Docs: https://example.com/plugins/payload-markdown-docs',
     )
     expect(text).toContain(
+      'Payload Markdown Docs Codex skill: https://example.com/plugins/payload-markdown-docs/skills/codex',
+    )
+    expect(text).toContain(
       'Payload Markdown Docs Codex SKILL.md: https://example.com/plugins/payload-markdown-docs/skills/codex/SKILL.md',
     )
+    expect(text).toContain(
+      'Payload Markdown Docs Codex skill archive: https://example.com/plugins/payload-markdown-docs/skills/codex.zip',
+    )
+    expect(text).not.toContain('reference/docs-package.md')
     expect(text).not.toContain('docs.valkyrianlabs.com')
   })
 
@@ -325,6 +369,22 @@ describe('docs asset endpoints', () => {
       (item) => item.path === '/:routeBase*/llms.txt',
     )
     const payload = createMockPayload({
+      assets: [
+        {
+          id: 'skill-1',
+          content: '# Codex Skill\n',
+          contentType: 'text/markdown; charset=utf-8',
+          docsSet: 'docs-set-1',
+          kind: 'skill',
+          route: '/plugins/payload-markdown-docs/skills/codex/SKILL.md',
+          sourceId: 'payload-markdown-docs',
+          sourcePath: 'skills/payload-markdown-docs/codex/SKILL.md',
+          sync: {
+            archived: false,
+            sourceId: 'payload-markdown-docs',
+          },
+        },
+      ],
       docs: [
         {
           id: 'doc-1',
@@ -379,6 +439,15 @@ describe('docs asset endpoints', () => {
     expect(response?.status).toBe(200)
     expect(text).toContain('Overview: https://example.com/plugins/payload-markdown-docs')
     expect(text).toContain(
+      'Codex skill: https://example.com/plugins/payload-markdown-docs/skills/codex',
+    )
+    expect(text).toContain(
+      'Codex SKILL.md: https://example.com/plugins/payload-markdown-docs/skills/codex/SKILL.md',
+    )
+    expect(text).toContain(
+      'Codex skill archive: https://example.com/plugins/payload-markdown-docs/skills/codex.zip',
+    )
+    expect(text).toContain(
       'Payload Markdown: https://example.com/plugins/payload-markdown - Markdown field and directive rendering.',
     )
     expect(text).not.toContain('docs.valkyrianlabs.com')
@@ -389,6 +458,22 @@ describe('docs asset endpoints', () => {
       (item) => item.path === '/:routeBase*/llms-full.txt',
     )
     const payload = createMockPayload({
+      assets: [
+        {
+          id: 'skill-1',
+          content: '# Codex Skill\n\nUse the docs workflow.',
+          contentType: 'text/markdown; charset=utf-8',
+          docsSet: 'docs-set-1',
+          kind: 'skill',
+          route: '/plugins/payload-markdown-docs/skills/codex/SKILL.md',
+          sourceId: 'payload-markdown-docs',
+          sourcePath: 'skills/payload-markdown-docs/codex/SKILL.md',
+          sync: {
+            archived: false,
+            sourceId: 'payload-markdown-docs',
+          },
+        },
+      ],
       docs: [
         {
           id: 'doc-1',
@@ -434,6 +519,14 @@ describe('docs asset endpoints', () => {
     expect(text).toContain('# Payload Markdown Docs Full Documentation')
     expect(text).toContain('URL: https://example.com/plugins/payload-markdown-docs')
     expect(text).toContain('# Overview\n\nGenerated content.')
+    expect(text).toContain('Root: https://example.com/plugins/payload-markdown-docs/skills/codex')
+    expect(text).toContain(
+      'SKILL.md: https://example.com/plugins/payload-markdown-docs/skills/codex/SKILL.md',
+    )
+    expect(text).toContain(
+      'Archive: https://example.com/plugins/payload-markdown-docs/skills/codex.zip',
+    )
+    expect(text).toContain('# Codex Skill\n\nUse the docs workflow.')
   })
 
   it('generates product-nested docs-set llms.txt from the product route', async () => {
@@ -441,6 +534,22 @@ describe('docs asset endpoints', () => {
       (item) => item.path === '/:routeBase*/llms.txt',
     )
     const payload = createMockPayload({
+      assets: [
+        {
+          id: 'skill-1',
+          content: '# Codex Skill\n',
+          contentType: 'text/markdown; charset=utf-8',
+          docsSet: 'docs-set-1',
+          kind: 'skill',
+          route: '/plugins/payload-markdown-docs/skills/codex/SKILL.md',
+          sourceId: 'payload-markdown-docs',
+          sourcePath: 'skills/payload-markdown-docs/codex/SKILL.md',
+          sync: {
+            archived: false,
+            sourceId: 'payload-markdown-docs',
+          },
+        },
+      ],
       docs: [
         {
           id: 'doc-1',
@@ -488,10 +597,22 @@ describe('docs asset endpoints', () => {
     expect(text).toContain(
       'Payload Markdown Docs: https://example.com/plugins/payload-markdown-docs/docs',
     )
+    expect(text).toContain(
+      'Codex skill: https://example.com/plugins/payload-markdown-docs/skills/codex',
+    )
+    expect(text).toContain(
+      'Codex SKILL.md: https://example.com/plugins/payload-markdown-docs/skills/codex/SKILL.md',
+    )
+    expect(text).toContain(
+      'Codex skill archive: https://example.com/plugins/payload-markdown-docs/skills/codex.zip',
+    )
+    expect(text).not.toContain('/plugins/payload-markdown-docs/docs/skills/codex')
   })
 
   it('serves skill assets under the matched docs set route base', async () => {
-    const endpoint = createDocsAssetsEndpoints({}).find((item) => item.path.includes('/skills/'))
+    const endpoint = createDocsAssetsEndpoints({}).find(
+      (item) => item.path === '/:routeBase*/skills/:agent/:assetPath*',
+    )
     const payload = createMockPayload({
       assets: [
         {
@@ -539,7 +660,9 @@ describe('docs asset endpoints', () => {
   })
 
   it('serves product-nested skill assets from the product route instead of the docs route', async () => {
-    const endpoint = createDocsAssetsEndpoints({}).find((item) => item.path.includes('/skills/'))
+    const endpoint = createDocsAssetsEndpoints({}).find(
+      (item) => item.path === '/:routeBase*/skills/:agent/:assetPath*',
+    )
     const payload = createMockPayload({
       assets: [
         {
@@ -588,7 +711,9 @@ describe('docs asset endpoints', () => {
   })
 
   it('serves stored skill assets even when docs set route metadata is unavailable', async () => {
-    const endpoint = createDocsAssetsEndpoints({}).find((item) => item.path.includes('/skills/'))
+    const endpoint = createDocsAssetsEndpoints({}).find(
+      (item) => item.path === '/:routeBase*/skills/:agent/:assetPath*',
+    )
     const payload = createMockPayload({
       assets: [
         {
@@ -624,7 +749,9 @@ describe('docs asset endpoints', () => {
   })
 
   it('serves skill directory requests as the agent SKILL.md file', async () => {
-    const endpoint = createDocsAssetsEndpoints({}).find((item) => item.path.includes('/skills/'))
+    const endpoint = createDocsAssetsEndpoints({}).find(
+      (item) => item.path === '/:routeBase*/skills/:agent/:assetPath*',
+    )
     const payload = createMockPayload({
       assets: [
         {
@@ -668,6 +795,212 @@ describe('docs asset endpoints', () => {
     expect(response?.status).toBe(200)
     expect(response?.headers.get('content-type')).toContain('text/markdown')
     expect(await response?.text()).toBe('# Codex Skill\n')
+  })
+
+  it('generates installable skill ZIP bundles for the requested agent and docs set', async () => {
+    const endpoint = createDocsAssetsEndpoints({}).find(
+      (item) => item.path === '/:routeBase*/skills/:agent.zip',
+    )
+    const payload = createMockPayload({
+      assets: [
+        {
+          id: 'codex-root',
+          content: '# Codex Skill\n',
+          contentType: 'text/markdown; charset=utf-8',
+          docsSet: 'docs-set-1',
+          kind: 'skill',
+          route: '/plugins/payload-markdown-docs/skills/codex/SKILL.md',
+          sourceId: 'payload-markdown-docs',
+          sourcePath: 'skills/payload-markdown-docs/codex/SKILL.md',
+          sync: {
+            archived: false,
+            sourceId: 'payload-markdown-docs',
+          },
+        },
+        {
+          id: 'codex-reference',
+          content: '# Docs Package\n',
+          contentType: 'text/markdown; charset=utf-8',
+          docsSet: 'docs-set-1',
+          kind: 'skill',
+          route: '/plugins/payload-markdown-docs/skills/codex/reference/docs-package.md',
+          sourceId: 'payload-markdown-docs',
+          sourcePath: 'skills/payload-markdown-docs/codex/reference/docs-package.md',
+          sync: {
+            archived: false,
+            sourceId: 'payload-markdown-docs',
+          },
+        },
+        {
+          id: 'claude-root',
+          content: '# Claude Skill\n',
+          contentType: 'text/markdown; charset=utf-8',
+          docsSet: 'docs-set-1',
+          kind: 'skill',
+          route: '/plugins/payload-markdown-docs/skills/claude/SKILL.md',
+          sourceId: 'payload-markdown-docs',
+          sourcePath: 'skills/payload-markdown-docs/claude/SKILL.md',
+          sync: {
+            archived: false,
+            sourceId: 'payload-markdown-docs',
+          },
+        },
+        {
+          id: 'other-docs-root',
+          content: '# Other Docs Codex Skill\n',
+          contentType: 'text/markdown; charset=utf-8',
+          docsSet: 'docs-set-2',
+          kind: 'skill',
+          route: '/plugins/other-docs/skills/codex/SKILL.md',
+          sourceId: 'other-docs',
+          sourcePath: 'skills/other-docs/codex/SKILL.md',
+          sync: {
+            archived: false,
+            sourceId: 'other-docs',
+          },
+        },
+        {
+          id: 'llms',
+          content: '# LLMs\n',
+          contentType: 'text/plain; charset=utf-8',
+          docsSet: 'docs-set-1',
+          kind: 'llms',
+          route: '/llms.txt',
+          sourceId: 'payload-markdown-docs',
+          sourcePath: 'llms.txt',
+          sync: {
+            archived: false,
+            sourceId: 'payload-markdown-docs',
+          },
+        },
+        {
+          id: 'static-asset',
+          content: 'Static asset\n',
+          contentType: 'text/plain; charset=utf-8',
+          docsSet: 'docs-set-1',
+          kind: 'static',
+          route: '/plugins/payload-markdown-docs/static.txt',
+          sourceId: 'payload-markdown-docs',
+          sourcePath: 'static.txt',
+          sync: {
+            archived: false,
+            sourceId: 'payload-markdown-docs',
+          },
+        },
+        {
+          id: 'archived-codex',
+          content: '# Archived\n',
+          contentType: 'text/markdown; charset=utf-8',
+          docsSet: 'docs-set-1',
+          kind: 'skill',
+          route: '/plugins/payload-markdown-docs/skills/codex/reference/archived.md',
+          sourceId: 'payload-markdown-docs',
+          sourcePath: 'skills/payload-markdown-docs/codex/reference/archived.md',
+          sync: {
+            archived: true,
+            sourceId: 'payload-markdown-docs',
+          },
+        },
+      ],
+      docsGroups: [
+        {
+          id: 'docs-group-1',
+          slug: 'plugins',
+        },
+      ],
+      docsSets: [
+        {
+          id: 'docs-set-1',
+          slug: 'payload-markdown-docs',
+          group: 'docs-group-1',
+        },
+        {
+          id: 'docs-set-2',
+          slug: 'other-docs',
+          group: 'docs-group-1',
+        },
+      ],
+    })
+
+    const response = await endpoint?.handler(
+      createRequest({
+        payload,
+        routeParams: {
+          agent: 'codex',
+          routeBase: ['plugins', 'payload-markdown-docs'],
+        },
+        url: 'https://example.com/plugins/payload-markdown-docs/skills/codex.zip',
+      }),
+    )
+
+    expect(response?.status).toBe(200)
+    expect(response?.headers.get('content-type')).toBe('application/zip')
+    expect(response?.headers.get('content-disposition')).toBe(
+      'attachment; filename="payload-markdown-docs-codex.zip"',
+    )
+
+    const files = await unzipResponse(response as Response)
+
+    expect(files['payload-markdown-docs/SKILL.md']).toBe('# Codex Skill\n')
+    expect(files['payload-markdown-docs/reference/docs-package.md']).toBe('# Docs Package\n')
+    expect(files['payload-markdown-docs/reference/archived.md']).toBeUndefined()
+    expect(files['payload-markdown-docs/llms.txt']).toBeUndefined()
+    expect(files['payload-markdown-docs/static.txt']).toBeUndefined()
+    expect(files['payload-markdown-docs/claude/SKILL.md']).toBeUndefined()
+    expect(files['other-docs/SKILL.md']).toBeUndefined()
+    expect(Object.keys(files).filter((path) => path.endsWith('/SKILL.md'))).toEqual([
+      'payload-markdown-docs/SKILL.md',
+    ])
+  })
+
+  it('returns 404 for skill ZIP requests without an agent root SKILL.md asset', async () => {
+    const endpoint = createDocsAssetsEndpoints({}).find(
+      (item) => item.path === '/:routeBase*/skills/:agent.zip',
+    )
+    const payload = createMockPayload({
+      assets: [
+        {
+          id: 'codex-reference',
+          content: '# Docs Package\n',
+          contentType: 'text/markdown; charset=utf-8',
+          docsSet: 'docs-set-1',
+          kind: 'skill',
+          route: '/plugins/payload-markdown-docs/skills/codex/reference/docs-package.md',
+          sourceId: 'payload-markdown-docs',
+          sourcePath: 'skills/payload-markdown-docs/codex/reference/docs-package.md',
+          sync: {
+            archived: false,
+            sourceId: 'payload-markdown-docs',
+          },
+        },
+      ],
+      docsGroups: [
+        {
+          id: 'docs-group-1',
+          slug: 'plugins',
+        },
+      ],
+      docsSets: [
+        {
+          id: 'docs-set-1',
+          slug: 'payload-markdown-docs',
+          group: 'docs-group-1',
+        },
+      ],
+    })
+
+    const response = await endpoint?.handler(
+      createRequest({
+        payload,
+        routeParams: {
+          agent: 'codex',
+          routeBase: ['plugins', 'payload-markdown-docs'],
+        },
+        url: 'https://example.com/plugins/payload-markdown-docs/skills/codex.zip',
+      }),
+    )
+
+    expect(response?.status).toBe(404)
   })
 
   it('returns a friendly migration error when asset storage is missing', async () => {

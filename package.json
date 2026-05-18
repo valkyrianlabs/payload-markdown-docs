@@ -137,7 +137,8 @@
   "registry": "https://registry.npmjs.org/",
   "dependencies": {
     "@payloadcms/plugin-seo": "latest",
-    "@valkyrianlabs/payload-markdown": "latest"
+    "@valkyrianlabs/payload-markdown": "latest",
+    "fflate": "^0.8.3"
   },
   "packageManager": "pnpm@10.33.0"
 }

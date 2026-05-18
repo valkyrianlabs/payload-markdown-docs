@@ -4,6 +4,7 @@ import {
   buildDocsManifest,
   deriveAssetRouteFromSourcePath,
   deriveRouteFromSourcePath,
+  deriveSkillArchiveRouteFromSourcePath,
   normalizeAssetPath,
   normalizeDocsPath,
   parseDocsFrontmatter,
@@ -207,9 +208,24 @@ describe('asset route derivation', () => {
         kind: 'skill',
         routeBase: '/plugins/main-docs',
         sourceId: 'main-docs',
+        sourcePath: 'skills/main-docs/codex/SKILL.md',
+      }),
+    ).toBe('/plugins/main-docs/skills/codex/SKILL.md')
+    expect(
+      deriveAssetRouteFromSourcePath({
+        kind: 'skill',
+        routeBase: '/plugins/main-docs',
+        sourceId: 'main-docs',
         sourcePath: 'skills/main-docs/codex/reference/workflow.md',
       }),
     ).toBe('/plugins/main-docs/skills/codex/reference/workflow.md')
+    expect(
+      deriveSkillArchiveRouteFromSourcePath({
+        routeBase: '/plugins/main-docs',
+        sourceId: 'main-docs',
+        sourcePath: 'skills/main-docs/codex/SKILL.md',
+      }),
+    ).toBe('/plugins/main-docs/skills/codex.zip')
   })
 })
 

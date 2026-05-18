@@ -308,3 +308,28 @@ export const deriveAssetRouteFromSourcePath = ({
 
   return joinRoutePaths(routeBase, 'skills', skillPath)
 }
+
+export const deriveSkillArchiveRouteFromSourcePath = ({
+  routeBase,
+  sourceId,
+  sourcePath,
+}: {
+  routeBase: string
+  sourceId: string
+  sourcePath: string
+}): string | undefined => {
+  const expectedPrefix = `skills/${sourceId}/`
+
+  if (!sourcePath.startsWith(expectedPrefix)) {
+    return undefined
+  }
+
+  const skillPath = sourcePath.slice(expectedPrefix.length)
+  const [agent] = skillPath.split('/').filter(Boolean)
+
+  if (!agent) {
+    return undefined
+  }
+
+  return joinRoutePaths(routeBase, 'skills', `${agent}.zip`)
+}

@@ -27,6 +27,7 @@ export type {
 export {
   deriveAssetRouteFromSourcePath,
   deriveRouteFromSourcePath,
+  deriveSkillArchiveRouteFromSourcePath,
   normalizeAssetPath,
   normalizeDocsPath,
 } from './paths.js'
