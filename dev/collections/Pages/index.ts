@@ -5,6 +5,7 @@ import { slugField } from 'payload'
 import { hero } from '../../heros/config'
 import { populateFullPath } from './hooks/populateFullPath'
 import { revalidateDelete, revalidatePage } from './hooks/revalidatePage'
+import { populatePublishedAt } from '../../hooks/populatePublishedAt'
 
 export const Pages: CollectionConfig<'pages'> = {
   slug: 'pages',
@@ -88,7 +89,7 @@ export const Pages: CollectionConfig<'pages'> = {
   hooks: {
     afterChange: [revalidatePage],
     afterDelete: [revalidateDelete],
-    beforeChange: [populateFullPath],
+    beforeChange: [populatePublishedAt, populateFullPath],
   },
   versions: {
     drafts: {

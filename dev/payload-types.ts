@@ -65,7 +65,9 @@ export interface Config {
   auth: {
     users: UserAuthOperations;
   };
-  blocks: {};
+  blocks: {
+    vlMdBlock: MarkdownBlock;
+  };
   collections: {
     pages: Page;
     posts: Post;
@@ -146,6 +148,142 @@ export interface UserAuthOperations {
     email: string;
     password: string;
   };
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "MarkdownBlock".
+ */
+export interface MarkdownBlock {
+  'md-params'?: {
+    /**
+     * Whether to enable custom parameters for markdown blocks. This is required to use any of the other block parameter fields, but can be left disabled if you only need the default styles and behavior.
+     */
+    enable?: boolean | null;
+    config?: {
+      /**
+       * Additional Tailwind classes to apply to the block wrapper element.
+       */
+      wrapperClassName?: string | null;
+      /**
+       * Additional Tailwind classes to apply to the block element itself.
+       */
+      className?: string | null;
+      /**
+       * Additional Tailwind classes to apply to the block section element.
+       */
+      sectionClassName?: string | null;
+      /**
+       * Additional Tailwind classes to apply to the block column element.
+       */
+      columnClassName?: string | null;
+      /**
+       * The visual style variant to apply to the block.
+       */
+      variant?: ('blog' | 'compact' | 'docs' | 'unstyled') | null;
+      /**
+       * The typography size to apply to the block.
+       */
+      size?: ('lg' | 'md' | 'sm') | null;
+      /**
+       * Whether to apply horizontal gutter padding to the block wrapper.
+       */
+      enableGutter?: boolean | null;
+      /**
+       * Whether fenced code blocks should extend beyond the normal content width on larger screens.
+       */
+      fullBleedCode?: boolean | null;
+      /**
+       * Whether heading colors should be slightly muted.
+       */
+      mutedHeadings?: boolean | null;
+      options?: {
+        /**
+         * The Shiki theme to use for syntax highlighting this code block. Defaults to "github-dark". Note that this plugin is optimized around themes that still look good when block backgrounds are removed or reduced. Some light themes may require additional customization to maintain good contrast and readability.
+         */
+        theme?:
+          | (
+              | 'andromeeda'
+              | 'aurora-x'
+              | 'ayu-dark'
+              | 'ayu-light'
+              | 'ayu-mirage'
+              | 'catppuccin-frappe'
+              | 'catppuccin-latte'
+              | 'catppuccin-macchiato'
+              | 'catppuccin-mocha'
+              | 'dark-plus'
+              | 'dracula'
+              | 'dracula-soft'
+              | 'everforest-dark'
+              | 'everforest-light'
+              | 'github-dark'
+              | 'github-dark-default'
+              | 'github-dark-dimmed'
+              | 'github-dark-high-contrast'
+              | 'github-light'
+              | 'github-light-default'
+              | 'github-light-high-contrast'
+              | 'gruvbox-dark-hard'
+              | 'gruvbox-dark-medium'
+              | 'gruvbox-dark-soft'
+              | 'gruvbox-light-hard'
+              | 'gruvbox-light-medium'
+              | 'gruvbox-light-soft'
+              | 'horizon'
+              | 'horizon-bright'
+              | 'houston'
+              | 'kanagawa-dragon'
+              | 'kanagawa-lotus'
+              | 'kanagawa-wave'
+              | 'laserwave'
+              | 'light-plus'
+              | 'material-theme'
+              | 'material-theme-darker'
+              | 'material-theme-lighter'
+              | 'material-theme-ocean'
+              | 'material-theme-palenight'
+              | 'min-dark'
+              | 'min-light'
+              | 'monokai'
+              | 'night-owl'
+              | 'night-owl-light'
+              | 'nord'
+              | 'one-dark-pro'
+              | 'one-light'
+              | 'plastic'
+              | 'poimandres'
+              | 'red'
+              | 'rose-pine'
+              | 'rose-pine-dawn'
+              | 'rose-pine-moon'
+              | 'slack-dark'
+              | 'slack-ochin'
+              | 'snazzy-light'
+              | 'solarized-dark'
+              | 'solarized-light'
+              | 'synthwave-84'
+              | 'tokyo-night'
+              | 'vesper'
+              | 'vitesse-black'
+              | 'vitesse-dark'
+              | 'vitesse-light'
+            )
+          | null;
+        /**
+         * Whether to show line numbers in the code block.
+         */
+        showLineNumbers?: boolean | null;
+        /**
+         * Whether to apply the plugin's enhanced code block formatting. When enabled, the renderer normalizes Shiki output for better integration with markdown prose styling. This includes adjustments such as background removal, spacing cleanup, line layout normalization, and other structural fixes needed for features like line numbers and consistent empty-line rendering. Set this to false if you want to preserve raw Shiki block styling as much as possible.
+         */
+        enhancedCodeBlocks?: boolean | null;
+      };
+    };
+  };
+  content: string;
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'vlMdBlock';
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -249,7 +387,7 @@ export interface Page {
       description?: string | null;
     };
   };
-  layout: (DocsCTABlock | DocsPreviewBlock | DocsCalloutBlock | DocsBannerBlock)[];
+  layout: (MarkdownBlock | DocsCTABlock | DocsPreviewBlock | DocsCalloutBlock | DocsBannerBlock)[];
   meta?: {
     title?: string | null;
     description?: string | null;
@@ -1117,6 +1255,7 @@ export interface PagesSelect<T extends boolean = true> {
   layout?:
     | T
     | {
+        vlMdBlock?: T | MarkdownBlockSelect<T>;
         docsCTA?: T | DocsCTABlockSelect<T>;
         docsPreview?: T | DocsPreviewBlockSelect<T>;
         docsCallout?: T | DocsCalloutBlockSelect<T>;
@@ -1136,6 +1275,40 @@ export interface PagesSelect<T extends boolean = true> {
   updatedAt?: T;
   createdAt?: T;
   _status?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "MarkdownBlock_select".
+ */
+export interface MarkdownBlockSelect<T extends boolean = true> {
+  'md-params'?:
+    | T
+    | {
+        enable?: T;
+        config?:
+          | T
+          | {
+              wrapperClassName?: T;
+              className?: T;
+              sectionClassName?: T;
+              columnClassName?: T;
+              variant?: T;
+              size?: T;
+              enableGutter?: T;
+              fullBleedCode?: T;
+              mutedHeadings?: T;
+              options?:
+                | T
+                | {
+                    theme?: T;
+                    showLineNumbers?: T;
+                    enhancedCodeBlocks?: T;
+                  };
+            };
+      };
+  content?: T;
+  id?: T;
+  blockName?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema

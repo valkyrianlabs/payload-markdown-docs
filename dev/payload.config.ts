@@ -11,6 +11,7 @@ import { Header } from './Header/config'
 import './helpers/loadDevEnv'
 import { testEmailAdapter } from './helpers/testEmailAdapter'
 import { seed } from './seed'
+import { payloadMarkdown } from '@valkyrianlabs/payload-markdown'
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)
@@ -51,7 +52,17 @@ export default buildConfig({
     await seed(payload)
   },
   plugins: [
+    payloadMarkdown({
+      collections: {
+        pages: {
+          installIntoBlocks: true,
+        }
+      }
+    }),
     payloadMarkdownDocs({
+      auth: {
+        ed25519: true
+      },
       collections: {
         pages: {
           blocks: true,

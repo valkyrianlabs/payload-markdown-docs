@@ -6,13 +6,10 @@ import type { PayloadMarkdownDocsReadPayload } from '../../../../dist/next'
 import type { Page as PageType } from '../../../payload-types'
 
 import {
-  DocsBanner,
-  DocsCallout,
-  DocsCTA,
-  DocsPreview,
   PayloadMarkdownDocsPage,
   resolvePayloadMarkdownDocsRoute,
 } from '../../../../dist/next'
+import { RenderBlocks } from '../../../blocks/RenderBlocks'
 import { RenderHero } from '../../../heros/RenderHero'
 
 type PageProps = {
@@ -27,36 +24,6 @@ const getPagePath = (slug: string[]): string => {
   const path = `/${slug.join('/')}`.replace(/\/+/g, '/')
 
   return path.length > 1 ? path.replace(/\/+$/g, '') : path
-}
-
-const RenderBlocks = ({ blocks }: { blocks?: PageType['layout'] }) => {
-  if (!Array.isArray(blocks) || blocks.length === 0) {
-    return null
-  }
-
-  return (
-    <>
-      {blocks.map((block, index) => {
-        if (block.blockType === 'docsBanner') {
-          return <DocsBanner {...block} key={block.id ?? index} />
-        }
-
-        if (block.blockType === 'docsPreview') {
-          return <DocsPreview {...block} key={block.id ?? index} />
-        }
-
-        if (block.blockType === 'docsCallout') {
-          return <DocsCallout {...block} key={block.id ?? index} />
-        }
-
-        if (block.blockType === 'docsCTA') {
-          return <DocsCTA {...block} key={block.id ?? index} />
-        }
-
-        return null
-      })}
-    </>
-  )
 }
 
 const Page = async ({ params }: PageProps) => {
@@ -133,7 +100,7 @@ const Page = async ({ params }: PageProps) => {
   return (
     <>
       <RenderHero {...page.hero} />
-      <RenderBlocks blocks={page.layout} />
+      <RenderBlocks blocks={page.layout} collectionSlug="pages" />
     </>
   )
 }
