@@ -24,8 +24,10 @@ payload-markdown-docs validate --source main-docs
 
 Validates the conventional docs package by building and validating an in-memory
 manifest. By default this includes Markdown docs from `./docs`, skill artifacts
-from `./skills/<source>`, and optional custom `llms.txt` / `llms-full.txt`
-fallback assets when present.
+from `./skills/<source>` when that directory exists, and optional custom
+`llms.txt` / `llms-full.txt` fallback assets when present. The default
+`./skills` directory is optional; only an explicitly supplied missing
+`--skills <path>` fails validation.
 
 ## manifest
 
@@ -61,9 +63,14 @@ Access.
 `push` uploads the conventional docs package by default:
 
 - docs from `./docs` as manifest `files`
-- skills from `./skills/<source>` as manifest `assets`
+- skills from `./skills/<source>` as manifest `assets` when that directory
+  exists
 - `./llms.txt` and `./llms-full.txt` as optional custom static fallback assets
   when present
+
+Projects do not need to ship native skills. A missing default `./skills`
+directory is skipped during `push`; pass `--no-skills` to opt out explicitly or
+`--skills <path>` when skills live somewhere else.
 
 Ed25519:
 

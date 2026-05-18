@@ -231,6 +231,7 @@ describe('manifest command', () => {
 
     const result = await runCli(['manifest', root, '--source', 'main-docs'])
     const manifest = JSON.parse(result.stdout ?? '{}') as {
+      assets?: unknown[]
       files?: unknown[]
       source?: {
         id?: string
@@ -242,6 +243,7 @@ describe('manifest command', () => {
     expect(manifest.version).toBe(1)
     expect(manifest.source?.id).toBe('main-docs')
     expect(manifest.files).toHaveLength(1)
+    expect(manifest.assets).toEqual([])
   })
 
   it('includes llms files and skills as manifest assets', async () => {
@@ -484,6 +486,7 @@ describe('push command', () => {
     const { requests, result } = await pushArgs(root)
     const request = requests[0]
     const manifest = JSON.parse(request?.body ?? '{}') as {
+      assets?: unknown[]
       files?: unknown[]
       mode?: string
     }
@@ -492,6 +495,7 @@ describe('push command', () => {
     expect(result.stdout).toContain('Mode: sync')
     expect(manifest.mode).toBe('sync')
     expect(manifest.files).toHaveLength(1)
+    expect(manifest.assets).toEqual([])
     expect(request?.url).toBe(endpoint)
     expect(request?.headers).toMatchObject({
       'Content-Type': 'application/json',

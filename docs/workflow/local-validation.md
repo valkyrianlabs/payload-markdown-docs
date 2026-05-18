@@ -45,9 +45,11 @@ pnpm exec payload-markdown-docs manifest --source main-docs --pretty
 ```
 
 The manifest is JSON. Human docs are emitted as `files`; skills and optional
-custom static fallback files are emitted as `assets`. It includes content and
-SHA-256 hashes, but it does not include server-owned target collection or field
-names.
+custom static fallback files are emitted as `assets`. Skills are optional: a
+missing default `./skills` directory is skipped, while an explicitly supplied
+missing `--skills <path>` is treated as a configuration error. The manifest
+includes content and SHA-256 hashes, but it does not include server-owned target
+collection or field names.
 
 ## Plan
 

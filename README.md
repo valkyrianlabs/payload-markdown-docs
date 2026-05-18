@@ -369,9 +369,11 @@ steps:
 ```
 
 `push` defaults to sync mode and publishes the conventional package layout:
-human docs from `./docs` and native skill artifacts from `./skills/<source>`.
-AI discovery files are generated at request time; root `llms.txt` files are only
-needed when you intentionally provide custom static fallback assets.
+human docs from `./docs` and native skill artifacts from `./skills/<source>` when
+that directory exists. Projects do not need to ship skills; a missing default
+`./skills` directory is skipped. AI discovery files are generated at request
+time; root `llms.txt` files are only needed when you intentionally provide
+custom static fallback assets.
 
 Sync writes require:
 
