@@ -13,7 +13,7 @@ export const SkillTabs = ({ align = 'left', className, items: inputItems }: Skil
   return (
     <div
       className={cx(
-        'flex w-full max-w-3xl flex-wrap items-stretch gap-1 rounded-xl border border-border bg-white/[0.04] p-1 shadow-sm shadow-slate-950/5',
+        'flex w-full max-w-3xl flex-wrap items-center gap-1 rounded-xl border border-border bg-white/[0.04] p-1 shadow-sm shadow-slate-950/5 sm:w-auto',
         align === 'center' ? 'mx-auto justify-center' : undefined,
         align === 'left' ? 'justify-start' : undefined,
         align === 'right' ? 'ml-auto justify-end' : undefined,
@@ -39,7 +39,7 @@ export const SkillTabs = ({ align = 'left', className, items: inputItems }: Skil
 
         return item.href ? (
           <a
-            className="inline-flex min-h-11 min-w-32 flex-1 basis-36 flex-col items-center justify-center rounded-lg px-4 py-2.5 text-center transition-colors hover:bg-white/[0.08] sm:flex-none"
+            className="inline-flex min-h-11 min-w-0 max-w-full basis-full flex-col items-center justify-center rounded-lg px-4 py-2.5 text-center transition-colors hover:bg-white/[0.08] sm:basis-40"
             href={item.href}
             key={`${item.type}-${item.label}`}
           >
@@ -47,7 +47,7 @@ export const SkillTabs = ({ align = 'left', className, items: inputItems }: Skil
           </a>
         ) : (
           <div
-            className="inline-flex min-h-11 min-w-32 flex-1 basis-36 flex-col items-center justify-center rounded-lg px-4 py-2.5 text-center sm:flex-none"
+            className="inline-flex min-h-11 min-w-0 max-w-full basis-full flex-col items-center justify-center rounded-lg px-4 py-2.5 text-center sm:basis-40"
             key={`${item.type}-${item.label}`}
           >
             {content}

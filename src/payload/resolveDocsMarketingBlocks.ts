@@ -2,7 +2,9 @@ import type { CollectionAfterReadHook } from 'payload'
 
 import type {
   DocsAssetReference,
+  DocsBackgroundMediaInput,
   DocsCTAButtonInput,
+  DocsMediaReference,
   DocsPageReference,
   DocsRelationship,
   DocsRelationshipID,
@@ -11,6 +13,7 @@ import type {
   SkillCTAGroupInput,
 } from '../marketing/types.js'
 
+import { DEFAULT_MEDIA_COLLECTION_SLUG } from '../constants.js'
 import { isDocsSetHeroType } from '../fields/index.js'
 import { resolveDocsSetSkills } from '../utilities/index.js'
 import {
@@ -28,6 +31,7 @@ type ResolveDocsMarketingBlocksOptions = {
   docsAssetsCollectionSlug: string
   docsCollectionSlug: string
   docsSetsCollectionSlug: string
+  mediaCollectionSlug?: string
 }
 
 type DocsMarketingBlocksPayloadOperations = {
@@ -46,23 +50,28 @@ type DocsMarketingBlocksPayloadOperations = {
     depth?: number
     id: DocsRelationshipID
     overrideAccess?: boolean
-  }) => Promise<DocsPageReference | DocsSetReference | null>
+  }) => Promise<DocsMediaReference | DocsPageReference | DocsSetReference | null>
 }
 
 type DocsMarketingBlockRecord = {
+  background?: DocsBackgroundMediaInput | null
   blockType?: null | string
   ctaButtons?: DocsCTAButtonInput[] | null
   docsPage?: DocsRelationship<DocsPageReference> | null
   docsSet?: DocsRelationship<DocsSetReference> | null
+  image?: DocsRelationship<DocsMediaReference> | null
   skills?: null | SkillCTAGroupInput
 } & Record<string, unknown>
 
 type ResolverContext = {
   docsPageById: Map<string, Promise<DocsPageReference | null>>
   docsSetById: Map<string, Promise<DocsSetReference | null>>
+  mediaById: Map<string, Promise<DocsMediaReference | null>>
   options: ResolveDocsMarketingBlocksOptions
   payload: DocsMarketingBlocksPayloadOperations
 }
+
+type DocsBackgroundMediaRecord = DocsBackgroundMediaInput & Record<string, unknown>
 
 const docsMarketingBlockTypes = new Set<string>([
   'docsBanner',
@@ -106,6 +115,10 @@ const shouldHydrateDocsPage = (
     getDocsRelationshipId(docsPage) &&
       (!getDocsPageTitle(docsPage) || !getTypedDocsPageHref(docsPage)),
   )
+
+const shouldHydrateMedia = (
+  media: DocsRelationship<DocsMediaReference> | null | undefined,
+): boolean => Boolean(getDocsRelationshipId(media) && !getText(getDocsRelationshipRecord(media)?.url))
 
 const getCachedDocsSet = (
   id: string,
@@ -151,6 +164,28 @@ const getCachedDocsPage = (
   return promise
 }
 
+const getCachedMedia = (
+  id: string,
+  context: ResolverContext,
+): Promise<DocsMediaReference | null> => {
+  const existing = context.mediaById.get(id)
+
+  if (existing) {
+    return existing
+  }
+
+  const promise = context.payload.findByID({
+    id,
+    collection: context.options.mediaCollectionSlug ?? DEFAULT_MEDIA_COLLECTION_SLUG,
+    depth: 0,
+    overrideAccess: true,
+  }) as Promise<DocsMediaReference | null>
+
+  context.mediaById.set(id, promise)
+
+  return promise
+}
+
 const resolveDocsSet = async (
   docsSet: DocsRelationship<DocsSetReference> | null | undefined,
   context: ResolverContext,
@@ -175,6 +210,43 @@ const resolveDocsPage = async (
   const id = getDocsRelationshipId(docsPage)
 
   return id ? ((await getCachedDocsPage(id, context)) ?? docsPage) : docsPage
+}
+
+const resolveMedia = async (
+  media: DocsRelationship<DocsMediaReference> | null | undefined,
+  context: ResolverContext,
+): Promise<DocsRelationship<DocsMediaReference> | null | undefined> => {
+  if (!shouldHydrateMedia(media)) {
+    return media
+  }
+
+  const id = getDocsRelationshipId(media)
+
+  return id ? ((await getCachedMedia(id, context)) ?? media) : media
+}
+
+const resolveBackgroundMedia = async (
+  background: DocsBackgroundMediaInput | null | undefined,
+  context: ResolverContext,
+): Promise<DocsBackgroundMediaInput | null | undefined> => {
+  if (!isRecord(background)) {
+    return background
+  }
+
+  const record = background as DocsBackgroundMediaRecord
+  const resolvedRecord: DocsBackgroundMediaRecord = {
+    ...record,
+  }
+
+  for (const key of ['media', 'image', 'backgroundImage'] as const) {
+    const resolved = await resolveMedia(record[key], context)
+
+    if (resolved !== record[key]) {
+      resolvedRecord[key] = resolved
+    }
+  }
+
+  return resolvedRecord
 }
 
 const resolveCTAButtons = async (
@@ -221,6 +293,8 @@ const resolveDocsMarketingBlock = async (
 ): Promise<void> => {
   block.docsSet = await resolveDocsSet(block.docsSet, context)
   block.docsPage = await resolveDocsPage(block.docsPage, context)
+  block.background = await resolveBackgroundMedia(block.background, context)
+  block.image = await resolveMedia(block.image, context)
   block.ctaButtons = await resolveCTAButtons(block.ctaButtons, context)
   block.skills = await resolveSkills(block, context)
 }
@@ -251,6 +325,7 @@ export const resolveDocsMarketingBlocksAfterRead =
     const context: ResolverContext = {
       docsPageById: new Map(),
       docsSetById: new Map(),
+      mediaById: new Map(),
       options,
       payload: req.payload,
     }

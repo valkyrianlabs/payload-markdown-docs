@@ -568,6 +568,55 @@ describe('Payload Markdown Docs route adapter', () => {
     ).resolves.toBeNull()
   })
 
+  it('does not let stale generated docs records shadow product-nested product pages', async () => {
+    const productDocsSet = {
+      ...docsSet,
+      routeMode: 'product-nested',
+    }
+    const payload = createPayloadMock({
+      docs: [
+        createDoc({
+          docsSet: 'set-1',
+          route: '/plugins/payload-markdown',
+          sourcePath: 'index.md',
+          title: 'Stale Overview',
+        }),
+        createDoc({
+          docsSet: 'set-1',
+          route: '/plugins/payload-markdown/docs',
+          sourcePath: 'index.md',
+          title: 'Overview',
+        }),
+      ],
+      docsGroups: [docsGroup],
+      docsSets: [
+        {
+          ...productDocsSet,
+          group: docsGroup,
+        },
+      ],
+    })
+
+    await expect(
+      resolvePayloadMarkdownDocsRoute({
+        path: '/plugins/payload-markdown',
+        payload,
+      }),
+    ).resolves.toBeNull()
+
+    await expect(
+      resolvePayloadMarkdownDocsRoute({
+        path: '/plugins/payload-markdown/docs',
+        payload,
+      }),
+    ).resolves.toMatchObject({
+      type: 'docsSetIndex',
+      doc: {
+        title: 'Overview',
+      },
+    })
+  })
+
   it('resolves docs group routes when pageMode is auto', async () => {
     const childGroup = {
       id: 'group-guides',
@@ -2470,6 +2519,22 @@ describe('Payload Markdown Docs marketing components', () => {
         imagePosition: 'left',
       }),
     )
+    const sideInfoMarkup = await renderServerMarkup(
+      createElement(DocsSetHero, {
+        type: 'docsSetSideInfo',
+        docsSet: heroDocsSet,
+        skills: {
+          enabled: true,
+          resolvedItems: [
+            {
+              type: 'claude',
+              href: '/skills/claude',
+              label: 'Claude skill',
+            },
+          ],
+        },
+      }),
+    )
     const mappedFullWidthMarkup = await renderServerMarkup(
       createElement(docsHeroComponents.docsSetFullWidth, {
         type: 'docsSetFullWidth',
@@ -2486,6 +2551,10 @@ describe('Payload Markdown Docs marketing components', () => {
     expect(fullWidthMarkup).toContain('Codex skill')
     expect(sideImageMarkup).toContain('data-payload-markdown-docs-hero="docsSetSideImage"')
     expect(sideImageMarkup).toContain('src="/media/payload-markdown.png"')
+    expect(sideInfoMarkup).toContain('data-payload-markdown-docs-hero="docsSetSideInfo"')
+    expect(sideInfoMarkup).toContain('Claude skill')
+    expect(sideInfoMarkup).not.toContain('Group')
+    expect(sideInfoMarkup).not.toContain('Route')
     expect(mappedFullWidthMarkup).toContain('data-payload-markdown-docs-hero="docsSetFullWidth"')
   })
 

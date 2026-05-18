@@ -1,5 +1,6 @@
 import { postgresAdapter } from '@payloadcms/db-postgres'
 import { lexicalEditor } from '@payloadcms/richtext-lexical'
+import { payloadMarkdown } from '@valkyrianlabs/payload-markdown'
 import path from 'path'
 import { buildConfig } from 'payload'
 import sharp from 'sharp'
@@ -7,11 +8,10 @@ import { fileURLToPath } from 'url'
 
 import { payloadMarkdownDocs } from '../dist'
 import { Pages } from './collections/Pages'
-import { Header } from './Header/config'
 import './helpers/loadDevEnv'
+import { Header } from './Header/config'
 import { testEmailAdapter } from './helpers/testEmailAdapter'
 import { seed } from './seed'
-import { payloadMarkdown } from '@valkyrianlabs/payload-markdown'
 
 const filename = fileURLToPath(import.meta.url)
 const dirname = path.dirname(filename)

@@ -303,7 +303,8 @@ export interface Page {
       | 'mediumImpact'
       | 'lowImpact'
       | 'docsSetFullWidth'
-      | 'docsSetSideImage';
+      | 'docsSetSideImage'
+      | 'docsSetSideInfo';
     /**
      * Local dev hero heading.
      */

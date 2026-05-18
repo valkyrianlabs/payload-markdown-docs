@@ -3,6 +3,11 @@ import type { Field } from 'payload'
 export const hero: Field = {
   name: 'hero',
   type: 'group',
+  access: {
+    create: () => true,
+    read: () => true,
+    update: () => true,
+  },
   fields: [
     {
       name: 'type',

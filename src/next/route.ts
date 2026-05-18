@@ -471,6 +471,14 @@ const docsRecordBelongsToDocsSet = ({
   return true
 }
 
+const isProductNestedProductRoute = ({
+  docsSet,
+  route,
+}: {
+  docsSet: ResolvedPayloadMarkdownDocsSet
+  route: string
+}): boolean => docsSet.routeMode === 'product-nested' && route === docsSet.productRoute
+
 const findDocsRecordByRoute = async ({
   collections,
   includeDrafts,
@@ -739,6 +747,15 @@ export const resolvePayloadMarkdownDocsRoute = async ({
     })
 
     if (resolvedDocsSet) {
+      if (
+        isProductNestedProductRoute({
+          docsSet: resolvedDocsSet,
+          route,
+        })
+      ) {
+        return null
+      }
+
       const sidebar = await getPayloadMarkdownDocsSidebar({
         collections: collectionOptions,
         docsSet: resolvedDocsSet,

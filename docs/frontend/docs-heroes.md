@@ -53,6 +53,12 @@ the docs variants are appended:
 
 - `docsSetFullWidth`
 - `docsSetSideImage`
+- `docsSetSideInfo`
+
+`docsSetFullWidth` is a centered, full-background landing hero.
+`docsSetSideImage` uses a true side media layout with skill buttons under the
+copy. `docsSetSideInfo` keeps the faux browser/info panel and embeds available
+skill buttons inside that panel.
 
 Local hero fields are hidden while a docs hero variant is selected. Docs hero
 fields are hidden while a local hero variant is selected.

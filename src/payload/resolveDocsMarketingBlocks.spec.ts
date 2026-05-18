@@ -2,7 +2,9 @@ import { describe, expect, it, vi } from 'vitest'
 
 import type {
   DocsAssetReference,
+  DocsBackgroundMediaInput,
   DocsCTAButtonInput,
+  DocsMediaReference,
   DocsPageReference,
   DocsRelationship,
   DocsRelationshipID,
@@ -29,15 +31,18 @@ type FindByIDArgs = {
 }
 
 type TestMarketingBlock = {
+  background?: DocsBackgroundMediaInput | null
   blockType?: 'docsBanner' | 'docsCallout' | 'docsCTA' | 'docsPreview'
   ctaButtons?: DocsCTAButtonInput[] | null
   docsPage?: DocsRelationship<DocsPageReference> | null
   docsSet?: DocsRelationship<DocsSetReference> | null
+  image?: DocsRelationship<DocsMediaReference> | null
   skills?: null | SkillCTAGroupInput
-  type?: 'docsSetFullWidth' | 'docsSetSideImage'
+  type?: 'docsSetFullWidth' | 'docsSetSideImage' | 'docsSetSideInfo'
 } & Record<string, unknown>
 
 type TestPageDoc = {
+  hero?: TestMarketingBlock
   id: string
   layout: TestMarketingBlock[]
 }
@@ -263,6 +268,67 @@ describe('resolveDocsMarketingBlocksAfterRead', () => {
       depth: 2,
       overrideAccess: true,
     })
+  })
+
+  it('hydrates shallow docs hero media references', async () => {
+    const media: DocsMediaReference = {
+      id: 'media-1',
+      alt: 'Docs hero image',
+      height: 900,
+      url: '/media/docs-hero.png',
+      width: 1600,
+    }
+    const find = vi.fn(() =>
+      Promise.resolve({
+        docs: [],
+      }),
+    )
+    const findByID = vi.fn((args: FindByIDArgs) =>
+      Promise.resolve(args.collection === 'media' ? media : null),
+    )
+    const hook = resolveDocsMarketingBlocksAfterRead({
+      docsAssetsCollectionSlug: 'payload-markdown-docs-assets',
+      docsCollectionSlug: 'docs',
+      docsSetsCollectionSlug: 'docs-sets',
+    })
+    const doc: TestPageDoc = {
+      id: 'page-with-shallow-media',
+      hero: {
+        type: 'docsSetSideImage',
+        background: {
+          media: 'media-1',
+        },
+        docsSet,
+        image: 'media-1',
+      },
+      layout: [],
+    }
+
+    const result = (await hook({
+      doc,
+      req: {
+        payload: {
+          find,
+          findByID,
+        },
+      },
+    } as Parameters<typeof hook>[0])) as TestPageDoc
+
+    expect(result.hero?.image).toMatchObject({
+      url: '/media/docs-hero.png',
+    })
+    expect(result.hero?.background?.media).toMatchObject({
+      alt: 'Docs hero image',
+      url: '/media/docs-hero.png',
+    })
+    expect(findByID).toHaveBeenCalledTimes(1)
+    expect(findByID).toHaveBeenCalledWith({
+      id: 'media-1',
+      collection: 'media',
+      depth: 0,
+      overrideAccess: true,
+    })
+    expect(find).not.toHaveBeenCalled()
   })
 
   it('does not query unrelated records when relationships are already hydrated', async () => {

@@ -3,14 +3,17 @@ import type { CollectionConfig } from 'payload'
 import { slugField } from 'payload'
 
 import { hero } from '../../heros/config'
+import { populatePublishedAt } from '../../hooks/populatePublishedAt'
 import { populateFullPath } from './hooks/populateFullPath'
 import { revalidateDelete, revalidatePage } from './hooks/revalidatePage'
-import { populatePublishedAt } from '../../hooks/populatePublishedAt'
 
 export const Pages: CollectionConfig<'pages'> = {
   slug: 'pages',
   access: {
+    create: () => true,
+    delete: () => true,
     read: () => true,
+    update: () => true
   },
   admin: {
     defaultColumns: ['title', 'slug', 'updatedAt'],

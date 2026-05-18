@@ -195,7 +195,7 @@ export type NormalizedDocsPreviewItem = {
 }
 
 export type DocsTheme = 'brand' | 'dark' | 'default' | 'muted'
-export type DocsSetHeroType = 'docsSetFullWidth' | 'docsSetSideImage'
+export type DocsSetHeroType = 'docsSetFullWidth' | 'docsSetSideImage' | 'docsSetSideInfo'
 
 export type DocsMarketingPayloadBlockProps = {
   blockName?: null | string

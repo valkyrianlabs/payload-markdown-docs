@@ -10,6 +10,7 @@ export {
   DocsSetHero,
   docsSetHeroComponents,
   DocsSetSideImageHero,
+  DocsSetSideInfoHero,
   isDocsSetHeroType,
 } from '../components/heroes/index.js'
 export { SkillCTAGroup } from '../components/skills/SkillCTAGroup.js'

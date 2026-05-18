@@ -6,5 +6,6 @@ export {
   DocsSetHero,
   docsSetHeroComponents,
   DocsSetSideImageHero,
+  DocsSetSideInfoHero,
   isDocsSetHeroType,
 } from './DocsSetHero.js'

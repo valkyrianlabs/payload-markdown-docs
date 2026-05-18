@@ -9,7 +9,11 @@ import { ctaButtonsField } from './ctaButtons.js'
 import { docsSetRelationshipField } from './docsReferences.js'
 import { skillCTAFields } from './skills.js'
 
-export const docsSetHeroTypes = ['docsSetFullWidth', 'docsSetSideImage'] as const
+export const docsSetHeroTypes = [
+  'docsSetFullWidth',
+  'docsSetSideImage',
+  'docsSetSideInfo',
+] as const
 
 export type DocsSetHeroType = (typeof docsSetHeroTypes)[number]
 
@@ -63,6 +67,10 @@ const docsHeroTypeOptions = [
   {
     label: 'Docs set side image',
     value: 'docsSetSideImage',
+  },
+  {
+    label: 'Docs set side info',
+    value: 'docsSetSideInfo',
   },
 ]
 

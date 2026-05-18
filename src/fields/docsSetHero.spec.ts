@@ -77,7 +77,12 @@ describe('docsHeroField', () => {
         },
       },
     })
-    expect(optionValues(typeField)).toEqual(['none', 'docsSetFullWidth', 'docsSetSideImage'])
+    expect(optionValues(typeField)).toEqual([
+      'none',
+      'docsSetFullWidth',
+      'docsSetSideImage',
+      'docsSetSideInfo',
+    ])
     expect(getField(field.fields, 'docsSet')).toBeDefined()
     expect(getField(field.fields, 'skills')).toBeDefined()
   })
@@ -94,6 +99,7 @@ describe('docsHeroField', () => {
       'highImpact',
       'docsSetFullWidth',
       'docsSetSideImage',
+      'docsSetSideInfo',
     ])
     expect(richTextField?.admin?.condition?.({}, { type: 'highImpact' })).toBe(true)
     expect(richTextField?.admin?.condition?.({}, { type: 'docsSetFullWidth' })).toBe(false)
@@ -158,6 +164,7 @@ describe('docsHeroField', () => {
 
     expect(hero?.admin?.custom?.payloadMarkdownDocsHero).toBe(true)
     expect(optionValues(getField(hero?.fields ?? [], 'type'))).toContain('docsSetSideImage')
+    expect(optionValues(getField(hero?.fields ?? [], 'type'))).toContain('docsSetSideInfo')
     expect(pages?.hooks?.afterRead).toHaveLength(1)
   })
 })

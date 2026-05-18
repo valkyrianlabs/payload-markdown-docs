@@ -114,12 +114,12 @@ export const SkillCTAGroup = ({
       {heading}
       {description}
       <div
-        className={cx('mt-4 flex w-full max-w-3xl flex-wrap items-stretch gap-2', alignment.list)}
+        className={cx('mt-4 flex w-full max-w-3xl flex-wrap items-center gap-2', alignment.list)}
       >
         {skills.items.map((item) =>
           item.href ? (
             <a
-              className="inline-flex min-h-11 min-w-0 items-center justify-center gap-2 rounded-lg border border-border bg-white/[0.05] px-4 py-2.5 text-center text-sm font-semibold text-foreground shadow-sm shadow-slate-950/5 transition-colors hover:bg-white/[0.1]"
+              className="inline-flex min-h-11 min-w-0 max-w-full basis-full items-center justify-center gap-2 rounded-lg border border-border bg-white/[0.05] px-4 py-2.5 text-center text-sm font-semibold text-foreground shadow-sm shadow-slate-950/5 transition-colors hover:bg-white/[0.1] sm:basis-auto"
               href={item.href}
               key={`${item.type}-${item.label}`}
             >
@@ -132,7 +132,7 @@ export const SkillCTAGroup = ({
             </a>
           ) : (
             <span
-              className="inline-flex min-h-11 min-w-0 items-center justify-center gap-2 rounded-lg border border-border bg-white/[0.04] px-4 py-2.5 text-center text-sm font-semibold text-foreground/70"
+              className="inline-flex min-h-11 min-w-0 max-w-full basis-full items-center justify-center gap-2 rounded-lg border border-border bg-white/[0.04] px-4 py-2.5 text-center text-sm font-semibold text-foreground/70 sm:basis-auto"
               key={`${item.type}-${item.label}`}
             >
               {item.icon ? (
