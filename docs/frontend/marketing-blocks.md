@@ -73,7 +73,8 @@ page, docs group, route, and manual-reference targets are not exposed.
 Skill CTAs are automatic. When skills are enabled, renderers should resolve
 available `payload-markdown-docs-assets` records for the selected docs set with
 `kind: 'skill'` and pass the generated items to the component. Editors do not
-paste skill download URLs.
+paste skill download URLs. Auto-resolved skill buttons point to generated
+`/skills/<agent>.zip` downloads for valid bundles with a root `SKILL.md`.
 
 ```ts
 import { resolveDocsSetSkills } from '@valkyrianlabs/payload-markdown-docs/next'

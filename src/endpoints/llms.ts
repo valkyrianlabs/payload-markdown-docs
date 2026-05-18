@@ -1,9 +1,12 @@
 import type { PayloadRequest } from 'payload'
 
 import type { DocsSetPayloadOperations, ResolvedDocsSet } from '../payload/index.js'
+import type { SkillBundle, SkillBundleAsset } from '../skillBundles.js'
 
 import { findAllDocsSets } from '../payload/index.js'
 import { normalizeRoutePath } from '../routing/index.js'
+import { formatSkillAgentTitle, getSkillBundles } from '../skillBundles.js'
+import { createPublicUrl, getPublicRequestOrigin } from './publicOrigin.js'
 
 export type LlmsKind = 'llms' | 'llms-full'
 
@@ -50,26 +53,12 @@ type LlmsSkillAsset = {
   contentType: string
   route: string
   sourcePath: string
-}
-
-type LlmsSkillArtifact = {
-  relativePath: string
-} & LlmsSkillAsset
-
-type LlmsSkillBundle = {
-  agent: string
-  archiveRoute: string
-  artifacts: LlmsSkillArtifact[]
-  root: LlmsSkillArtifact
-  rootRoute: string
-  skillRoute: string
-  title: string
-}
+} & SkillBundleAsset
 
 type DocsSetLlmsData = {
   docs: LlmsDocRecord[]
   relatedDocsSets: ResolvedDocsSet[]
-  skills: LlmsSkillBundle[]
+  skills: SkillBundle[]
 }
 
 type RootLlmsData = {
@@ -100,49 +89,6 @@ const getStringArray = (value: unknown): string[] => {
 }
 
 const compactText = (value: string): string => value.replace(/\s+/g, ' ').trim()
-
-const createPublicUrl = (origin: string | undefined, route: string): string => {
-  const normalizedRoute = normalizeRoutePath(route)
-
-  return origin ? `${origin}${normalizedRoute}` : normalizedRoute
-}
-
-const normalizeOrigin = (value: string | undefined): string | undefined => {
-  const trimmed = value?.trim()
-
-  if (!trimmed) {
-    return undefined
-  }
-
-  try {
-    return new URL(trimmed).origin
-  } catch {
-    return trimmed.replace(/\/+$/g, '')
-  }
-}
-
-const getRequestOrigin = (req: PayloadRequest): string | undefined => {
-  const serverURL = isRecord(req.payload.config)
-    ? getString((req.payload.config as Record<string, unknown>).serverURL)
-    : undefined
-  const configuredOrigin = normalizeOrigin(serverURL)
-
-  if (configuredOrigin) {
-    return configuredOrigin
-  }
-
-  const requestUrl = getString(req.url)
-
-  if (!requestUrl) {
-    return undefined
-  }
-
-  try {
-    return new URL(requestUrl).origin
-  } catch {
-    return undefined
-  }
-}
 
 const toLlmsDocRecord = (doc: unknown, markdownFieldName: string): LlmsDocRecord | undefined => {
   if (!isRecord(doc)) {
@@ -177,130 +123,6 @@ const toLlmsDocRecord = (doc: unknown, markdownFieldName: string): LlmsDocRecord
     sourcePath,
     title,
   }
-}
-
-const formatAgentTitle = (agent: string): string =>
-  agent
-    .split(/[-_\s]+/)
-    .filter(Boolean)
-    .map((segment) => `${segment.charAt(0).toUpperCase()}${segment.slice(1)}`)
-    .join(' ')
-
-const getSkillSourceInfo = (
-  sourcePath: string,
-): { agent: string; relativePath: string; sourceId: string } | undefined => {
-  const segments = sourcePath.replace(/\\/g, '/').split('/').filter(Boolean)
-  const [root, sourceId, agent, ...fileSegments] = segments
-
-  if (
-    root !== 'skills' ||
-    !sourceId ||
-    !agent ||
-    fileSegments.length === 0 ||
-    segments.some((segment) => segment === '.' || segment === '..')
-  ) {
-    return undefined
-  }
-
-  return {
-    agent,
-    relativePath: fileSegments.join('/'),
-    sourceId,
-  }
-}
-
-const getSkillRouteInfo = (route: string): { agent: string; relativePath: string } | undefined => {
-  const segments = normalizeRoutePath(route).split('/').filter(Boolean)
-  const skillsIndex = segments.lastIndexOf('skills')
-  const agent = skillsIndex >= 0 ? segments[skillsIndex + 1] : undefined
-  const fileSegments = skillsIndex >= 0 ? segments.slice(skillsIndex + 2) : []
-
-  if (!agent || fileSegments.length === 0) {
-    return undefined
-  }
-
-  return {
-    agent,
-    relativePath: fileSegments.join('/'),
-  }
-}
-
-const deriveSkillRootRoute = (skillRoute: string): string => {
-  const normalizedRoute = normalizeRoutePath(skillRoute)
-  const suffix = '/SKILL.md'
-
-  return normalizedRoute.endsWith(suffix)
-    ? normalizedRoute.slice(0, -suffix.length) || '/'
-    : normalizedRoute
-}
-
-const toLlmsSkillArtifact = (asset: LlmsSkillAsset): LlmsSkillArtifact | undefined => {
-  const sourceInfo = getSkillSourceInfo(asset.sourcePath)
-  const routeInfo = getSkillRouteInfo(asset.route)
-  const relativePath = sourceInfo?.relativePath ?? routeInfo?.relativePath
-
-  if (!relativePath) {
-    return undefined
-  }
-
-  return {
-    ...asset,
-    relativePath,
-  }
-}
-
-const compareSkillArtifacts = (first: LlmsSkillArtifact, second: LlmsSkillArtifact): number => {
-  if (first.relativePath === 'SKILL.md') {
-    return -1
-  }
-
-  if (second.relativePath === 'SKILL.md') {
-    return 1
-  }
-
-  return first.relativePath.localeCompare(second.relativePath)
-}
-
-const bundleSkillAssets = (assets: LlmsSkillAsset[]): LlmsSkillBundle[] => {
-  const artifactsByAgent = new Map<string, LlmsSkillArtifact[]>()
-
-  for (const asset of assets) {
-    const sourceInfo = getSkillSourceInfo(asset.sourcePath)
-    const routeInfo = getSkillRouteInfo(asset.route)
-    const agent = sourceInfo?.agent ?? routeInfo?.agent
-    const artifact = toLlmsSkillArtifact(asset)
-
-    if (!agent || !artifact) {
-      continue
-    }
-
-    artifactsByAgent.set(agent, [...(artifactsByAgent.get(agent) ?? []), artifact])
-  }
-
-  return [...artifactsByAgent.entries()]
-    .flatMap(([agent, artifacts]) => {
-      const sortedArtifacts = [...artifacts].sort(compareSkillArtifacts)
-      const root = sortedArtifacts.find((artifact) => artifact.relativePath === 'SKILL.md')
-
-      if (!root) {
-        return []
-      }
-
-      const rootRoute = deriveSkillRootRoute(root.route)
-
-      return [
-        {
-          agent,
-          archiveRoute: `${rootRoute}.zip`,
-          artifacts: sortedArtifacts,
-          root,
-          rootRoute,
-          skillRoute: root.route,
-          title: `${formatAgentTitle(agent)} skill`,
-        },
-      ]
-    })
-    .sort((first, second) => first.agent.localeCompare(second.agent))
 }
 
 const toLlmsSkillAsset = (asset: unknown): LlmsSkillAsset | undefined => {
@@ -523,7 +345,7 @@ const loadDocsSetLlmsData = async ({
       currentDocsSet: docsSet,
       docs,
     }),
-    skills: bundleSkillAssets(skillAssets),
+    skills: getSkillBundles(skillAssets),
   }
 }
 
@@ -545,7 +367,7 @@ const getSkillBundleLinkItems = ({
   origin,
   titlePrefix = '',
 }: {
-  bundle: LlmsSkillBundle
+  bundle: SkillBundle
   origin?: string
   titlePrefix?: string
 }): Array<{
@@ -557,11 +379,11 @@ const getSkillBundleLinkItems = ({
     url: createPublicUrl(origin, bundle.rootRoute),
   },
   {
-    title: `${titlePrefix}${formatAgentTitle(bundle.agent)} SKILL.md`,
+    title: `${titlePrefix}${formatSkillAgentTitle(bundle.agent)} SKILL.md`,
     url: createPublicUrl(origin, bundle.skillRoute),
   },
   {
-    title: `${titlePrefix}${formatAgentTitle(bundle.agent)} skill archive`,
+    title: `${titlePrefix}${formatSkillAgentTitle(bundle.agent)} skill archive`,
     url: createPublicUrl(origin, bundle.archiveRoute),
   },
 ]
@@ -671,14 +493,14 @@ const renderDocsSetLlmsFull = ({
         '',
       )
 
-      for (const artifact of bundle.artifacts) {
+      for (const artifact of bundle.files) {
         lines.push(
-          `#### ${compactText(formatAgentTitle(bundle.agent))} ${compactText(artifact.relativePath)}`,
+          `#### ${compactText(formatSkillAgentTitle(bundle.agent))} ${compactText(artifact.relativePath)}`,
           '',
           `URL: ${createPublicUrl(origin, artifact.route)}`,
           `Source: ${artifact.sourcePath}`,
           '',
-          artifact.content.trim(),
+          (artifact.content ?? '').trim(),
           '',
         )
       }
@@ -816,14 +638,14 @@ const renderRootLlmsFull = ({
           '',
         )
 
-        for (const artifact of bundle.artifacts) {
+        for (const artifact of bundle.files) {
           lines.push(
-            `##### ${compactText(formatAgentTitle(bundle.agent))} ${compactText(artifact.relativePath)}`,
+            `##### ${compactText(formatSkillAgentTitle(bundle.agent))} ${compactText(artifact.relativePath)}`,
             '',
             `URL: ${createPublicUrl(origin, artifact.route)}`,
             `Source: ${artifact.sourcePath}`,
             '',
-            artifact.content.trim(),
+            (artifact.content ?? '').trim(),
             '',
           )
         }
@@ -875,7 +697,7 @@ export const generateDocsSetLlms = async ({
     return undefined
   }
 
-  const origin = getRequestOrigin(req)
+  const origin = getPublicRequestOrigin(req)
 
   return kind === 'llms'
     ? renderDocsSetLlms({
@@ -923,7 +745,7 @@ export const generateRootLlms = async ({
       })),
     })),
   )
-  const origin = getRequestOrigin(req)
+  const origin = getPublicRequestOrigin(req)
 
   return kind === 'llms'
     ? renderRootLlms({

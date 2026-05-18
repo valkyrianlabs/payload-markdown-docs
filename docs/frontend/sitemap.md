@@ -105,7 +105,7 @@ Options:
 - `includeLlms`: includes generated and stored `llms.txt` / `llms-full.txt`
   routes.
 - `includeSkills`: includes stored native skill artifact routes and
-  extensionless `SKILL.md` aliases such as `/skills/codex`.
+  generated skill indexes such as `/skills/codex`.
 - `includeAssets`: includes stored generic `static` assets only. It does not
   imply `includeLlms` or `includeSkills`.
 
@@ -172,16 +172,17 @@ files and synced skills:
 - `/llms-full.txt`
 - `<computed-docs-set-route>/llms.txt`
 - `<computed-docs-set-route>/llms-full.txt`
+- `<computed-docs-set-route>/skills/<agent>`
+- `<computed-docs-set-route>/skills/<agent>.zip`
 - `<computed-docs-set-route>/skills/<agent>/<path...>`
 
 For example, a docs set served at `/plugins/payload-markdown-docs` exposes
 `/plugins/payload-markdown-docs/llms.txt`,
 `/plugins/payload-markdown-docs/skills/codex`, and
-`/plugins/payload-markdown-docs/skills/codex/SKILL.md`; the Claude skill is
-available at `/plugins/payload-markdown-docs/skills/claude` and
-`/plugins/payload-markdown-docs/skills/claude/SKILL.md` after the assets are
-synced. Consuming apps should install the public Next route files that delegate
-to the package asset route handler:
+`/plugins/payload-markdown-docs/skills/codex.zip`; raw skill files remain
+available at `/plugins/payload-markdown-docs/skills/codex/SKILL.md` and
+supporting file paths after the assets are synced. Consuming apps should install
+the public Next route files that delegate to the package asset route handler:
 
 ```bash
 pnpm exec payload-markdown-docs install routes --payload-app "src/app/(payload)"

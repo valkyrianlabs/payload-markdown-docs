@@ -133,6 +133,7 @@ skill routes and generated docs-set AI discovery routes:
 /plugins/payload-markdown-docs/skills/codex
 /plugins/payload-markdown-docs/skills/codex/SKILL.md
 /plugins/payload-markdown-docs/skills/codex.zip
+/plugins/payload-markdown-docs/skills/codex/reference
 /plugins/payload-markdown-docs/skills/claude
 /plugins/payload-markdown-docs/skills/claude/SKILL.md
 /plugins/payload-markdown-docs/skills/claude.zip
@@ -147,22 +148,33 @@ The public skill route contract is:
 
 ```text
 /<group...>/<set>/skills/<agent>
+/<group...>/<set>/skills/<agent>/<directory>
 /<group...>/<set>/skills/<agent>/SKILL.md
 /<group...>/<set>/skills/<agent>.zip
 /<group...>/<set>/skills/<agent>/<path...>
 ```
 
-`/skills/<agent>` serves the agent `SKILL.md` for compatibility.
+`/skills/<agent>` serves a generated Markdown directory index for the synced
+skill bundle. `/skills/<agent>/<directory>` also serves a generated Markdown
+directory index when matching skill files exist below that prefix.
 `/skills/<agent>/SKILL.md` and `/skills/<agent>/<path...>` serve raw synced
 skill artifacts. `/skills/<agent>.zip` is generated on demand from the current
 synced text skill artifacts for that docs set; ZIP files are not uploaded,
-stored, or synced as static ZIP assets.
+stored, or synced as static ZIP assets. Auto-resolved skill CTA buttons use the
+ZIP route by default.
 
 The source layout remains `./skills/<sourceId>/<agent>/...`. Generated archives
 strip that distributor prefix and expand to `<sourceId>/SKILL.md` plus
 supporting files. For example,
 `skills/payload-markdown-docs/codex/reference/workflow.md` is bundled as
 `payload-markdown-docs/reference/workflow.md`.
+
+Generated `llms.txt` and `llms-full.txt` entries expose the skill index, raw
+`SKILL.md`, and ZIP archive routes. Public URL generation prefers
+`NEXT_PUBLIC_SERVER_URL`, then public site/Vercel URL environment values, before
+falling back to forwarded request headers, Payload `serverURL`, or `req.url`.
+Production output should not contain `localhost` when a public origin is
+configured.
 
 ## Installing Public Asset Routes
 

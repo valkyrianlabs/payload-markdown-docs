@@ -83,8 +83,8 @@ Raw AI-facing artifacts are no longer listed in `sitemap.xml` unless explicitly
 requested:
 
 - `llms.txt` and `llms-full.txt` require `includeLlms: true`.
-- native skill routes such as `/skills/codex` and `/skills/codex/SKILL.md`
-  require `includeSkills: true`.
+- native skill routes such as `/skills/codex`, `/skills/codex/SKILL.md`, and
+  `/skills/codex.zip` require `includeSkills: true`.
 - stored generic `static` assets require `includeAssets: true`.
 
 `includeAssets` does not imply llms or skill routes. Served asset endpoints are

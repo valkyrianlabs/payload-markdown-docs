@@ -10,8 +10,10 @@ import type {
   SkillCTAItemInput,
   SkillCTAType,
 } from '../marketing/types.js'
+import type { SkillBundleAsset } from '../skillBundles.js'
 
 import { DEFAULT_DOCS_ASSETS_COLLECTION_SLUG } from '../constants.js'
+import { getSkillBundles } from '../skillBundles.js'
 import {
   getBoolean,
   getRelationshipId,
@@ -21,7 +23,6 @@ import {
 } from './normalizeShared.js'
 
 const skillTypes: SkillCTAType[] = ['claude', 'codex', 'custom']
-const knownAgents = new Set(['claude', 'codex'])
 
 export type SkillAssetPayloadOperations = {
   find: (args: {
@@ -48,47 +49,6 @@ type LegacySkillCTAItemInput = {
   routeReference?: DocsRelationship<DocsPageReference> | null
 } & SkillCTAItemInput
 
-const normalizePathSegments = (value: string): string[] =>
-  value
-    .replace(/\\/g, '/')
-    .split('/')
-    .map((segment) => segment.trim())
-    .filter(Boolean)
-
-const getAgentFromSkillPath = (value: null | string | undefined): string | undefined => {
-  const path = getString(value)
-
-  if (!path) {
-    return undefined
-  }
-
-  const segments = normalizePathSegments(path)
-  const skillsIndex = segments.findIndex((segment) => segment === 'skills')
-
-  if (skillsIndex === -1) {
-    return undefined
-  }
-
-  const afterSkills = segments.slice(skillsIndex + 1)
-
-  if (afterSkills.length === 0) {
-    return undefined
-  }
-
-  if (knownAgents.has(afterSkills[0] ?? '')) {
-    return afterSkills[0]
-  }
-
-  return afterSkills.length > 1 ? afterSkills[1] : afterSkills[0]
-}
-
-const isRootSkillAsset = (asset: DocsAssetReference): boolean => {
-  const route = getString(asset.route)
-  const sourcePath = getString(asset.sourcePath)
-
-  return [route, sourcePath].some((value) => value?.toLowerCase().endsWith('/skill.md'))
-}
-
 const normalizeSkillItem = (
   input: LegacySkillCTAItemInput | null | undefined,
 ): NormalizedSkillCTAItem | undefined => {
@@ -111,71 +71,35 @@ const normalizeSkillItem = (
   }
 }
 
-const normalizeSkillAssetItem = (
-  input: DocsAssetReference,
-  options: { docsSetId?: string } = {},
-): NormalizedSkillCTAItem | undefined => {
-  if (input.kind !== 'skill') {
-    return undefined
-  }
-
-  if (options.docsSetId && getRelationshipId(input.docsSet) !== options.docsSetId) {
-    return undefined
-  }
-
-  const href = getString(input.route)
-
-  if (!href) {
-    return undefined
-  }
-
-  const agent = getAgentFromSkillPath(input.route) ?? getAgentFromSkillPath(input.sourcePath)
-
-  if (!agent) {
-    return undefined
-  }
-
-  return {
-    type: getSkillType(agent),
-    href,
-    icon: agent,
-    label: formatAgentLabel(agent),
-  }
-}
-
 export const normalizeSkillAssetItems = (
   input: DocsAssetReference[],
   options: { docsSetId?: string } = {},
 ): NormalizedSkillCTAItem[] => {
-  const itemsByAgent = new Map<
-    string,
-    {
-      item: NormalizedSkillCTAItem
-      root: boolean
-    }
-  >()
-
-  for (const asset of input) {
-    const item = normalizeSkillAssetItem(asset, options)
-
-    if (!item) {
-      continue
+  const assets = input.flatMap((asset): SkillBundleAsset[] => {
+    if (
+      asset.kind !== 'skill' ||
+      (options.docsSetId && getRelationshipId(asset.docsSet) !== options.docsSetId)
+    ) {
+      return []
     }
 
-    const key = item.icon ?? item.label
-    const existing = itemsByAgent.get(key)
-    const root = isRootSkillAsset(asset)
+    return [
+      {
+        id: getRelationshipId(asset.id),
+        kind: asset.kind,
+        route: getString(asset.route),
+        sourcePath: getString(asset.sourcePath),
+      },
+    ]
+  })
 
-    if (!existing || (root && !existing.root)) {
-      itemsByAgent.set(key, {
-        item,
-        root,
-      })
-    }
-  }
-
-  return [...itemsByAgent.values()]
-    .map(({ item }) => item)
+  return getSkillBundles(assets)
+    .map((bundle) => ({
+      type: getSkillType(bundle.agent),
+      href: bundle.archiveRoute,
+      icon: bundle.agent,
+      label: formatAgentLabel(bundle.agent),
+    }))
     .sort((first, second) => first.label.localeCompare(second.label))
 }
 
@@ -219,6 +143,11 @@ export const resolveDocsSetSkills = async ({
         {
           kind: {
             equals: 'skill',
+          },
+        },
+        {
+          'sync.archived': {
+            not_equals: true,
           },
         },
       ],

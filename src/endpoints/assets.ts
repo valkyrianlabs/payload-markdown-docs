@@ -3,6 +3,7 @@ import type { Endpoint, PayloadRequest } from 'payload'
 import { strToU8, zipSync } from 'fflate'
 
 import type { DocsSetPayloadOperations, ResolvedDocsSet } from '../payload/index.js'
+import type { SkillBundle, SkillBundleAsset } from '../skillBundles.js'
 
 import {
   DEFAULT_DOCS_ASSETS_COLLECTION_SLUG,
@@ -13,6 +14,13 @@ import {
 } from '../constants.js'
 import { findDocsSetByRoutePrefix } from '../payload/index.js'
 import { joinRouteSegments, normalizeRoutePath } from '../routing/index.js'
+import {
+  getSkillBundleForAgent,
+  getSkillZipEntryPath,
+  parseSkillSourcePath,
+  renderSkillDirectoryIndex,
+  sanitizeSkillPackageSlug,
+} from '../skillBundles.js'
 import {
   DOCS_ASSETS_STORAGE_UNAVAILABLE_MESSAGE,
   isDocsAssetsStorageUnavailableError,
@@ -55,30 +63,20 @@ type ServedDocsAsset = {
   route: string
 }
 
-type SkillZipDocsAsset = {
+type SkillDocsAsset = {
   content: string
+  contentType: string
   id?: string
   kind: string
   route: string
   sourceId?: string
   sourcePath: string
-}
+} & SkillBundleAsset
 
 type SkillArchiveRequest = {
   agent: string
   archiveRoute: string
   rawSkillRoute: string
-}
-
-type SkillAssetSourceInfo = {
-  agent: string
-  relativePath: string
-  sourceId: string
-}
-
-type SkillAssetRouteInfo = {
-  agent: string
-  relativePath: string
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -128,10 +126,11 @@ const toServedDocsAsset = (doc: unknown): ServedDocsAsset | undefined => {
   }
 }
 
-const toSkillZipDocsAsset = (doc: unknown): SkillZipDocsAsset | undefined => {
+const toSkillDocsAsset = (doc: unknown): SkillDocsAsset | undefined => {
   if (
     !isRecord(doc) ||
     typeof doc.content !== 'string' ||
+    typeof doc.contentType !== 'string' ||
     doc.kind !== 'skill' ||
     typeof doc.route !== 'string' ||
     typeof doc.sourcePath !== 'string'
@@ -148,6 +147,7 @@ const toSkillZipDocsAsset = (doc: unknown): SkillZipDocsAsset | undefined => {
   return {
     id: getRecordId(doc),
     content: doc.content,
+    contentType: doc.contentType,
     kind: doc.kind,
     route: normalizeRoutePath(doc.route),
     sourceId: getString(doc.sourceId) ?? getString(sync?.sourceId),
@@ -158,18 +158,50 @@ const toSkillZipDocsAsset = (doc: unknown): SkillZipDocsAsset | undefined => {
 const getRequestPath = (req: PayloadRequest): string =>
   normalizeRoutePath(new URL(req.url ?? 'http://payload.local/').pathname)
 
-const getSkillRequestPath = (req: PayloadRequest): string => {
+const getSkillAssetRequest = (
+  req: PayloadRequest,
+):
+  | {
+      agent: string
+      assetPath?: string
+      rawSkillRoute: string
+      requestedRoute: string
+    }
+  | undefined => {
   const routeParams = (req as PayloadRequestWithRouteParams).routeParams
   const routeBase = toStringArray(routeParams?.routeBase)
-  const agent = typeof routeParams?.agent === 'string' ? routeParams.agent : undefined
-  const assetPath = toStringArray(routeParams?.assetPath)
-  const resolvedAssetPath = assetPath.length > 0 ? assetPath : ['SKILL.md']
+  const routeParamAgent = typeof routeParams?.agent === 'string' ? routeParams.agent : undefined
+  const requestPath = getRequestPath(req)
+  const requestSegments = requestPath.split('/').filter(Boolean)
+  const skillsIndex = requestSegments.lastIndexOf('skills')
+  const requestAgent = skillsIndex >= 0 ? requestSegments[skillsIndex + 1] : undefined
+  const agent = routeParamAgent ?? requestAgent
 
-  if (agent) {
-    return joinRouteSegments(...routeBase, 'skills', agent, ...resolvedAssetPath)
+  if (!agent || agent.endsWith('.zip')) {
+    return undefined
   }
 
-  return getRequestPath(req)
+  const assetPathSegments =
+    routeParams && 'assetPath' in routeParams
+      ? toStringArray(routeParams.assetPath)
+      : skillsIndex >= 0
+        ? requestSegments.slice(skillsIndex + 2)
+        : []
+  const assetPath = assetPathSegments.length > 0 ? assetPathSegments.join('/') : undefined
+  const routePrefix =
+    routeBase.length > 0
+      ? joinRouteSegments(...routeBase)
+      : skillsIndex > 0
+        ? joinRouteSegments(...requestSegments.slice(0, skillsIndex))
+        : undefined
+  const rawSkillRoute = joinRouteSegments(routePrefix, 'skills', agent)
+
+  return {
+    agent,
+    assetPath,
+    rawSkillRoute,
+    requestedRoute: assetPath ? joinRouteSegments(rawSkillRoute, assetPath) : rawSkillRoute,
+  }
 }
 
 const getSkillArchiveRequest = (req: PayloadRequest): SkillArchiveRequest | undefined => {
@@ -200,98 +232,17 @@ const getSkillArchiveRequest = (req: PayloadRequest): SkillArchiveRequest | unde
   }
 }
 
-const parseSkillSourcePath = (sourcePath: string): SkillAssetSourceInfo | undefined => {
-  const segments = sourcePath.replace(/\\/g, '/').split('/').filter(Boolean)
-  const [root, sourceId, agent, ...fileSegments] = segments
-
-  if (
-    root !== 'skills' ||
-    !sourceId ||
-    !agent ||
-    fileSegments.length === 0 ||
-    segments.some((segment) => segment === '.' || segment === '..')
-  ) {
-    return undefined
-  }
-
-  return {
-    agent,
-    relativePath: fileSegments.join('/'),
-    sourceId,
-  }
-}
-
-const parseSkillRoute = (route: string): SkillAssetRouteInfo | undefined => {
-  const segments = normalizeRoutePath(route).split('/').filter(Boolean)
-  const skillsIndex = segments.lastIndexOf('skills')
-  const agent = skillsIndex >= 0 ? segments[skillsIndex + 1] : undefined
-  const fileSegments = skillsIndex >= 0 ? segments.slice(skillsIndex + 2) : []
-
-  if (!agent || fileSegments.length === 0) {
-    return undefined
-  }
-
-  return {
-    agent,
-    relativePath: fileSegments.join('/'),
-  }
-}
-
-const getSkillAssetMatch = (
-  asset: SkillZipDocsAsset,
-  agent: string,
-): (SkillAssetRouteInfo | SkillAssetSourceInfo) | undefined => {
-  const sourceInfo = parseSkillSourcePath(asset.sourcePath)
-
-  if (sourceInfo?.agent === agent) {
-    return sourceInfo
-  }
-
-  const routeInfo = parseSkillRoute(asset.route)
-
-  return routeInfo?.agent === agent ? routeInfo : undefined
-}
-
 const isAssetRouteInRequestedSkill = ({
   asset,
   rawSkillRoute,
 }: {
-  asset: SkillZipDocsAsset
+  asset: SkillDocsAsset
   rawSkillRoute: string
 }): boolean => {
   const normalizedRawSkillRoute = normalizeRoutePath(rawSkillRoute)
   const normalizedAssetRoute = normalizeRoutePath(asset.route)
 
   return normalizedAssetRoute.startsWith(`${normalizedRawSkillRoute}/`)
-}
-
-const sanitizeZipFolderName = (value: string): string | undefined => {
-  const sanitized = value
-    .trim()
-    .replace(/[^\w.-]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-
-  if (!sanitized || sanitized === '.' || sanitized === '..') {
-    return undefined
-  }
-
-  return sanitized
-}
-
-const sanitizeZipRelativePath = (value: string): string | undefined => {
-  const trimmed = value.trim()
-
-  if (!trimmed || trimmed.startsWith('/') || /^[a-z]:[\\/]/i.test(trimmed)) {
-    return undefined
-  }
-
-  const segments = trimmed.replace(/\\/g, '/').replace(/\/+/g, '/').split('/')
-
-  if (segments.some((segment) => segment === '' || segment === '.' || segment === '..')) {
-    return undefined
-  }
-
-  return segments.join('/')
 }
 
 const createContentDispositionFilename = ({
@@ -301,8 +252,8 @@ const createContentDispositionFilename = ({
   agent: string
   sourceSlug: string
 }): string => {
-  const safeSourceSlug = sanitizeZipFolderName(sourceSlug) ?? 'skill'
-  const safeAgent = sanitizeZipFolderName(agent) ?? 'agent'
+  const safeSourceSlug = sanitizeSkillPackageSlug(sourceSlug) ?? 'skill'
+  const safeAgent = sanitizeSkillPackageSlug(agent) ?? 'agent'
 
   return `${safeSourceSlug}-${safeAgent}.zip`
 }
@@ -420,7 +371,7 @@ const resolveAssetByDocsSet = async ({
   })[0]
 }
 
-const findSkillZipAssetsForDocsSet = async ({
+const findSkillAssetsForDocsSet = async ({
   collectionSlug,
   docsSet,
   payload,
@@ -428,7 +379,7 @@ const findSkillZipAssetsForDocsSet = async ({
   collectionSlug: string
   docsSet: ResolvedDocsSet
   payload: AssetEndpointPayloadOperations
-}): Promise<SkillZipDocsAsset[]> => {
+}): Promise<SkillDocsAsset[]> => {
   const result = await payload.find({
     collection: collectionSlug,
     depth: 0,
@@ -470,13 +421,13 @@ const findSkillZipAssetsForDocsSet = async ({
   })
 
   return result.docs.flatMap((doc) => {
-    const asset = toSkillZipDocsAsset(doc)
+    const asset = toSkillDocsAsset(doc)
 
     return asset ? [asset] : []
   })
 }
 
-const resolveSkillZipAssetByRoute = async ({
+const resolveSkillAssetByRoute = async ({
   collectionSlug,
   payload,
   route,
@@ -484,7 +435,7 @@ const resolveSkillZipAssetByRoute = async ({
   collectionSlug: string
   payload: AssetEndpointPayloadOperations
   route: string
-}): Promise<SkillZipDocsAsset | undefined> => {
+}): Promise<SkillDocsAsset | undefined> => {
   const result = await payload.find({
     collection: collectionSlug,
     depth: 0,
@@ -512,13 +463,13 @@ const resolveSkillZipAssetByRoute = async ({
   })
 
   return result.docs.flatMap((doc) => {
-    const asset = toSkillZipDocsAsset(doc)
+    const asset = toSkillDocsAsset(doc)
 
     return asset ? [asset] : []
   })[0]
 }
 
-const findSkillZipAssetsBySourceId = async ({
+const findSkillAssetsBySourceId = async ({
   collectionSlug,
   payload,
   sourceId,
@@ -526,7 +477,7 @@ const findSkillZipAssetsBySourceId = async ({
   collectionSlug: string
   payload: AssetEndpointPayloadOperations
   sourceId: string
-}): Promise<SkillZipDocsAsset[]> => {
+}): Promise<SkillDocsAsset[]> => {
   const result = await payload.find({
     collection: collectionSlug,
     depth: 0,
@@ -563,27 +514,14 @@ const findSkillZipAssetsBySourceId = async ({
   })
 
   return result.docs.flatMap((doc) => {
-    const asset = toSkillZipDocsAsset(doc)
+    const asset = toSkillDocsAsset(doc)
 
     return asset ? [asset] : []
   })
 }
 
-const hasRequestedAgentRootSkill = ({
-  agent,
-  assets,
-}: {
-  agent: string
-  assets: SkillZipDocsAsset[]
-}): boolean =>
-  assets.some((asset) => {
-    const match = getSkillAssetMatch(asset, agent)
-
-    return match?.relativePath === 'SKILL.md'
-  })
-
-const mergeSkillZipAssets = (assets: SkillZipDocsAsset[]): SkillZipDocsAsset[] => {
-  const merged = new Map<string, SkillZipDocsAsset>()
+const mergeSkillAssets = (assets: SkillDocsAsset[]): SkillDocsAsset[] => {
+  const merged = new Map<string, SkillDocsAsset>()
 
   for (const asset of assets) {
     const key = asset.id ?? `${asset.sourcePath}\n${asset.route}`
@@ -596,7 +534,7 @@ const mergeSkillZipAssets = (assets: SkillZipDocsAsset[]): SkillZipDocsAsset[] =
   return [...merged.values()]
 }
 
-const loadSkillZipAssets = async ({
+const loadSkillAssets = async ({
   agent,
   collectionSlug,
   docsSet,
@@ -608,20 +546,20 @@ const loadSkillZipAssets = async ({
   docsSet?: ResolvedDocsSet
   payload: AssetEndpointPayloadOperations
   rawSkillRoute: string
-}): Promise<SkillZipDocsAsset[]> => {
+}): Promise<SkillDocsAsset[]> => {
   const docsSetAssets = docsSet
-    ? await findSkillZipAssetsForDocsSet({
+    ? await findSkillAssetsForDocsSet({
         collectionSlug,
         docsSet,
         payload,
       })
     : []
 
-  if (docsSet && hasRequestedAgentRootSkill({ agent, assets: docsSetAssets })) {
+  if (docsSet && getSkillBundleForAgent(docsSetAssets, agent)) {
     return docsSetAssets
   }
 
-  const routeRoot = await resolveSkillZipAssetByRoute({
+  const routeRoot = await resolveSkillAssetByRoute({
     collectionSlug,
     payload,
     route: joinRouteSegments(rawSkillRoute, 'SKILL.md'),
@@ -634,17 +572,18 @@ const loadSkillZipAssets = async ({
   const sourceInfo = parseSkillSourcePath(routeRoot.sourcePath)
 
   if (!sourceInfo?.sourceId) {
-    return mergeSkillZipAssets([...docsSetAssets, routeRoot])
+    return mergeSkillAssets([...docsSetAssets, routeRoot])
   }
 
-  const sourceAssets = await findSkillZipAssetsBySourceId({
+  const sourceAssets = await findSkillAssetsBySourceId({
     collectionSlug,
     payload,
     sourceId: sourceInfo.sourceId,
   })
 
-  return mergeSkillZipAssets([
+  return mergeSkillAssets([
     ...docsSetAssets,
+    routeRoot,
     ...sourceAssets.filter((asset) =>
       isAssetRouteInRequestedSkill({
         asset,
@@ -655,56 +594,24 @@ const loadSkillZipAssets = async ({
 }
 
 const buildSkillZipResponse = ({
-  agent,
-  assets,
-  docsSet,
+  bundle,
 }: {
-  agent: string
-  assets: SkillZipDocsAsset[]
-  docsSet?: ResolvedDocsSet
+  bundle: SkillBundle
 }): Response | undefined => {
-  const matchedAssets = assets
-    .flatMap((asset) => {
-      const match = getSkillAssetMatch(asset, agent)
-
-      return match ? [{ asset, match }] : []
-    })
-    .sort((first, second) => {
-      if (first.match.relativePath === 'SKILL.md') {
-        return -1
-      }
-
-      if (second.match.relativePath === 'SKILL.md') {
-        return 1
-      }
-
-      return first.match.relativePath.localeCompare(second.match.relativePath)
-    })
-  const root = matchedAssets.find((item) => item.match.relativePath === 'SKILL.md')
-
-  if (!root) {
-    return undefined
-  }
-
-  const sourceSlug =
-    'sourceId' in root.match ? root.match.sourceId : (root.asset.sourceId ?? docsSet?.slug ?? agent)
-  const topFolder = sanitizeZipFolderName(sourceSlug)
-
-  if (!topFolder) {
-    return undefined
-  }
-
   const zipEntries: Record<string, Uint8Array> = {}
   let rootSkillEntries = 0
 
-  for (const { asset, match } of matchedAssets) {
-    const relativePath = sanitizeZipRelativePath(match.relativePath)
+  for (const file of bundle.files) {
+    const zipPath = getSkillZipEntryPath({
+      packageSlug: bundle.packageSlug,
+      relativePath: file.relativePath,
+    })
 
-    if (!relativePath) {
+    if (!zipPath || typeof file.content !== 'string') {
       continue
     }
 
-    if (relativePath === 'SKILL.md') {
+    if (file.relativePath === 'SKILL.md') {
       if (rootSkillEntries > 0) {
         continue
       }
@@ -712,16 +619,19 @@ const buildSkillZipResponse = ({
       rootSkillEntries += 1
     }
 
-    const zipPath = `${topFolder}/${relativePath}`
-
     if (zipEntries[zipPath]) {
       continue
     }
 
-    zipEntries[zipPath] = strToU8(asset.content)
+    zipEntries[zipPath] = strToU8(file.content)
   }
 
-  if (rootSkillEntries !== 1 || !zipEntries[`${topFolder}/SKILL.md`]) {
+  const rootZipPath = getSkillZipEntryPath({
+    packageSlug: bundle.packageSlug,
+    relativePath: 'SKILL.md',
+  })
+
+  if (rootSkillEntries !== 1 || !rootZipPath || !zipEntries[rootZipPath]) {
     return undefined
   }
 
@@ -729,8 +639,8 @@ const buildSkillZipResponse = ({
     level: 6,
   })
   const filename = createContentDispositionFilename({
-    agent,
-    sourceSlug,
+    agent: bundle.agent,
+    sourceSlug: bundle.packageSlug,
   })
 
   return new Response(new Blob([zipArchive], { type: 'application/zip' }), {
@@ -747,6 +657,14 @@ const createAssetResponse = (asset: ServedDocsAsset): Response =>
     headers: {
       'Cache-Control': 'no-store',
       'Content-Type': asset.contentType,
+    },
+  })
+
+const createMarkdownResponse = (content: string): Response =>
+  new Response(content, {
+    headers: {
+      'Cache-Control': 'no-store',
+      'Content-Type': 'text/markdown; charset=utf-8',
     },
   })
 
@@ -898,19 +816,60 @@ const createDocsSetLlmsEndpoint = ({
     path,
   })
 
-const createSkillAssetEndpoint = ({ collectionSlug }: { collectionSlug: string }): Endpoint =>
+const createSkillAssetEndpoint = ({
+  collectionSlug,
+  docsGroupsCollectionSlug,
+  docsSetsCollectionSlug,
+}: {
+  collectionSlug: string
+  docsGroupsCollectionSlug: string
+  docsSetsCollectionSlug: string
+}): Endpoint =>
   createRootGetEndpoint({
     handler: async (req) => {
-      const route = getSkillRequestPath(req)
+      const skillRequest = getSkillAssetRequest(req)
+
+      if (!skillRequest) {
+        return notFoundResponse()
+      }
 
       try {
-        const asset = await resolveAssetByRoute({
-          collectionSlug,
-          payload: req.payload as unknown as AssetEndpointPayloadOperations,
-          route,
-        })
+        const payload = req.payload as unknown as AssetEndpointPayloadOperations
 
-        return asset?.kind === 'skill' ? createAssetResponse(asset) : notFoundResponse()
+        if (skillRequest.assetPath) {
+          const asset = await resolveSkillAssetByRoute({
+            collectionSlug,
+            payload,
+            route: skillRequest.requestedRoute,
+          })
+
+          if (asset) {
+            return createAssetResponse(asset)
+          }
+        }
+
+        const docsSet = await findDocsSetByRoutePrefix({
+          collectionSlug: docsSetsCollectionSlug,
+          docsGroupsCollectionSlug,
+          payload: payload as DocsSetPayloadOperations,
+          route: skillRequest.requestedRoute,
+        })
+        const assets = await loadSkillAssets({
+          agent: skillRequest.agent,
+          collectionSlug,
+          docsSet,
+          payload,
+          rawSkillRoute: skillRequest.rawSkillRoute,
+        })
+        const bundle = getSkillBundleForAgent(assets, skillRequest.agent)
+        const content = bundle
+          ? renderSkillDirectoryIndex({
+              bundle,
+              directoryPath: skillRequest.assetPath,
+            })
+          : undefined
+
+        return content ? createMarkdownResponse(content) : notFoundResponse()
       } catch (error) {
         if (isDocsAssetsStorageUnavailableError(error)) {
           return docsAssetsStorageUnavailableResponse()
@@ -947,18 +906,15 @@ const createSkillZipEndpoint = ({
           payload: payload as DocsSetPayloadOperations,
           route: archiveRequest.archiveRoute,
         })
-        const assets = await loadSkillZipAssets({
+        const assets = await loadSkillAssets({
           agent: archiveRequest.agent,
           collectionSlug,
           docsSet,
           payload,
           rawSkillRoute: archiveRequest.rawSkillRoute,
         })
-        const response = buildSkillZipResponse({
-          agent: archiveRequest.agent,
-          assets,
-          docsSet,
-        })
+        const bundle = getSkillBundleForAgent(assets, archiveRequest.agent)
+        const response = bundle ? buildSkillZipResponse({ bundle }) : undefined
 
         return response ?? notFoundResponse()
       } catch (error) {
@@ -1038,6 +994,8 @@ export const createDocsAssetsEndpoints = ({
           }),
           createSkillAssetEndpoint({
             collectionSlug: docsAssetsCollectionSlug,
+            docsGroupsCollectionSlug,
+            docsSetsCollectionSlug,
           }),
         ]
       : []),

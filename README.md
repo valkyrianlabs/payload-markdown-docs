@@ -563,15 +563,27 @@ Useful stable paths include:
 /plugins/payload-markdown-docs/skills/codex
 /plugins/payload-markdown-docs/skills/codex/SKILL.md
 /plugins/payload-markdown-docs/skills/codex.zip
+/plugins/payload-markdown-docs/skills/codex/reference
 /plugins/payload-markdown-docs/skills/claude
 /plugins/payload-markdown-docs/skills/claude/SKILL.md
 /plugins/payload-markdown-docs/skills/claude.zip
 /plugins/payload-markdown-docs/skills/codex/reference/workflow.md
 ```
 
+`/skills/<agent>` is a generated Markdown directory index for the synced skill
+bundle. `/skills/<agent>/<directory>` is also generated as a Markdown index when
+that directory exists. Raw files remain available at
+`/skills/<agent>/SKILL.md` and `/skills/<agent>/<path...>`.
+
 Skill ZIP routes are generated on demand from synced text skill artifacts in
 `./skills/<sourceId>/<agent>/...`. They are not uploaded or stored as static ZIP
 assets. Archives expand to `<sourceId>/SKILL.md` plus supporting files.
+Auto-resolved skill CTAs point to the ZIP route.
+
+Generated `llms.txt` links use the public app origin when configured, preferring
+`NEXT_PUBLIC_SERVER_URL`, then public site/Vercel URL environment values before
+falling back to request headers or Payload `serverURL`. Production output should
+not emit `localhost` when a public origin is configured.
 
 Generated sitemap output includes canonical human docs pages by default. Raw
 AI-facing routes like `llms.txt`, `llms-full.txt`, and native skill Markdown are

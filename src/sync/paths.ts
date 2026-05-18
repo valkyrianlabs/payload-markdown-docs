@@ -318,13 +318,19 @@ export const deriveSkillArchiveRouteFromSourcePath = ({
   sourceId: string
   sourcePath: string
 }): string | undefined => {
-  const expectedPrefix = `skills/${sourceId}/`
+  const normalizedPath = normalizeAssetPath(sourcePath)
 
-  if (!sourcePath.startsWith(expectedPrefix)) {
+  if (!normalizedPath.ok) {
     return undefined
   }
 
-  const skillPath = sourcePath.slice(expectedPrefix.length)
+  const expectedPrefix = `skills/${sourceId}/`
+
+  if (!normalizedPath.path.startsWith(expectedPrefix)) {
+    return undefined
+  }
+
+  const skillPath = normalizedPath.path.slice(expectedPrefix.length)
   const [agent] = skillPath.split('/').filter(Boolean)
 
   if (!agent) {
@@ -332,4 +338,74 @@ export const deriveSkillArchiveRouteFromSourcePath = ({
   }
 
   return joinRoutePaths(routeBase, 'skills', `${agent}.zip`)
+}
+
+const getSkillSourcePathParts = ({
+  sourceId,
+  sourcePath,
+}: {
+  sourceId: string
+  sourcePath: string
+}):
+  | {
+      agent: string
+      filePath: string
+    }
+  | undefined => {
+  const normalizedPath = normalizeAssetPath(sourcePath)
+
+  if (!normalizedPath.ok) {
+    return undefined
+  }
+
+  const [root, pathSourceId, agent, ...fileSegments] = normalizedPath.segments
+
+  if (root !== 'skills' || pathSourceId !== sourceId || !agent || fileSegments.length === 0) {
+    return undefined
+  }
+
+  return {
+    agent,
+    filePath: fileSegments.join('/'),
+  }
+}
+
+export const deriveSkillIndexRouteFromSourcePath = ({
+  routeBase,
+  sourceId,
+  sourcePath,
+}: {
+  routeBase: string
+  sourceId: string
+  sourcePath: string
+}): string | undefined => {
+  const parts = getSkillSourcePathParts({
+    sourceId,
+    sourcePath,
+  })
+
+  return parts ? joinRoutePaths(routeBase, 'skills', parts.agent) : undefined
+}
+
+export const deriveSkillDirectoryIndexRouteFromSourcePath = ({
+  routeBase,
+  sourceId,
+  sourcePath,
+}: {
+  routeBase: string
+  sourceId: string
+  sourcePath: string
+}): string | undefined => {
+  const parts = getSkillSourcePathParts({
+    sourceId,
+    sourcePath,
+  })
+
+  if (!parts) {
+    return undefined
+  }
+
+  const directorySegments = parts.filePath.split('/').slice(0, -1)
+
+  return joinRoutePaths(routeBase, 'skills', parts.agent, ...directorySegments)
 }

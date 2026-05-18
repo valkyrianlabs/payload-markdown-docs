@@ -155,7 +155,7 @@ describe('resolveDocsMarketingBlocksAfterRead', () => {
     expect(result.layout[0]?.skills?.resolvedItems).toEqual([
       {
         type: 'codex',
-        href: '/plugins/payload-markdown/skills/codex/SKILL.md',
+        href: '/plugins/payload-markdown/skills/codex.zip',
         icon: 'codex',
         label: 'Codex skill',
       },
@@ -173,7 +173,7 @@ describe('resolveDocsMarketingBlocksAfterRead', () => {
     expect(result.layout[3]?.skills?.resolvedItems).toEqual([
       {
         type: 'codex',
-        href: '/plugins/payload-markdown/skills/codex/SKILL.md',
+        href: '/plugins/payload-markdown/skills/codex.zip',
         icon: 'codex',
         label: 'Codex skill',
       },
@@ -206,6 +206,11 @@ describe('resolveDocsMarketingBlocksAfterRead', () => {
             {
               kind: {
                 equals: 'skill',
+              },
+            },
+            {
+              'sync.archived': {
+                not_equals: true,
               },
             },
           ],

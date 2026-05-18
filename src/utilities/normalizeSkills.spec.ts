@@ -73,6 +73,11 @@ describe('docs set skill CTA resolution', () => {
                 equals: 'skill',
               },
             },
+            {
+              'sync.archived': {
+                not_equals: true,
+              },
+            },
           ],
         },
       }),
@@ -80,15 +85,64 @@ describe('docs set skill CTA resolution', () => {
     expect(normalizeSkills(resolved)?.items).toEqual([
       {
         type: 'claude',
-        href: '/plugins/payload-markdown/skills/claude/SKILL.md',
+        href: '/plugins/payload-markdown/skills/claude.zip',
         icon: 'claude',
         label: 'Claude skill',
       },
       {
         type: 'codex',
-        href: '/plugins/payload-markdown/skills/codex/SKILL.md',
+        href: '/plugins/payload-markdown/skills/codex.zip',
         icon: 'codex',
         label: 'Codex skill',
+      },
+    ])
+  })
+
+  it('does not create auto skill buttons from supporting files alone', async () => {
+    const resolved = await resolveDocsSetSkills({
+      docsSet: {
+        id: 'set-1',
+      },
+      payload: {
+        find: vi.fn(() =>
+          Promise.resolve({
+            docs: [
+              {
+                docsSet: 'set-1',
+                kind: 'skill',
+                route: '/plugins/payload-markdown/skills/codex/reference/workflow.md',
+                sourcePath: 'skills/payload-markdown/codex/reference/workflow.md',
+              },
+            ],
+          }),
+        ),
+      },
+      skills: {
+        display: 'buttons',
+        enabled: true,
+      },
+    })
+
+    expect(normalizeSkills(resolved)).toBeUndefined()
+  })
+
+  it('preserves manual skill CTA hrefs', () => {
+    expect(
+      normalizeSkills({
+        enabled: true,
+        items: [
+          {
+            type: 'custom',
+            href: '/custom/skill-link',
+            label: 'Custom skill',
+          },
+        ],
+      })?.items,
+    ).toEqual([
+      {
+        type: 'custom',
+        href: '/custom/skill-link',
+        label: 'Custom skill',
       },
     ])
   })

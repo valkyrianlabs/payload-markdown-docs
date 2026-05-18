@@ -173,6 +173,8 @@ serve canonical public routes outside `/api`:
 /plugins/<docs-set>/llms-full.txt
 /plugins/<docs-set>/skills/<agent>
 /plugins/<docs-set>/skills/<agent>/SKILL.md
+/plugins/<docs-set>/skills/<agent>.zip
+/plugins/<docs-set>/skills/<agent>/<path...>
 ```
 
 Useful flags:

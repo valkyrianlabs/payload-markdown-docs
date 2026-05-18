@@ -82,7 +82,9 @@ the plugin stores them as raw asset records and serves them through asset handle
 such as
 `/plugins/payload-markdown-docs/skills/codex`,
 `/plugins/payload-markdown-docs/skills/codex/SKILL.md`, and
-`/plugins/payload-markdown-docs/skills/claude`.
+`/plugins/payload-markdown-docs/skills/codex.zip`. The extensionless agent route
+is a generated Markdown directory index; raw files remain under
+`/skills/<agent>/<path...>`.
 
 In a Next App Router app, public raw asset URLs need filesystem route files that
 delegate to the asset handlers:

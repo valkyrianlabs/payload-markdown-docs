@@ -75,7 +75,10 @@ default, `/llms.txt`, `/llms-full.txt`, and docs-set `llms` files are generated
 by the plugin from synced docs, docs set metadata, dependencies, and skills.
 Skill routes are derived from the computed docs set route, so
 `skills/main-docs/codex/SKILL.md` serves under a public route such as
-`/plugins/main-docs/skills/codex/SKILL.md`.
+`/plugins/main-docs/skills/codex/SKILL.md`. The agent root route, for example
+`/plugins/main-docs/skills/codex`, is generated as a Markdown directory index,
+and `/plugins/main-docs/skills/codex.zip` is generated from the synced text
+artifacts rather than stored as a static ZIP asset.
 
 :::callout {variant="info" title="No target config in the manifest"}
 The manifest does not include target collection, target fields, route identity,

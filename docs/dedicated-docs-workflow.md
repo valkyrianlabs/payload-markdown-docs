@@ -187,6 +187,7 @@ routes outside `/api`, including:
 /<computed-docs-set-route>/llms-full.txt
 /<computed-docs-set-route>/skills/<agent>
 /<computed-docs-set-route>/skills/<agent>/SKILL.md
+/<computed-docs-set-route>/skills/<agent>.zip
 ```
 
 If public asset route files are missing, `/api/...` asset URLs can work while

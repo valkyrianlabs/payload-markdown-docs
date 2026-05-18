@@ -188,7 +188,7 @@ export function SetLandingPage({
           {
             label: 'Codex skill',
             type: 'codex',
-            href: '/plugins/payload-markdown-docs/skills/codex',
+            href: '/plugins/payload-markdown-docs/skills/codex.zip',
           },
         ],
       }}

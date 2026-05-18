@@ -72,6 +72,7 @@ export type DocsWhereValue = boolean | null | number | string
 
 export type DocsWhereCondition = {
   equals?: DocsWhereValue
+  not_equals?: DocsWhereValue
 }
 
 export type DocsWhere = {

@@ -5,6 +5,8 @@ import {
   deriveAssetRouteFromSourcePath,
   deriveRouteFromSourcePath,
   deriveSkillArchiveRouteFromSourcePath,
+  deriveSkillDirectoryIndexRouteFromSourcePath,
+  deriveSkillIndexRouteFromSourcePath,
   normalizeAssetPath,
   normalizeDocsPath,
   parseDocsFrontmatter,
@@ -226,6 +228,27 @@ describe('asset route derivation', () => {
         sourcePath: 'skills/main-docs/codex/SKILL.md',
       }),
     ).toBe('/plugins/main-docs/skills/codex.zip')
+    expect(
+      deriveSkillIndexRouteFromSourcePath({
+        routeBase: '/plugins/main-docs',
+        sourceId: 'main-docs',
+        sourcePath: 'skills/main-docs/codex/SKILL.md',
+      }),
+    ).toBe('/plugins/main-docs/skills/codex')
+    expect(
+      deriveSkillDirectoryIndexRouteFromSourcePath({
+        routeBase: '/plugins/main-docs',
+        sourceId: 'main-docs',
+        sourcePath: 'skills/main-docs/codex/reference/docs-package.md',
+      }),
+    ).toBe('/plugins/main-docs/skills/codex/reference')
+    expect(
+      deriveSkillDirectoryIndexRouteFromSourcePath({
+        routeBase: '/plugins/main-docs',
+        sourceId: 'main-docs',
+        sourcePath: 'skills/main-docs/codex/../secret.md',
+      }),
+    ).toBeUndefined()
   })
 })
 

@@ -28,6 +28,8 @@ export {
   deriveAssetRouteFromSourcePath,
   deriveRouteFromSourcePath,
   deriveSkillArchiveRouteFromSourcePath,
+  deriveSkillDirectoryIndexRouteFromSourcePath,
+  deriveSkillIndexRouteFromSourcePath,
   normalizeAssetPath,
   normalizeDocsPath,
 } from './paths.js'
