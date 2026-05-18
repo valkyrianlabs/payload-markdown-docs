@@ -228,6 +228,7 @@ describe('manifest command', () => {
   it('prints a JSON manifest', async () => {
     const root = await createTempRoot()
     await writeTempFile(root, 'index.md', '# Home\n')
+    process.chdir(root)
 
     const result = await runCli(['manifest', root, '--source', 'main-docs'])
     const manifest = JSON.parse(result.stdout ?? '{}') as {
@@ -483,6 +484,7 @@ describe('push command', () => {
 
   it('defaults to sync and signs a JSON manifest body', async () => {
     const root = await createDocsRoot()
+    process.chdir(root)
     const { requests, result } = await pushArgs(root)
     const request = requests[0]
     const manifest = JSON.parse(request?.body ?? '{}') as {
