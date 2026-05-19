@@ -1,123 +1,125 @@
-import type { Block } from 'payload'
+import type { Block, Field } from 'payload'
 
-import {
-  backgroundMediaFields,
-  ctaButtonsField,
-  docsSetRelationshipField,
-  validateDocsSetHeadingFallback,
-} from '../../fields/index.js'
-import { skillCTAFields } from '../../fields/skills.js'
+import { docsSetRelationshipField } from '../../fields/index.js'
+
+const docsLinkCondition = (_data: unknown, siblingData: Record<string, unknown>) =>
+  siblingData?.actionType === 'docsLink'
+
+const overrideContentCondition = (_data: unknown, siblingData: Record<string, unknown>) =>
+  siblingData?.overrideContent === true
+
+const skillsCondition = (_data: unknown, siblingData: Record<string, unknown>) =>
+  siblingData?.actionType === 'skills'
 
 export const DocsCTABlock: Block = {
   slug: 'docsCTA',
   fields: [
-    docsSetRelationshipField(),
+    docsSetRelationshipField({
+      required: true,
+    }),
     {
-      name: 'eyebrow',
-      type: 'text',
+      name: 'actionType',
+      type: 'radio',
       admin: {
-        description: 'Small uppercase pre-heading text rendered above the main heading.',
+        layout: 'horizontal',
       },
-    },
-    {
-      name: 'badges',
-      type: 'array',
-      admin: {
-        description:
-          'Small pill labels rendered near the heading for status, version, category, or launch metadata.',
-        initCollapsed: true,
-      },
-      fields: [
+      defaultValue: 'docsLink',
+      options: [
         {
-          name: 'label',
-          type: 'text',
-          required: true,
+          label: 'Link to docs',
+          value: 'docsLink',
+        },
+        {
+          label: 'Skill buttons',
+          value: 'skills',
         },
       ],
+      required: true,
+    },
+    {
+      name: 'overrideContent',
+      type: 'checkbox',
+      defaultValue: false,
+      label: 'Override title and description',
     },
     {
       name: 'heading',
       type: 'text',
       admin: {
-        description: 'Required unless the selected docs set provides a title.',
+        condition: overrideContentCondition,
       },
-      validate: validateDocsSetHeadingFallback(),
+      label: 'Title override',
     },
     {
       name: 'description',
       type: 'textarea',
       admin: {
-        description: 'Optional description override. Defaults to the selected docs set description.',
+        condition: overrideContentCondition,
       },
-    },
-    {
-      type: 'row',
-      fields: [
-        {
-          name: 'layout',
-          type: 'select',
-          admin: {
-            width: '50%',
-          },
-          defaultValue: 'centered',
-          options: [
-            {
-              label: 'Centered',
-              value: 'centered',
-            },
-            {
-              label: 'Split',
-              value: 'split',
-            },
-            {
-              label: 'Inline',
-              value: 'inline',
-            },
-            {
-              label: 'Card',
-              value: 'card',
-            },
-          ],
-        },
-        {
-          name: 'theme',
-          type: 'select',
-          admin: {
-            width: '50%',
-          },
-          defaultValue: 'default',
-          options: [
-            {
-              label: 'Default',
-              value: 'default',
-            },
-            {
-              label: 'Muted',
-              value: 'muted',
-            },
-            {
-              label: 'Dark',
-              value: 'dark',
-            },
-            {
-              label: 'Brand',
-              value: 'brand',
-            },
-          ],
-        },
-      ],
+      label: 'Description override',
     },
     {
       name: 'docsLabel',
       type: 'text',
       admin: {
-        description: 'Label for the fallback link to the selected docs set.',
+        condition: docsLinkCondition,
       },
       defaultValue: 'Read the docs',
     },
-    ctaButtonsField(),
-    backgroundMediaFields(),
-    skillCTAFields(),
+    {
+      name: 'skillOverrides',
+      type: 'array',
+      admin: {
+        condition: skillsCondition,
+        description:
+          'Optional label and description overrides keyed by detected skill agent. Skill buttons are derived from docs assets for the selected docs set.',
+        initCollapsed: true,
+      },
+      fields: [
+        {
+          name: 'agent',
+          type: 'text',
+          admin: {
+            description:
+              'Must match a detected skill agent from the selected docs set, such as codex or claude. Do not hardcode options.',
+          },
+          required: true,
+        },
+        {
+          name: 'label',
+          type: 'text',
+          admin: {
+            description: 'Optional override for the detected skill label.',
+          },
+        },
+        {
+          name: 'description',
+          type: 'textarea',
+          admin: {
+            description: 'Optional override for the detected skill description.',
+          },
+        },
+      ] satisfies Field[],
+      labels: {
+        plural: 'Skill overrides',
+        singular: 'Skill override',
+      },
+    },
+    {
+      name: 'variant',
+      type: 'select',
+      defaultValue: 'default',
+      options: [
+        {
+          label: 'Default',
+          value: 'default',
+        },
+        {
+          label: 'Subtle',
+          value: 'subtle',
+        },
+      ],
+    },
   ],
   interfaceName: 'DocsCTABlock',
   labels: {

@@ -4,6 +4,7 @@ import type {
   DocsAssetReference,
   DocsBackgroundMediaInput,
   DocsCTAButtonInput,
+  DocsCTASkillOverride,
   DocsMediaReference,
   DocsPageReference,
   DocsRelationship,
@@ -23,6 +24,7 @@ import {
   getDocsSetTitle,
   getText,
   getTypedDocsPageHref,
+  getTypedDocsSetDocsHref,
   getTypedDocsSetPublicHref,
   isRecord,
 } from '../utilities/normalizeShared.js'
@@ -48,19 +50,30 @@ type DocsMarketingBlocksPayloadOperations = {
   findByID: (args: {
     collection: string
     depth?: number
+    draft?: boolean
     id: DocsRelationshipID
+    locale?: string
     overrideAccess?: boolean
-  }) => Promise<DocsMediaReference | DocsPageReference | DocsSetReference | null>
+    user?: unknown
+  }) => Promise<(DocsMediaReference | DocsPageReference | DocsSetReference | Record<string, unknown>) | null>
 }
 
 type DocsMarketingBlockRecord = {
+  action?: null | Record<string, unknown>
+  actionType?: null | string
   background?: DocsBackgroundMediaInput | null
   blockType?: null | string
   ctaButtons?: DocsCTAButtonInput[] | null
+  description?: null | string
+  docsLabel?: null | string
   docsPage?: DocsRelationship<DocsPageReference> | null
   docsSet?: DocsRelationship<DocsSetReference> | null
+  heading?: null | string
   image?: DocsRelationship<DocsMediaReference> | null
+  overrideContent?: boolean | null
+  skillOverrides?: DocsCTASkillOverride[] | null
   skills?: null | SkillCTAGroupInput
+  title?: null | string
 } & Record<string, unknown>
 
 type ResolverContext = {
@@ -73,16 +86,14 @@ type ResolverContext = {
 
 type DocsBackgroundMediaRecord = DocsBackgroundMediaInput & Record<string, unknown>
 
-const docsMarketingBlockTypes = new Set<string>([
-  'docsBanner',
-  'docsCallout',
-  'docsCTA',
-  'docsPreview',
-])
+const docsMarketingBlockTypes = new Set<string>(['docsCTA'])
+const legacyDocsMarketingBlockTypes = new Set<string>(['cta'])
 
 const isDocsMarketingBlockRecord = (value: unknown): value is DocsMarketingBlockRecord =>
   isRecord(value) &&
-  ((typeof value.blockType === 'string' && docsMarketingBlockTypes.has(value.blockType)) ||
+  ((typeof value.blockType === 'string' &&
+    (docsMarketingBlockTypes.has(value.blockType) ||
+      legacyDocsMarketingBlockTypes.has(value.blockType))) ||
     isDocsSetHeroType(value.type))
 
 const shouldHydrateDocsSet = (
@@ -98,14 +109,17 @@ const shouldHydrateDocsSet = (
 
   const record = getDocsRelationshipRecord(docsSet)
   const group = getDocsRelationshipRecord(record?.group)
-  const productNestedNeedsGroupRoute =
+  const productNestedNeedsDocsRoute =
     record?.routeMode === 'product-nested' &&
-    !getText(record.productRoute) &&
     !getText(record.routeBase) &&
     !getText(group?.routePath) &&
     !getText(group?.slug)
 
-  return productNestedNeedsGroupRoute || !getTypedDocsSetPublicHref(docsSet)
+  return (
+    productNestedNeedsDocsRoute ||
+    !getTypedDocsSetPublicHref(docsSet) ||
+    !getTypedDocsSetDocsHref(docsSet)
+  )
 }
 
 const shouldHydrateDocsPage = (
@@ -287,7 +301,72 @@ const resolveSkills = async (
   })
 }
 
-const resolveDocsMarketingBlock = async (
+const getDocsCTAActionType = (block: DocsMarketingBlockRecord): 'docsLink' | 'skills' => {
+  if (block.actionType === 'skills' || block.actionType === 'docsLink') {
+    return block.actionType
+  }
+
+  if (block.action?.type === 'skills' || block.skills?.enabled === true) {
+    return 'skills'
+  }
+
+  return 'docsLink'
+}
+
+const normalizeLegacyDocsCTAFields = (block: DocsMarketingBlockRecord): void => {
+  if (block.blockType === 'cta') {
+    block.blockType = 'docsCTA'
+  }
+
+  block.actionType = getDocsCTAActionType(block)
+
+  if (!getText(block.heading) && getText(block.title)) {
+    block.heading = block.title
+  }
+
+  if (
+    (block.overrideContent === undefined || block.overrideContent === null) &&
+    (getText(block.heading) || getText(block.description))
+  ) {
+    block.overrideContent = true
+  }
+
+  if (!getText(block.docsLabel) && block.action?.type === 'docsLink') {
+    block.docsLabel = getText(block.action.label as null | string | undefined)
+  }
+}
+
+const resolveDocsCTASkills = async (
+  block: DocsMarketingBlockRecord,
+  context: ResolverContext,
+): Promise<SkillCTAGroupInput | undefined> => {
+  if (block.actionType !== 'skills') {
+    return block.skills ?? undefined
+  }
+
+  return resolveDocsSetSkills({
+    collectionSlug: context.options.docsAssetsCollectionSlug,
+    docsSet: block.docsSet,
+    payload: context.payload,
+    skills: {
+      ...(block.skills ?? {}),
+      display: block.skills?.display ?? 'buttons',
+      enabled: true,
+      skillOverrides: block.skillOverrides,
+    },
+  })
+}
+
+const resolveDocsCTABlock = async (
+  block: DocsMarketingBlockRecord,
+  context: ResolverContext,
+): Promise<void> => {
+  normalizeLegacyDocsCTAFields(block)
+  block.docsSet = await resolveDocsSet(block.docsSet, context)
+  block.skills = await resolveDocsCTASkills(block, context)
+}
+
+const resolveDocsSetHeroBlock = async (
   block: DocsMarketingBlockRecord,
   context: ResolverContext,
 ): Promise<void> => {
@@ -297,6 +376,19 @@ const resolveDocsMarketingBlock = async (
   block.image = await resolveMedia(block.image, context)
   block.ctaButtons = await resolveCTAButtons(block.ctaButtons, context)
   block.skills = await resolveSkills(block, context)
+}
+
+const resolveDocsMarketingBlock = async (
+  block: DocsMarketingBlockRecord,
+  context: ResolverContext,
+): Promise<void> => {
+  if (block.blockType === 'docsCTA' || block.blockType === 'cta') {
+    await resolveDocsCTABlock(block, context)
+
+    return
+  }
+
+  await resolveDocsSetHeroBlock(block, context)
 }
 
 const traverseValue = async (value: unknown, context: ResolverContext): Promise<void> => {

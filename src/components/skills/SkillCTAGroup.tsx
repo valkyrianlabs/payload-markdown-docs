@@ -88,14 +88,14 @@ export const SkillCTAGroup = ({
               <a
                 className="flex min-h-28 flex-col justify-center rounded-lg border border-border bg-white/[0.04] p-4 shadow-sm shadow-slate-950/5 transition-colors hover:bg-white/[0.08]"
                 href={item.href}
-                key={`${item.type}-${item.label}`}
+                key={`${item.agent}-${item.label}`}
               >
                 {body}
               </a>
             ) : (
               <div
                 className="flex min-h-28 flex-col justify-center rounded-lg border border-border bg-white/[0.04] p-4"
-                key={`${item.type}-${item.label}`}
+                key={`${item.agent}-${item.label}`}
               >
                 {body}
               </div>
@@ -121,7 +121,7 @@ export const SkillCTAGroup = ({
             <a
               className="inline-flex min-h-11 min-w-0 max-w-full basis-full items-center justify-center gap-2 rounded-lg border border-border bg-white/[0.05] px-4 py-2.5 text-center text-sm font-semibold text-foreground shadow-sm shadow-slate-950/5 transition-colors hover:bg-white/[0.1] sm:basis-auto"
               href={item.href}
-              key={`${item.type}-${item.label}`}
+              key={`${item.agent}-${item.label}`}
             >
               {item.icon ? (
                 <span aria-hidden="true" className="text-xs uppercase tracking-wide text-cyan-300">
@@ -133,7 +133,7 @@ export const SkillCTAGroup = ({
           ) : (
             <span
               className="inline-flex min-h-11 min-w-0 max-w-full basis-full items-center justify-center gap-2 rounded-lg border border-border bg-white/[0.04] px-4 py-2.5 text-center text-sm font-semibold text-foreground/70 sm:basis-auto"
-              key={`${item.type}-${item.label}`}
+              key={`${item.agent}-${item.label}`}
             >
               {item.icon ? (
                 <span aria-hidden="true" className="text-xs uppercase tracking-wide text-cyan-300">

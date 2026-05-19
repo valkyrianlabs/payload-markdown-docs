@@ -6,25 +6,19 @@ import type {
 
 export type ResolvedDocsBlockSelection = Record<DocsMarketingBlockKey, boolean>
 
-export const docsMarketingBlockKeys = ['cta', 'preview', 'callout', 'banner'] as const
+export const docsMarketingBlockKeys = ['docsCTA'] as const
 
 const emptySelection = (): ResolvedDocsBlockSelection => ({
-  banner: false,
-  callout: false,
-  cta: false,
-  preview: false,
+  docsCTA: false,
 })
 
 const allSelection = (): ResolvedDocsBlockSelection => ({
-  banner: true,
-  callout: true,
-  cta: true,
-  preview: true,
+  docsCTA: true,
 })
 
 const isSelectionObject = (
   selection: DocsBlockInstallSelection | undefined,
-): selection is Partial<Record<DocsMarketingBlockKey, boolean>> =>
+): selection is Exclude<DocsBlockInstallSelection, boolean> =>
   typeof selection === 'object' && selection !== null && !Array.isArray(selection)
 
 export const resolveBlockSelection = (
@@ -51,7 +45,9 @@ export const resolveBlockSelection = (
     }
   }
 
-  return docsMarketingBlockKeys.reduce<ResolvedDocsBlockSelection>(
+  const legacyCTASelection = selection.cta
+
+  const resolved = docsMarketingBlockKeys.reduce<ResolvedDocsBlockSelection>(
     (resolved, key) => {
       if (typeof selection[key] === 'boolean') {
         resolved[key] = selection[key]
@@ -63,6 +59,12 @@ export const resolveBlockSelection = (
       ...base,
     },
   )
+
+  if (typeof legacyCTASelection === 'boolean' && typeof selection.docsCTA !== 'boolean') {
+    resolved.docsCTA = legacyCTASelection
+  }
+
+  return resolved
 }
 
 export const resolveCollectionBlockSelection = ({

@@ -130,7 +130,7 @@ const staleDocsPatterns = [
 ]
 
 const rootBlockImportPattern =
-  /import\s*\{[^}]*\b(?:DocsBannerBlock|DocsCalloutBlock|DocsCTABlock|DocsPreviewBlock|backgroundMediaFields|buttonField|ctaButtonsField|linkField|linksArrayField|skillCTAFields)\b[^}]*\}\s*from\s*['"]@valkyrianlabs\/payload-markdown-docs['"]/
+  /import\s*\{[^}]*\b(?:DocsCTABlock|backgroundMediaFields|buttonField|ctaButtonsField|linkField|linksArrayField|skillCTAFields)\b[^}]*\}\s*from\s*['"]@valkyrianlabs\/payload-markdown-docs['"]/
 
 describe('documentation and skill drift guard', () => {
   it('keeps served skill contracts aligned with current push and asset behavior', async () => {

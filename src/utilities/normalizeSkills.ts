@@ -1,5 +1,6 @@
 import type {
   DocsAssetReference,
+  DocsCTASkillOverride,
   DocsPageReference,
   DocsRelationship,
   DocsSetReference,
@@ -8,12 +9,11 @@ import type {
   NormalizedSkillCTAItem,
   SkillCTAGroupInput,
   SkillCTAItemInput,
-  SkillCTAType,
 } from '../marketing/types.js'
 import type { SkillBundleAsset } from '../skillBundles.js'
 
 import { DEFAULT_DOCS_ASSETS_COLLECTION_SLUG } from '../constants.js'
-import { getSkillBundles } from '../skillBundles.js'
+import { formatSkillAgentTitle, getSkillBundles } from '../skillBundles.js'
 import {
   getBoolean,
   getRelationshipId,
@@ -21,8 +21,6 @@ import {
   getString,
   isRecord,
 } from './normalizeShared.js'
-
-const skillTypes: SkillCTAType[] = ['claude', 'codex', 'custom']
 
 export type SkillAssetPayloadOperations = {
   find: (args: {
@@ -37,13 +35,33 @@ export type SkillAssetPayloadOperations = {
   }>
 }
 
-const getSkillType = (value: null | string | undefined): SkillCTAType =>
-  typeof value === 'string' && skillTypes.includes(value as SkillCTAType)
-    ? (value as SkillCTAType)
-    : 'custom'
+const getSkillAgent = (value: null | string | undefined): string | undefined => {
+  const agent = getString(value)
 
-const formatAgentLabel = (agent: string): string =>
-  `${agent.charAt(0).toUpperCase()}${agent.slice(1)} skill`
+  return agent ? agent.toLowerCase() : undefined
+}
+
+const getSkillLabel = (agent: string): string => `${formatSkillAgentTitle(agent)} skill`
+
+const getOverridesByAgent = (
+  overrides: DocsCTASkillOverride[] | null | undefined,
+): Map<string, DocsCTASkillOverride> => {
+  const overridesByAgent = new Map<string, DocsCTASkillOverride>()
+
+  if (!Array.isArray(overrides)) {
+    return overridesByAgent
+  }
+
+  for (const override of overrides) {
+    const agent = getSkillAgent(override.agent)
+
+    if (agent) {
+      overridesByAgent.set(agent, override)
+    }
+  }
+
+  return overridesByAgent
+}
 
 type LegacySkillCTAItemInput = {
   routeReference?: DocsRelationship<DocsPageReference> | null
@@ -57,15 +75,19 @@ const normalizeSkillItem = (
   }
 
   const label = getString(input.label)
+  const href = getString(input.href) ?? getString(input.url) ?? getRouteLikeHref(input.routeReference)
 
-  if (!label) {
+  if (!label || !href) {
     return undefined
   }
 
+  const agent = getSkillAgent(input.agent) ?? getSkillAgent(input.type) ?? 'custom'
+
   return {
-    type: getSkillType(input.type),
+    type: getString(input.type),
+    agent,
     description: getString(input.description),
-    href: getString(input.href) ?? getString(input.url) ?? getRouteLikeHref(input.routeReference),
+    href,
     icon: getString(input.icon),
     label,
   }
@@ -73,11 +95,13 @@ const normalizeSkillItem = (
 
 export const normalizeSkillAssetItems = (
   input: DocsAssetReference[],
-  options: { docsSetId?: string } = {},
+  options: { docsSetId?: string; skillOverrides?: DocsCTASkillOverride[] | null } = {},
 ): NormalizedSkillCTAItem[] => {
+  const overridesByAgent = getOverridesByAgent(options.skillOverrides)
   const assets = input.flatMap((asset): SkillBundleAsset[] => {
     if (
       asset.kind !== 'skill' ||
+      asset.sync?.archived === true ||
       (options.docsSetId && getRelationshipId(asset.docsSet) !== options.docsSetId)
     ) {
       return []
@@ -94,12 +118,18 @@ export const normalizeSkillAssetItems = (
   })
 
   return getSkillBundles(assets)
-    .map((bundle) => ({
-      type: getSkillType(bundle.agent),
-      href: bundle.archiveRoute,
-      icon: bundle.agent,
-      label: formatAgentLabel(bundle.agent),
-    }))
+    .map((bundle) => {
+      const override = overridesByAgent.get(bundle.agent.toLowerCase())
+
+      return {
+        type: bundle.agent,
+        agent: bundle.agent,
+        description: getString(override?.description),
+        href: bundle.archiveRoute,
+        icon: bundle.agent,
+        label: getString(override?.label) ?? bundle.title ?? getSkillLabel(bundle.agent),
+      }
+    })
     .sort((first, second) => first.label.localeCompare(second.label))
 }
 
@@ -158,6 +188,7 @@ export const resolveDocsSetSkills = async ({
     ...skills,
     resolvedItems: normalizeSkillAssetItems(result.docs, {
       docsSetId,
+      skillOverrides: skills.skillOverrides,
     }),
   }
 }

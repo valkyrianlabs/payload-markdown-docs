@@ -1,130 +1,107 @@
 import type { DocsCTAProps } from '../../marketing/types.js'
 
-import { normalizeCTAButtons } from '../../utilities/index.js'
-import { getDocsSetDescription, getDocsSetTitle, getText } from '../../utilities/normalizeShared.js'
-import { SkillCTAGroup } from '../skills/SkillCTAGroup.js'
+import { normalizeSkills } from '../../utilities/index.js'
 import {
-  ActionGroup,
-  cx,
-  DecorativeBackgroundLayer,
-  getFallbackAction,
-  Heading,
-  normalizeBadges,
-  resolveOptionalText,
-  resolveRequiredHeading,
-  TextContent,
-  themeClasses,
-} from './shared.js'
+  getDocsSetDescription,
+  getDocsSetTitle,
+  getText,
+  getTypedDocsSetDocsHref,
+} from '../../utilities/normalizeShared.js'
+import { ActionLink, cx, Heading, TextContent } from './shared.js'
 
-export const DocsCTA = (props: DocsCTAProps) => {
-  const {
-    background,
-    badges: inputBadges,
-    className,
-    containerClassName,
-    ctaButtons,
-    description,
-    docsLabel,
-    docsSet,
-    eyebrow,
-    heading,
-    headingLevel = 2,
-    layout = 'centered',
-    skills,
-    theme = 'default',
-  } = props
-  const legacyProps = props as { docsUrl?: null | string } & DocsCTAProps
-  const legacyDocsUrl = getText(legacyProps.docsUrl)
-  const resolvedHeading = resolveRequiredHeading({
-    blockType: 'docsCTA',
-    fallbackLabel: 'selected docs set',
-    fallbackTitle: getDocsSetTitle(docsSet),
-    value: heading,
-  })
-  const resolvedDescription = resolveOptionalText(description, getDocsSetDescription(docsSet))
-  const actions = normalizeCTAButtons(
-    ctaButtons,
-    getFallbackAction({
-      docsLabel,
-      docsSet,
-      docsUrl: legacyDocsUrl,
-    }),
-    {
-      docsSet,
-    },
-  )
-  const badges = normalizeBadges(inputBadges)
-  const resolvedTheme = theme ?? 'default'
-  const centered = layout === 'centered' || layout === 'card'
+const variantClasses: Record<NonNullable<DocsCTAProps['variant']>, string> = {
+  default: 'border-cyan-500/25 bg-cyan-500/[0.08]',
+  subtle: 'border-border bg-muted/35',
+}
+
+const isProduction = (): boolean => process.env.NODE_ENV === 'production'
+
+export const DocsCTA = ({
+  actionType = 'docsLink',
+  className,
+  containerClassName,
+  description,
+  docsLabel,
+  docsSet,
+  heading,
+  headingLevel = 2,
+  overrideContent,
+  skills: inputSkills,
+  title,
+  variant = 'default',
+}: DocsCTAProps) => {
+  const resolvedVariant = variant ?? 'default'
+  const contentIsOverridden = overrideContent === true
+  const resolvedTitle = contentIsOverridden
+    ? getText(heading) ?? getText(title)
+    : getDocsSetTitle(docsSet) ?? getText(heading) ?? getText(title)
+  const resolvedDescription = contentIsOverridden
+    ? description
+    : (getDocsSetDescription(docsSet) ?? description)
+  const resolvedActionType = actionType ?? 'docsLink'
+  const docsHref = resolvedActionType === 'docsLink' ? getTypedDocsSetDocsHref(docsSet) : undefined
+  const skills = resolvedActionType === 'skills' ? normalizeSkills(inputSkills) : undefined
+
+  if (!resolvedTitle) {
+    throw new Error(
+      '[payload-markdown-docs] docsCTA requires a selected docs set with a title or a title override.',
+    )
+  }
+
+  if (resolvedActionType === 'docsLink' && !docsHref && !isProduction()) {
+    throw new Error(
+      '[payload-markdown-docs] docsCTA docsLink action requires a selected docs set with a docs route.',
+    )
+  }
 
   return (
     <section
-      className={cx(
-        'relative isolate overflow-visible py-16 md:py-20',
-        themeClasses[resolvedTheme],
-        layout === 'card'
-          ? 'rounded-2xl border border-border shadow-xl shadow-slate-950/5'
-          : undefined,
-        className,
-      )}
+      className={cx('my-8', className)}
       data-payload-markdown-docs-block="docsCTA"
     >
-      <DecorativeBackgroundLayer background={background}>
-        <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(8,145,178,0.1),transparent_42%,rgba(16,185,129,0.08))]" />
-      </DecorativeBackgroundLayer>
       <div
         className={cx(
-          'relative z-10 mx-auto w-full max-w-6xl px-6 lg:px-8',
-          layout === 'inline'
-            ? 'flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between'
-            : 'grid gap-8',
-          layout === 'split'
-            ? 'lg:grid-cols-[minmax(0,1fr)_minmax(16rem,auto)] lg:items-center'
-            : undefined,
-          centered ? 'text-center' : undefined,
+          'mx-auto grid w-full max-w-3xl gap-4 rounded-lg border p-5 md:grid-cols-[minmax(0,1fr)_auto] md:items-center',
+          variantClasses[resolvedVariant],
           containerClassName,
         )}
       >
-        <div className={cx(centered ? 'mx-auto max-w-3xl' : 'max-w-3xl')}>
-          {eyebrow ? (
-            <p className="mb-3 text-sm font-medium uppercase tracking-wide text-cyan-300">
-              {eyebrow}
-            </p>
-          ) : null}
-          {badges.length > 0 ? (
-            <div className={cx('mb-4 flex flex-wrap gap-2', centered ? 'justify-center' : '')}>
-              {badges.map((badge) => (
-                <span
-                  className="rounded-full border border-cyan-300/25 px-3 py-1 text-xs font-medium text-cyan-200"
-                  key={badge}
-                >
-                  {badge}
-                </span>
-              ))}
-            </div>
-          ) : null}
-          <Heading
-            className="text-3xl font-semibold tracking-tight text-foreground md:text-4xl"
-            level={headingLevel}
-          >
-            {resolvedHeading}
+        <div className="min-w-0">
+          <Heading className="text-lg font-semibold leading-snug text-foreground" level={headingLevel}>
+            {resolvedTitle}
           </Heading>
-          <TextContent className="mt-4 text-base leading-7 text-foreground/70 md:text-lg">
+          <TextContent className="mt-1 text-sm leading-6 text-foreground/70">
             {resolvedDescription}
           </TextContent>
         </div>
-        <ActionGroup
-          actions={actions}
-          className={cx(
-            centered ? 'justify-center' : undefined,
-            layout === 'split' ? 'lg:justify-end' : undefined,
-          )}
-        />
-        <SkillCTAGroup
-          align={centered ? 'center' : 'left'}
-          className={cx(layout === 'inline' ? 'w-full lg:basis-full' : undefined)}
-          skills={skills}
-        />
+        {resolvedActionType === 'docsLink' && docsHref ? (
+          <ActionLink
+            action={{
+              href: docsHref,
+              label: getText(docsLabel) ?? 'Read the docs',
+              variant: 'primary',
+            }}
+            className="shrink-0"
+          />
+        ) : null}
+        {resolvedActionType === 'skills' && skills ? (
+          <div className="grid gap-2 md:min-w-56">
+            {skills.items.map((skill) => (
+              <a
+                className="rounded-md border border-border bg-background/60 px-3 py-2 text-sm transition-colors hover:bg-background"
+                href={skill.href}
+                key={`${skill.agent}-${skill.href}`}
+              >
+                <span className="block font-medium text-foreground">{skill.label}</span>
+                {skill.description ? (
+                  <span className="mt-0.5 block text-xs leading-5 text-foreground/65">
+                    {skill.description}
+                  </span>
+                ) : null}
+              </a>
+            ))}
+          </div>
+        ) : null}
       </div>
     </section>
   )

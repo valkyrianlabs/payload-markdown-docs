@@ -388,7 +388,7 @@ export interface Page {
       description?: string | null;
     };
   };
-  layout: (MarkdownBlock | DocsCTABlock | DocsPreviewBlock | DocsCalloutBlock | DocsBannerBlock)[];
+  layout: (MarkdownBlock | CTABlock | DocsSnippetCalloutBlock)[];
   meta?: {
     title?: string | null;
     description?: string | null;
@@ -610,279 +610,79 @@ export interface DocsSyncRun {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "DocsCTABlock".
+ * via the `definition` "CTABlock".
  */
-export interface DocsCTABlock {
-  /**
-   * Select the docs set this block should reference. Links, page choices, and skill buttons are derived from this set.
-   */
-  docsSet?: (number | null) | DocsSet;
-  /**
-   * Small uppercase pre-heading text rendered above the main heading.
-   */
-  eyebrow?: string | null;
-  /**
-   * Small pill labels rendered near the heading for status, version, category, or launch metadata.
-   */
-  badges?:
-    | {
-        label: string;
-        id?: string | null;
-      }[]
-    | null;
-  /**
-   * Required unless the selected docs set provides a title.
-   */
-  heading?: string | null;
-  /**
-   * Optional description override. Defaults to the selected docs set description.
-   */
+export interface CTABlock {
+  title: string;
   description?: string | null;
-  layout?: ('centered' | 'split' | 'inline' | 'card') | null;
-  theme?: ('default' | 'muted' | 'dark' | 'brand') | null;
-  /**
-   * Label for the fallback link to the selected docs set.
-   */
-  docsLabel?: string | null;
-  ctaButtons?:
-    | {
-        label?: string | null;
-        variant?: ('primary' | 'secondary' | 'outline' | 'ghost' | 'link') | null;
-        target?: ('set' | 'setPage' | 'custom') | null;
-        newTab?: boolean | null;
-        /**
-         * Select a docs page from the selected docs set.
-         */
-        page?: (number | null) | Doc;
-        /**
-         * Custom URL used only when the button target is Custom URL.
-         */
-        url?: string | null;
-        /**
-         * Optional icon name. SVG/icon rendering requires renderer or plugin icon support.
-         */
-        icon?: string | null;
-        id?: string | null;
-      }[]
-    | null;
-  /**
-   * Optional decorative background media and overlay controls.
-   */
-  background?: {
-    media?: (number | null) | Media;
-    position?: ('center' | 'top' | 'bottom' | 'left' | 'right') | null;
-    /**
-     * Show fit, overlay, opacity, variant, and gradient controls.
-     */
-    advancedControls?: boolean | null;
-    overlay?: boolean | null;
-    /**
-     * 0 to 95.
-     */
-    overlayOpacity?: number | null;
-    overlayVariant?: ('dark' | 'light' | 'brand' | 'gradient') | null;
-    fit?: ('cover' | 'contain' | 'fill') | null;
-    gradient?: ('none' | 'subtle' | 'brand') | null;
+  action: {
+    type: 'docsLink' | 'skills';
+    label?: string | null;
+    doc?: {
+      relationTo: 'docs';
+      value: number | Doc;
+    } | null;
+    skills?:
+      | {
+          label: string;
+          doc: {
+            relationTo: 'docs';
+            value: number | Doc;
+          };
+          description?: string | null;
+          id?: string | null;
+        }[]
+      | null;
   };
-  /**
-   * Feature available skill downloads from the selected docs set.
-   */
-  skills?: {
-    enabled?: boolean | null;
-    display?: ('buttons' | 'tabs' | 'cards') | null;
-    heading?: string | null;
-    description?: string | null;
-  };
+  variant?: ('default' | 'subtle') | null;
   id?: string | null;
   blockName?: string | null;
-  blockType: 'docsCTA';
+  blockType: 'cta';
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "DocsPreviewBlock".
+ * via the `definition` "DocsSnippetCalloutBlock".
  */
-export interface DocsPreviewBlock {
-  /**
-   * Select the docs set this block should reference. Links, page choices, and skill buttons are derived from this set.
-   */
-  docsSet?: (number | null) | DocsSet;
-  /**
-   * Required unless the selected docs set provides a title.
-   */
-  heading?: string | null;
-  /**
-   * Optional description override. Defaults to the selected docs set description.
-   */
-  description?: string | null;
-  layout?: ('cards' | 'list' | 'featured' | 'compact') | null;
-  /**
-   * Label for the fallback link to the selected docs set.
-   */
-  viewAllLabel?: string | null;
-  ctaButtons?:
+export interface DocsSnippetCalloutBlock {
+  title?: string | null;
+  source: {
+    doc: {
+      relationTo: 'docs';
+      value: number | Doc;
+    };
+    title?: string | null;
+    slug?: string | null;
+    path?: string | null;
+    locale?: string | null;
+  };
+  snippets?:
     | {
+        id: string;
         label?: string | null;
-        variant?: ('primary' | 'secondary' | 'outline' | 'ghost' | 'link') | null;
-        target?: ('set' | 'setPage' | 'custom') | null;
-        newTab?: boolean | null;
-        /**
-         * Select a docs page from the selected docs set.
-         */
-        page?: (number | null) | Doc;
-        /**
-         * Custom URL used only when the button target is Custom URL.
-         */
-        url?: string | null;
-        /**
-         * Optional icon name. SVG/icon rendering requires renderer or plugin icon support.
-         */
-        icon?: string | null;
-        id?: string | null;
+        renderAs?: ('auto' | 'markdown' | 'plain' | 'code') | null;
+        anchor: {
+          startOffset: number;
+          endOffset: number;
+          startLine: number;
+          startColumn: number;
+          endLine: number;
+          endColumn: number;
+          exact: string;
+          prefix?: string | null;
+          suffix?: string | null;
+          sourceHash: string;
+          nearestHeading?: {
+            text?: string | null;
+            slug?: string | null;
+          };
+        };
       }[]
     | null;
-  /**
-   * Feature available skill downloads from the selected docs set.
-   */
-  skills?: {
-    enabled?: boolean | null;
-    display?: ('buttons' | 'tabs' | 'cards') | null;
-    heading?: string | null;
-    description?: string | null;
-  };
+  linkLabel?: string | null;
+  tone?: ('info' | 'warning' | 'success') | null;
   id?: string | null;
   blockName?: string | null;
-  blockType: 'docsPreview';
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "DocsCalloutBlock".
- */
-export interface DocsCalloutBlock {
-  /**
-   * Select the docs set this block should reference. Links, page choices, and skill buttons are derived from this set.
-   */
-  docsSet?: (number | null) | DocsSet;
-  /**
-   * Select a docs page from the selected docs set.
-   */
-  docsPage?: (number | null) | Doc;
-  variant?: ('info' | 'success' | 'warning' | 'brand' | 'neutral') | null;
-  layout?: ('card' | 'fullWidth' | 'inline' | 'sidebar') | null;
-  /**
-   * Required unless the selected docs page provides a title.
-   */
-  heading?: string | null;
-  /**
-   * Optional excerpt override. Defaults to the selected docs page description.
-   */
-  excerpt?: string | null;
-  ctaLabel?: string | null;
-  /**
-   * Optional icon name. SVG/icon rendering requires app or plugin icon support.
-   */
-  icon?: string | null;
-  /**
-   * Feature available skill downloads from the selected docs set.
-   */
-  skills?: {
-    enabled?: boolean | null;
-    display?: ('buttons' | 'tabs' | 'cards') | null;
-    heading?: string | null;
-    description?: string | null;
-  };
-  id?: string | null;
-  blockName?: string | null;
-  blockType: 'docsCallout';
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "DocsBannerBlock".
- */
-export interface DocsBannerBlock {
-  /**
-   * Select the docs set this block should reference. Links, page choices, and skill buttons are derived from this set.
-   */
-  docsSet?: (number | null) | DocsSet;
-  /**
-   * Small uppercase pre-heading text rendered above the main heading.
-   */
-  eyebrow?: string | null;
-  /**
-   * Single pill label rendered near the banner heading for status, version, category, or launch metadata.
-   */
-  badge?: string | null;
-  /**
-   * Required unless the selected docs set provides a title.
-   */
-  heading?: string | null;
-  /**
-   * Optional description override. Defaults to the selected docs set description.
-   */
-  description?: string | null;
-  /**
-   * Optional decorative background media and overlay controls.
-   */
-  background: {
-    media: number | Media;
-    position?: ('center' | 'top' | 'bottom' | 'left' | 'right') | null;
-    /**
-     * Show fit, overlay, opacity, variant, and gradient controls.
-     */
-    advancedControls?: boolean | null;
-    overlay?: boolean | null;
-    /**
-     * 0 to 95.
-     */
-    overlayOpacity?: number | null;
-    overlayVariant?: ('dark' | 'light' | 'brand' | 'gradient') | null;
-    fit?: ('cover' | 'contain' | 'fill') | null;
-    gradient?: ('none' | 'subtle' | 'brand') | null;
-  };
-  /**
-   * Controls horizontal text and action alignment.
-   */
-  textAlign?: ('left' | 'center' | 'right') | null;
-  /**
-   * Controls banner height and vertical spacing.
-   */
-  size?: ('sm' | 'md' | 'lg' | 'xl') | null;
-  /**
-   * Controls the banner color treatment used by the renderer.
-   */
-  theme?: ('default' | 'muted' | 'dark' | 'brand') | null;
-  ctaButtons?:
-    | {
-        label?: string | null;
-        variant?: ('primary' | 'secondary' | 'outline' | 'ghost' | 'link') | null;
-        target?: ('set' | 'setPage' | 'custom') | null;
-        newTab?: boolean | null;
-        /**
-         * Select a docs page from the selected docs set.
-         */
-        page?: (number | null) | Doc;
-        /**
-         * Custom URL used only when the button target is Custom URL.
-         */
-        url?: string | null;
-        /**
-         * Optional icon name. SVG/icon rendering requires renderer or plugin icon support.
-         */
-        icon?: string | null;
-        id?: string | null;
-      }[]
-    | null;
-  /**
-   * Feature available skill downloads from the selected docs set.
-   */
-  skills?: {
-    enabled?: boolean | null;
-    display?: ('buttons' | 'tabs' | 'cards') | null;
-    heading?: string | null;
-    description?: string | null;
-  };
-  id?: string | null;
-  blockName?: string | null;
-  blockType: 'docsBanner';
+  blockType: 'docsSnippetCallout';
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -1257,10 +1057,8 @@ export interface PagesSelect<T extends boolean = true> {
     | T
     | {
         vlMdBlock?: T | MarkdownBlockSelect<T>;
-        docsCTA?: T | DocsCTABlockSelect<T>;
-        docsPreview?: T | DocsPreviewBlockSelect<T>;
-        docsCallout?: T | DocsCalloutBlockSelect<T>;
-        docsBanner?: T | DocsBannerBlockSelect<T>;
+        cta?: T | CTABlockSelect<T>;
+        docsSnippetCallout?: T | DocsSnippetCalloutBlockSelect<T>;
       };
   meta?:
     | T
@@ -1313,159 +1111,74 @@ export interface MarkdownBlockSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "DocsCTABlock_select".
+ * via the `definition` "CTABlock_select".
  */
-export interface DocsCTABlockSelect<T extends boolean = true> {
-  docsSet?: T;
-  eyebrow?: T;
-  badges?:
-    | T
-    | {
-        label?: T;
-        id?: T;
-      };
-  heading?: T;
+export interface CTABlockSelect<T extends boolean = true> {
+  title?: T;
   description?: T;
-  layout?: T;
-  theme?: T;
-  docsLabel?: T;
-  ctaButtons?:
+  action?:
     | T
     | {
+        type?: T;
         label?: T;
-        variant?: T;
-        target?: T;
-        newTab?: T;
-        page?: T;
-        url?: T;
-        icon?: T;
-        id?: T;
+        doc?: T;
+        skills?:
+          | T
+          | {
+              label?: T;
+              doc?: T;
+              description?: T;
+              id?: T;
+            };
       };
-  background?:
-    | T
-    | {
-        media?: T;
-        position?: T;
-        advancedControls?: T;
-        overlay?: T;
-        overlayOpacity?: T;
-        overlayVariant?: T;
-        fit?: T;
-        gradient?: T;
-      };
-  skills?:
-    | T
-    | {
-        enabled?: T;
-        display?: T;
-        heading?: T;
-        description?: T;
-      };
-  id?: T;
-  blockName?: T;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "DocsPreviewBlock_select".
- */
-export interface DocsPreviewBlockSelect<T extends boolean = true> {
-  docsSet?: T;
-  heading?: T;
-  description?: T;
-  layout?: T;
-  viewAllLabel?: T;
-  ctaButtons?:
-    | T
-    | {
-        label?: T;
-        variant?: T;
-        target?: T;
-        newTab?: T;
-        page?: T;
-        url?: T;
-        icon?: T;
-        id?: T;
-      };
-  skills?:
-    | T
-    | {
-        enabled?: T;
-        display?: T;
-        heading?: T;
-        description?: T;
-      };
-  id?: T;
-  blockName?: T;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "DocsCalloutBlock_select".
- */
-export interface DocsCalloutBlockSelect<T extends boolean = true> {
-  docsSet?: T;
-  docsPage?: T;
   variant?: T;
-  layout?: T;
-  heading?: T;
-  excerpt?: T;
-  ctaLabel?: T;
-  icon?: T;
-  skills?:
-    | T
-    | {
-        enabled?: T;
-        display?: T;
-        heading?: T;
-        description?: T;
-      };
   id?: T;
   blockName?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "DocsBannerBlock_select".
+ * via the `definition` "DocsSnippetCalloutBlock_select".
  */
-export interface DocsBannerBlockSelect<T extends boolean = true> {
-  docsSet?: T;
-  eyebrow?: T;
-  badge?: T;
-  heading?: T;
-  description?: T;
-  background?:
+export interface DocsSnippetCalloutBlockSelect<T extends boolean = true> {
+  title?: T;
+  source?:
     | T
     | {
-        media?: T;
-        position?: T;
-        advancedControls?: T;
-        overlay?: T;
-        overlayOpacity?: T;
-        overlayVariant?: T;
-        fit?: T;
-        gradient?: T;
+        doc?: T;
+        title?: T;
+        slug?: T;
+        path?: T;
+        locale?: T;
       };
-  textAlign?: T;
-  size?: T;
-  theme?: T;
-  ctaButtons?:
+  snippets?:
     | T
     | {
-        label?: T;
-        variant?: T;
-        target?: T;
-        newTab?: T;
-        page?: T;
-        url?: T;
-        icon?: T;
         id?: T;
+        label?: T;
+        renderAs?: T;
+        anchor?:
+          | T
+          | {
+              startOffset?: T;
+              endOffset?: T;
+              startLine?: T;
+              startColumn?: T;
+              endLine?: T;
+              endColumn?: T;
+              exact?: T;
+              prefix?: T;
+              suffix?: T;
+              sourceHash?: T;
+              nearestHeading?:
+                | T
+                | {
+                    text?: T;
+                    slug?: T;
+                  };
+            };
       };
-  skills?:
-    | T
-    | {
-        enabled?: T;
-        display?: T;
-        heading?: T;
-        description?: T;
-      };
+  linkLabel?: T;
+  tone?: T;
   id?: T;
   blockName?: T;
 }
