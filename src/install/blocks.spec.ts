@@ -346,31 +346,8 @@ describe('docs in-page block field shapes', () => {
           label: 'Full',
           value: 'full',
         },
-        {
-          label: 'Default (legacy)',
-          value: 'default',
-        },
       ],
     })
-    expect(
-      variantField?.filterOptions?.({
-        options: variantField.options ?? [],
-      }),
-    ).toEqual([
-      {
-        label: 'Subtle',
-        value: 'subtle',
-      },
-      {
-        label: 'Normal',
-        value: 'normal',
-      },
-      {
-        label: 'Full',
-        value: 'full',
-      },
-    ])
-    expect(variantField?.hooks?.beforeValidate?.[0]?.({ value: 'default' })).toBe('normal')
     expect(getFieldByName(DocsCTABlock.fields, 'gradient')).toMatchObject({
       type: 'select',
       defaultValue: 'brand',
