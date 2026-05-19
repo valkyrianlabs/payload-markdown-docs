@@ -74,6 +74,7 @@ type DocsMarketingBlockRecord = {
   skillOverrides?: DocsCTASkillOverride[] | null
   skills?: null | SkillCTAGroupInput
   title?: null | string
+  variant?: null | string
 } & Record<string, unknown>
 
 type ResolverContext = {
@@ -363,6 +364,8 @@ const resolveDocsCTABlock = async (
 ): Promise<void> => {
   normalizeLegacyDocsCTAFields(block)
   block.docsSet = await resolveDocsSet(block.docsSet, context)
+  block.background =
+    block.variant === 'full' ? await resolveBackgroundMedia(block.background, context) : block.background
   block.skills = await resolveDocsCTASkills(block, context)
 }
 

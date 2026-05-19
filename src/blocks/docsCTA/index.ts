@@ -1,15 +1,49 @@
 import type { Block, Field } from 'payload'
 
-import { docsSetRelationshipField } from '../../fields/index.js'
+import { backgroundMediaFields, docsSetRelationshipField } from '../../fields/index.js'
 
 const docsLinkCondition = (_data: unknown, siblingData: Record<string, unknown>) =>
   siblingData?.actionType === 'docsLink'
+
+const fullVariantCondition = (_data: unknown, siblingData: Record<string, unknown>) =>
+  siblingData?.variant === 'full'
+
+const gradientCondition = (_data: unknown, siblingData: Record<string, unknown>) =>
+  siblingData?.variant === 'normal' ||
+  siblingData?.variant === 'full' ||
+  siblingData?.variant === 'default'
 
 const overrideContentCondition = (_data: unknown, siblingData: Record<string, unknown>) =>
   siblingData?.overrideContent === true
 
 const skillsCondition = (_data: unknown, siblingData: Record<string, unknown>) =>
   siblingData?.actionType === 'skills'
+
+const normalizeLegacyVariant = (value: unknown) => (value === 'default' ? 'normal' : value)
+
+const selectOptionValue = (option: unknown) => {
+  if (typeof option === 'string') {
+    return option
+  }
+
+  if (option && typeof option === 'object' && 'value' in option) {
+    return option.value
+  }
+
+  return undefined
+}
+
+const ctaBackgroundField = (): Field => {
+  const field = backgroundMediaFields()
+
+  return {
+    ...field,
+    admin: {
+      ...field.admin,
+      condition: fullVariantCondition,
+    },
+  } as Field
+}
 
 export const DocsCTABlock: Block = {
   slug: 'docsCTA',
@@ -108,18 +142,64 @@ export const DocsCTABlock: Block = {
     {
       name: 'variant',
       type: 'select',
-      defaultValue: 'default',
+      defaultValue: 'normal',
+      filterOptions: ({ options }) =>
+        options.filter((option) => selectOptionValue(option) !== 'default'),
+      hooks: {
+        beforeValidate: [
+          ({ value }) => normalizeLegacyVariant(value),
+        ],
+      },
       options: [
-        {
-          label: 'Default',
-          value: 'default',
-        },
         {
           label: 'Subtle',
           value: 'subtle',
         },
+        {
+          label: 'Normal',
+          value: 'normal',
+        },
+        {
+          label: 'Full',
+          value: 'full',
+        },
+        {
+          label: 'Default (legacy)',
+          value: 'default',
+        },
       ],
     },
+    {
+      name: 'gradient',
+      type: 'select',
+      admin: {
+        condition: gradientCondition,
+      },
+      defaultValue: 'brand',
+      options: [
+        {
+          label: 'None',
+          value: 'none',
+        },
+        {
+          label: 'Brand',
+          value: 'brand',
+        },
+        {
+          label: 'Cyan',
+          value: 'cyan',
+        },
+        {
+          label: 'Emerald',
+          value: 'emerald',
+        },
+        {
+          label: 'Violet',
+          value: 'violet',
+        },
+      ],
+    },
+    ctaBackgroundField(),
   ],
   interfaceName: 'DocsCTABlock',
   labels: {

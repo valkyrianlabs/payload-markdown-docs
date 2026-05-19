@@ -52,6 +52,17 @@ It supports exactly one action mode:
 Docs CTA does not render both modes at the same time. Optional skill overrides
 only change detected skill labels and descriptions by agent.
 
+### Variants
+
+Docs CTA ships three width-correct variants. The host page can constrain the
+content column, but the block panel itself fills the available layout width.
+
+- `subtle`: quiet inline/in-page CTA with compact spacing.
+- `normal`: default full-width CTA with a controlled decorative gradient.
+- `full`: taller media-capable CTA with optional background image and overlay.
+
+`default` is treated as a legacy alias for `normal` when rendering older data.
+
 ## Roadmap
 
 Docs Excerpt is deferred until a first-class read-only markdown highlighter is

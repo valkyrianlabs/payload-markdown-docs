@@ -388,7 +388,7 @@ export interface Page {
       description?: string | null;
     };
   };
-  layout: (MarkdownBlock | CTABlock | DocsSnippetCalloutBlock)[];
+  layout: (MarkdownBlock | DocsCTABlock)[];
   meta?: {
     title?: string | null;
     description?: string | null;
@@ -610,79 +610,62 @@ export interface DocsSyncRun {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "CTABlock".
+ * via the `definition` "DocsCTABlock".
  */
-export interface CTABlock {
-  title: string;
+export interface DocsCTABlock {
+  /**
+   * Select the docs set this block should reference. Links, page choices, and skill buttons are derived from this set.
+   */
+  docsSet: number | DocsSet;
+  actionType: 'docsLink' | 'skills';
+  overrideContent?: boolean | null;
+  heading?: string | null;
   description?: string | null;
-  action: {
-    type: 'docsLink' | 'skills';
-    label?: string | null;
-    doc?: {
-      relationTo: 'docs';
-      value: number | Doc;
-    } | null;
-    skills?:
-      | {
-          label: string;
-          doc: {
-            relationTo: 'docs';
-            value: number | Doc;
-          };
-          description?: string | null;
-          id?: string | null;
-        }[]
-      | null;
-  };
-  variant?: ('default' | 'subtle') | null;
-  id?: string | null;
-  blockName?: string | null;
-  blockType: 'cta';
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "DocsSnippetCalloutBlock".
- */
-export interface DocsSnippetCalloutBlock {
-  title?: string | null;
-  source: {
-    doc: {
-      relationTo: 'docs';
-      value: number | Doc;
-    };
-    title?: string | null;
-    slug?: string | null;
-    path?: string | null;
-    locale?: string | null;
-  };
-  snippets?:
+  docsLabel?: string | null;
+  /**
+   * Optional label and description overrides keyed by detected skill agent. Skill buttons are derived from docs assets for the selected docs set.
+   */
+  skillOverrides?:
     | {
-        id: string;
+        /**
+         * Must match a detected skill agent from the selected docs set, such as codex or claude. Do not hardcode options.
+         */
+        agent: string;
+        /**
+         * Optional override for the detected skill label.
+         */
         label?: string | null;
-        renderAs?: ('auto' | 'markdown' | 'plain' | 'code') | null;
-        anchor: {
-          startOffset: number;
-          endOffset: number;
-          startLine: number;
-          startColumn: number;
-          endLine: number;
-          endColumn: number;
-          exact: string;
-          prefix?: string | null;
-          suffix?: string | null;
-          sourceHash: string;
-          nearestHeading?: {
-            text?: string | null;
-            slug?: string | null;
-          };
-        };
+        /**
+         * Optional override for the detected skill description.
+         */
+        description?: string | null;
+        id?: string | null;
       }[]
     | null;
-  linkLabel?: string | null;
-  tone?: ('info' | 'warning' | 'success') | null;
+  variant?: ('subtle' | 'normal' | 'full') | null;
+  gradient?: ('none' | 'brand' | 'cyan' | 'emerald' | 'violet') | null;
+  /**
+   * Optional decorative background media and overlay controls.
+   */
+  background?: {
+    media?: (number | null) | Media;
+    position?: ('center' | 'top' | 'bottom' | 'left' | 'right') | null;
+    /**
+     * Show fit, overlay, opacity, variant, and gradient controls.
+     */
+    advancedControls?: boolean | null;
+    overlay?: boolean | null;
+    /**
+     * 0 to 95.
+     */
+    overlayOpacity?: number | null;
+    overlayVariant?: ('dark' | 'light' | 'brand' | 'gradient') | null;
+    fit?: ('cover' | 'contain' | 'fill') | null;
+    gradient?: ('none' | 'subtle' | 'brand') | null;
+  };
   id?: string | null;
   blockName?: string | null;
-  blockType: 'docsSnippetCallout';
+  blockType: 'docsCTA';
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -1057,8 +1040,7 @@ export interface PagesSelect<T extends boolean = true> {
     | T
     | {
         vlMdBlock?: T | MarkdownBlockSelect<T>;
-        cta?: T | CTABlockSelect<T>;
-        docsSnippetCallout?: T | DocsSnippetCalloutBlockSelect<T>;
+        docsCTA?: T | DocsCTABlockSelect<T>;
       };
   meta?:
     | T
@@ -1111,74 +1093,37 @@ export interface MarkdownBlockSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "CTABlock_select".
+ * via the `definition` "DocsCTABlock_select".
  */
-export interface CTABlockSelect<T extends boolean = true> {
-  title?: T;
+export interface DocsCTABlockSelect<T extends boolean = true> {
+  docsSet?: T;
+  actionType?: T;
+  overrideContent?: T;
+  heading?: T;
   description?: T;
-  action?:
+  docsLabel?: T;
+  skillOverrides?:
     | T
     | {
-        type?: T;
+        agent?: T;
         label?: T;
-        doc?: T;
-        skills?:
-          | T
-          | {
-              label?: T;
-              doc?: T;
-              description?: T;
-              id?: T;
-            };
+        description?: T;
+        id?: T;
       };
   variant?: T;
-  id?: T;
-  blockName?: T;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "DocsSnippetCalloutBlock_select".
- */
-export interface DocsSnippetCalloutBlockSelect<T extends boolean = true> {
-  title?: T;
-  source?:
+  gradient?: T;
+  background?:
     | T
     | {
-        doc?: T;
-        title?: T;
-        slug?: T;
-        path?: T;
-        locale?: T;
+        media?: T;
+        position?: T;
+        advancedControls?: T;
+        overlay?: T;
+        overlayOpacity?: T;
+        overlayVariant?: T;
+        fit?: T;
+        gradient?: T;
       };
-  snippets?:
-    | T
-    | {
-        id?: T;
-        label?: T;
-        renderAs?: T;
-        anchor?:
-          | T
-          | {
-              startOffset?: T;
-              endOffset?: T;
-              startLine?: T;
-              startColumn?: T;
-              endLine?: T;
-              endColumn?: T;
-              exact?: T;
-              prefix?: T;
-              suffix?: T;
-              sourceHash?: T;
-              nearestHeading?:
-                | T
-                | {
-                    text?: T;
-                    slug?: T;
-                  };
-            };
-      };
-  linkLabel?: T;
-  tone?: T;
   id?: T;
   blockName?: T;
 }

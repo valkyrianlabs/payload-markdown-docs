@@ -280,6 +280,74 @@ describe('resolveDocsMarketingBlocksAfterRead', () => {
     })
   })
 
+  it('hydrates Docs CTA background media only for the full variant', async () => {
+    const find = vi.fn(() =>
+      Promise.resolve({
+        docs: [],
+      }),
+    )
+    const findByID = vi.fn((args: FindByIDArgs) =>
+      Promise.resolve(
+        args.collection === 'media'
+          ? {
+              id: 'media-1',
+              url: '/media/docs-cta.jpg',
+            }
+          : null,
+      ),
+    )
+    const doc: TestPageDoc = {
+      id: 'page-with-media-cta',
+      layout: [
+        {
+          actionType: 'docsLink',
+          background: {
+            media: 'media-1',
+          },
+          blockType: 'docsCTA',
+          docsSet,
+          variant: 'full',
+        },
+        {
+          actionType: 'docsLink',
+          background: {
+            media: 'media-2',
+          },
+          blockType: 'docsCTA',
+          docsSet,
+          variant: 'normal',
+        },
+      ],
+    }
+
+    const result = (await hook({
+      doc,
+      req: {
+        payload: {
+          find,
+          findByID,
+        },
+      },
+    } as Parameters<typeof hook>[0])) as TestPageDoc
+
+    expect(result.layout[0]?.background).toMatchObject({
+      media: {
+        id: 'media-1',
+        url: '/media/docs-cta.jpg',
+      },
+    })
+    expect(result.layout[1]?.background).toEqual({
+      media: 'media-2',
+    })
+    expect(findByID).toHaveBeenCalledTimes(1)
+    expect(findByID).toHaveBeenCalledWith({
+      id: 'media-1',
+      collection: 'media',
+      depth: 0,
+      overrideAccess: true,
+    })
+  })
+
   it('does not query unrelated records when relationships are already hydrated', async () => {
     const find = vi.fn(() =>
       Promise.resolve({

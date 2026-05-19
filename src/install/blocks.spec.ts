@@ -224,14 +224,32 @@ describe('docs in-page block field shapes', () => {
       'docsLabel',
       'skillOverrides',
       'variant',
+      'gradient',
+      'background',
     ])
     expect(getNestedFieldNames(DocsCTABlock.fields)).toEqual(
-      expect.arrayContaining(['docsSet', 'actionType', 'overrideContent', 'heading', 'description', 'docsLabel', 'skillOverrides', 'agent', 'label', 'variant']),
+      expect.arrayContaining([
+        'docsSet',
+        'actionType',
+        'overrideContent',
+        'heading',
+        'description',
+        'docsLabel',
+        'skillOverrides',
+        'agent',
+        'label',
+        'variant',
+        'gradient',
+        'background',
+        'media',
+        'overlay',
+        'position',
+        'fit',
+      ]),
     )
     expect(getNestedFieldNames(DocsCTABlock.fields)).not.toEqual(
       expect.arrayContaining([
         'action',
-        'background',
         'badges',
         'ctaButtons',
         'doc',
@@ -297,5 +315,108 @@ describe('docs in-page block field shapes', () => {
       type: 'text',
       required: true,
     })
+  })
+
+  it('exposes width-correct CTA appearance controls', () => {
+    const variantField = getFieldByName(DocsCTABlock.fields, 'variant') as
+      | ({
+          filterOptions?: (args: {
+            options: { label: string; value: string }[]
+          }) => { label: string; value: string }[]
+          hooks?: {
+            beforeValidate?: ((args: { value: unknown }) => unknown)[]
+          }
+          options?: { label: string; value: string }[]
+        } & Field)
+      | undefined
+
+    expect(variantField).toMatchObject({
+      type: 'select',
+      defaultValue: 'normal',
+      options: [
+        {
+          label: 'Subtle',
+          value: 'subtle',
+        },
+        {
+          label: 'Normal',
+          value: 'normal',
+        },
+        {
+          label: 'Full',
+          value: 'full',
+        },
+        {
+          label: 'Default (legacy)',
+          value: 'default',
+        },
+      ],
+    })
+    expect(
+      variantField?.filterOptions?.({
+        options: variantField.options ?? [],
+      }),
+    ).toEqual([
+      {
+        label: 'Subtle',
+        value: 'subtle',
+      },
+      {
+        label: 'Normal',
+        value: 'normal',
+      },
+      {
+        label: 'Full',
+        value: 'full',
+      },
+    ])
+    expect(variantField?.hooks?.beforeValidate?.[0]?.({ value: 'default' })).toBe('normal')
+    expect(getFieldByName(DocsCTABlock.fields, 'gradient')).toMatchObject({
+      type: 'select',
+      defaultValue: 'brand',
+      options: [
+        {
+          label: 'None',
+          value: 'none',
+        },
+        {
+          label: 'Brand',
+          value: 'brand',
+        },
+        {
+          label: 'Cyan',
+          value: 'cyan',
+        },
+        {
+          label: 'Emerald',
+          value: 'emerald',
+        },
+        {
+          label: 'Violet',
+          value: 'violet',
+        },
+      ],
+    })
+    expect(conditionResult(getFieldByName(DocsCTABlock.fields, 'gradient'), {
+      variant: 'normal',
+    })).toBe(true)
+    expect(conditionResult(getFieldByName(DocsCTABlock.fields, 'gradient'), {
+      variant: 'full',
+    })).toBe(true)
+    expect(conditionResult(getFieldByName(DocsCTABlock.fields, 'gradient'), {
+      variant: 'default',
+    })).toBe(true)
+    expect(conditionResult(getFieldByName(DocsCTABlock.fields, 'gradient'), {
+      variant: 'subtle',
+    })).toBe(false)
+    expect(conditionResult(getFieldByName(DocsCTABlock.fields, 'background'), {
+      variant: 'full',
+    })).toBe(true)
+    expect(conditionResult(getFieldByName(DocsCTABlock.fields, 'background'), {
+      variant: 'normal',
+    })).toBe(false)
+    expect(conditionResult(getFieldByName(DocsCTABlock.fields, 'background'), {
+      variant: 'subtle',
+    })).toBe(false)
   })
 })

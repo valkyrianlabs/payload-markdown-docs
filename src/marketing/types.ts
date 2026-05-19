@@ -57,20 +57,26 @@ export type DocsCTASkillOverride = {
   label?: null | string
 }
 
+export type DocsCTAGradient = 'brand' | 'cyan' | 'emerald' | 'none' | 'violet'
+
+export type DocsCTAVariant = 'default' | 'full' | 'normal' | 'subtle'
+
 export type DocsCTAProps = {
   actionType?: 'docsLink' | 'skills' | null
+  background?: DocsBackgroundMediaInput | null
   className?: string
   containerClassName?: string
   description?: null | ReactNode
   docsLabel?: null | string
   docsSet?: DocsRelationship<DocsSetReference> | null
+  gradient?: DocsCTAGradient | null
   heading?: null | string
   headingLevel?: 1 | 2 | 3 | 4
   overrideContent?: boolean | null
   skillOverrides?: DocsCTASkillOverride[] | null
   skills?: null | SkillCTAGroupInput
   title?: null | string
-  variant?: 'default' | 'subtle' | null
+  variant?: DocsCTAVariant | null
 } & DocsMarketingPayloadBlockProps
 
 export type DocsAssetReference = {

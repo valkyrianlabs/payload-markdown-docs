@@ -2339,6 +2339,77 @@ describe('Payload Markdown Docs marketing components', () => {
     expect(markup).not.toContain('Docs set description.')
   })
 
+  it('renders Docs CTA variants at full parent width without old max-width caps', async () => {
+    const subtleMarkup = await renderServerMarkup(
+      createElement(DocsCTA, {
+        docsSet: {
+          id: 'set-1',
+          routeBase: '/docs',
+          title: 'Subtle CTA',
+        },
+        variant: 'subtle',
+      }),
+    )
+    const normalMarkup = await renderServerMarkup(
+      createElement(DocsCTA, {
+        docsSet: {
+          id: 'set-1',
+          routeBase: '/docs',
+          title: 'Normal CTA',
+        },
+        gradient: 'emerald',
+        variant: 'normal',
+      }),
+    )
+    const legacyDefaultMarkup = await renderServerMarkup(
+      createElement(DocsCTA, {
+        docsSet: {
+          id: 'set-1',
+          routeBase: '/docs',
+          title: 'Legacy default CTA',
+        },
+        variant: 'default',
+      }),
+    )
+    const fullMarkup = await renderServerMarkup(
+      createElement(DocsCTA, {
+        background: {
+          media: {
+            url: '/media/docs-cta.jpg',
+          },
+          overlay: true,
+          overlayOpacity: 60,
+        },
+        docsSet: {
+          id: 'set-1',
+          routeBase: '/docs',
+          title: 'Full CTA',
+        },
+        gradient: 'violet',
+        variant: 'full',
+      }),
+    )
+
+    expect(subtleMarkup).toContain('w-full')
+    expect(subtleMarkup).toContain('rounded-xl')
+    expect(subtleMarkup).not.toContain('max-w-2xl')
+    expect(subtleMarkup).not.toContain('max-w-3xl')
+    expect(subtleMarkup).not.toContain('radial-gradient')
+    expect(normalMarkup).toContain('rounded-2xl')
+    expect(normalMarkup).toContain('radial-gradient')
+    expect(normalMarkup).toContain('rgba(52,211,153')
+    expect(normalMarkup).not.toContain('max-w-2xl')
+    expect(normalMarkup).not.toContain('max-w-3xl')
+    expect(legacyDefaultMarkup).toContain('rounded-2xl')
+    expect(legacyDefaultMarkup).not.toContain('rounded-xl')
+    expect(fullMarkup).toContain('min-h-[150px]')
+    expect(fullMarkup).toContain('md:min-h-[180px]')
+    expect(fullMarkup).toContain('background-image:url(/media/docs-cta.jpg)')
+    expect(fullMarkup).toContain('rgba(167,139,250')
+    expect(fullMarkup).not.toContain('max-w-2xl')
+    expect(fullMarkup).not.toContain('max-w-3xl')
+  })
+
   it('renders docsLink and skills action modes without mixing them', async () => {
     const docsLinkMarkup = await renderServerMarkup(
       createElement(DocsCTA, {
@@ -2384,6 +2455,11 @@ describe('Payload Markdown Docs marketing components', () => {
               href: '/plugins/payload-markdown/skills/codex.zip',
               label: 'Codex skill',
             },
+            {
+              agent: 'zed',
+              href: '/plugins/payload-markdown/skills/zed.zip',
+              label: 'Zed skill',
+            },
           ],
         },
       }),
@@ -2393,8 +2469,10 @@ describe('Payload Markdown Docs marketing components', () => {
     expect(docsLinkMarkup).toContain('href="/plugins/payload-markdown/docs"')
     expect(docsLinkMarkup).not.toContain('Codex skill')
     expect(skillsMarkup).toContain('Codex skill')
+    expect(skillsMarkup).toContain('Zed skill')
     expect(skillsMarkup).toContain('Use the Codex workflow.')
     expect(skillsMarkup).toContain('href="/plugins/payload-markdown/skills/codex.zip"')
+    expect(skillsMarkup).toContain('href="/plugins/payload-markdown/skills/zed.zip"')
     expect(skillsMarkup).not.toContain('Ignored docs link')
   })
 
