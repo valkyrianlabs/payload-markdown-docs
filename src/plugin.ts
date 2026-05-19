@@ -27,7 +27,10 @@ import {
   DEFAULT_PAGES_COLLECTION_SLUG,
   DEFAULT_PAGES_ROUTE_FIELD,
 } from './constants.js'
-import { createDocsAssetsEndpoints, createSyncEndpoint } from './endpoints/index.js'
+import {
+  createDocsAssetsEndpoints,
+  createSyncEndpoint,
+} from './endpoints/index.js'
 import { installDocsMarketingBlocks } from './install/blocks.js'
 import { installDocsHeroFields } from './install/heroes.js'
 import { resolveDocsMarketingBlocksAfterRead } from './payload/index.js'

@@ -1,19 +1,10 @@
 import type { Block, CollectionConfig, Config, Field } from 'payload'
 
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
-import {
-  backgroundMediaFields,
-  ctaButtonsField,
-  DocsCTABlock,
-  docsPageRelationshipField,
-  DocsPreviewBlock,
-  DocsBannerBlock as PublicDocsBannerBlock,
-  DocsCalloutBlock as PublicDocsCalloutBlock,
-  skillCTAFields,
-} from '../blocks/index.js'
+import { DocsCTABlock } from '../blocks/index.js'
 import { payloadMarkdownDocs } from '../plugin.js'
-import { installBlocksIntoCollection } from './blocks.js'
+import { docsMarketingBlocks, installBlocksIntoCollection } from './blocks.js'
 import {
   getSelectedBlockKeys,
   resolveBlockSelection,
@@ -64,28 +55,44 @@ const getNestedFieldNames = (fields: Field[]): string[] =>
     'name' in field && typeof field.name === 'string' ? [field.name] : [],
   )
 
-const getNamedNestedField = (fields: Field[], name: string): Field | undefined =>
+const getFieldByName = (fields: Field[], name: string): ({ name: string } & Field) | undefined =>
   getNestedFields(fields).find(
-    (field) => 'name' in field && typeof field.name === 'string' && field.name === name,
+    (field): field is { name: string } & Field =>
+      'name' in field && typeof field.name === 'string' && field.name === name,
   )
 
-type FindByIDArgs = {
-  collection: string
-  id: number | string
+const conditionResult = (field: Field | undefined, siblingData: Record<string, unknown>) => {
+  const condition = (field as { admin?: { condition?: (data: unknown, siblingData: Record<string, unknown>) => boolean } } | undefined)
+    ?.admin?.condition
+
+  return condition ? condition({}, siblingData) : undefined
 }
 
-describe('docs marketing block selection', () => {
-  it('selects all blocks with blocks true', () => {
-    expect(selectedKeys(resolveBlockSelection(true))).toEqual([
-      'banner',
-      'callout',
-      'cta',
-      'preview',
-    ])
+describe('docs in-page block selection', () => {
+  it('installs only Docs CTA with blocks true', () => {
+    expect(selectedKeys(resolveBlockSelection(true))).toEqual(['docsCTA'])
   })
 
-  it('selects only enabled blocks from a partial global object', () => {
-    expect(selectedKeys(resolveBlockSelection({ cta: true }))).toEqual(['cta'])
+  it('selects explicit docsCTA from a partial global object', () => {
+    expect(selectedKeys(resolveBlockSelection({ docsCTA: true }))).toEqual(['docsCTA'])
+  })
+
+  it('maps legacy cta selection to docsCTA internally', () => {
+    expect(selectedKeys(resolveBlockSelection({ cta: true }))).toEqual(['docsCTA'])
+  })
+
+  it('does not select removed block keys', () => {
+    expect(
+      selectedKeys(
+        resolveBlockSelection({
+          docsBanner: true,
+          docsCallout: true,
+          docsExcerpt: true,
+          docsPreview: true,
+          docsSnippetCallout: true,
+        } as never),
+      ),
+    ).toEqual([])
   })
 
   it('supports terse collection true form', () => {
@@ -95,7 +102,7 @@ describe('docs marketing block selection', () => {
           collectionConfig: true,
         }),
       ),
-    ).toEqual(['banner', 'callout', 'cta', 'preview'])
+    ).toEqual(['docsCTA'])
   })
 
   it('supports explicit collection object form', () => {
@@ -107,63 +114,37 @@ describe('docs marketing block selection', () => {
           },
         }),
       ),
-    ).toEqual(['banner', 'callout', 'cta', 'preview'])
+    ).toEqual(['docsCTA'])
   })
 
-  it('selects only scoped block keys when no global selection exists', () => {
+  it('lets collection config disable a globally selected Docs CTA', () => {
     expect(
       selectedKeys(
         resolveCollectionBlockSelection({
           collectionConfig: {
             blocks: {
-              cta: true,
-            },
-          },
-        }),
-      ),
-    ).toEqual(['cta'])
-  })
-
-  it('lets collection config disable one globally selected block', () => {
-    expect(
-      selectedKeys(
-        resolveCollectionBlockSelection({
-          collectionConfig: {
-            blocks: {
-              banner: false,
+              docsCTA: false,
             },
           },
           globalSelection: true,
         }),
       ),
-    ).toEqual(['callout', 'cta', 'preview'])
-  })
-
-  it('lets collection true override a partial global selection', () => {
-    expect(
-      selectedKeys(
-        resolveCollectionBlockSelection({
-          collectionConfig: {
-            blocks: true,
-          },
-          globalSelection: {
-            cta: true,
-            preview: true,
-          },
-        }),
-      ),
-    ).toEqual(['banner', 'callout', 'cta', 'preview'])
+    ).toEqual([])
   })
 })
 
-describe('docs marketing block installer', () => {
-  it('exports manual block configs and reusable fields from the main package', () => {
-    expect(PublicDocsBannerBlock.slug).toBe('docsBanner')
-    expect(PublicDocsCalloutBlock.slug).toBe('docsCallout')
-    expect(ctaButtonsField().type).toBe('array')
+describe('docs in-page block installer', () => {
+  it('exports only Docs CTA from the block registry', () => {
+    expect(Object.keys(docsMarketingBlocks)).toEqual(['docsCTA'])
+    expect(DocsCTABlock.slug).toBe('docsCTA')
+    expect(DocsCTABlock.interfaceName).toBe('DocsCTABlock')
+    expect(DocsCTABlock.labels).toEqual({
+      plural: 'Docs CTAs',
+      singular: 'Docs CTA',
+    })
   })
 
-  it('appends blocks to existing block fields without duplicating slugs', () => {
+  it('appends Docs CTA to existing block fields without duplicating slugs', () => {
     const existingCTA = {
       slug: DocsCTABlock.slug,
       fields: [],
@@ -173,11 +154,11 @@ describe('docs marketing block installer', () => {
       fields: [layoutField([existingCTA])],
     }
 
-    const result = installBlocksIntoCollection(collection, [DocsCTABlock, DocsPreviewBlock])
+    const result = installBlocksIntoCollection(collection, [DocsCTABlock])
 
     expect(result.blockFieldFound).toBe(true)
-    expect(result.changed).toBe(true)
-    expect(getBlockFieldSlugs(result.collection)).toEqual(['docsCTA', 'docsPreview'])
+    expect(result.changed).toBe(false)
+    expect(getBlockFieldSlugs(result.collection)).toEqual(['docsCTA'])
   })
 
   it('does not change collections without compatible block fields', () => {
@@ -201,13 +182,11 @@ describe('docs marketing block installer', () => {
   it('applies global and scoped plugin selections deterministically', () => {
     const plugin = payloadMarkdownDocs({
       blocks: {
-        cta: true,
+        docsCTA: true,
       },
       collections: {
         pages: {
-          blocks: {
-            banner: true,
-          },
+          blocks: false,
         },
       },
     })
@@ -227,196 +206,194 @@ describe('docs marketing block installer', () => {
     const pages = config.collections?.find((collection) => collection.slug === 'pages')
     const posts = config.collections?.find((collection) => collection.slug === 'posts')
 
-    expect(pages ? getBlockFieldSlugs(pages) : []).toEqual(['docsCTA', 'docsBanner'])
+    expect(pages ? getBlockFieldSlugs(pages) : []).toEqual([])
     expect(posts ? getBlockFieldSlugs(posts) : []).toEqual(['docsCTA'])
-    expect(pages?.hooks?.afterRead).toHaveLength(1)
+    expect(pages?.hooks?.afterRead).toBeUndefined()
     expect(posts?.hooks?.afterRead).toHaveLength(1)
   })
 })
 
-describe('docs marketing block field shapes', () => {
-  it('keeps DocsPreview docsSet-first and removes broad item modes', () => {
-    expect(getTopLevelFieldNames(DocsPreviewBlock)).toEqual([
+describe('docs in-page block field shapes', () => {
+  it('keeps Docs CTA docs-set-first with one action mode', () => {
+    expect(getTopLevelFieldNames(DocsCTABlock)).toEqual([
       'docsSet',
+      'actionType',
+      'overrideContent',
       'heading',
       'description',
-      'ctaButtons',
-      'skills',
+      'docsLabel',
+      'skillOverrides',
+      'variant',
+      'gradient',
+      'background',
     ])
-    expect(getNestedFieldNames(DocsPreviewBlock.fields)).not.toEqual(
-      expect.arrayContaining(['mode', 'items', 'docs', 'maxItems', 'viewAllUrl']),
+    expect(getNestedFieldNames(DocsCTABlock.fields)).toEqual(
+      expect.arrayContaining([
+        'docsSet',
+        'actionType',
+        'overrideContent',
+        'heading',
+        'description',
+        'docsLabel',
+        'skillOverrides',
+        'agent',
+        'label',
+        'variant',
+        'gradient',
+        'background',
+        'media',
+        'overlay',
+        'position',
+        'fit',
+      ]),
     )
-    expect(getNestedFieldNames(DocsPreviewBlock.fields)).toContain('viewAllLabel')
-  })
-
-  it('keeps DocsCTA badges and removes manual docs URL', () => {
-    const names = getTopLevelFieldNames(DocsCTABlock)
-
-    expect(names).toContain('docsSet')
-    expect(names).toContain('badges')
-    expect(names).not.toContain('docsUrl')
-  })
-
-  it('keeps DocsBanner badge and removes no retained visual controls', () => {
-    const names = getTopLevelFieldNames(PublicDocsBannerBlock)
-
-    expect(names).toContain('docsSet')
-    expect(names).toContain('badge')
-    expect(getNestedFieldNames(PublicDocsBannerBlock.fields)).toEqual(
-      expect.arrayContaining(['textAlign', 'size', 'theme']),
-    )
-  })
-
-  it('keeps DocsCallout scoped to docs pages in the selected docs set', () => {
-    const names = getNestedFieldNames(PublicDocsCalloutBlock.fields)
-
-    expect(names).toEqual(expect.arrayContaining(['docsSet', 'docsPage', 'ctaLabel']))
-    expect(names).not.toEqual(
-      expect.arrayContaining(['manualHref', 'routeReference', 'calloutType']),
-    )
-  })
-
-  it('hides advanced background controls and removes decorative alt and captions', () => {
-    const backgroundField = backgroundMediaFields()
-    const names = getNestedFieldNames(backgroundField.fields)
-
-    expect(names).toEqual(expect.arrayContaining(['media', 'position', 'advancedControls']))
-    expect(names).not.toEqual(expect.arrayContaining(['alt', 'caption']))
-
-    for (const name of ['fit', 'overlay', 'overlayOpacity', 'overlayVariant', 'gradient']) {
-      const field = getNamedNestedField(backgroundField.fields, name) as
-        | ({
-            admin?: {
-              condition?: (data: unknown, siblingData: Record<string, unknown>) => boolean
-            }
-          } & Field)
-        | undefined
-
-      expect(field?.admin?.condition?.({}, {})).toBe(false)
-      expect(field?.admin?.condition?.({}, { advancedControls: true })).toBe(true)
-    }
-  })
-
-  it('keeps CTA buttons scoped to docs sets without polymorphic references', () => {
-    const names = getNestedFieldNames(ctaButtonsField().fields)
-
-    expect(names).toEqual(expect.arrayContaining(['label', 'variant', 'target', 'page', 'url']))
-    expect(names).not.toEqual(expect.arrayContaining(['type', 'reference', 'description']))
-  })
-
-  it('keeps skills automatic without author-managed item arrays', () => {
-    const names = getNestedFieldNames(skillCTAFields().fields)
-
-    expect(names).toEqual(expect.arrayContaining(['enabled', 'display', 'heading', 'description']))
-    expect(names).not.toEqual(
-      expect.arrayContaining(['items', 'href', 'routeReference', 'downloadLabel']),
+    expect(getNestedFieldNames(DocsCTABlock.fields)).not.toEqual(
+      expect.arrayContaining([
+        'action',
+        'badges',
+        'ctaButtons',
+        'doc',
+        'docsPage',
+        'href',
+        'layout',
+        'page',
+        'target',
+        'theme',
+        'url',
+      ]),
     )
   })
 
-  it('filters docs page choices by the selected docs set', () => {
-    const field = docsPageRelationshipField() as {
-      filterOptions: (args: {
-        blockData?: Record<string, unknown>
-        siblingData?: Record<string, unknown>
-      }) => unknown
-    } & Field
-
-    expect(field.filterOptions({ blockData: { docsSet: 'set-1' } })).toEqual({
-      docsSet: {
-        equals: 'set-1',
-      },
+  it('requires docsSet and actionType', () => {
+    expect(getFieldByName(DocsCTABlock.fields, 'docsSet')).toMatchObject({
+      type: 'relationship',
+      maxDepth: 2,
+      relationTo: 'docs-sets',
+      required: true,
     })
-    expect(field.filterOptions({ siblingData: { docsSet: { id: 'set-2' } } })).toEqual({
-      docsSet: {
-        equals: 'set-2',
-      },
+    expect(getFieldByName(DocsCTABlock.fields, 'actionType')).toMatchObject({
+      type: 'radio',
+      defaultValue: 'docsLink',
+      required: true,
     })
-    expect(field.filterOptions({})).toBe(false)
   })
 
-  it('validates heading overrides against available docs relationship titles', async () => {
-    const ctaHeadingField = getNamedNestedField(DocsCTABlock.fields, 'heading') as
+  it('hides title and description overrides behind overrideContent', () => {
+    expect(getFieldByName(DocsCTABlock.fields, 'overrideContent')).toMatchObject({
+      type: 'checkbox',
+      defaultValue: false,
+    })
+    expect(conditionResult(getFieldByName(DocsCTABlock.fields, 'heading'), {
+      overrideContent: true,
+    })).toBe(true)
+    expect(conditionResult(getFieldByName(DocsCTABlock.fields, 'heading'), {
+      overrideContent: false,
+    })).toBe(false)
+    expect(conditionResult(getFieldByName(DocsCTABlock.fields, 'description'), {
+      overrideContent: true,
+    })).toBe(true)
+  })
+
+  it('shows docsLabel only for docsLink mode and skillOverrides only for skills mode', () => {
+    expect(getFieldByName(DocsCTABlock.fields, 'docsLabel')).toMatchObject({
+      type: 'text',
+      defaultValue: 'Read the docs',
+    })
+    expect(conditionResult(getFieldByName(DocsCTABlock.fields, 'docsLabel'), {
+      actionType: 'docsLink',
+    })).toBe(true)
+    expect(conditionResult(getFieldByName(DocsCTABlock.fields, 'docsLabel'), {
+      actionType: 'skills',
+    })).toBe(false)
+    expect(conditionResult(getFieldByName(DocsCTABlock.fields, 'skillOverrides'), {
+      actionType: 'skills',
+    })).toBe(true)
+    expect(conditionResult(getFieldByName(DocsCTABlock.fields, 'skillOverrides'), {
+      actionType: 'docsLink',
+    })).toBe(false)
+    expect(getFieldByName(DocsCTABlock.fields, 'agent')).toMatchObject({
+      type: 'text',
+      required: true,
+    })
+  })
+
+  it('exposes width-correct CTA appearance controls', () => {
+    const variantField = getFieldByName(DocsCTABlock.fields, 'variant') as
       | ({
-          validate?: (
-            value: unknown,
-            options: { req?: unknown; siblingData: Record<string, unknown> },
-          ) => Promise<string | true> | string | true
+          filterOptions?: (args: {
+            options: { label: string; value: string }[]
+          }) => { label: string; value: string }[]
+          hooks?: {
+            beforeValidate?: ((args: { value: unknown }) => unknown)[]
+          }
+          options?: { label: string; value: string }[]
         } & Field)
       | undefined
-    const calloutHeadingField = getNamedNestedField(PublicDocsCalloutBlock.fields, 'heading') as
-      | ({
-          validate?: (
-            value: unknown,
-            options: { req?: unknown; siblingData: Record<string, unknown> },
-          ) => Promise<string | true> | string | true
-        } & Field)
-      | undefined
-    const req = {
-      payload: {
-        findByID: vi.fn((args: FindByIDArgs) => {
-          const collection = args.collection
-          const id = args.id
 
-          return Promise.resolve(
-            id === 'with-title'
-              ? {
-                  id,
-                  collection,
-                  title: collection === 'docs' ? 'Configuration' : 'Payload Markdown',
-                }
-              : {
-                  id,
-                  collection,
-                },
-          )
-        }),
-      },
-    }
-
-    expect(await ctaHeadingField?.validate?.(undefined, { req, siblingData: {} })).toBe(
-      'Add a heading or select a docs set with a title.',
-    )
-    expect(
-      await ctaHeadingField?.validate?.(undefined, {
-        req,
-        siblingData: {
-          docsSet: {
-            title: 'Payload Markdown',
-          },
+    expect(variantField).toMatchObject({
+      type: 'select',
+      defaultValue: 'normal',
+      options: [
+        {
+          label: 'Subtle',
+          value: 'subtle',
         },
-      }),
-    ).toBe(true)
-    expect(
-      await ctaHeadingField?.validate?.('Override heading', {
-        req,
-        siblingData: {},
-      }),
-    ).toBe(true)
-    expect(
-      await calloutHeadingField?.validate?.(undefined, {
-        req,
-        siblingData: {
-          docsPage: {
-            title: 'Configuration',
-          },
+        {
+          label: 'Normal',
+          value: 'normal',
         },
-      }),
-    ).toBe(true)
-    expect(
-      await ctaHeadingField?.validate?.(undefined, {
-        req,
-        siblingData: {
-          docsSet: 'with-title',
+        {
+          label: 'Full',
+          value: 'full',
         },
-      }),
-    ).toBe(true)
-    expect(
-      await ctaHeadingField?.validate?.(undefined, {
-        req,
-        siblingData: {
-          docsSet: 'missing-title',
+      ],
+    })
+    expect(getFieldByName(DocsCTABlock.fields, 'gradient')).toMatchObject({
+      type: 'select',
+      defaultValue: 'brand',
+      options: [
+        {
+          label: 'None',
+          value: 'none',
         },
-      }),
-    ).toBe('Add a heading or select a docs set with a title.')
+        {
+          label: 'Brand',
+          value: 'brand',
+        },
+        {
+          label: 'Cyan',
+          value: 'cyan',
+        },
+        {
+          label: 'Emerald',
+          value: 'emerald',
+        },
+        {
+          label: 'Violet',
+          value: 'violet',
+        },
+      ],
+    })
+    expect(conditionResult(getFieldByName(DocsCTABlock.fields, 'gradient'), {
+      variant: 'normal',
+    })).toBe(true)
+    expect(conditionResult(getFieldByName(DocsCTABlock.fields, 'gradient'), {
+      variant: 'full',
+    })).toBe(true)
+    expect(conditionResult(getFieldByName(DocsCTABlock.fields, 'gradient'), {
+      variant: 'default',
+    })).toBe(true)
+    expect(conditionResult(getFieldByName(DocsCTABlock.fields, 'gradient'), {
+      variant: 'subtle',
+    })).toBe(false)
+    expect(conditionResult(getFieldByName(DocsCTABlock.fields, 'background'), {
+      variant: 'full',
+    })).toBe(true)
+    expect(conditionResult(getFieldByName(DocsCTABlock.fields, 'background'), {
+      variant: 'normal',
+    })).toBe(false)
+    expect(conditionResult(getFieldByName(DocsCTABlock.fields, 'background'), {
+      variant: 'subtle',
+    })).toBe(false)
   })
 })

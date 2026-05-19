@@ -205,14 +205,14 @@ const DocsSetHeroSkillTiles = ({
             <a
               className="flex min-h-24 flex-col justify-center rounded-xl border border-white/10 bg-white/[0.055] p-4 transition-colors hover:bg-white/[0.095]"
               href={item.href}
-              key={`${item.type}-${item.label}`}
+              key={`${item.agent}-${item.label}`}
             >
               {content}
             </a>
           ) : (
             <div
               className="flex min-h-24 flex-col justify-center rounded-xl border border-white/10 bg-white/[0.045] p-4"
-              key={`${item.type}-${item.label}`}
+              key={`${item.agent}-${item.label}`}
             >
               {content}
             </div>

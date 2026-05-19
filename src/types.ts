@@ -39,9 +39,14 @@ export type PayloadMarkdownDocsCollectionConfig = {
   slug?: string
 }
 
-export type DocsMarketingBlockKey = 'banner' | 'callout' | 'cta' | 'preview'
+export type DocsMarketingBlockKey = 'docsCTA'
 
-export type DocsBlockInstallSelection = boolean | Partial<Record<DocsMarketingBlockKey, boolean>>
+export type DocsBlockInstallSelection =
+  | ({
+      /** @deprecated Use docsCTA. */
+      cta?: boolean
+    } & Partial<Record<DocsMarketingBlockKey, boolean>>)
+  | boolean
 
 export type DocsHeroInstallConfig = {
   enabled?: boolean

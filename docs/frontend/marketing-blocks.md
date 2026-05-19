@@ -1,7 +1,7 @@
 ---
-title: Marketing Blocks
-navTitle: Marketing Blocks
-description: Install and render docs marketing blocks around generated documentation routes.
+title: In-Page Docs Blocks
+navTitle: In-Page Blocks
+description: Install and render the compact v1 docs block for page layouts.
 order: 450
 status: published
 tags:
@@ -9,26 +9,22 @@ tags:
   - blocks
 ---
 
-# Marketing Blocks
+# In-Page Docs Blocks
 
-`payload-markdown-docs/blocks` exports optional Payload Blocks and field
-helpers. `/next` exports the matching render components for building product
-pages, docs previews, callouts, banners, and skill download CTAs around selected
-docs sets.
+`payload-markdown-docs/blocks` exports one optional v1 Payload Block for page
+layouts:
 
-The blocks are opt-in. Generated docs routes keep working the same way.
+- `docsCTA`: what should the reader do next?
+
+Generated docs routes keep working the same way. This block is only for app
+layouts that wrap or reference generated documentation.
 
 ## Manual Block Installation
 
 ```ts
 import type { CollectionConfig } from 'payload'
 
-import {
-  DocsBannerBlock,
-  DocsCalloutBlock,
-  DocsCTABlock,
-  DocsPreviewBlock,
-} from '@valkyrianlabs/payload-markdown-docs/blocks'
+import { DocsCTABlock } from '@valkyrianlabs/payload-markdown-docs/blocks'
 
 export const Pages: CollectionConfig = {
   slug: 'pages',
@@ -36,69 +32,46 @@ export const Pages: CollectionConfig = {
     {
       name: 'layout',
       type: 'blocks',
-      blocks: [DocsCTABlock, DocsPreviewBlock, DocsCalloutBlock, DocsBannerBlock],
+      blocks: [DocsCTABlock],
     },
   ],
 }
 ```
 
-Reusable field helpers are also exported:
+## Docs CTA
 
-```ts
-import {
-  backgroundMediaFields,
-  ctaButtonsField,
-  docsPageRelationshipField,
-  docsSetRelationshipField,
-  skillCTAFields,
-} from '@valkyrianlabs/payload-markdown-docs/blocks'
-```
+Docs CTA is docs-set-first. Editors select one docs set, and the block derives
+the title, description, docs link, and skill buttons from that set whenever
+possible.
 
-## Authoring Model
+It supports exactly one action mode:
 
-The included marketing blocks are docs-set-first. Editors select a `Docs set`,
-and block links, page choices, fallback actions, and skill buttons derive from
-that set.
+- one button linking to the selected docs set's docs route
+- skill buttons detected from synced skill assets for the selected docs set
 
-- `docsPreview` links to the selected docs set and can use the set title and
-  description as defaults.
-- `docsCTA` links to the selected docs set when no CTA buttons are configured.
-- `docsCallout` selects a docs page filtered to the selected docs set.
-- `docsBanner` uses the selected docs set title and description as defaults.
+Docs CTA does not render both modes at the same time. Optional skill overrides
+only change detected skill labels and descriptions by agent.
 
-CTA buttons are scoped to the same selected docs set. Each button targets the
-selected set, a page inside the selected set, or a custom URL. Generic docs
-page, docs group, route, and manual-reference targets are not exposed.
+### Variants
 
-Skill CTAs are automatic. When skills are enabled, renderers should resolve
-available `payload-markdown-docs-assets` records for the selected docs set with
-`kind: 'skill'` and pass the generated items to the component. Editors do not
-paste skill download URLs. Auto-resolved skill buttons point to generated
-`/skills/<agent>.zip` downloads for valid bundles with a root `SKILL.md`.
+Docs CTA ships three width-correct variants. The host page can constrain the
+content column, but the block panel itself fills the available layout width.
 
-```ts
-import { resolveDocsSetSkills } from '@valkyrianlabs/payload-markdown-docs/next'
+- `subtle`: quiet inline/in-page CTA with compact spacing.
+- `normal`: default full-width CTA with a controlled decorative gradient.
+- `full`: taller media-capable CTA with optional background image and overlay.
 
-const skills = await resolveDocsSetSkills({
-  docsSet: block.docsSet,
-  payload,
-  skills: block.skills,
-})
-```
+`default` is treated as a legacy alias for `normal` when rendering older data.
 
-Badges and eyebrow fields remain optional visual metadata. `eyebrow` is small
-uppercase pre-heading text. `badges` and `badge` render pill labels near a
-heading for status, version, category, or launch metadata.
+## Roadmap
 
-Background media is decorative. Blocks keep media and position controls by
-default; fit, overlay, opacity, overlay variant, and gradient are hidden until
-advanced background controls are enabled. Background captions are not rendered.
+Docs Excerpt is deferred until a first-class read-only markdown highlighter is
+available.
 
-## Global Auto Install
+## Auto Install
 
-Auto-install appends docs marketing blocks to existing `blocks` fields on
-eligible collections. It does not create new collections or inject a new layout
-field.
+Auto-install appends Docs CTA to existing `blocks` fields on eligible
+collections. It does not create new collections or inject a new layout field.
 
 ```ts
 import { payloadMarkdownDocs } from '@valkyrianlabs/payload-markdown-docs'
@@ -108,100 +81,38 @@ payloadMarkdownDocs({
 })
 ```
 
-## Global Selected Blocks
+Select the block explicitly when needed:
 
 ```ts
 payloadMarkdownDocs({
   blocks: {
-    cta: true,
-    preview: true,
+    docsCTA: true,
   },
 })
 ```
 
-## Scoped Collection Install
-
-The terse collection form installs all docs marketing blocks into matching block
-fields on that collection.
-
-```ts
-payloadMarkdownDocs({
-  collections: {
-    pages: true,
-  },
-})
-```
-
-The explicit object form is equivalent and leaves room for future collection
-settings.
-
-```ts
-payloadMarkdownDocs({
-  collections: {
-    pages: {
-      blocks: true,
-    },
-  },
-})
-```
-
-Install only selected blocks into a collection:
+Use collection-scoped settings to install Docs CTA into a specific collection:
 
 ```ts
 payloadMarkdownDocs({
   collections: {
     pages: {
       blocks: {
-        cta: true,
-        banner: true,
+        docsCTA: true,
       },
     },
   },
 })
 ```
-
-Global and scoped settings can be mixed. Collection settings override the global
-selection for that collection.
-
-```ts
-payloadMarkdownDocs({
-  blocks: {
-    cta: true,
-    callout: true,
-  },
-  collections: {
-    pages: {
-      blocks: {
-        preview: true,
-        banner: true,
-      },
-    },
-    landingPages: true,
-  },
-})
-```
-
-When a collection already has a block with the same slug, the installer keeps the
-existing block and skips the duplicate.
 
 ## Rendering Blocks
 
-Render the blocks in your app's normal `RenderBlocks.tsx` component map. The
-docs block components accept the same spread Payload block props shape used by
-generated `layout` arrays.
+Render the block in your app's normal `RenderBlocks.tsx` component map.
 
 ```tsx
-import {
-  DocsBanner,
-  DocsCallout,
-  DocsCTA,
-  DocsPreview,
-} from '@valkyrianlabs/payload-markdown-docs/next'
+import { DocsCTA } from '@valkyrianlabs/payload-markdown-docs/next'
 
 const blockComponents = {
-  docsPreview: DocsPreview,
-  docsBanner: DocsBanner,
-  docsCallout: DocsCallout,
   docsCTA: DocsCTA,
 }
 
@@ -216,19 +127,5 @@ export function RenderBlocks({ blocks }: { blocks?: { blockType?: string }[] }) 
 }
 ```
 
-## Docs Heroes
-
-Docs hero fields and components are documented separately. See
-[Docs Heroes](/frontend/docs-heroes) for `docsHeroField`, plugin
-`heros`/`heroes` wrapping, and `DocsSetHero` rendering.
-
-## Included Blocks
-
-- `docsCTA`: a docs-set-scoped call-to-action section with optional badges.
-- `docsPreview`: a selected-docs-set preview with set-aware actions.
-- `docsCallout`: a callout for a page inside the selected docs set.
-- `docsBanner`: a large media-backed banner scoped to a selected docs set.
-
-All blocks support partial data at render time. Missing media, empty CTAs,
-unresolved relationships, and empty skill groups are ignored instead of crashing the
-page.
+Docs hero fields and components are documented separately in
+[Docs Heroes](/frontend/docs-heroes).

@@ -7,17 +7,14 @@ import type {
   PayloadMarkdownDocsCollectionsConfig,
 } from '../types.js'
 
-import { DocsBannerBlock, DocsCalloutBlock, DocsCTABlock, DocsPreviewBlock } from '../blocks/index.js'
+import { DocsCTABlock } from '../blocks/index.js'
 import {
   getSelectedBlockKeys,
   resolveCollectionBlockSelection,
 } from './resolveBlockSelection.js'
 
 export const docsMarketingBlocks: Record<DocsMarketingBlockKey, Block> = {
-  banner: DocsBannerBlock,
-  callout: DocsCalloutBlock,
-  cta: DocsCTABlock,
-  preview: DocsPreviewBlock,
+  docsCTA: DocsCTABlock,
 }
 
 type InstallFieldsResult = {

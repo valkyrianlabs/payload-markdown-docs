@@ -1,7 +1,4 @@
-export { DocsBanner } from '../components/docs/DocsBanner.js'
-export { DocsCallout } from '../components/docs/DocsCallout.js'
 export { DocsCTA } from '../components/docs/DocsCTA.js'
-export { DocsPreview } from '../components/docs/DocsPreview.js'
 export {
   docsHeroComponents,
   DocsNativeHero,
@@ -16,13 +13,11 @@ export {
 export { SkillCTAGroup } from '../components/skills/SkillCTAGroup.js'
 export { SkillTabs } from '../components/skills/SkillTabs.js'
 export type {
-  DocsBannerProps,
-  DocsCalloutProps,
   DocsCTAProps,
+  DocsCTASkillOverride,
   DocsMarketingPayloadBlockProps,
   DocsNativeHeroProps,
   DocsPageReference,
-  DocsPreviewProps,
   DocsProductHeroProps,
   DocsRelationship,
   DocsRelationshipID,

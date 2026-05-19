@@ -41,14 +41,14 @@ export const SkillTabs = ({ align = 'left', className, items: inputItems }: Skil
           <a
             className="inline-flex min-h-11 min-w-0 max-w-full basis-full flex-col items-center justify-center rounded-lg px-4 py-2.5 text-center transition-colors hover:bg-white/[0.08] sm:basis-40"
             href={item.href}
-            key={`${item.type}-${item.label}`}
+            key={`${item.agent}-${item.label}`}
           >
             {content}
           </a>
         ) : (
           <div
             className="inline-flex min-h-11 min-w-0 max-w-full basis-full flex-col items-center justify-center rounded-lg px-4 py-2.5 text-center sm:basis-40"
-            key={`${item.type}-${item.label}`}
+            key={`${item.agent}-${item.label}`}
           >
             {content}
           </div>

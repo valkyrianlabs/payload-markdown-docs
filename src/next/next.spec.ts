@@ -11,12 +11,9 @@ import type {
 
 import { createPayloadMarkdownDocsAssetResponse } from './assets.js'
 import {
-  DocsBanner,
-  DocsCallout,
   DocsCTA,
   docsHeroComponents,
   DocsNativeHero,
-  DocsPreview,
   DocsProductHero,
   DocsSetHero,
   isDocsSetHeroType,
@@ -2293,163 +2290,257 @@ describe('Payload Markdown Docs page component', () => {
 })
 
 describe('Payload Markdown Docs marketing components', () => {
-  it('exports renderable docs marketing blocks from /next', async () => {
-    const docsSet = {
-      id: 'set-1',
-      slug: 'payload-markdown',
-      description: 'Guides and API references.',
-      routeMode: 'product-nested',
-      title: 'Payload Markdown',
-    } as const
-    const docsPage = {
-      description: 'Configuration reference.',
-      route: '/payload-markdown/docs/configuration',
-      title: 'Need options?',
-    }
-    const ctaMarkup = await renderServerMarkup(
+  it('exports renderable Docs CTA from /next', async () => {
+    const markup = await renderServerMarkup(
       createElement(DocsCTA, {
-        docsLabel: 'Read the docs',
-        docsSet,
-      }),
-    )
-    const previewMarkup = await renderServerMarkup(
-      createElement(DocsPreview, {
-        docsSet,
-        viewAllLabel: 'Explore docs',
-      }),
-    )
-    const calloutMarkup = await renderServerMarkup(
-      createElement(DocsCallout, {
-        docsPage,
-      }),
-    )
-    const bannerMarkup = await renderServerMarkup(
-      createElement(DocsBanner, {
-        ctaButtons: [
-          {
-            label: 'Open docs',
-            target: 'set',
+        docsLabel: 'Read configuration',
+        docsSet: {
+          relationTo: 'docs-sets',
+          value: {
+            id: 'set-1',
+            slug: 'payload-markdown',
+            description: 'Read the next step.',
+            group: {
+              slug: 'plugins',
+            },
+            routeMode: 'product-nested',
+            title: 'Payload Markdown',
           },
-        ],
-        docsSet,
-        heading: 'Ship with documentation',
+        },
       }),
     )
 
-    expect(ctaMarkup).toContain('Read the docs')
-    expect(ctaMarkup).toContain('href="/payload-markdown"')
-    expect(previewMarkup).toContain('Payload Markdown')
-    expect(previewMarkup).toContain('href="/payload-markdown"')
-    expect(calloutMarkup).toContain('Configuration reference.')
-    expect(calloutMarkup).toContain('href="/payload-markdown/docs/configuration"')
-    expect(bannerMarkup).toContain('Open docs')
+    expect(markup).toContain('Payload Markdown')
+    expect(markup).toContain('Read the next step.')
+    expect(markup).toContain('Read configuration')
+    expect(markup).toContain('href="/plugins/payload-markdown/docs"')
+    expect(markup).toContain('data-payload-markdown-docs-block="docsCTA"')
   })
 
-  it('renders docs set fallback headings without relying on badges or actions', async () => {
-    const docsSet = {
-      description: 'Docs set fallback description.',
-      title: 'Docs set fallback title',
-    }
-    const bannerMarkup = await renderServerMarkup(
-      createElement(DocsBanner, {
-        ctaButtons: [],
-        docsSet,
-      }),
-    )
-    const ctaMarkup = await renderServerMarkup(
+  it('uses overrideContent title and description when enabled', async () => {
+    const markup = await renderServerMarkup(
       createElement(DocsCTA, {
-        ctaButtons: [],
-        docsSet,
+        description: 'Override description.',
+        docsSet: {
+          id: 'set-1',
+          slug: 'payload-markdown',
+          description: 'Docs set description.',
+          routeBase: '/plugins/payload-markdown/docs',
+          title: 'Docs set title',
+        },
+        heading: 'Override title',
+        overrideContent: true,
       }),
     )
 
-    expect(bannerMarkup).toContain('Docs set fallback title')
-    expect(bannerMarkup).toContain('Docs set fallback description.')
-    expect(ctaMarkup).toContain('Docs set fallback title')
-    expect(ctaMarkup).toContain('Docs set fallback description.')
+    expect(markup).toContain('Override title')
+    expect(markup).toContain('Override description.')
+    expect(markup).not.toContain('Docs set title')
+    expect(markup).not.toContain('Docs set description.')
   })
 
-  it('throws a clear error when a required docs marketing heading cannot resolve', async () => {
+  it('renders Docs CTA variants at full parent width without old max-width caps', async () => {
+    const subtleMarkup = await renderServerMarkup(
+      createElement(DocsCTA, {
+        docsSet: {
+          id: 'set-1',
+          routeBase: '/docs',
+          title: 'Subtle CTA',
+        },
+        variant: 'subtle',
+      }),
+    )
+    const normalMarkup = await renderServerMarkup(
+      createElement(DocsCTA, {
+        docsSet: {
+          id: 'set-1',
+          routeBase: '/docs',
+          title: 'Normal CTA',
+        },
+        gradient: 'emerald',
+        variant: 'normal',
+      }),
+    )
+    const legacyDefaultMarkup = await renderServerMarkup(
+      createElement(DocsCTA, {
+        docsSet: {
+          id: 'set-1',
+          routeBase: '/docs',
+          title: 'Legacy default CTA',
+        },
+        variant: 'default',
+      }),
+    )
+    const fullMarkup = await renderServerMarkup(
+      createElement(DocsCTA, {
+        background: {
+          media: {
+            url: '/media/docs-cta.jpg',
+          },
+          overlay: true,
+          overlayOpacity: 60,
+        },
+        docsSet: {
+          id: 'set-1',
+          routeBase: '/docs',
+          title: 'Full CTA',
+        },
+        gradient: 'violet',
+        variant: 'full',
+      }),
+    )
+
+    expect(subtleMarkup).toContain('w-full')
+    expect(subtleMarkup).toContain('rounded-xl')
+    expect(subtleMarkup).not.toContain('max-w-2xl')
+    expect(subtleMarkup).not.toContain('max-w-3xl')
+    expect(subtleMarkup).not.toContain('radial-gradient')
+    expect(normalMarkup).toContain('rounded-2xl')
+    expect(normalMarkup).toContain('radial-gradient')
+    expect(normalMarkup).toContain('rgba(52,211,153')
+    expect(normalMarkup).not.toContain('max-w-2xl')
+    expect(normalMarkup).not.toContain('max-w-3xl')
+    expect(legacyDefaultMarkup).toContain('rounded-2xl')
+    expect(legacyDefaultMarkup).not.toContain('rounded-xl')
+    expect(fullMarkup).toContain('min-h-[150px]')
+    expect(fullMarkup).toContain('md:min-h-[180px]')
+    expect(fullMarkup).toContain('background-image:url(/media/docs-cta.jpg)')
+    expect(fullMarkup).toContain('rgba(167,139,250')
+    expect(fullMarkup).not.toContain('max-w-2xl')
+    expect(fullMarkup).not.toContain('max-w-3xl')
+  })
+
+  it('renders docsLink and skills action modes without mixing them', async () => {
+    const docsLinkMarkup = await renderServerMarkup(
+      createElement(DocsCTA, {
+        actionType: 'docsLink',
+        docsLabel: 'Open docs',
+        docsSet: {
+          id: 'set-1',
+          slug: 'payload-markdown',
+          group: {
+            slug: 'plugins',
+          },
+          routeMode: 'product-nested',
+          title: 'Choose a workflow',
+        },
+        skills: {
+          enabled: true,
+          resolvedItems: [
+            {
+              agent: 'codex',
+              href: '/plugins/payload-markdown/skills/codex.zip',
+              label: 'Codex skill',
+            },
+          ],
+        },
+      }),
+    )
+    const skillsMarkup = await renderServerMarkup(
+      createElement(DocsCTA, {
+        actionType: 'skills',
+        docsLabel: 'Ignored docs link',
+        docsSet: {
+          id: 'set-1',
+          slug: 'payload-markdown',
+          routeBase: '/plugins/payload-markdown/docs',
+          title: 'Install a skill',
+        },
+        skills: {
+          enabled: true,
+          resolvedItems: [
+            {
+              agent: 'codex',
+              description: 'Use the Codex workflow.',
+              href: '/plugins/payload-markdown/skills/codex.zip',
+              label: 'Codex skill',
+            },
+            {
+              agent: 'zed',
+              href: '/plugins/payload-markdown/skills/zed.zip',
+              label: 'Zed skill',
+            },
+          ],
+        },
+      }),
+    )
+
+    expect(docsLinkMarkup).toContain('Open docs')
+    expect(docsLinkMarkup).toContain('href="/plugins/payload-markdown/docs"')
+    expect(docsLinkMarkup).not.toContain('Codex skill')
+    expect(skillsMarkup).toContain('Codex skill')
+    expect(skillsMarkup).toContain('Zed skill')
+    expect(skillsMarkup).toContain('Use the Codex workflow.')
+    expect(skillsMarkup).toContain('href="/plugins/payload-markdown/skills/codex.zip"')
+    expect(skillsMarkup).toContain('href="/plugins/payload-markdown/skills/zed.zip"')
+    expect(skillsMarkup).not.toContain('Ignored docs link')
+  })
+
+  it('uses docs-root and product-nested docs set docs hrefs', async () => {
+    const docsRootMarkup = await renderServerMarkup(
+      createElement(DocsCTA, {
+        docsSet: {
+          id: 'set-1',
+          slug: 'guides',
+          group: {
+            slug: 'plugins',
+          },
+          routeMode: 'docs-root',
+          title: 'Guides',
+        },
+      }),
+    )
+    const productNestedMarkup = await renderServerMarkup(
+      createElement(DocsCTA, {
+        docsSet: {
+          id: 'set-2',
+          slug: 'payload-markdown',
+          group: {
+            slug: 'plugins',
+          },
+          routeMode: 'product-nested',
+          title: 'Payload Markdown',
+        },
+      }),
+    )
+
+    expect(docsRootMarkup).toContain('href="/plugins/guides"')
+    expect(productNestedMarkup).toContain('href="/plugins/payload-markdown/docs"')
+    expect(productNestedMarkup).not.toContain('href="/plugins/payload-markdown"')
+  })
+
+  it('throws a clear error when Docs CTA title cannot be derived', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
 
     try {
       await expect(
         renderServerMarkup(
-          createElement(DocsBanner, {
-            ctaButtons: [],
-          }),
-        ),
-      ).rejects.toThrow('docsBanner requires a heading or a selected docs set with a title')
-      await expect(
-        renderServerMarkup(
-          createElement(DocsCallout, {
-            docsPage: {
-              route: '/docs/configuration',
+          createElement(DocsCTA, {
+            docsSet: {
+              routeBase: '/docs/read',
             },
           }),
         ),
-      ).rejects.toThrow('docsCallout requires a heading or a selected docs page with a title')
+      ).rejects.toThrow('docsCTA requires a selected docs set with a title')
     } finally {
       consoleError.mockRestore()
     }
   })
 
-  it('renders docs marketing blocks through the standard Payload block component map', async () => {
-    const docsSet = {
-      id: 2,
-      slug: 'payload-markdown',
-      description: 'Layout-aware Markdown for Payload CMS',
-      group: {
-        id: 1,
-        slug: 'plugins',
-        title: 'Plugins',
-      },
-      routeMode: 'product-nested',
-      title: 'Payload Markdown',
-    } as const
+  it('renders Docs CTA through the standard Payload block component map', async () => {
     const blockComponents = {
-      docsBanner: DocsBanner,
-      docsCallout: DocsCallout,
       docsCTA: DocsCTA,
-      docsPreview: DocsPreview,
     }
-    const blocks: (
-      | ({ blockType: 'docsBanner'; id: string } & Parameters<typeof DocsBanner>[0])
-      | ({ blockType: 'docsPreview'; id: string } & Parameters<typeof DocsPreview>[0])
-    )[] = [
+    const blocks: ({ blockType: 'docsCTA'; id: string } & Parameters<typeof DocsCTA>[0])[] = [
       {
-        id: 'banner-block',
-        background: {
-          fit: 'cover',
-          media: {
-            url: 'https://media.example.com/banner.png',
-          },
-          position: 'center',
+        id: 'docs-cta-block',
+        blockType: 'docsCTA',
+        docsLabel: 'Open docs',
+        docsSet: {
+          id: 'set-1',
+          routeBase: '/plugins/payload-markdown/docs',
+          title: 'Next step',
         },
-        blockType: 'docsBanner',
-        ctaButtons: [
-          {
-            label: 'Documentation',
-            target: 'set',
-            variant: 'primary',
-          },
-        ],
-        description: null,
-        docsSet,
-        heading: null,
-        size: 'md',
-        textAlign: 'center',
-        theme: 'dark',
-      },
-      {
-        id: 'preview-block',
-        blockType: 'docsPreview',
-        ctaButtons: [],
-        description: null,
-        docsSet,
-        heading: null,
-        layout: 'cards',
-        viewAllLabel: 'Documentation',
       },
     ]
     const markup = await renderServerMarkup(
@@ -2472,10 +2563,9 @@ describe('Payload Markdown Docs marketing components', () => {
       ),
     )
 
-    expect(markup).toContain('data-payload-markdown-docs-block="docsBanner"')
-    expect(markup).toContain('data-payload-markdown-docs-block="docsPreview"')
-    expect(markup).toContain('Payload Markdown')
-    expect(markup).toContain('href="/plugins/payload-markdown"')
+    expect(markup).toContain('data-payload-markdown-docs-block="docsCTA"')
+    expect(markup).toContain('Next step')
+    expect(markup).toContain('Open docs')
   })
 
   it('renders docs set hero variants from spread props', async () => {

@@ -51,12 +51,43 @@ export type DocsPageReference = {
   url?: null | string
 }
 
+export type DocsCTASkillOverride = {
+  agent?: null | string
+  description?: null | string
+  label?: null | string
+}
+
+export type DocsCTAGradient = 'brand' | 'cyan' | 'emerald' | 'none' | 'violet'
+
+export type DocsCTAVariant = 'default' | 'full' | 'normal' | 'subtle'
+
+export type DocsCTAProps = {
+  actionType?: 'docsLink' | 'skills' | null
+  background?: DocsBackgroundMediaInput | null
+  className?: string
+  containerClassName?: string
+  description?: null | ReactNode
+  docsLabel?: null | string
+  docsSet?: DocsRelationship<DocsSetReference> | null
+  gradient?: DocsCTAGradient | null
+  heading?: null | string
+  headingLevel?: 1 | 2 | 3 | 4
+  overrideContent?: boolean | null
+  skillOverrides?: DocsCTASkillOverride[] | null
+  skills?: null | SkillCTAGroupInput
+  title?: null | string
+  variant?: DocsCTAVariant | null
+} & DocsMarketingPayloadBlockProps
+
 export type DocsAssetReference = {
   docsSet?: DocsRelationship<DocsSetReference> | null
   id?: DocsRelationshipID
   kind?: null | string
   route?: null | string
   sourcePath?: null | string
+  sync?: {
+    archived?: boolean | null
+  } | null
 }
 
 export type DocsMediaReference = {
@@ -140,9 +171,10 @@ export type NormalizedDocsBackgroundMedia = {
   position: DocsBackgroundPosition
 }
 
-export type SkillCTAType = 'claude' | 'codex' | 'custom'
+export type SkillCTAType = string
 
 export type SkillCTAItemInput = {
+  agent?: null | string
   description?: null | string
   href?: null | string
   icon?: null | string
@@ -157,14 +189,16 @@ export type SkillCTAGroupInput = {
   enabled?: boolean | null
   heading?: null | string
   resolvedItems?: NormalizedSkillCTAItem[] | null
+  skillOverrides?: DocsCTASkillOverride[] | null
 }
 
 export type NormalizedSkillCTAItem = {
+  agent: string
   description?: string
-  href?: string
+  href: string
   icon?: string
   label: string
-  type: SkillCTAType
+  type?: SkillCTAType
 }
 
 export type NormalizedSkillCTAGroup = {
@@ -204,69 +238,6 @@ export type DocsMarketingPayloadBlockProps = {
   collectionSlug?: null | string
   id?: null | number | string
 }
-
-export type DocsCTAProps = {
-  background?: DocsBackgroundMediaInput | null
-  badges?: { label?: null | string }[] | null | string[]
-  className?: string
-  containerClassName?: string
-  ctaButtons?: DocsCTAButtonInput[] | null
-  description?: ReactNode
-  docsLabel?: null | string
-  docsSet?: DocsRelationship<DocsSetReference> | null
-  eyebrow?: null | string
-  heading?: null | string
-  headingLevel?: 1 | 2 | 3 | 4
-  layout?: 'card' | 'centered' | 'inline' | 'split' | null
-  skills?: null | SkillCTAGroupInput
-  theme?: DocsTheme | null
-} & DocsMarketingPayloadBlockProps
-
-export type DocsPreviewProps = {
-  className?: string
-  containerClassName?: string
-  ctaButtons?: DocsCTAButtonInput[] | null
-  description?: ReactNode
-  docsSet?: DocsRelationship<DocsSetReference> | null
-  heading?: null | string
-  headingLevel?: 1 | 2 | 3 | 4
-  layout?: 'cards' | 'compact' | 'featured' | 'list' | null
-  skills?: null | SkillCTAGroupInput
-  theme?: DocsTheme | null
-  viewAllLabel?: null | string
-} & DocsMarketingPayloadBlockProps
-
-export type DocsCalloutProps = {
-  className?: string
-  containerClassName?: string
-  ctaLabel?: null | string
-  description?: ReactNode
-  docsPage?: DocsRelationship<DocsPageReference> | null
-  docsSet?: DocsRelationship<DocsSetReference> | null
-  excerpt?: null | string
-  heading?: null | string
-  icon?: null | string
-  layout?: 'card' | 'fullWidth' | 'inline' | 'sidebar' | null
-  skills?: null | SkillCTAGroupInput
-  variant?: 'brand' | 'info' | 'neutral' | 'success' | 'warning' | null
-} & DocsMarketingPayloadBlockProps
-
-export type DocsBannerProps = {
-  background?: DocsBackgroundMediaInput | null
-  badge?: null | string
-  className?: string
-  containerClassName?: string
-  ctaButtons?: DocsCTAButtonInput[] | null
-  description?: ReactNode
-  docsSet?: DocsRelationship<DocsSetReference> | null
-  eyebrow?: null | string
-  heading?: null | string
-  headingLevel?: 1 | 2 | 3 | 4
-  size?: 'lg' | 'md' | 'sm' | 'xl' | null
-  skills?: null | SkillCTAGroupInput
-  textAlign?: 'center' | 'left' | 'right' | null
-  theme?: DocsTheme | null
-} & DocsMarketingPayloadBlockProps
 
 export type DocsProductHeroPreview = {
   groupName?: string

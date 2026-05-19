@@ -15,7 +15,7 @@ tags:
 
 ## Root
 
-Use the root package for Payload plugin configuration only:
+Use the root package for Payload plugin configuration:
 
 ```ts
 import { payloadMarkdownDocs } from '@valkyrianlabs/payload-markdown-docs'
@@ -56,7 +56,7 @@ Use the nav/header builders for frontend navigation data.
 
 ## `/admin`
 
-Use `/admin` only for the Payload import map component:
+Use `/admin` only for Payload import map components:
 
 ```ts
 import { DocsSetManager } from '@valkyrianlabs/payload-markdown-docs/admin'
@@ -69,12 +69,13 @@ Admin data loaders and URL helpers are internal.
 Use `/blocks` for optional manual Payload block installation:
 
 ```ts
-import {
-  DocsCTABlock,
-  DocsPreviewBlock,
-  ctaButtonsField,
-} from '@valkyrianlabs/payload-markdown-docs/blocks'
+import { DocsCTABlock } from '@valkyrianlabs/payload-markdown-docs/blocks'
 ```
+
+The v1 in-page block registry contains only `DocsCTABlock`.
+
+Docs Excerpt is deferred until a first-class read-only markdown highlighter is
+available.
 
 Sync planning, security, routing internals, hashing, frontmatter parsing, and
 manifest builders are internal package implementation details.

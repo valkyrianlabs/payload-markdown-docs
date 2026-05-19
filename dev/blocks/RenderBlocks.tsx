@@ -3,13 +3,10 @@ import React, { Fragment } from 'react'
 
 import type { Page } from '../payload-types.ts'
 
-import { DocsBanner, DocsCallout, DocsCTA, DocsPreview } from '../../dist/next'
+import { DocsCTA } from '../../dist/next'
 
 const blockComponents = {
-  docsBanner: DocsBanner,
-  docsCallout: DocsCallout,
   docsCTA: DocsCTA,
-  docsPreview: DocsPreview,
   vlMdBlock: MarkdownBlockComponent,
 }
 
