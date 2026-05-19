@@ -19,20 +19,6 @@ const overrideContentCondition = (_data: unknown, siblingData: Record<string, un
 const skillsCondition = (_data: unknown, siblingData: Record<string, unknown>) =>
   siblingData?.actionType === 'skills'
 
-const normalizeLegacyVariant = (value: unknown) => (value === 'default' ? 'normal' : value)
-
-const selectOptionValue = (option: unknown) => {
-  if (typeof option === 'string') {
-    return option
-  }
-
-  if (option && typeof option === 'object' && 'value' in option) {
-    return option.value
-  }
-
-  return undefined
-}
-
 const ctaBackgroundField = (): Field => {
   const field = backgroundMediaFields()
 
@@ -143,13 +129,6 @@ export const DocsCTABlock: Block = {
       name: 'variant',
       type: 'select',
       defaultValue: 'normal',
-      filterOptions: ({ options }) =>
-        options.filter((option) => selectOptionValue(option) !== 'default'),
-      hooks: {
-        beforeValidate: [
-          ({ value }) => normalizeLegacyVariant(value),
-        ],
-      },
       options: [
         {
           label: 'Subtle',
@@ -162,10 +141,6 @@ export const DocsCTABlock: Block = {
         {
           label: 'Full',
           value: 'full',
-        },
-        {
-          label: 'Default (legacy)',
-          value: 'default',
         },
       ],
     },
