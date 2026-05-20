@@ -10,7 +10,7 @@ import {
 
 const getPreviewItemSource = (input: unknown): unknown => {
   if (isRecord(input)) {
-    return input.routeReference ?? input.reference ?? input
+    return input.reference ?? input
   }
 
   return input
@@ -53,20 +53,8 @@ const getPreviewInputArray = (input: unknown): unknown[] => {
     return []
   }
 
-  if (Array.isArray(input.manualItems)) {
-    return input.manualItems
-  }
-
   if (Array.isArray(input.items)) {
     return input.items
-  }
-
-  if (Array.isArray(input.pages)) {
-    return input.pages
-  }
-
-  if (Array.isArray(input.docs)) {
-    return input.docs
   }
 
   return []

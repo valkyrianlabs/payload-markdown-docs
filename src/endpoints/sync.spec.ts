@@ -2147,7 +2147,7 @@ describe('sync endpoint dry-run handling', () => {
     )
   })
 
-  it('updates legacy frontmatter docs without treating stripped content as a manual edit', async () => {
+  it('rejects records missing content hash tracking without docs writes', async () => {
     const { privateKey, publicKey } = keyPair()
     const previousManifest = buildDocsManifest({
       files: [
@@ -2202,20 +2202,9 @@ describe('sync endpoint dry-run handling', () => {
       publicKey: publicKey.toString(),
     })
 
-    expect(response.status).toBe(200)
-    expect(json.summary).toMatchObject({ update: 1 })
-    expect(payload.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        id: 'doc-1',
-        data: expect.objectContaining({
-          content: '# New\n',
-          sync: expect.objectContaining({
-            contentHashAtLastSync: sha256Hex('# New\n'),
-            sourceHashAtLastSync: manifest.files[0]?.sha256,
-          }),
-        }),
-      }),
-    )
+    expect(response.status).toBe(409)
+    expect(json.error).toMatchObject({ code: 'manual_edit_conflict' })
+    expect(payload.update).not.toHaveBeenCalledWith(expect.objectContaining({ collection: 'docs' }))
   })
 
   it('archives missing docs in sync mode', async () => {
@@ -2240,6 +2229,7 @@ describe('sync endpoint dry-run handling', () => {
           sourcePath: 'old.md',
           sync: {
             archived: false,
+            contentHashAtLastSync: sha256Hex('# Old\n'),
             managedBy: 'payload-markdown-docs',
             sourceHashAtLastSync: sha256Hex('# Old\n'),
             sourceId: 'main-docs',
@@ -2299,6 +2289,7 @@ describe('sync endpoint dry-run handling', () => {
           sourcePath: 'old.md',
           sync: {
             archived: false,
+            contentHashAtLastSync: sha256Hex('# Old\n'),
             managedBy: 'payload-markdown-docs',
             sourceHashAtLastSync: sha256Hex('# Old\n'),
             sourceId: 'main-docs',
@@ -2355,6 +2346,7 @@ describe('sync endpoint dry-run handling', () => {
           sourcePath: 'old.md',
           sync: {
             archived: false,
+            contentHashAtLastSync: sha256Hex('# Old\n'),
             managedBy: 'payload-markdown-docs',
             sourceHashAtLastSync: sha256Hex('# Old\n'),
             sourceId: 'main-docs',
@@ -2417,6 +2409,7 @@ describe('sync endpoint dry-run handling', () => {
           sourcePath: 'old.md',
           sync: {
             archived: false,
+            contentHashAtLastSync: sha256Hex('# Old\n'),
             managedBy: 'payload-markdown-docs',
             sourceHashAtLastSync: sha256Hex('# Old\n'),
             sourceId: 'main-docs',
@@ -2464,6 +2457,7 @@ describe('sync endpoint dry-run handling', () => {
           sourcePath: 'index.md',
           sync: {
             archived: false,
+            contentHashAtLastSync: sha256Hex('# Old\n'),
             managedBy: 'payload-markdown-docs',
             sourceHashAtLastSync: sha256Hex('# Old\n'),
             sourceId: 'main-docs',

@@ -9,9 +9,7 @@ const fullVariantCondition = (_data: unknown, siblingData: Record<string, unknow
   siblingData?.variant === 'full'
 
 const gradientCondition = (_data: unknown, siblingData: Record<string, unknown>) =>
-  siblingData?.variant === 'normal' ||
-  siblingData?.variant === 'full' ||
-  siblingData?.variant === 'default'
+  siblingData?.variant === 'normal' || siblingData?.variant === 'full'
 
 const overrideContentCondition = (_data: unknown, siblingData: Record<string, unknown>) =>
   siblingData?.overrideContent === true

@@ -124,8 +124,6 @@ export const linkField = ({
   }),
 })
 
-export const buttonField = linkField
-
 export const ctaButtonsField = ({
   name = 'ctaButtons',
   maxRows,
@@ -145,5 +143,3 @@ export const ctaButtonsField = ({
   minRows,
   required,
 })
-
-export const linksArrayField = ctaButtonsField

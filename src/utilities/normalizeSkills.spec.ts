@@ -193,27 +193,4 @@ describe('docs set skill CTA resolution', () => {
       },
     ])
   })
-
-  it('preserves manual skill CTA hrefs', () => {
-    expect(
-      normalizeSkills({
-        enabled: true,
-        items: [
-          {
-            type: 'custom',
-            agent: 'custom-agent',
-            href: '/custom/skill-link',
-            label: 'Custom skill',
-          },
-        ],
-      })?.items,
-    ).toEqual([
-      {
-        type: 'custom',
-        agent: 'custom-agent',
-        href: '/custom/skill-link',
-        label: 'Custom skill',
-      },
-    ])
-  })
 })

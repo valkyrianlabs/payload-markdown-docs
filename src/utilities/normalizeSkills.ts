@@ -1,7 +1,6 @@
 import type {
   DocsAssetReference,
   DocsCTASkillOverride,
-  DocsPageReference,
   DocsRelationship,
   DocsSetReference,
   DocsWhere,
@@ -17,7 +16,6 @@ import { formatSkillAgentTitle, getSkillBundles } from '../skillBundles.js'
 import {
   getBoolean,
   getRelationshipId,
-  getRouteLikeHref,
   getString,
   isRecord,
 } from './normalizeShared.js'
@@ -63,19 +61,15 @@ const getOverridesByAgent = (
   return overridesByAgent
 }
 
-type LegacySkillCTAItemInput = {
-  routeReference?: DocsRelationship<DocsPageReference> | null
-} & SkillCTAItemInput
-
 const normalizeSkillItem = (
-  input: LegacySkillCTAItemInput | null | undefined,
+  input: null | SkillCTAItemInput | undefined,
 ): NormalizedSkillCTAItem | undefined => {
   if (!input) {
     return undefined
   }
 
   const label = getString(input.label)
-  const href = getString(input.href) ?? getString(input.url) ?? getRouteLikeHref(input.routeReference)
+  const href = getString(input.href) ?? getString(input.url)
 
   if (!label || !href) {
     return undefined
@@ -212,10 +206,7 @@ export const normalizeSkills = (
     return undefined
   }
 
-  const legacyItems = (input as { items?: null | SkillCTAItemInput[] }).items
-  const items = Array.isArray(input.resolvedItems)
-    ? input.resolvedItems
-    : normalizeSkillItems(legacyItems)
+  const items = Array.isArray(input.resolvedItems) ? input.resolvedItems : []
 
   if (items.length === 0) {
     return undefined

@@ -164,7 +164,7 @@ const getCollectionHeroSelection = ({
   pagesSelection?: DocsHeroInstallSelection
 }): DocsHeroInstallSelection | undefined => {
   if (isRecord(collectionConfig)) {
-    const collectionHeroSelection = collectionConfig.heroes ?? collectionConfig.heros
+    const collectionHeroSelection = collectionConfig.heroes
 
     if (collectionHeroSelection !== undefined) {
       return collectionHeroSelection as DocsHeroInstallSelection

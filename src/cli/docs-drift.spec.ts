@@ -116,6 +116,7 @@ const staleDocsPatterns = [
   /legacyServeIndex/,
   /legacyDefault/,
   /requireDryRunBeforeApply/,
+  /\bDocsPreviewBlock\b/,
   /getPayloadMarkdownDocsLinks/,
   /createPayloadMarkdownDocsAssetResponse/,
   /createPayloadMarkdownDocsLlmsResponse/,
@@ -127,6 +128,9 @@ const staleDocsPatterns = [
   /heroBanner/,
   /shareCard/,
   /marketingBanner/,
+  /\bheros\s*:/,
+  /`heros`/,
+  /variant:\s*['"]default['"]/,
 ]
 
 const rootBlockImportPattern =

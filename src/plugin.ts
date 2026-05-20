@@ -344,8 +344,8 @@ export const payloadMarkdownDocs =
       collectionConfigs: pluginOptions.collections,
       collections: marketingBlocksInstall.collections,
       defaultPagesCollectionSlug: pluginOptions.routing?.pages?.collection ?? DEFAULT_PAGES_COLLECTION_SLUG,
-      globalSelection: pluginOptions.heroes ?? pluginOptions.heros,
-      pagesSelection: pluginOptions.pages?.heroes ?? pluginOptions.pages?.heros,
+      globalSelection: pluginOptions.heroes,
+      pagesSelection: pluginOptions.pages?.heroes,
     })
     const incomingCollections = addDocsMarketingAfterReadHooks({
       collections: docsHeroInstall.collections,

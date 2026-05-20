@@ -31,7 +31,7 @@ dependencies:
 
 :::callout[Early release notice]{variant="warning"}
 `@valkyrianlabs/payload-markdown-docs` is still in active pre-v1 development as
-of v0.14.0. The project is currently in a particularly volatile stabilization
+of v0.16.0. The project is currently in a particularly volatile stabilization
 phase ahead of the planned v1.0.0 release. APIs, collections, configuration
 shape, CLI behavior, and documentation structure may change quickly in the
 interim.
