@@ -52,7 +52,7 @@
   ],
   "scripts": {
     "build": "pnpm clean && pnpm copyfiles && pnpm build:types && pnpm build:swc",
-    "build:swc": "swc ./src -d ./dist --config-file .swcrc --strip-leading-paths --ignore \"**/*.spec.ts,**/*.spec.tsx,**/*.d.ts\"",
+    "build:swc": "swc ./src -d ./dist --config-file .swcrc --strip-leading-paths --ignore \"**/*.spec.ts\"",
     "build:types": "tsc -p tsconfig.build.json --outDir dist --rootDir ./src",
     "clean": "rimraf {dist,*.tsbuildinfo}",
     "cli": "node --import @swc-node/register/esm-register ./src/cli/index.ts",
@@ -78,11 +78,13 @@
     "test:int": "vitest"
   },
   "devDependencies": {
-    "@payloadcms/db-postgres": "3.84.1",
-    "@payloadcms/eslint-config": "3.28.0",
-    "@payloadcms/next": "3.84.1",
-    "@payloadcms/richtext-lexical": "3.84.1",
-    "@payloadcms/ui": "3.84.1",
+    "@eslint/eslintrc": "^3.3.5",
+    "@payloadcms/db-postgres": "latest",
+    "@payloadcms/db-sqlite": "latest",
+    "@payloadcms/eslint-config": "latest",
+    "@payloadcms/next": "latest",
+    "@payloadcms/richtext-lexical": "latest",
+    "@payloadcms/ui": "latest",
     "@playwright/test": "1.58.2",
     "@swc-node/register": "1.10.9",
     "@swc/cli": "0.6.0",
@@ -94,14 +96,20 @@
     "copyfiles": "2.4.1",
     "cross-env": "^7.0.3",
     "eslint": "^9.39.4",
+    "eslint-config-next": "latest",
     "graphql": "^16.14.0",
-    "next": "16.2.6",
-    "payload": "3.84.1",
+    "mongodb-memory-server": "10.1.4",
+    "next": "latest",
+    "open": "^10.2.0",
+    "payload": "latest",
     "postcss": "^8.5.14",
+    "prettier": "^3.8.3",
+    "qs-esm": "8.0.1",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "rimraf": "3.0.2",
     "sharp": "0.34.2",
+    "sort-package-json": "^2.15.1",
     "tailwindcss": "^4.3.0",
     "typescript": "5.7.3",
     "vite-tsconfig-paths": "6.0.5",
@@ -121,14 +129,15 @@
     "onlyBuiltDependencies": [
       "@swc/core",
       "esbuild",
+      "mongodb-memory-server",
       "sharp",
       "unrs-resolver"
     ]
   },
   "registry": "https://registry.npmjs.org/",
   "dependencies": {
-    "@payloadcms/plugin-seo": "3.84.1",
-    "@valkyrianlabs/payload-markdown": "1.4.1",
+    "@payloadcms/plugin-seo": "latest",
+    "@valkyrianlabs/payload-markdown": "latest",
     "fflate": "^0.8.3"
   },
   "packageManager": "pnpm@10.33.0"
