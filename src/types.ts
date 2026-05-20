@@ -5,7 +5,6 @@ export type PayloadMarkdownDocsConfig = {
   enabled?: boolean
   endpoint?: PayloadMarkdownDocsEndpointConfig
   heroes?: DocsHeroInstallSelection
-  heros?: DocsHeroInstallSelection
   pages?: PayloadMarkdownDocsPagesConfig
   routing?: PayloadMarkdownDocsRoutingConfig
   seo?: boolean
@@ -35,18 +34,12 @@ export type PayloadMarkdownDocsCollectionConfig = {
   blocks?: DocsBlockInstallSelection
   enabled?: boolean
   heroes?: DocsHeroInstallSelection
-  heros?: DocsHeroInstallSelection
   slug?: string
 }
 
 export type DocsMarketingBlockKey = 'docsCTA'
 
-export type DocsBlockInstallSelection =
-  | ({
-      /** @deprecated Use docsCTA. */
-      cta?: boolean
-    } & Partial<Record<DocsMarketingBlockKey, boolean>>)
-  | boolean
+export type DocsBlockInstallSelection = boolean | Partial<Record<DocsMarketingBlockKey, boolean>>
 
 export type DocsHeroInstallConfig = {
   enabled?: boolean
@@ -82,7 +75,6 @@ export type PayloadMarkdownDocsRoutingConfig = {
 
 export type PayloadMarkdownDocsPagesConfig = {
   heroes?: DocsHeroInstallSelection
-  heros?: DocsHeroInstallSelection
 }
 
 export type PayloadMarkdownDocsTargetConfig = {

@@ -77,14 +77,11 @@ describe('docs in-page block selection', () => {
     expect(selectedKeys(resolveBlockSelection({ docsCTA: true }))).toEqual(['docsCTA'])
   })
 
-  it('maps legacy cta selection to docsCTA internally', () => {
-    expect(selectedKeys(resolveBlockSelection({ cta: true }))).toEqual(['docsCTA'])
-  })
-
   it('does not select removed block keys', () => {
     expect(
       selectedKeys(
         resolveBlockSelection({
+          cta: true,
           docsBanner: true,
           docsCallout: true,
           docsExcerpt: true,
@@ -382,7 +379,7 @@ describe('docs in-page block field shapes', () => {
     })).toBe(true)
     expect(conditionResult(getFieldByName(DocsCTABlock.fields, 'gradient'), {
       variant: 'default',
-    })).toBe(true)
+    })).toBe(false)
     expect(conditionResult(getFieldByName(DocsCTABlock.fields, 'gradient'), {
       variant: 'subtle',
     })).toBe(false)

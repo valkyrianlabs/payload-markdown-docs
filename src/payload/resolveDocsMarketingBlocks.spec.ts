@@ -20,14 +20,15 @@ type FindByIDArgs = {
 
 type TestMarketingBlock = {
   actionType?: 'docsLink' | 'skills'
-  blockType?: 'cta' | 'docsCTA'
+  blockType?: 'docsCTA'
   docsSet?: DocsRelationship<DocsSetReference> | null
-  skillOverrides?: {
-    agent?: string
-    description?: string
-    label?: string
-  }[]
-  skills?: null | Record<string, unknown>
+  skills?: ({
+    skillOverrides?: {
+      agent?: string
+      description?: string
+      label?: string
+    }[]
+  } & Record<string, unknown>) | null
   type?: 'docsSetFullWidth' | 'docsSetSideImage' | 'docsSetSideInfo'
 } & Record<string, unknown>
 
@@ -160,13 +161,15 @@ describe('resolveDocsMarketingBlocksAfterRead', () => {
           actionType: 'skills',
           blockType: 'docsCTA',
           docsSet: 'set-1',
-          skillOverrides: [
-            {
-              agent: 'codex',
-              description: 'Use the Codex workflow.',
-              label: 'Open in Codex',
-            },
-          ],
+          skills: {
+            skillOverrides: [
+              {
+                agent: 'codex',
+                description: 'Use the Codex workflow.',
+                label: 'Open in Codex',
+              },
+            ],
+          },
         },
       ],
     }
@@ -226,58 +229,6 @@ describe('resolveDocsMarketingBlocksAfterRead', () => {
         label: 'Zed skill',
       },
     ])
-  })
-
-  it('maps legacy cta block data to docsCTA internally', async () => {
-    const find = vi.fn(() =>
-      Promise.resolve({
-        docs: [
-          {
-            docsSet: 'set-1',
-            kind: 'skill',
-            route: '/plugins/payload-markdown/skills/codex/SKILL.md',
-            sourcePath: 'skills/payload-markdown/codex/SKILL.md',
-          },
-        ],
-      }),
-    )
-    const findByID = vi.fn((args: FindByIDArgs) =>
-      Promise.resolve(args.collection === 'docs-sets' ? docsSet : null),
-    )
-    const doc: TestPageDoc = {
-      id: 'legacy-page',
-      layout: [
-        {
-          blockType: 'cta',
-          docsSet: 'set-1',
-          skills: {
-            enabled: true,
-          },
-          title: 'Legacy CTA title',
-        },
-      ],
-    }
-
-    const result = (await hook({
-      doc,
-      req: {
-        payload: {
-          find,
-          findByID,
-        },
-      },
-    } as Parameters<typeof hook>[0])) as TestPageDoc
-
-    expect(result.layout[0]).toMatchObject({
-      actionType: 'skills',
-      blockType: 'docsCTA',
-      heading: 'Legacy CTA title',
-      overrideContent: true,
-    })
-    expect(result.layout[0]?.skills?.resolvedItems?.[0]).toMatchObject({
-      agent: 'codex',
-      href: '/plugins/payload-markdown/skills/codex.zip',
-    })
   })
 
   it('hydrates Docs CTA background media only for the full variant', async () => {

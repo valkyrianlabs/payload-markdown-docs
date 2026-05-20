@@ -59,7 +59,7 @@ export type DocsCTASkillOverride = {
 
 export type DocsCTAGradient = 'brand' | 'cyan' | 'emerald' | 'none' | 'violet'
 
-export type DocsCTAVariant = 'default' | 'full' | 'normal' | 'subtle'
+export type DocsCTAVariant = 'full' | 'normal' | 'subtle'
 
 export type DocsCTAProps = {
   actionType?: 'docsLink' | 'skills' | null
@@ -75,7 +75,6 @@ export type DocsCTAProps = {
   overrideContent?: boolean | null
   skillOverrides?: DocsCTASkillOverride[] | null
   skills?: null | SkillCTAGroupInput
-  title?: null | string
   variant?: DocsCTAVariant | null
 } & DocsMarketingPayloadBlockProps
 
@@ -216,7 +215,6 @@ export type DocsPreviewItemInput = {
   icon?: null | string
   reference?: DocsRelationship<DocsPageReference> | null
   route?: null | string
-  routeReference?: DocsRelationship<DocsPageReference> | null
   title?: null | string
   url?: null | string
 }

@@ -86,7 +86,7 @@ const sideImageCondition: AdminCondition = (_data, siblingData) =>
 const fullWidthCondition: AdminCondition = (_data, siblingData) =>
   siblingData?.type === 'docsSetFullWidth'
 
-const nonDocsHeroCondition: AdminCondition = (data, siblingData) =>
+const nonDocsHeroCondition: AdminCondition = (_data, siblingData) =>
   !isDocsSetHeroType(siblingData?.type)
 
 const mergeConditions =

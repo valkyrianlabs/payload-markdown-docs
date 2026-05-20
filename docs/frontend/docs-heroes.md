@@ -84,14 +84,6 @@ The plugin can wrap existing `hero` fields on the configured pages collection:
 import { payloadMarkdownDocs } from '@valkyrianlabs/payload-markdown-docs'
 
 payloadMarkdownDocs({
-  heros: true,
-})
-```
-
-`heroes` is also accepted:
-
-```ts
-payloadMarkdownDocs({
   heroes: true,
 })
 ```
@@ -101,7 +93,7 @@ For pages-only scoping:
 ```ts
 payloadMarkdownDocs({
   pages: {
-    heros: true,
+    heroes: true,
   },
 })
 ```
@@ -112,7 +104,7 @@ For collection-level scoping:
 payloadMarkdownDocs({
   collections: {
     pages: {
-      heros: true,
+      heroes: true,
     },
   },
 })

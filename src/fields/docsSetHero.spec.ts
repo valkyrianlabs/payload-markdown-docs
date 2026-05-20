@@ -137,9 +137,9 @@ describe('docsHeroField', () => {
     expect(getField(field.fields, 'description')?.admin?.condition).toBeUndefined()
   })
 
-  it('plugin heros option wraps an existing pages hero field and installs the resolver hook', () => {
+  it('plugin heroes option wraps an existing pages hero field and installs the resolver hook', () => {
     const plugin = payloadMarkdownDocs({
-      heros: true,
+      heroes: true,
     })
     const config = plugin({
       collections: [

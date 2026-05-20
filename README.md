@@ -19,7 +19,7 @@ It is the documentation delivery pipeline for teams who want docs to move as
 fast as the code they describe.
 
 > ⚠️ **Early release notice:** `@valkyrianlabs/payload-markdown-docs` is still
-> in active pre-v1 development as of v0.14.0. The project is currently in a
+> in active pre-v1 development as of v0.16.0. The project is currently in a
 > particularly volatile stabilization phase ahead of the planned v1.0.0 release.
 > APIs, collections, configuration shape, CLI behavior, and documentation
 > structure may change quickly in the interim. Use thoughtfully, pin versions,
@@ -177,7 +177,7 @@ The package surface is intentionally split by runtime:
 Manual block installation imports from `/blocks`:
 
 ```ts
-import { DocsCTABlock, DocsPreviewBlock } from '@valkyrianlabs/payload-markdown-docs/blocks'
+import { DocsCTABlock } from '@valkyrianlabs/payload-markdown-docs/blocks'
 ```
 
 This adds the `Docs Globals` admin collections:

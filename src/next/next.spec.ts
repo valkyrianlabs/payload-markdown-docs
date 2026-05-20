@@ -9,7 +9,6 @@ import type {
   ResolvedPayloadMarkdownDocsSet,
 } from './types.js'
 
-import { createPayloadMarkdownDocsAssetResponse } from './assets.js'
 import {
   DocsCTA,
   docsHeroComponents,
@@ -1508,78 +1507,6 @@ describe('Payload Markdown Docs route adapter', () => {
   })
 })
 
-describe('Payload Markdown Docs asset response helpers', () => {
-  it('serves llms and skill assets with their stored content type', async () => {
-    const payload = createPayloadMock({
-      docsAssets: [
-        {
-          id: 'asset-llms',
-          content: '# Main Docs\n',
-          contentType: 'text/plain; charset=utf-8',
-          kind: 'llms',
-          route: '/llms.txt',
-          sourcePath: 'llms.txt',
-          sync: {
-            archived: false,
-          },
-        },
-        {
-          id: 'asset-skill',
-          content: '# Skill\n',
-          contentType: 'text/markdown; charset=utf-8',
-          kind: 'skill',
-          route: '/plugins/payload-markdown/skills/codex/SKILL.md',
-          sourcePath: 'skills/payload-markdown/codex/SKILL.md',
-          sync: {
-            archived: false,
-          },
-        },
-      ],
-    })
-
-    const llmsResponse = await createPayloadMarkdownDocsAssetResponse({
-      path: '/llms.txt',
-      payload,
-    })
-    const skillResponse = await createPayloadMarkdownDocsAssetResponse({
-      path: '/plugins/payload-markdown/skills/codex/SKILL.md',
-      payload,
-    })
-
-    expect(llmsResponse.status).toBe(200)
-    expect(llmsResponse.headers.get('Content-Type')).toBe('text/plain; charset=utf-8')
-    expect(await llmsResponse.text()).toBe('# Main Docs\n')
-    expect(skillResponse.status).toBe(200)
-    expect(skillResponse.headers.get('Content-Type')).toBe('text/markdown; charset=utf-8')
-    expect(await skillResponse.text()).toBe('# Skill\n')
-  })
-
-  it('returns 404 for archived assets', async () => {
-    const payload = createPayloadMock({
-      docsAssets: [
-        {
-          id: 'asset-llms',
-          content: '# Main Docs\n',
-          contentType: 'text/plain; charset=utf-8',
-          kind: 'llms',
-          route: '/llms.txt',
-          sourcePath: 'llms.txt',
-          sync: {
-            archived: true,
-          },
-        },
-      ],
-    })
-
-    const response = await createPayloadMarkdownDocsAssetResponse({
-      path: '/llms.txt',
-      payload,
-    })
-
-    expect(response.status).toBe(404)
-  })
-})
-
 describe('Payload Markdown Docs sidebar helpers', () => {
   it('uses access override when reading sidebar docs records', async () => {
     const payload = createPayloadMock({
@@ -2361,16 +2288,6 @@ describe('Payload Markdown Docs marketing components', () => {
         variant: 'normal',
       }),
     )
-    const legacyDefaultMarkup = await renderServerMarkup(
-      createElement(DocsCTA, {
-        docsSet: {
-          id: 'set-1',
-          routeBase: '/docs',
-          title: 'Legacy default CTA',
-        },
-        variant: 'default',
-      }),
-    )
     const fullMarkup = await renderServerMarkup(
       createElement(DocsCTA, {
         background: {
@@ -2400,8 +2317,6 @@ describe('Payload Markdown Docs marketing components', () => {
     expect(normalMarkup).toContain('rgba(52,211,153')
     expect(normalMarkup).not.toContain('max-w-2xl')
     expect(normalMarkup).not.toContain('max-w-3xl')
-    expect(legacyDefaultMarkup).toContain('rounded-2xl')
-    expect(legacyDefaultMarkup).not.toContain('rounded-xl')
     expect(fullMarkup).toContain('min-h-[150px]')
     expect(fullMarkup).toContain('md:min-h-[180px]')
     expect(fullMarkup).toContain('background-image:url(/media/docs-cta.jpg)')

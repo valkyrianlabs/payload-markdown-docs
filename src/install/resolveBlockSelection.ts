@@ -45,9 +45,7 @@ export const resolveBlockSelection = (
     }
   }
 
-  const legacyCTASelection = selection.cta
-
-  const resolved = docsMarketingBlockKeys.reduce<ResolvedDocsBlockSelection>(
+  return docsMarketingBlockKeys.reduce<ResolvedDocsBlockSelection>(
     (resolved, key) => {
       if (typeof selection[key] === 'boolean') {
         resolved[key] = selection[key]
@@ -59,12 +57,6 @@ export const resolveBlockSelection = (
       ...base,
     },
   )
-
-  if (typeof legacyCTASelection === 'boolean' && typeof selection.docsCTA !== 'boolean') {
-    resolved.docsCTA = legacyCTASelection
-  }
-
-  return resolved
 }
 
 export const resolveCollectionBlockSelection = ({

@@ -695,7 +695,7 @@ describe('docs sync apply helpers', () => {
     expect(payload.update).not.toHaveBeenCalled()
   })
 
-  it('allows legacy records that only stored the raw source hash before content hash tracking', async () => {
+  it('treats records missing content hash tracking as manual conflicts', async () => {
     const previousManifest = getValidatedManifest([
       {
         content: '---\ntitle: Home\n---\n# Old\n',
@@ -709,13 +709,12 @@ describe('docs sync apply helpers', () => {
       },
     ])
     const previousSourceHash = previousManifest.files[0]?.sha256 ?? ''
-    const existing = [
-      existingRecord({
-        content: '# Old\n',
-        contentHashAtLastSync: undefined,
-        sourceHashAtLastSync: previousSourceHash,
-      }),
-    ]
+    const existingRecordMissingContentHash = existingRecord({
+      content: '# Old\n',
+      sourceHashAtLastSync: previousSourceHash,
+    })
+    delete existingRecordMissingContentHash.sync?.contentHashAtLastSync
+    const existing = [existingRecordMissingContentHash]
     const payload = createPayloadMock()
     const plan = planDocsSync({
       desired: manifest,
@@ -736,20 +735,10 @@ describe('docs sync apply helpers', () => {
     })
 
     expect(result).toMatchObject({
-      ok: true,
-      writes: { update: 1 },
+      conflicts: [{ reason: 'current_content_hash_mismatch' }],
+      ok: false,
     })
-    expect(payload.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          content: '# New\n',
-          sync: expect.objectContaining({
-            contentHashAtLastSync: sha256Hex('# New\n'),
-            sourceHashAtLastSync: manifest.files[0]?.sha256,
-          }),
-        }),
-      }),
-    )
+    expect(payload.update).not.toHaveBeenCalled()
   })
 
   it('detects unmanaged record conflicts', async () => {
