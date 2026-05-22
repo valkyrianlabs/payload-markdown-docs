@@ -1,19 +1,33 @@
 #include "pmdocs/docs.hpp"
 
+#include "pmdocs_config.hpp"
+
+#include <curl/curl.h>
 #include <nlohmann/json.hpp>
+#include <openssl/bio.h>
+#include <openssl/buffer.h>
+#include <openssl/evp.h>
+#include <openssl/pem.h>
+#include <openssl/rand.h>
+#include <openssl/x509.h>
 
 #include <algorithm>
 #include <array>
 #include <bit>
 #include <cctype>
+#include <chrono>
+#include <cstdio>
+#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <ctime>
 #include <filesystem>
 #include <fstream>
 #include <iomanip>
 #include <iterator>
 #include <limits>
 #include <map>
+#include <memory>
 #include <optional>
 #include <set>
 #include <sstream>
@@ -32,6 +46,74 @@ using json = nlohmann::ordered_json;
 constexpr std::size_t kDefaultMaxFileBytes = 500'000;
 constexpr std::size_t kDefaultMaxFiles = 500;
 constexpr std::size_t kDefaultMaxTotalBytes = 5'000'000;
+constexpr std::string_view kMissingAssetRoutesWarning =
+  "Assets were included in the manifest, but public asset route files were not found.\n"
+  "Run:\n"
+  "payload-markdown-docs install routes --payload-app \"src/app/(payload)\"\n"
+  "Without these route files, public /llms.txt and /skills routes will 404 outside /api.\n";
+
+struct BioDeleter {
+  void operator()(BIO* bio) const {
+    BIO_free(bio);
+  }
+};
+
+struct EvpPkeyDeleter {
+  void operator()(EVP_PKEY* key) const {
+    EVP_PKEY_free(key);
+  }
+};
+
+struct EvpPkeyCtxDeleter {
+  void operator()(EVP_PKEY_CTX* context) const {
+    EVP_PKEY_CTX_free(context);
+  }
+};
+
+struct EvpMdCtxDeleter {
+  void operator()(EVP_MD_CTX* context) const {
+    EVP_MD_CTX_free(context);
+  }
+};
+
+struct Pkcs8Deleter {
+  void operator()(PKCS8_PRIV_KEY_INFO* info) const {
+    PKCS8_PRIV_KEY_INFO_free(info);
+  }
+};
+
+struct CurlSlistDeleter {
+  void operator()(curl_slist* list) const {
+    curl_slist_free_all(list);
+  }
+};
+
+struct CurlUrlDeleter {
+  void operator()(CURLU* url) const {
+    curl_url_cleanup(url);
+  }
+};
+
+using BioPtr = std::unique_ptr<BIO, BioDeleter>;
+using EvpPkeyPtr = std::unique_ptr<EVP_PKEY, EvpPkeyDeleter>;
+using EvpPkeyCtxPtr = std::unique_ptr<EVP_PKEY_CTX, EvpPkeyCtxDeleter>;
+using EvpMdCtxPtr = std::unique_ptr<EVP_MD_CTX, EvpMdCtxDeleter>;
+using Pkcs8Ptr = std::unique_ptr<PKCS8_PRIV_KEY_INFO, Pkcs8Deleter>;
+using CurlSlistPtr = std::unique_ptr<curl_slist, CurlSlistDeleter>;
+using CurlUrlPtr = std::unique_ptr<CURLU, CurlUrlDeleter>;
+
+void ensure_curl_initialized() {
+  static const bool initialized = []() {
+    const auto code = curl_global_init(CURL_GLOBAL_DEFAULT);
+    if (code != CURLE_OK) {
+      throw std::runtime_error{"Could not initialize HTTP client."};
+    }
+    std::atexit(curl_global_cleanup);
+    return true;
+  }();
+
+  (void)initialized;
+}
 
 struct Issue {
   std::string code;
@@ -187,6 +269,59 @@ struct AssetPlan {
   std::vector<Issue> warnings;
 };
 
+struct HttpResponse {
+  json body;
+  bool has_json = false;
+  bool ok = false;
+  long status = 0;
+  std::string text;
+};
+
+class OpenSshBufferReader {
+public:
+  explicit OpenSshBufferReader(std::vector<unsigned char> bytes)
+    : bytes_{std::move(bytes)}
+  {}
+
+  explicit OpenSshBufferReader(std::string bytes)
+    : bytes_{bytes.begin(), bytes.end()}
+  {}
+
+  std::vector<unsigned char> read_bytes(std::size_t length) {
+    if (bytes_.size() - offset_ < length) {
+      throw std::runtime_error{"OpenSSH key data is truncated."};
+    }
+
+    std::vector<unsigned char> out(bytes_.begin() + static_cast<std::ptrdiff_t>(offset_), bytes_.begin() + static_cast<std::ptrdiff_t>(offset_ + length));
+    offset_ += length;
+    return out;
+  }
+
+  std::string read_string() {
+    const auto length = read_u32();
+    const auto bytes = read_bytes(length);
+    return std::string{bytes.begin(), bytes.end()};
+  }
+
+  std::uint32_t read_u32() {
+    if (bytes_.size() - offset_ < 4) {
+      throw std::runtime_error{"OpenSSH key data is truncated."};
+    }
+
+    const auto value =
+      (static_cast<std::uint32_t>(bytes_[offset_]) << 24U)
+      | (static_cast<std::uint32_t>(bytes_[offset_ + 1]) << 16U)
+      | (static_cast<std::uint32_t>(bytes_[offset_ + 2]) << 8U)
+      | static_cast<std::uint32_t>(bytes_[offset_ + 3]);
+    offset_ += 4;
+    return value;
+  }
+
+private:
+  std::vector<unsigned char> bytes_;
+  std::size_t offset_ = 0;
+};
+
 std::string read_file(const std::filesystem::path& path) {
   std::ifstream input{path, std::ios::binary};
 
@@ -198,6 +333,18 @@ std::string read_file(const std::filesystem::path& path) {
   out << input.rdbuf();
 
   return out.str();
+}
+
+void write_file(const std::filesystem::path& path, std::string_view content) {
+  std::ofstream output{path, std::ios::binary | std::ios::trunc};
+  if (!output) {
+    throw std::runtime_error{"Could not write file: " + path.string()};
+  }
+
+  output.write(content.data(), static_cast<std::streamsize>(content.size()));
+  if (!output) {
+    throw std::runtime_error{"Could not finish writing file: " + path.string()};
+  }
 }
 
 std::string trim(std::string_view value) {
@@ -218,6 +365,691 @@ bool starts_with(std::string_view value, std::string_view prefix) {
 
 bool ends_with(std::string_view value, std::string_view suffix) {
   return value.size() >= suffix.size() && value.substr(value.size() - suffix.size()) == suffix;
+}
+
+std::string normalize_base64(std::string_view value) {
+  std::string normalized;
+  normalized.reserve(value.size());
+
+  for (const auto ch : value) {
+    if (!std::isspace(static_cast<unsigned char>(ch))) {
+      normalized.push_back(ch);
+    }
+  }
+
+  return normalized;
+}
+
+std::string base64_encode(const unsigned char* data, std::size_t size) {
+  if (size > static_cast<std::size_t>(std::numeric_limits<int>::max() / 4 * 3)) {
+    throw std::runtime_error{"Data is too large to base64 encode."};
+  }
+
+  std::string output(((size + 2) / 3) * 4, '\0');
+  const auto written = EVP_EncodeBlock(
+    reinterpret_cast<unsigned char*>(output.data()),
+    data,
+    static_cast<int>(size)
+  );
+
+  if (written < 0) {
+    throw std::runtime_error{"Could not base64 encode data."};
+  }
+
+  output.resize(static_cast<std::size_t>(written));
+  return output;
+}
+
+std::vector<unsigned char> base64_decode(std::string_view value) {
+  const auto normalized = normalize_base64(value);
+
+  if (normalized.empty() || normalized.size() % 4 != 0) {
+    throw std::runtime_error{"Invalid base64 data."};
+  }
+
+  std::vector<unsigned char> output((normalized.size() / 4) * 3);
+  const auto decoded = EVP_DecodeBlock(
+    output.data(),
+    reinterpret_cast<const unsigned char*>(normalized.data()),
+    static_cast<int>(normalized.size())
+  );
+
+  if (decoded < 0) {
+    throw std::runtime_error{"Invalid base64 data."};
+  }
+
+  auto padding = 0U;
+  if (!normalized.empty() && normalized.back() == '=') {
+    ++padding;
+  }
+  if (normalized.size() >= 2 && normalized[normalized.size() - 2] == '=') {
+    ++padding;
+  }
+
+  output.resize(static_cast<std::size_t>(decoded) - padding);
+  return output;
+}
+
+std::string bio_to_string(BIO* bio) {
+  BUF_MEM* memory = nullptr;
+  BIO_get_mem_ptr(bio, &memory);
+
+  if (memory == nullptr || memory->data == nullptr) {
+    return {};
+  }
+
+  return std::string{memory->data, memory->length};
+}
+
+std::string private_key_to_pem(EVP_PKEY* key) {
+  BioPtr bio{BIO_new(BIO_s_mem())};
+  if (!bio || PEM_write_bio_PrivateKey(bio.get(), key, nullptr, nullptr, 0, nullptr, nullptr) != 1) {
+    throw std::runtime_error{"Could not encode private key PEM."};
+  }
+
+  return bio_to_string(bio.get());
+}
+
+std::string public_key_to_pem(EVP_PKEY* key) {
+  BioPtr bio{BIO_new(BIO_s_mem())};
+  if (!bio || PEM_write_bio_PUBKEY(bio.get(), key) != 1) {
+    throw std::runtime_error{"Could not encode public key PEM."};
+  }
+
+  return bio_to_string(bio.get());
+}
+
+std::vector<unsigned char> private_key_to_pkcs8_der(EVP_PKEY* key) {
+  Pkcs8Ptr info{EVP_PKEY2PKCS8(key)};
+  if (!info) {
+    throw std::runtime_error{"Could not convert private key to PKCS#8."};
+  }
+
+  const auto length = i2d_PKCS8_PRIV_KEY_INFO(info.get(), nullptr);
+  if (length <= 0) {
+    throw std::runtime_error{"Could not size private key DER."};
+  }
+
+  std::vector<unsigned char> der(static_cast<std::size_t>(length));
+  auto* cursor = der.data();
+  if (i2d_PKCS8_PRIV_KEY_INFO(info.get(), &cursor) != length) {
+    throw std::runtime_error{"Could not encode private key DER."};
+  }
+
+  return der;
+}
+
+std::vector<unsigned char> public_key_to_spki_der(EVP_PKEY* key) {
+  const auto length = i2d_PUBKEY(key, nullptr);
+  if (length <= 0) {
+    throw std::runtime_error{"Could not size public key DER."};
+  }
+
+  std::vector<unsigned char> der(static_cast<std::size_t>(length));
+  auto* cursor = der.data();
+  if (i2d_PUBKEY(key, &cursor) != length) {
+    throw std::runtime_error{"Could not encode public key DER."};
+  }
+
+  return der;
+}
+
+EvpPkeyPtr generate_ed25519_evp_key() {
+  EvpPkeyCtxPtr context{EVP_PKEY_CTX_new_id(EVP_PKEY_ED25519, nullptr)};
+  if (!context || EVP_PKEY_keygen_init(context.get()) <= 0) {
+    throw std::runtime_error{"Could not initialize Ed25519 key generation."};
+  }
+
+  EVP_PKEY* raw_key = nullptr;
+  if (EVP_PKEY_keygen(context.get(), &raw_key) <= 0 || raw_key == nullptr) {
+    throw std::runtime_error{"Could not generate Ed25519 key pair."};
+  }
+
+  return EvpPkeyPtr{raw_key};
+}
+
+void ensure_ed25519_private_key(EVP_PKEY* key) {
+  if (key == nullptr || EVP_PKEY_base_id(key) != EVP_PKEY_ED25519) {
+    throw std::runtime_error{
+      "Private key must be an Ed25519 PKCS#8 PEM key, base64 PKCS#8 DER key, or unencrypted OpenSSH Ed25519 private key."
+    };
+  }
+}
+
+EvpPkeyPtr read_pem_private_key(const std::string& private_key) {
+  BioPtr bio{BIO_new_mem_buf(private_key.data(), static_cast<int>(private_key.size()))};
+  if (!bio) {
+    throw std::runtime_error{"Could not read private key."};
+  }
+
+  EVP_PKEY* raw_key = PEM_read_bio_PrivateKey(bio.get(), nullptr, nullptr, nullptr);
+  EvpPkeyPtr key{raw_key};
+  ensure_ed25519_private_key(key.get());
+  return key;
+}
+
+EvpPkeyPtr read_der_private_key(const std::vector<unsigned char>& der) {
+  const unsigned char* cursor = der.data();
+  EVP_PKEY* raw_key = d2i_AutoPrivateKey(nullptr, &cursor, static_cast<long>(der.size()));
+  EvpPkeyPtr key{raw_key};
+  ensure_ed25519_private_key(key.get());
+  return key;
+}
+
+std::string extract_pem_body(const std::string& input, std::string_view begin_marker, std::string_view end_marker) {
+  const auto begin = input.find(begin_marker);
+  const auto end = input.find(end_marker);
+
+  if (begin == std::string::npos || end == std::string::npos || end <= begin) {
+    throw std::runtime_error{"OpenSSH private key PEM is invalid."};
+  }
+
+  return input.substr(begin + begin_marker.size(), end - (begin + begin_marker.size()));
+}
+
+EvpPkeyPtr read_openssh_private_key(const std::string& private_key) {
+  static constexpr std::string_view begin_marker = "-----BEGIN OPENSSH PRIVATE KEY-----";
+  static constexpr std::string_view end_marker = "-----END OPENSSH PRIVATE KEY-----";
+  const auto data = base64_decode(extract_pem_body(private_key, begin_marker, end_marker));
+  const std::string magic{"openssh-key-v1\0", 15};
+
+  if (data.size() < magic.size() || std::string{data.begin(), data.begin() + static_cast<std::ptrdiff_t>(magic.size())} != magic) {
+    throw std::runtime_error{"OpenSSH private key magic header is invalid."};
+  }
+
+  std::vector<unsigned char> remainder(data.begin() + static_cast<std::ptrdiff_t>(magic.size()), data.end());
+  OpenSshBufferReader reader{std::move(remainder)};
+  const auto cipher_name = reader.read_string();
+  const auto kdf_name = reader.read_string();
+  reader.read_string();
+
+  if (cipher_name != "none" || kdf_name != "none") {
+    throw std::runtime_error{
+      "Encrypted OpenSSH private keys are not supported. Use `pmdocs keygen --out .docs-sync` or provide an unencrypted PKCS#8 PEM Ed25519 private key."
+    };
+  }
+
+  if (reader.read_u32() != 1U) {
+    throw std::runtime_error{"OpenSSH private key must contain exactly one key."};
+  }
+
+  reader.read_string();
+  OpenSshBufferReader private_reader{reader.read_string()};
+  const auto check = private_reader.read_u32();
+  const auto repeated_check = private_reader.read_u32();
+
+  if (check != repeated_check) {
+    throw std::runtime_error{"OpenSSH private key check values do not match."};
+  }
+
+  if (private_reader.read_string() != "ssh-ed25519") {
+    throw std::runtime_error{"Only Ed25519 private keys are supported for docs sync signing."};
+  }
+
+  const auto public_key = private_reader.read_string();
+  const auto private_bytes_string = private_reader.read_string();
+  const std::vector<unsigned char> private_bytes(private_bytes_string.begin(), private_bytes_string.end());
+
+  if (public_key.size() != 32 || private_bytes.size() != 64) {
+    throw std::runtime_error{"OpenSSH Ed25519 private key payload is invalid."};
+  }
+
+  const std::vector<unsigned char> public_bytes(public_key.begin(), public_key.end());
+  if (!std::equal(public_bytes.begin(), public_bytes.end(), private_bytes.begin() + 32)) {
+    throw std::runtime_error{"OpenSSH Ed25519 private/public key data does not match."};
+  }
+
+  EVP_PKEY* raw_key = EVP_PKEY_new_raw_private_key(EVP_PKEY_ED25519, nullptr, private_bytes.data(), 32);
+  EvpPkeyPtr key{raw_key};
+  ensure_ed25519_private_key(key.get());
+  return key;
+}
+
+EvpPkeyPtr read_ed25519_private_key(const std::string& private_key) {
+  const auto trimmed = trim(private_key);
+
+  try {
+    if (trimmed.find("BEGIN OPENSSH PRIVATE KEY") != std::string::npos) {
+      return read_openssh_private_key(trimmed);
+    }
+
+    if (trimmed.find("BEGIN") != std::string::npos) {
+      return read_pem_private_key(trimmed);
+    }
+
+    return read_der_private_key(base64_decode(trimmed));
+  } catch (const std::runtime_error& error) {
+    const std::string message = error.what();
+    if (message.find("Private key must be an Ed25519") != std::string::npos
+        || message.find("OpenSSH") != std::string::npos
+        || message.find("Only Ed25519") != std::string::npos
+        || message.find("Encrypted OpenSSH") != std::string::npos) {
+      throw;
+    }
+
+    throw std::runtime_error{
+      "Private key must be an Ed25519 PKCS#8 PEM key, base64 PKCS#8 DER key, or unencrypted OpenSSH Ed25519 private key."
+    };
+  }
+}
+
+std::string sign_ed25519_base64(EVP_PKEY* key, std::string_view content) {
+  EvpMdCtxPtr context{EVP_MD_CTX_new()};
+  if (!context || EVP_DigestSignInit(context.get(), nullptr, nullptr, nullptr, key) <= 0) {
+    throw std::runtime_error{"Could not initialize Ed25519 signing."};
+  }
+
+  std::size_t signature_size = 0;
+  if (EVP_DigestSign(context.get(), nullptr, &signature_size, reinterpret_cast<const unsigned char*>(content.data()), content.size()) <= 0) {
+    throw std::runtime_error{"Could not size Ed25519 signature."};
+  }
+
+  std::vector<unsigned char> signature(signature_size);
+  if (EVP_DigestSign(context.get(), signature.data(), &signature_size, reinterpret_cast<const unsigned char*>(content.data()), content.size()) <= 0) {
+    throw std::runtime_error{"Could not sign request."};
+  }
+
+  signature.resize(signature_size);
+  return base64_encode(signature.data(), signature.size());
+}
+
+std::string random_uuid_v4() {
+  std::array<unsigned char, 16> bytes = {};
+  if (RAND_bytes(bytes.data(), static_cast<int>(bytes.size())) != 1) {
+    throw std::runtime_error{"Could not generate request nonce."};
+  }
+
+  bytes[6] = static_cast<unsigned char>((bytes[6] & 0x0fU) | 0x40U);
+  bytes[8] = static_cast<unsigned char>((bytes[8] & 0x3fU) | 0x80U);
+
+  std::ostringstream out;
+  out << std::hex << std::setfill('0');
+  for (std::size_t index = 0; index < bytes.size(); ++index) {
+    if (index == 4 || index == 6 || index == 8 || index == 10) {
+      out << '-';
+    }
+    out << std::setw(2) << static_cast<int>(bytes[index]);
+  }
+
+  return out.str();
+}
+
+std::string current_iso_timestamp() {
+  const auto now = std::chrono::system_clock::now();
+  const auto seconds = std::chrono::time_point_cast<std::chrono::seconds>(now);
+  const auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(now - seconds).count();
+  const auto time = std::chrono::system_clock::to_time_t(seconds);
+  std::tm utc = {};
+
+#if defined(_WIN32)
+  gmtime_s(&utc, &time);
+#else
+  gmtime_r(&time, &utc);
+#endif
+
+  std::ostringstream out;
+  out << std::put_time(&utc, "%Y-%m-%dT%H:%M:%S");
+  out << '.' << std::setw(3) << std::setfill('0') << millis << 'Z';
+  return out.str();
+}
+
+std::string normalize_canonical_path(std::string path) {
+  path = trim(path);
+  path = "/" + path;
+
+  std::string normalized;
+  normalized.reserve(path.size());
+  bool previous_slash = false;
+
+  for (const auto ch : path) {
+    if (ch == '/') {
+      if (!previous_slash) {
+        normalized.push_back(ch);
+      }
+      previous_slash = true;
+      continue;
+    }
+
+    previous_slash = false;
+    normalized.push_back(ch);
+  }
+
+  while (normalized.size() > 1 && normalized.back() == '/') {
+    normalized.pop_back();
+  }
+
+  return normalized.empty() ? "/" : normalized;
+}
+
+std::string curl_error_message(CURLUcode code) {
+  return curl_url_strerror(code);
+}
+
+std::string get_endpoint_path(const std::string& endpoint) {
+  ensure_curl_initialized();
+  CurlUrlPtr url{curl_url()};
+  if (!url) {
+    throw std::runtime_error{"Could not initialize URL parser."};
+  }
+
+  if (const auto code = curl_url_set(url.get(), CURLUPART_URL, endpoint.c_str(), 0); code != CURLUE_OK) {
+    throw std::runtime_error{"--endpoint must be a valid full http:// or https:// URL."};
+  }
+
+  char* path = nullptr;
+  const auto code = curl_url_get(url.get(), CURLUPART_PATH, &path, 0);
+  if (code != CURLUE_OK || path == nullptr) {
+    if (path != nullptr) {
+      curl_free(path);
+    }
+    return "/";
+  }
+
+  std::string output = path;
+  curl_free(path);
+  return output.empty() ? "/" : output;
+}
+
+std::string validate_endpoint_url(const std::string& endpoint) {
+  ensure_curl_initialized();
+  CurlUrlPtr url{curl_url()};
+  if (!url) {
+    throw std::runtime_error{"Could not initialize URL parser."};
+  }
+
+  if (const auto code = curl_url_set(url.get(), CURLUPART_URL, endpoint.c_str(), 0); code != CURLUE_OK) {
+    throw std::runtime_error{"--endpoint must be a valid full http:// or https:// URL."};
+  }
+
+  char* scheme = nullptr;
+  if (const auto code = curl_url_get(url.get(), CURLUPART_SCHEME, &scheme, 0); code != CURLUE_OK || scheme == nullptr) {
+    if (scheme != nullptr) {
+      curl_free(scheme);
+    }
+    throw std::runtime_error{"--endpoint must be a full http:// or https:// URL."};
+  }
+
+  const std::string scheme_value = scheme;
+  curl_free(scheme);
+  if (scheme_value != "http" && scheme_value != "https") {
+    throw std::runtime_error{"--endpoint must be a full http:// or https:// URL."};
+  }
+
+  char* host = nullptr;
+  if (const auto code = curl_url_get(url.get(), CURLUPART_HOST, &host, 0); code != CURLUE_OK || host == nullptr || std::string{host}.empty()) {
+    if (host != nullptr) {
+      curl_free(host);
+    }
+    throw std::runtime_error{"--endpoint must be a full http:// or https:// URL."};
+  }
+  curl_free(host);
+
+  char* normalized = nullptr;
+  if (const auto code = curl_url_get(url.get(), CURLUPART_URL, &normalized, 0); code != CURLUE_OK || normalized == nullptr) {
+    if (normalized != nullptr) {
+      curl_free(normalized);
+    }
+    throw std::runtime_error{"Could not normalize endpoint URL: " + curl_error_message(code)};
+  }
+
+  std::string output = normalized;
+  curl_free(normalized);
+  return output;
+}
+
+std::size_t append_curl_response(char* ptr, std::size_t size, std::size_t nmemb, void* userdata) {
+  auto* output = static_cast<std::string*>(userdata);
+  output->append(ptr, size * nmemb);
+  return size * nmemb;
+}
+
+HttpResponse parse_http_response(long status, std::string text) {
+  HttpResponse response;
+  response.ok = status >= 200 && status < 300;
+  response.status = status;
+  response.text = std::move(text);
+
+  if (!trim(response.text).empty()) {
+    try {
+      response.body = json::parse(response.text);
+      response.has_json = true;
+    } catch (const json::parse_error&) {
+      response.body = nullptr;
+    }
+  } else {
+    response.body = nullptr;
+  }
+
+  return response;
+}
+
+HttpResponse curl_json_request(const std::string& method, const std::string& url, const std::map<std::string, std::string>& headers, const std::optional<std::string>& body = std::nullopt) {
+  ensure_curl_initialized();
+  CURL* curl = curl_easy_init();
+  if (curl == nullptr) {
+    throw std::runtime_error{"Could not initialize HTTP client."};
+  }
+
+  std::string response_text;
+  curl_slist* raw_headers = nullptr;
+  for (const auto& [name, value] : headers) {
+    const auto header = name + ": " + value;
+    auto* next_headers = curl_slist_append(raw_headers, header.c_str());
+    if (next_headers == nullptr) {
+      curl_slist_free_all(raw_headers);
+      curl_easy_cleanup(curl);
+      throw std::runtime_error{"Could not prepare HTTP headers."};
+    }
+    raw_headers = next_headers;
+  }
+  CurlSlistPtr header_list{raw_headers};
+
+  curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+  curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 0L);
+  curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 10L);
+  curl_easy_setopt(curl, CURLOPT_TIMEOUT, 300L);
+  curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, append_curl_response);
+  curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response_text);
+  curl_easy_setopt(curl, CURLOPT_HTTPHEADER, header_list.get());
+  const auto user_agent = std::string{"pmdocs/"} + PMDOCS_VERSION;
+  curl_easy_setopt(curl, CURLOPT_USERAGENT, user_agent.c_str());
+
+  std::string request_body_storage;
+  if (method == "POST") {
+    curl_easy_setopt(curl, CURLOPT_POST, 1L);
+    request_body_storage = body.value_or("");
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, request_body_storage.data());
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, static_cast<long>(request_body_storage.size()));
+  } else if (method == "GET") {
+    curl_easy_setopt(curl, CURLOPT_HTTPGET, 1L);
+  } else {
+    curl_easy_cleanup(curl);
+    throw std::runtime_error{"Unsupported HTTP method: " + method};
+  }
+
+  const auto code = curl_easy_perform(curl);
+  long status = 0;
+  curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status);
+  curl_easy_cleanup(curl);
+
+  if (code != CURLE_OK) {
+    throw std::runtime_error{"HTTP request failed: " + std::string{curl_easy_strerror(code)}};
+  }
+
+  return parse_http_response(status, std::move(response_text));
+}
+
+std::string trim_response_text(const std::string& text) {
+  auto trimmed = trim(text);
+  if (trimmed.size() <= 1000) {
+    return trimmed;
+  }
+
+  return trimmed.substr(0, 1000) + "...";
+}
+
+std::string format_server_failure(const HttpResponse& response) {
+  if (response.has_json && response.body.is_object()) {
+    if (response.body.contains("error") && response.body["error"].is_object()
+        && response.body["error"].contains("message") && response.body["error"]["message"].is_string()) {
+      return response.body["error"]["message"].get<std::string>() + "\n";
+    }
+
+    if (response.body.contains("errors") && response.body["errors"].is_array()) {
+      std::vector<std::string> messages;
+      for (const auto& error : response.body["errors"]) {
+        if (error.is_object() && error.contains("message") && error["message"].is_string()) {
+          messages.push_back(error["message"].get<std::string>());
+        }
+      }
+
+      if (!messages.empty()) {
+        std::ostringstream out;
+        out << "Sync request failed with HTTP status " << response.status << ".\n\n";
+        for (const auto& message : messages) {
+          out << "- " << message << "\n";
+        }
+        return out.str();
+      }
+    }
+  }
+
+  const auto text = trim_response_text(response.text);
+  if (!text.empty()) {
+    std::ostringstream out;
+    out << "Sync request failed with HTTP status " << response.status << ".\n\n";
+    out << "Response body:\n" << text << "\n";
+    return out.str();
+  }
+
+  return "Sync request failed with HTTP status " + std::to_string(response.status) + ".\n";
+}
+
+std::string url_encode_query_value(const std::string& value) {
+  ensure_curl_initialized();
+  CURL* curl = curl_easy_init();
+  if (curl == nullptr) {
+    throw std::runtime_error{"Could not initialize URL encoder."};
+  }
+  char* encoded = curl_easy_escape(curl, value.c_str(), static_cast<int>(value.size()));
+  if (encoded == nullptr) {
+    curl_easy_cleanup(curl);
+    throw std::runtime_error{"Could not encode OIDC audience."};
+  }
+
+  std::string output = encoded;
+  curl_free(encoded);
+  curl_easy_cleanup(curl);
+  return output;
+}
+
+void validate_github_oidc_request_url(const std::string& request_url) {
+  ensure_curl_initialized();
+  CurlUrlPtr url{curl_url()};
+  if (!url) {
+    throw std::runtime_error{"Could not initialize URL parser."};
+  }
+
+  if (curl_url_set(url.get(), CURLUPART_URL, request_url.c_str(), 0) != CURLUE_OK) {
+    throw std::runtime_error{"ACTIONS_ID_TOKEN_REQUEST_URL is not a valid URL."};
+  }
+
+  char* scheme = nullptr;
+  if (curl_url_get(url.get(), CURLUPART_SCHEME, &scheme, 0) != CURLUE_OK || scheme == nullptr) {
+    if (scheme != nullptr) {
+      curl_free(scheme);
+    }
+    throw std::runtime_error{"ACTIONS_ID_TOKEN_REQUEST_URL is not a valid URL."};
+  }
+
+  const std::string scheme_value = scheme;
+  curl_free(scheme);
+  if (scheme_value != "http" && scheme_value != "https") {
+    throw std::runtime_error{"ACTIONS_ID_TOKEN_REQUEST_URL is not a valid URL."};
+  }
+
+  char* host = nullptr;
+  if (curl_url_get(url.get(), CURLUPART_HOST, &host, 0) != CURLUE_OK || host == nullptr || std::string{host}.empty()) {
+    if (host != nullptr) {
+      curl_free(host);
+    }
+    throw std::runtime_error{"ACTIONS_ID_TOKEN_REQUEST_URL is not a valid URL."};
+  }
+  curl_free(host);
+}
+
+std::string add_audience_query_param(const std::string& request_url, const std::string& audience) {
+  validate_github_oidc_request_url(request_url);
+
+  const auto fragment_offset = request_url.find('#');
+  const auto base = request_url.substr(0, fragment_offset);
+  const auto fragment = fragment_offset == std::string::npos ? std::string{} : request_url.substr(fragment_offset);
+  const auto separator = base.find('?') == std::string::npos ? '?' : '&';
+  return base + separator + "audience=" + url_encode_query_value(audience) + fragment;
+}
+
+std::string read_github_oidc_token(const PushCommandOptions& options, const std::string& source_id) {
+  if (options.oidc_token_env) {
+    const auto* value = std::getenv(options.oidc_token_env->c_str());
+    if (value == nullptr || *value == '\0') {
+      throw std::runtime_error{"Environment variable \"" + *options.oidc_token_env + "\" is not set."};
+    }
+
+    return value;
+  }
+
+  const auto* request_url = std::getenv("ACTIONS_ID_TOKEN_REQUEST_URL");
+  const auto* request_token = std::getenv("ACTIONS_ID_TOKEN_REQUEST_TOKEN");
+  if (request_url == nullptr || *request_url == '\0' || request_token == nullptr || *request_token == '\0') {
+    throw std::runtime_error{
+      "GitHub OIDC push requires ACTIONS_ID_TOKEN_REQUEST_URL and ACTIONS_ID_TOKEN_REQUEST_TOKEN, or --oidc-token-env."
+    };
+  }
+
+  const auto token_url = add_audience_query_param(request_url, source_id);
+  const auto response = curl_json_request("GET", token_url, {{"Authorization", std::string{"bearer "} + request_token}});
+  if (!response.ok || !response.has_json || !response.body.is_object() || !response.body.contains("value") || !response.body["value"].is_string()) {
+    throw std::runtime_error{"Could not retrieve GitHub OIDC token. HTTP status " + std::to_string(response.status) + "."};
+  }
+
+  return response.body["value"].get<std::string>();
+}
+
+bool path_exists(const std::filesystem::path& path);
+
+bool has_public_asset_routes() {
+  static const std::array<std::filesystem::path, 3> candidates = {
+    std::filesystem::path{"src/app/(payload)"},
+    std::filesystem::path{"app/(payload)"},
+    std::filesystem::path{"dev/app/(payload)"},
+  };
+  static const std::array<std::filesystem::path, 9> required = {
+    std::filesystem::path{"payloadMarkdownDocsAssetRoute.ts"},
+    std::filesystem::path{"llms.txt/route.ts"},
+    std::filesystem::path{"llms-full.txt/route.ts"},
+    std::filesystem::path{"plugins/[docsSetSlug]/llms.txt/route.ts"},
+    std::filesystem::path{"plugins/[docsSetSlug]/llms-full.txt/route.ts"},
+    std::filesystem::path{"plugins/[docsSetSlug]/skills/[agent]/[[...assetPath]]/route.ts"},
+    std::filesystem::path{"[docsSetSlug]/llms.txt/route.ts"},
+    std::filesystem::path{"[docsSetSlug]/llms-full.txt/route.ts"},
+    std::filesystem::path{"[docsSetSlug]/skills/[agent]/[[...assetPath]]/route.ts"},
+  };
+
+  for (const auto& candidate : candidates) {
+    bool all_found = true;
+    for (const auto& file : required) {
+      if (!path_exists(candidate / file)) {
+        all_found = false;
+        break;
+      }
+    }
+
+    if (all_found) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 std::vector<std::string> split_lines(std::string_view input) {
@@ -1350,12 +2182,25 @@ json source_to_json(const std::string& source_id, const DocsCommandOptions& opti
   return source;
 }
 
-json build_manifest(const PublishPackage& package, const std::string& source_id, const DocsCommandOptions& options, const std::optional<std::string>& delete_behavior = std::nullopt) {
+json build_manifest(
+  const PublishPackage& package,
+  const std::string& source_id,
+  const DocsCommandOptions& options,
+  const std::optional<std::string>& delete_behavior = std::nullopt,
+  const std::optional<std::string>& mode = std::nullopt,
+  const std::optional<bool>& publish = std::nullopt
+) {
   json manifest = json::object();
   manifest["version"] = 1;
   manifest["source"] = source_to_json(source_id, options);
+  if (mode) {
+    manifest["mode"] = *mode;
+  }
   if (delete_behavior) {
     manifest["deleteBehavior"] = *delete_behavior;
+  }
+  if (publish) {
+    manifest["publish"] = *publish;
   }
   manifest["assets"] = json::array();
   manifest["files"] = json::array();
@@ -2218,6 +3063,138 @@ std::string sha256_hex(std::string_view input) {
   return out.str();
 }
 
+std::string build_canonical_signing_string(
+  const std::string& body_sha256,
+  const std::string& method,
+  const std::string& path,
+  const std::string& timestamp,
+  const std::string& nonce
+) {
+  std::string normalized_method = method;
+  std::ranges::transform(normalized_method, normalized_method.begin(), [](const unsigned char ch) {
+    return static_cast<char>(std::toupper(ch));
+  });
+
+  std::string normalized_hash = body_sha256;
+  std::ranges::transform(normalized_hash, normalized_hash.begin(), [](const unsigned char ch) {
+    return static_cast<char>(std::tolower(ch));
+  });
+
+  return "v1\n"
+    + normalized_method
+    + "\n"
+    + normalize_canonical_path(path)
+    + "\n"
+    + timestamp
+    + "\n"
+    + nonce
+    + "\n"
+    + normalized_hash;
+}
+
+GeneratedKeyPair generate_ed25519_key_pair(const std::string& format) {
+  const auto key = generate_ed25519_evp_key();
+
+  if (format == "pem") {
+    return {
+      .private_key = private_key_to_pem(key.get()),
+      .public_key = public_key_to_pem(key.get()),
+    };
+  }
+
+  if (format == "base64") {
+    const auto private_der = private_key_to_pkcs8_der(key.get());
+    const auto public_der = public_key_to_spki_der(key.get());
+    return {
+      .private_key = base64_encode(private_der.data(), private_der.size()),
+      .public_key = base64_encode(public_der.data(), public_der.size()),
+    };
+  }
+
+  throw std::runtime_error{"--format must be pem or base64."};
+}
+
+SignedDocsRequest sign_docs_sync_request(
+  const std::string& body,
+  const std::string& endpoint,
+  const std::string& key_id,
+  const std::string& private_key,
+  const std::string& nonce,
+  const std::string& timestamp
+) {
+  const auto body_sha256 = sha256_hex(body);
+  const auto canonical = build_canonical_signing_string(
+    body_sha256,
+    "POST",
+    get_endpoint_path(endpoint),
+    timestamp,
+    nonce
+  );
+  const auto key = read_ed25519_private_key(private_key);
+  const auto signature = sign_ed25519_base64(key.get(), canonical);
+
+  return {
+    .body = body,
+    .headers = {
+      {"Content-Type", "application/json"},
+      {"X-VL-MD-DOCS-Body-SHA256", body_sha256},
+      {"X-VL-MD-DOCS-Key-Id", key_id},
+      {"X-VL-MD-DOCS-Nonce", nonce},
+      {"X-VL-MD-DOCS-Signature", signature},
+      {"X-VL-MD-DOCS-Timestamp", timestamp},
+    },
+  };
+}
+
+CommandResult run_keygen_command(const KeygenOptions& options) {
+  try {
+    const auto keys = generate_ed25519_key_pair(options.format);
+
+    if (!options.out_dir) {
+      return {
+        .exit_code = 0,
+        .stdout_text = "Public key:\n\n" + trim(keys.public_key) + "\n\nPrivate key:\n\n" + trim(keys.private_key) + "\n",
+      };
+    }
+
+    const auto out_dir = std::filesystem::absolute(*options.out_dir).lexically_normal();
+    const auto public_key_path = out_dir / "docs-sync-public.pem";
+    const auto private_key_path = out_dir / "docs-sync-private.pem";
+    std::error_code error;
+    const auto public_exists = std::filesystem::exists(public_key_path, error);
+    error.clear();
+    const auto private_exists = std::filesystem::exists(private_key_path, error);
+
+    if (!options.force && (public_exists || private_exists)) {
+      return {
+        .exit_code = 1,
+        .stderr_text = "Key files already exist. Use --force to overwrite docs-sync-public.pem and docs-sync-private.pem.\n",
+      };
+    }
+
+    std::filesystem::create_directories(out_dir, error);
+    if (error) {
+      return {
+        .exit_code = 1,
+        .stderr_text = "Could not create output directory: " + error.message() + "\n",
+      };
+    }
+
+    write_file(public_key_path, trim(keys.public_key) + "\n");
+    write_file(private_key_path, trim(keys.private_key) + "\n");
+
+    return {
+      .exit_code = 0,
+      .stdout_text = "Wrote public key: " + public_key_path.string() + "\nWrote private key: " + private_key_path.string() + "\n",
+    };
+  } catch (const std::exception& error) {
+    return {
+      .exit_code = 1,
+      .stderr_text = std::string{error.what()} + "\n",
+    };
+  }
+}
+
 CommandResult run_validate_command(const DocsCommandOptions& options) {
   return validate_or_manifest(options, false);
 }
@@ -2269,6 +3246,222 @@ CommandResult run_plan_command(const PlanCommandOptions& options) {
     return {
       .exit_code = 0,
       .stdout_text = format_plan_summary(plan, asset_plan, package.summary),
+    };
+  } catch (const std::exception& error) {
+    return {
+      .exit_code = 1,
+      .stderr_text = std::string{error.what()} + "\n",
+    };
+  }
+}
+
+CommandResult run_push_command(const PushCommandOptions& options) {
+  try {
+    if (options.endpoint.empty()) {
+      return {
+        .exit_code = 1,
+        .stderr_text = "Push requires --endpoint <url>.\n",
+      };
+    }
+
+    const auto endpoint = validate_endpoint_url(options.endpoint);
+
+    if (options.delete_behavior && !is_valid_delete_behavior(*options.delete_behavior)) {
+      return {
+        .exit_code = 1,
+        .stderr_text = "--delete-behavior for push must be archive, delete, draft, or ignore.\n",
+      };
+    }
+
+    if (options.github_oidc) {
+      if (options.key_id) {
+        return {
+          .exit_code = 1,
+          .stderr_text = "Do not use --key-id with --github-oidc.\n",
+        };
+      }
+
+      if (options.private_key_file || options.private_key_env) {
+        return {
+          .exit_code = 1,
+          .stderr_text = "Do not use Ed25519 private key flags with --github-oidc.\n",
+        };
+      }
+    } else {
+      if (!options.key_id) {
+        return {
+          .exit_code = 1,
+          .stderr_text = "Push requires --key-id <id>.\n",
+        };
+      }
+
+      if (options.private_key_file && options.private_key_env) {
+        return {
+          .exit_code = 1,
+          .stderr_text = "Use either --private-key-file or --private-key-env, not both.\n",
+        };
+      }
+
+      if (!options.private_key_file && !options.private_key_env) {
+        return {
+          .exit_code = 1,
+          .stderr_text = "Push requires --private-key-file or --private-key-env.\n",
+        };
+      }
+    }
+
+    const auto source_id = source_id_for(options);
+    const auto package = collect_publish_package(options, source_id);
+    const auto mode = options.dry_run ? std::string{"dry-run"} : std::string{"sync"};
+    const auto delete_behavior = options.delete_behavior.value_or("archive");
+    const auto manifest = build_manifest(
+      package,
+      source_id,
+      options,
+      delete_behavior,
+      mode,
+      options.publish
+    );
+    auto validation = validate_manifest(manifest, options, "/" + source_id);
+
+    if (!validation.ok) {
+      return {
+        .exit_code = 1,
+        .stderr_text = "Manifest is invalid.\n\nErrors:\n" + format_issues(validation.issues) + "\n",
+      };
+    }
+
+    std::string route_warning;
+    if (!package.assets.empty() && !has_public_asset_routes()) {
+      if (options.strict_routes) {
+        return {
+          .exit_code = 1,
+          .stderr_text = std::string{kMissingAssetRoutesWarning},
+        };
+      }
+
+      route_warning = kMissingAssetRoutesWarning;
+    }
+
+    const auto body = manifest.dump();
+    SignedDocsRequest request;
+
+    if (options.github_oidc) {
+      const auto token = read_github_oidc_token(options, source_id);
+      request = {
+        .body = body,
+        .headers = {
+          {"Authorization", "Bearer " + token},
+          {"Content-Type", "application/json"},
+          {"X-VL-MD-DOCS-Body-SHA256", sha256_hex(body)},
+        },
+      };
+    } else {
+      std::string private_key;
+      if (options.private_key_env) {
+        const auto* value = std::getenv(options.private_key_env->c_str());
+        if (value == nullptr || *value == '\0') {
+          return {
+            .exit_code = 1,
+            .stderr_text = "Environment variable \"" + *options.private_key_env + "\" is not set.\n",
+          };
+        }
+        private_key = value;
+      } else {
+        try {
+          private_key = read_file(*options.private_key_file);
+        } catch (const std::exception& error) {
+          return {
+            .exit_code = 1,
+            .stderr_text = std::string{"Could not read private key file: "} + error.what() + "\n",
+          };
+        }
+      }
+
+      request = sign_docs_sync_request(
+        body,
+        endpoint,
+        *options.key_id,
+        private_key,
+        random_uuid_v4(),
+        current_iso_timestamp()
+      );
+    }
+
+    const auto response = curl_json_request("POST", endpoint, request.headers, request.body);
+    const auto response_ok = response.ok && response.has_json && response.body.is_object()
+      && response.body.contains("ok") && response.body["ok"].is_boolean() && response.body["ok"].get<bool>();
+
+    if (options.print_json) {
+      const json output = {
+        {"endpoint", endpoint},
+        {"mode", mode},
+        {"package", package_summary_to_json(package.summary)},
+        {"response", response.has_json ? response.body : json(nullptr)},
+        {"sourceId", source_id},
+        {"status", response.status},
+      };
+
+      return {
+        .exit_code = response_ok ? 0 : 1,
+        .stdout_text = json_string(output, options.pretty),
+        .stderr_text = route_warning,
+      };
+    }
+
+    if (!response_ok) {
+      return {
+        .exit_code = 1,
+        .stderr_text = route_warning + format_server_failure(response),
+      };
+    }
+
+    const auto summary = response.body.contains("summary") && response.body["summary"].is_object()
+      ? response.body["summary"]
+      : json::object();
+    const auto response_delete_behavior = response.body.contains("deleteBehavior") && response.body["deleteBehavior"].is_string()
+      ? response.body["deleteBehavior"].get<std::string>()
+      : delete_behavior;
+    const auto response_publish_requested = response.body.contains("publishRequested") && response.body["publishRequested"].is_boolean()
+      ? response.body["publishRequested"].get<bool>()
+      : options.publish;
+
+    const auto summary_count = [&summary](std::string_view key) -> int {
+      const auto key_string = std::string{key};
+      return summary.contains(key_string) && summary[key_string].is_number_integer()
+        ? summary[key_string].get<int>()
+        : 0;
+    };
+
+    std::ostringstream out;
+    out << "pmdocs push\n\n";
+    out << "Endpoint: " << endpoint << "\n";
+    out << "Mode: " << mode << "\n";
+    out << "Source: " << source_id << "\n";
+    out << "Publish requested: " << (response_publish_requested ? "yes" : "no") << "\n";
+    out << "Delete behavior: " << response_delete_behavior << "\n\n";
+    out << "Create: " << summary_count("create") << "\n";
+    out << "Update: " << summary_count("update") << "\n";
+    out << "Unchanged: " << summary_count("unchanged") << "\n";
+    out << "Archive: " << summary_count("archive") << "\n";
+    out << "Delete: " << summary_count("delete") << "\n";
+    out << "Draft: " << summary_count("draft") << "\n";
+    out << "Asset create: " << summary_count("assetCreate") << "\n";
+    out << "Asset update: " << summary_count("assetUpdate") << "\n";
+    out << "Asset unchanged: " << summary_count("assetUnchanged") << "\n";
+    out << "Asset archive: " << summary_count("assetArchive") << "\n";
+    out << "Asset delete: " << summary_count("assetDelete") << "\n";
+    out << "Warnings: " << summary_count("warnings") << "\n\n";
+    out << "Status: " << (mode == "sync" ? "applied" : "accepted") << "\n";
+
+    if (response.body.contains("syncRunId") && response.body["syncRunId"].is_string()) {
+      out << "Sync run: " << response.body["syncRunId"].get<std::string>() << "\n";
+    }
+
+    return {
+      .exit_code = 0,
+      .stdout_text = out.str(),
+      .stderr_text = route_warning,
     };
   } catch (const std::exception& error) {
     return {

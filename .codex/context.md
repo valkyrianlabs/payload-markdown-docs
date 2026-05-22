@@ -6,7 +6,7 @@
 - Package metadata now uses the scoped package name and real description.
 - Purpose: Git-backed Markdown documentation sync into Payload CMS.
 - Current package state: v1 stabilization. The root package export is Payload plugin/config API only: `payloadMarkdownDocs()` plus public plugin config and block-install selection types. Frontend and route helpers live under `/next`; admin import-map support lives under `/admin`; optional block schemas and field helpers live under `/blocks` and `/fields`. Constants, routing internals, sync planning, hashing, frontmatter parsing, security helpers, manifest builders, and admin data loaders are internal implementation details. Enabled plugin mode injects docs groups, docs sets, generated docs, docs assets, sync-run, nonce, key, and trusted-owner collections and registers authenticated sync and asset endpoints. Disabled mode remains an exact no-op. Payload Admin shows docs sets and docs groups under `Docs`; generated docs, assets, sync runs, and nonces are internal/system collections by default. The npm CLI supports `validate`, `manifest`, `plan`, `keygen`, authenticated `push`, `push --publish`, GitHub OIDC push via `--github-oidc`, `install skill`, and `install routes`. `push` already means sync; there is no separate sync flag. Sync writes require `sync.allowWrites: true`. Publishing requires `sync.allowPublish: true` and a draft-enabled dedicated docs collection. Hard delete requires `sync.allowHardDelete: true`. Docs group routes derive from group slugs and `pageMode`; docs set routes derive from group nesting, docs set slug, and `routeMode`. Docs set `openGraph` metadata feeds the `/next` metadata helpers only and does not render a hero/banner. Raw AI-facing routes and static assets are served publicly when route files are installed, but sitemap inclusion is opt-in through `includeLlms`, `includeSkills`, or `includeAssets`.
-- Current native CLI state: `cpp-cli` contains a Meson-built C++ `pmdocs` binary using CLI11, nlohmann-json, doctest, libcurl, and OpenSSL 3. Native tests pass for `doctor`, `skill install`, and local `validate` / `manifest` / `plan`. The local docs commands now match the npm CLI package-collection contract for docs, bundled skill assets, `llms.txt`, `llms-full.txt`, package summaries, manifests, and local plans; legacy AI export manifests are ignored rather than treated as v1 input. `keygen` and `push` remain planned stubs. Debian and Homebrew skeletons exist, but command-complete release automation, Nexus apt publication, and tap publication are not finished.
+- Current native CLI state: `cpp-cli` contains a Meson-built C++ `pmdocs` binary using CLI11, nlohmann-json, doctest, libcurl, and OpenSSL 3. Native tests pass for `doctor`, `skill install`, local `validate` / `manifest` / `plan`, `keygen`, and pre-network `push` behavior. The local docs commands match the npm CLI package-collection contract for docs, bundled skill assets, `llms.txt`, `llms-full.txt`, package summaries, manifests, and local plans; legacy AI export manifests are ignored rather than treated as v1 input. Native `keygen` now generates Ed25519 PEM or base64 key pairs and writes the same file names as the npm CLI. Native `push` now builds/validates the sync manifest, supports Ed25519 signing, base64/PEM/OpenSSH private-key input, GitHub OIDC bearer auth, dry-run mode, publish requests, delete behavior, strict route checks, JSON output, and libcurl transport. Live endpoint push/OIDC smoke coverage still needs a safe local or protected test endpoint before treating the native remote workflow as fully release-qualified. Debian and Homebrew skeletons exist, but command-complete release automation, Nexus apt publication, and tap publication are not finished.
 - Current release tooling state: imported Python tooling under `tools/release` is useful but still Vaulthalla-shaped. It exposes version, changelog, Debian build/validation, and Nexus publication commands, but must be adapted to root `package.json`, Meson, Debian `pmdocs`, Homebrew formula/tap handling, and offline-by-default tests before it becomes a release gate. Do not run live AI/provider or publication commands from routine local tests; keep provider and Nexus behavior mocked or disabled unless explicitly validating a protected release path.
 
 ## Product Direction
@@ -206,29 +206,36 @@ Done when:
 
 ### 2. Port Keygen And Push Protocol Cleanly
 
-Port the npm CLI's remote workflow only after local parity is stable.
+Status: implementation landed for the native CLI command surface; remaining
+work is safe endpoint parity/smoke coverage and any fixes found there.
 
 Scope:
 
-- Implement OpenSSL EVP key generation, PEM output, PEM read/sign, body SHA-256,
-  canonical signing string construction, and Ed25519 signature headers matching
-  `src/security`.
-- Support npm `keygen` flags: `--format <pem|base64>`, `--out`, and `--force`.
-- Implement libcurl endpoint validation and POST transport with safe defaults:
-  HTTPS by default, local HTTP only by explicit dev affordance if needed,
-  timeout, status code handling, and response body capture.
-- Implement `push` flags: endpoint, source metadata, Ed25519 auth,
+- Implemented OpenSSL EVP key generation, PEM/base64 output, PEM/base64/OpenSSH
+  private-key read/sign, body SHA-256, canonical signing string construction,
+  and Ed25519 signature headers matching `src/security`.
+- Implemented npm `keygen` flags: `--format <pem|base64>`, `--out`, and
+  `--force`.
+- Implemented libcurl endpoint validation and JSON GET/POST transport with
+  timeout, status code handling, user-agent, JSON response parsing, and response
+  body capture.
+- Implemented `push` flags: endpoint, source metadata, Ed25519 auth,
   GitHub OIDC, dry-run, publish, delete behavior, strict routes, JSON output,
   and package collection flags.
 - Keep server authority intact: native `push` may request sync, publish, or hard
   delete behavior, but the server decides.
-- Add focused C++ test vectors against TypeScript outputs for hashes, signing
-  strings, signatures, malformed keys, endpoint validation, auth flag conflicts,
-  and local mock HTTP responses.
+- Added focused C++ tests for hashing, canonical strings, PEM/base64 signing,
+  keygen output/write behavior, endpoint validation, auth flag conflicts,
+  malformed keys, strict route checks, and invalid GitHub OIDC request URL
+  handling.
+- Still needed: local/mock HTTP response tests for push success/failure output,
+  plus protected endpoint smoke tests for Ed25519 dry-run, GitHub OIDC dry-run,
+  and publish requests.
 
 Done when:
 
-- Native `keygen` output can be accepted by the existing Payload sync endpoint.
+- Native `keygen` output is verified against the existing Payload sync endpoint
+  or an equivalent local test endpoint.
 - Native `push --dry-run`, Ed25519 `push`, GitHub OIDC `push`, and
   `push --publish` match npm CLI behavior against a local/test endpoint.
 - Parity coverage includes representative `keygen` and dry-run/push cases that

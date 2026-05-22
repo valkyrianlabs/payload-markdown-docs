@@ -308,6 +308,8 @@ Usage:
   pmdocs validate [docs-root] [options]
   pmdocs manifest [docs-root] [options]
   pmdocs plan [docs-root] [options]
+  pmdocs push [docs-root] [options]
+  pmdocs keygen [options]
 
 Commands:
   doctor          Show native CLI diagnostics.
@@ -316,11 +318,8 @@ Commands:
   validate        Validate a local docs package.
   manifest        Print a JSON docs package manifest.
   plan            Build a sync plan against optional existing docs records.
-  push            Sign and upload a docs manifest. (planned)
-  keygen          Generate Ed25519 keys for signed sync. (planned)
-
-The npm binary remains the reference implementation for docs sync behavior
-until each command is ported.
+  push            Sign and upload a docs package manifest to a Payload sync endpoint.
+  keygen          Generate Ed25519 keys for signed sync.
 )";
 }
 
@@ -354,6 +353,55 @@ std::string docs_command_help_text(std::string_view command) {
   out << "  --help                     Show this help.\n";
 
   return out.str();
+}
+
+std::string keygen_help_text() {
+  return R"(pmdocs keygen
+
+Options:
+  --format <pem|base64>  Output key format. Defaults to pem.
+  --out <dir>            Write docs-sync-public.pem and docs-sync-private.pem.
+  --force                Overwrite existing key files when used with --out.
+  --help                 Show this help.
+)";
+}
+
+std::string push_command_help_text() {
+  return R"(pmdocs push [docs-root]
+
+Options:
+  --docs <path>             Docs source root. Defaults to ./docs.
+  --skills <path>           Skills source root. Defaults to ./skills.
+  --llms <path>             llms.txt path. Defaults to ./llms.txt.
+  --llms-full <path>        llms-full.txt path. Defaults to ./llms-full.txt.
+  --no-docs                 Exclude Markdown docs records.
+  --no-skills               Exclude skill artifacts.
+  --no-llms                 Exclude llms.txt.
+  --no-llms-full            Exclude llms-full.txt.
+  --endpoint <url>          Full Payload sync endpoint URL.
+  --key-id <id>             Server-configured Ed25519 key id.
+  --private-key-file <path> Private key file from keygen, or an unencrypted OpenSSH Ed25519 key.
+  --private-key-env <name>  Environment variable containing the private key.
+  --github-oidc             Use GitHub Actions OIDC bearer auth instead of Ed25519.
+  --oidc-token-env <name>   Environment variable containing an already-fetched OIDC token.
+  --dry-run                 Validate and submit a dry-run request without applying writes.
+  --strict-routes           Fail when assets are included but public Next asset route files are missing.
+  --publish                 Request published output. Server must allow publishing.
+  --delete-behavior <value> archive, delete, draft, or ignore. Defaults to archive.
+  --json                    Print structured JSON output.
+  --pretty                  Pretty-print JSON output with --json.
+  --source <id>             Docs set slug. Defaults to the GitHub repository name in GitHub Actions, otherwise local-docs.
+  --repository <repo>       Source repository metadata.
+  --branch <branch>         Source branch metadata.
+  --commit <sha>            Source commit metadata.
+  --max-files <number>      Maximum file count.
+  --max-file-bytes <number> Maximum single file size.
+  --max-total-bytes <number> Maximum total Markdown bytes.
+  --help                    Show this help.
+
+GitHub OIDC requires workflow permissions: id-token: write and contents: read.
+Hard delete requires explicit server sync.allowHardDelete. Existing collection and block targets are not supported yet.
+)";
 }
 
 std::string doctor_help_text() {
@@ -586,18 +634,22 @@ CommandResult run(std::vector<std::string_view> args) {
   }
 
   InstallSkillOptions install_options;
+  KeygenOptions keygen_options;
   DocsCommandOptions validate_options;
   DocsCommandOptions manifest_options;
   PlanCommandOptions plan_options;
+  PushCommandOptions push_options;
   DocsOptionsRefs validate_options_refs;
   DocsOptionsRefs manifest_options_refs;
   DocsOptionsRefs plan_options_refs;
+  DocsOptionsRefs push_options_refs;
   bool doctor_requested = false;
+  bool keygen_requested = false;
   bool manifest_requested = false;
   bool plan_requested = false;
+  bool push_requested = false;
   bool skill_update_requested = false;
   bool validate_requested = false;
-  std::string planned_command;
 
   CLI::App app{"Native CLI for Payload Markdown Docs.", "pmdocs"};
   app.set_help_flag("-h,--help", "Show this help.");
@@ -672,13 +724,30 @@ CommandResult run(std::vector<std::string_view> args) {
     plan_requested = true;
   });
 
-  for (const auto command : {"push", "keygen"}) {
-    auto* stub = app.add_subcommand(command, std::string{"Planned native command: "} + command);
-    stub->allow_extras();
-    stub->callback([&planned_command, command]() {
-      planned_command = command;
-    });
-  }
+  auto* push = app.add_subcommand("push", "Sign and upload a docs package manifest to a Payload sync endpoint.");
+  push_options_refs = add_docs_options(push, push_options);
+  push->add_option("--endpoint", push_options.endpoint, "Full Payload sync endpoint URL.");
+  push->add_option("--key-id", push_options.key_id, "Server-configured Ed25519 key id.");
+  push->add_option("--private-key-file", push_options.private_key_file, "Private key file.");
+  push->add_option("--private-key-env", push_options.private_key_env, "Private key environment variable.");
+  push->add_flag("--github-oidc", push_options.github_oidc, "Use GitHub Actions OIDC bearer auth instead of Ed25519.");
+  push->add_option("--oidc-token-env", push_options.oidc_token_env, "Environment variable containing an already-fetched OIDC token.");
+  push->add_flag("--dry-run", push_options.dry_run, "Submit a dry-run request.");
+  push->add_flag("--strict-routes", push_options.strict_routes, "Fail when public asset route files are missing.");
+  push->add_flag("--publish", push_options.publish, "Request published output.");
+  push->add_option("--delete-behavior", push_options.delete_behavior, "archive, delete, draft, or ignore.");
+  push->callback([&push_requested]() {
+    push_requested = true;
+  });
+
+  auto* keygen = app.add_subcommand("keygen", "Generate Ed25519 keys for signed sync.");
+  keygen->add_option("--format", keygen_options.format, "pem or base64.")
+    ->default_val(keygen_options.format);
+  keygen->add_option("--out", keygen_options.out_dir, "Output directory.");
+  keygen->add_flag("--force", keygen_options.force, "Overwrite existing key files.");
+  keygen->callback([&keygen_requested]() {
+    keygen_requested = true;
+  });
 
   auto parse_args = to_argv_buffer(args);
 
@@ -691,6 +760,14 @@ CommandResult run(std::vector<std::string_view> args) {
 
     if (args.size() >= 2 && args[0] == "doctor") {
       return make_stdout(doctor_help_text());
+    }
+
+    if (args.size() >= 2 && args[0] == "keygen") {
+      return make_stdout(keygen_help_text());
+    }
+
+    if (args.size() >= 2 && args[0] == "push") {
+      return make_stdout(push_command_help_text());
     }
 
     if (args.size() >= 2 && (args[0] == "validate" || args[0] == "manifest" || args[0] == "plan")) {
@@ -753,6 +830,9 @@ CommandResult run(std::vector<std::string_view> args) {
   if (plan_requested) {
     finalize_docs_options(plan_options, plan_options_refs);
   }
+  if (push_requested) {
+    finalize_docs_options(push_options, push_options_refs);
+  }
 
   if (doctor_requested) {
     return doctor_result();
@@ -760,6 +840,10 @@ CommandResult run(std::vector<std::string_view> args) {
 
   if (skill_install->parsed()) {
     return run_skill_install(install_options);
+  }
+
+  if (keygen_requested) {
+    return run_keygen_command(keygen_options);
   }
 
   if (skill_update_requested) {
@@ -778,8 +862,8 @@ CommandResult run(std::vector<std::string_view> args) {
     return run_plan_command(plan_options);
   }
 
-  if (!planned_command.empty()) {
-    return planned_command_result(planned_command);
+  if (push_requested) {
+    return run_push_command(push_options);
   }
 
   return make_stdout(root_help_text());

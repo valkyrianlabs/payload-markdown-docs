@@ -294,6 +294,181 @@ TEST_CASE("sha256 matches known test vector") {
   CHECK(pmdocs::sha256_hex("abc") == "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
 }
 
+TEST_CASE("keygen prints and writes Ed25519 keys") {
+  const auto printed = pmdocs::run(args({"keygen"}));
+  REQUIRE(printed.exit_code == 0);
+  CHECK(printed.stdout_text.find("-----BEGIN PUBLIC KEY-----") != std::string::npos);
+  CHECK(printed.stdout_text.find("-----BEGIN PRIVATE KEY-----") != std::string::npos);
+
+  TempDir temp{"pmdocs-test-keygen"};
+  const auto out = temp.path() / "keys";
+  const auto out_string = out.string();
+  const auto first = pmdocs::run(args({"keygen", "--out", out_string}));
+  const auto second = pmdocs::run(args({"keygen", "--out", out_string}));
+  const auto forced = pmdocs::run(args({"keygen", "--out", out_string, "--force"}));
+
+  CHECK(first.exit_code == 0);
+  CHECK(second.exit_code == 1);
+  CHECK(second.stderr_text.find("Key files already exist.") != std::string::npos);
+  CHECK(forced.exit_code == 0);
+  CHECK(read_text(out / "docs-sync-public.pem").find("BEGIN PUBLIC KEY") != std::string::npos);
+  CHECK(read_text(out / "docs-sync-private.pem").find("BEGIN PRIVATE KEY") != std::string::npos);
+}
+
+TEST_CASE("signing builds canonical headers for PEM and base64 keys") {
+  const auto pem_keys = pmdocs::generate_ed25519_key_pair("pem");
+  const auto base64_keys = pmdocs::generate_ed25519_key_pair("base64");
+  const auto canonical = pmdocs::build_canonical_signing_string(
+    "ABCDEF",
+    "post",
+    "/api/documentation/sync/",
+    "2026-01-01T00:00:00.000Z",
+    "nonce-1"
+  );
+
+  CHECK(canonical == "v1\nPOST\n/api/documentation/sync\n2026-01-01T00:00:00.000Z\nnonce-1\nabcdef");
+
+  const auto signed_pem = pmdocs::sign_docs_sync_request(
+    "{\"version\":1}",
+    "https://example.com/api/documentation/sync?ignored=true",
+    "github-actions-main",
+    pem_keys.private_key,
+    "nonce-1",
+    "2026-01-01T00:00:00.000Z"
+  );
+  const auto signed_base64 = pmdocs::sign_docs_sync_request(
+    "{\"version\":1}",
+    "https://example.com/api/documentation/sync",
+    "github-actions-main",
+    base64_keys.private_key,
+    "nonce-1",
+    "2026-01-01T00:00:00.000Z"
+  );
+
+  CHECK(signed_pem.headers.at("X-VL-MD-DOCS-Body-SHA256") == pmdocs::sha256_hex("{\"version\":1}"));
+  CHECK(signed_pem.headers.at("X-VL-MD-DOCS-Key-Id") == "github-actions-main");
+  CHECK(signed_pem.headers.at("X-VL-MD-DOCS-Nonce") == "nonce-1");
+  CHECK_FALSE(signed_pem.headers.at("X-VL-MD-DOCS-Signature").empty());
+  CHECK_FALSE(signed_base64.headers.at("X-VL-MD-DOCS-Signature").empty());
+}
+
+TEST_CASE("push command parses help and rejects invalid auth combinations before networking") {
+  TempDir temp{"pmdocs-test-push-options"};
+  const auto root = temp.path() / "docs";
+  const auto root_string = root.string();
+  const auto keys = pmdocs::generate_ed25519_key_pair("pem");
+  const auto key_path = temp.path() / "docs-sync-private.pem";
+  const auto key_path_string = key_path.string();
+  write_text(root / "index.md", "# Home\n");
+  write_text(key_path, keys.private_key);
+
+  const auto help = pmdocs::run(args({"push", "--help"}));
+  CHECK(help.exit_code == 0);
+  CHECK(help.stdout_text.find("--github-oidc") != std::string::npos);
+  CHECK(help.stdout_text.find("sync.allowHardDelete") != std::string::npos);
+
+  const auto unknown_sync = pmdocs::run(args({
+    "push",
+    root_string,
+    "--endpoint",
+    "https://example.com/api/documentation/sync",
+    "--key-id",
+    "github-actions-main",
+    "--private-key-file",
+    key_path_string,
+    "--sync",
+  }));
+  CHECK(unknown_sync.exit_code != 0);
+
+  const auto missing_endpoint = pmdocs::run(args({
+    "push",
+    root_string,
+    "--key-id",
+    "github-actions-main",
+    "--private-key-file",
+    key_path_string,
+  }));
+  CHECK(missing_endpoint.exit_code == 1);
+  CHECK(missing_endpoint.stderr_text.find("Push requires --endpoint") != std::string::npos);
+
+  const auto invalid_endpoint = pmdocs::run(args({
+    "push",
+    root_string,
+    "--endpoint",
+    "ftp://example.com/sync",
+    "--key-id",
+    "github-actions-main",
+    "--private-key-file",
+    key_path_string,
+  }));
+  CHECK(invalid_endpoint.exit_code == 1);
+  CHECK(invalid_endpoint.stderr_text.find("http:// or https://") != std::string::npos);
+
+  const auto oidc_conflict = pmdocs::run(args({
+    "push",
+    root_string,
+    "--endpoint",
+    "https://example.com/api/documentation/sync",
+    "--github-oidc",
+    "--private-key-file",
+    key_path_string,
+  }));
+  CHECK(oidc_conflict.exit_code == 1);
+  CHECK(oidc_conflict.stderr_text.find("Do not use Ed25519 private key flags") != std::string::npos);
+
+  {
+    EnvGuard oidc_url{"ACTIONS_ID_TOKEN_REQUEST_URL", "not-a-url"};
+    EnvGuard oidc_request_token{"ACTIONS_ID_TOKEN_REQUEST_TOKEN", "request-token"};
+    const auto oidc_invalid_url = pmdocs::run(args({
+      "push",
+      root_string,
+      "--endpoint",
+      "https://example.com/api/documentation/sync",
+      "--github-oidc",
+    }));
+    CHECK(oidc_invalid_url.exit_code == 1);
+    CHECK(oidc_invalid_url.stderr_text.find("ACTIONS_ID_TOKEN_REQUEST_URL is not a valid URL.") != std::string::npos);
+  }
+
+  const auto bad_key_path = temp.path() / "not-a-key";
+  const auto bad_key_path_string = bad_key_path.string();
+  write_text(bad_key_path, "not a private key\n");
+  const auto bad_key = pmdocs::run(args({
+    "push",
+    root_string,
+    "--endpoint",
+    "https://example.com/api/documentation/sync",
+    "--key-id",
+    "github-actions-main",
+    "--private-key-file",
+    bad_key_path_string,
+  }));
+  CHECK(bad_key.exit_code == 1);
+  CHECK(bad_key.stderr_text.find("Private key must be an Ed25519") != std::string::npos);
+
+  const auto llms_path = temp.path() / "llms.txt";
+  const auto llms_path_string = llms_path.string();
+  write_text(llms_path, "# llms\n");
+  const auto project_root = temp.path();
+  CwdGuard cwd{project_root};
+  const auto strict_routes = pmdocs::run(args({
+    "push",
+    "--docs",
+    root_string,
+    "--llms",
+    llms_path_string,
+    "--endpoint",
+    "https://example.com/api/documentation/sync",
+    "--key-id",
+    "github-actions-main",
+    "--private-key-file",
+    key_path_string,
+    "--strict-routes",
+  }));
+  CHECK(strict_routes.exit_code == 1);
+  CHECK(strict_routes.stderr_text.find("public asset route files were not found") != std::string::npos);
+}
+
 TEST_CASE("validate succeeds for valid docs and reports invalid frontmatter") {
   TempDir temp{"pmdocs-test-validate"};
   const auto root = temp.path() / "docs";
