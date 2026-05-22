@@ -8,8 +8,18 @@ import unittest
 from unittest.mock import patch
 
 from tools.release import cli
-from tools.release.cli_tools.commands.debian import cmd_publish_deb, cmd_validate_release_artifacts, cmd_build_deb
-from tools.release.packaging import DebianBuildResult, DebianPublicationResult
+from tools.release.cli_tools.commands.debian import (
+    cmd_build_deb,
+    cmd_prepare_homebrew_formula,
+    cmd_publish_deb,
+    cmd_validate_release_artifacts,
+)
+from tools.release.packaging import (
+    DebianBuildResult,
+    DebianPublicationResult,
+    HomebrewFormulaResult,
+)
+from tools.release.version.models import Version
 
 
 class CliBuildDebParsingTests(unittest.TestCase):
@@ -32,11 +42,42 @@ class CliBuildDebParsingTests(unittest.TestCase):
 
     def test_validate_release_artifacts_parser_flags(self) -> None:
         parser = cli.build_parser()
-        parsed = parser.parse_args(["validate-release-artifacts", "--output-dir", "/tmp/release", "--skip-changelog"])
+        parsed = parser.parse_args(
+            [
+                "validate-release-artifacts",
+                "--output-dir",
+                "/tmp/release",
+                "--skip-changelog",
+                "--require-homebrew",
+            ]
+        )
 
         self.assertEqual(parsed.command, "validate-release-artifacts")
         self.assertEqual(parsed.output_dir, "/tmp/release")
         self.assertTrue(parsed.skip_changelog)
+        self.assertTrue(parsed.require_homebrew)
+        self.assertTrue(callable(parsed.func))
+
+    def test_prepare_homebrew_formula_parser_flags(self) -> None:
+        parser = cli.build_parser()
+        parsed = parser.parse_args(
+            [
+                "prepare-homebrew-formula",
+                "--output-dir",
+                "/tmp/release",
+                "--repository",
+                "owner/repo",
+                "--sha256",
+                "a" * 64,
+                "--dry-run",
+            ]
+        )
+
+        self.assertEqual(parsed.command, "prepare-homebrew-formula")
+        self.assertEqual(parsed.output_dir, "/tmp/release")
+        self.assertEqual(parsed.repository, "owner/repo")
+        self.assertEqual(parsed.sha256, "a" * 64)
+        self.assertTrue(parsed.dry_run)
         self.assertTrue(callable(parsed.func))
 
     def test_publish_deb_parser_flags(self) -> None:
@@ -49,7 +90,7 @@ class CliBuildDebParsingTests(unittest.TestCase):
                 "--mode",
                 "nexus",
                 "--nexus-repo-url",
-                "https://nexus.example/repository/vaulthalla-debian",
+                "https://nexus.example/repository/pmdocs-debian",
                 "--nexus-user",
                 "ci-user",
                 "--nexus-pass",
@@ -62,7 +103,7 @@ class CliBuildDebParsingTests(unittest.TestCase):
         self.assertEqual(parsed.command, "publish-deb")
         self.assertEqual(parsed.output_dir, "/tmp/release")
         self.assertEqual(parsed.mode, "nexus")
-        self.assertEqual(parsed.nexus_repo_url, "https://nexus.example/repository/vaulthalla-debian")
+        self.assertEqual(parsed.nexus_repo_url, "https://nexus.example/repository/pmdocs-debian")
         self.assertEqual(parsed.nexus_user, "ci-user")
         self.assertEqual(parsed.nexus_pass, "secret")
         self.assertTrue(parsed.dry_run)
@@ -83,7 +124,7 @@ class CliBuildDebCommandTests(unittest.TestCase):
             output_dir=Path("/tmp/repo/release"),
             command=("dpkg-buildpackage", "-us", "-uc", "-b"),
             dry_run=True,
-            package_name="vaulthalla",
+            package_name="pmdocs",
             package_version="1.2.3-1",
             artifacts=(),
             build_log=None,
@@ -109,9 +150,9 @@ class CliBuildDebCommandTests(unittest.TestCase):
             output_dir=Path("/tmp/repo/release"),
             command=("dpkg-buildpackage", "-us", "-uc", "-b"),
             dry_run=False,
-            package_name="vaulthalla",
+            package_name="pmdocs",
             package_version="1.2.3-1",
-            artifacts=(Path("/tmp/repo/release/vaulthalla_1.2.3-1_amd64.deb"),),
+            artifacts=(Path("/tmp/repo/release/pmdocs_1.2.3-1_amd64.deb"),),
             build_log=Path("/tmp/repo/release/build-deb.log"),
         )
 
@@ -124,13 +165,16 @@ class CliBuildDebCommandTests(unittest.TestCase):
         self.assertEqual(rc, 0)
         rendered = out.getvalue()
         self.assertIn("Artifacts", rendered)
-        self.assertIn("vaulthalla_1.2.3-1_amd64.deb", rendered)
+        self.assertIn("pmdocs_1.2.3-1_amd64.deb", rendered)
         self.assertIn("build-deb.log", rendered)
 
     def test_main_reports_build_deb_error_cleanly(self) -> None:
         err = StringIO()
         with (
-            patch("tools.release.cli_tools.commands.debian.build_debian_package", side_effect=ValueError("build failed")),
+            patch(
+                "tools.release.cli_tools.commands.debian.build_debian_package",
+                side_effect=ValueError("build failed"),
+            ),
             patch("sys.stderr", new=err),
         ):
             rc = cli.main(["build-deb"])
@@ -139,7 +183,12 @@ class CliBuildDebCommandTests(unittest.TestCase):
         self.assertIn("ERROR: build failed", err.getvalue())
 
     def test_validate_release_artifacts_command_prints_summary(self) -> None:
-        args = argparse.Namespace(repo_root=".", output_dir="release", skip_changelog=False)
+        args = argparse.Namespace(
+            repo_root=".",
+            output_dir="release",
+            skip_changelog=False,
+            require_homebrew=True,
+        )
         out = StringIO()
 
         fake_result = type(
@@ -148,7 +197,7 @@ class CliBuildDebCommandTests(unittest.TestCase):
             {
                 "output_dir": Path("/tmp/repo/release"),
                 "debian_artifacts": (Path("/tmp/repo/release/pkg.deb"),),
-                "web_artifacts": (Path("/tmp/repo/release/web.tar.gz"),),
+                "homebrew_artifacts": (Path("/tmp/repo/release/homebrew/Formula/pmdocs.rb"),),
                 "changelog_artifacts": (
                     Path("/tmp/repo/release/changelog.release.md"),
                     Path("/tmp/repo/release/changelog.raw.md"),
@@ -165,9 +214,49 @@ class CliBuildDebCommandTests(unittest.TestCase):
 
         self.assertEqual(rc, 0)
         validate.assert_called_once()
+        self.assertTrue(validate.call_args.kwargs["require_homebrew"])
         rendered = out.getvalue()
         self.assertIn("Release artifact validation", rendered)
+        self.assertIn("Homebrew formula:  1", rendered)
         self.assertIn("Status:            OK", rendered)
+
+    def test_prepare_homebrew_formula_command_prints_staged_formula(self) -> None:
+        args = argparse.Namespace(
+            repo_root=".",
+            output_dir="release",
+            archive_url=None,
+            repository="owner/repo",
+            sha256="a" * 64,
+            fetch_sha256=False,
+            dry_run=False,
+        )
+        out = StringIO()
+        fake_result = HomebrewFormulaResult(
+            repo_root=Path("/tmp/repo"),
+            formula_path=Path("/tmp/repo/homebrew/Formula/pmdocs.rb"),
+            output_dir=Path("/tmp/repo/release"),
+            staged_formula=Path("/tmp/repo/release/homebrew/Formula/pmdocs.rb"),
+            version=Version(1, 2, 3),
+            archive_url="https://example.test/pmdocs.tar.gz",
+            sha256="a" * 64,
+            dry_run=False,
+        )
+
+        with (
+            patch(
+                "tools.release.cli_tools.commands.debian.prepare_homebrew_formula",
+                return_value=fake_result,
+            ) as prepare,
+            redirect_stdout(out),
+        ):
+            rc = cmd_prepare_homebrew_formula(args)
+
+        self.assertEqual(rc, 0)
+        prepare.assert_called_once()
+        rendered = out.getvalue()
+        self.assertIn("Homebrew formula", rendered)
+        self.assertIn("Status:       STAGED", rendered)
+        self.assertIn("pmdocs.rb", rendered)
 
     def test_publish_deb_command_reports_skipped_when_disabled(self) -> None:
         args = argparse.Namespace(
@@ -196,7 +285,7 @@ class CliBuildDebCommandTests(unittest.TestCase):
             mode="disabled",
             enabled=False,
             dry_run=False,
-            artifacts=(Path("/tmp/repo/release/vaulthalla_1.2.3-1_amd64.deb"),),
+            artifacts=(Path("/tmp/repo/release/pmdocs_1.2.3-1_amd64.deb"),),
             target_urls=(),
             skipped_reason="Publication mode is disabled.",
         )
@@ -245,7 +334,7 @@ class CliBuildDebCommandTests(unittest.TestCase):
             (),
             {
                 "mode": "nexus",
-                "nexus_repo_url": "https://nexus.example/repository/vaulthalla-debian",
+                "nexus_repo_url": "https://nexus.example/repository/pmdocs-debian",
                 "nexus_user": "ci-user",
                 "nexus_password": "secret",
             },
@@ -255,8 +344,8 @@ class CliBuildDebCommandTests(unittest.TestCase):
             mode="nexus",
             enabled=True,
             dry_run=False,
-            artifacts=(Path("/tmp/repo/release/vaulthalla_1.2.3-1_amd64.deb"),),
-            target_urls=("https://nexus.example/repository/vaulthalla-debian",),
+            artifacts=(Path("/tmp/repo/release/pmdocs_1.2.3-1_amd64.deb"),),
+            target_urls=("https://nexus.example/repository/pmdocs-debian",),
             skipped_reason=None,
         )
 
@@ -299,7 +388,10 @@ class CliBuildDebCommandTests(unittest.TestCase):
             ),
             patch(
                 "tools.release.cli_tools.commands.debian.publish_debian_artifacts",
-                side_effect=ValueError("Debian publication is required for this run, but RELEASE_PUBLISH_MODE is disabled."),
+                side_effect=ValueError(
+                    "Debian publication is required for this run, "
+                    "but RELEASE_PUBLISH_MODE is disabled."
+                ),
             ),
             patch("sys.stderr", new=err),
         ):

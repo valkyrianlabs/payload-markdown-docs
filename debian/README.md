@@ -11,11 +11,24 @@ sudo apt install build-essential cmake debhelper doctest-dev libcli11-dev libcur
 dpkg-buildpackage -us -uc -b
 ```
 
-Smoke-check the resulting package contents before publishing to the internal apt
+The release helper wraps the same package build and copies artifacts into
+`release/`:
+
+```bash
+python3 -m tools.release build-deb --output-dir release
+python3 -m tools.release validate-release-artifacts --output-dir release --skip-changelog
+```
+
+Smoke-check the resulting package before publishing to the internal apt
 repository:
 
 ```bash
 dpkg -c ../pmdocs_*.deb | grep -E 'usr/bin/pmdocs|usr/share/pmdocs/skills/payload-markdown-docs'
+sudo apt install ./release/pmdocs_<version>-1_<arch>.deb
+pmdocs --version
+pmdocs doctor
+pmdocs validate ./dev/docs-fixtures/basic --source payload-markdown-docs
+pmdocs skill install --dry-run
 ```
 
 Meson installs the binary and bundled skill data. Maintainer scripts should stay
@@ -28,3 +41,8 @@ from a normal repository checkout with:
 meson setup build-parity -Dnative_cli_parity_tests=true
 meson test -C build-parity
 ```
+
+Protected CI publication to Nexus is controlled by `RELEASE_PUBLISH_MODE`,
+`NEXUS_REPO_URL`, `NEXUS_USER`, and `NEXUS_PASS`. Local and workflow-dispatch
+dry-runs keep publication disabled so release tooling tests do not upload
+artifacts accidentally.

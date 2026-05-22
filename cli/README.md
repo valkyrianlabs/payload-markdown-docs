@@ -14,8 +14,8 @@ meson compile -C build
 meson test -C build
 ```
 
-The native test suite covers command parsing, `doctor`, `skill install`, and the
-offline `validate`, `manifest`, and `plan` commands.
+The native test suite covers command parsing, `doctor`, `skill install`, local
+`validate` / `manifest` / `plan`, `keygen`, and pre-network `push` behavior.
 
 ## npm parity tests
 
@@ -50,23 +50,19 @@ The `PMDOCS_DATA_DIR` override is for development and tests. A real installed
 binary uses the Meson-compiled data directory, such as
 `/usr/local/share/pmdocs` or `/usr/share/pmdocs`.
 
-## Phase 2 scope
+## Current scope
 
-The native CLI currently supports the offline workflow:
+The native CLI currently supports:
 
 - `pmdocs doctor`
 - `pmdocs skill install`
 - `pmdocs validate`
 - `pmdocs manifest`
 - `pmdocs plan`
+- `pmdocs keygen`
+- `pmdocs push`
 
-Do not add HTTP, auth, OIDC, Ed25519 signing, OpenSSL, curl, yaml-cpp, or other
-network/protocol dependencies in Phase 2. Those belong to the next phase after
-the local manifest and plan behavior is reviewed.
-
-## Phase 3 dependency contract
-
-Before adding `keygen`, signed `push`, HTTP, OIDC, or crypto code, follow
-[Phase 3 Dependency Plan](./PHASE3_DEPENDENCIES.md). The locked default stack is
-direct `libcurl`, OpenSSL 3 EVP APIs, existing `nlohmann_json`, existing
-`CLI11`, and existing `doctest`.
+The native remote workflow uses direct `libcurl`, OpenSSL 3 EVP APIs,
+`nlohmann_json`, `CLI11`, and `doctest`, following
+[Phase 3 Dependency Plan](./PHASE3_DEPENDENCIES.md). Live endpoint push/OIDC
+coverage still belongs in protected smoke tests, not routine local tests.

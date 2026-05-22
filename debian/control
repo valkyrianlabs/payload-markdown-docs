@@ -27,6 +27,6 @@ Description: native CLI for Payload Markdown Docs
  payload-markdown-docs. It provides docs sync tooling for projects that do not
  want to install the npm package locally.
  .
- This package contains the native offline CLI workflow and bundled Codex skill
- data. Network push, auth, and signing commands remain in the npm CLI until
- future native port phases.
+This package contains the native CLI workflow, bundled agent skill data,
+ Ed25519 key generation, and signed docs push support for the Payload Markdown
+ Docs sync endpoint.

@@ -1,58 +1,96 @@
-# Debian Publication and Live APT Validation
+# Native Package Publication
 
-This document defines the Phase 12 publication boundary and the follow-up
-validation seam for live APT install testing.
+This document defines the protected publication boundary for the native
+`pmdocs` package surfaces: npm, Debian/APT artifacts, Homebrew formula updates,
+and dogfood docs sync.
 
-## CI publication contract
+## Release workflow contract
 
-Release workflow publication is driven by:
+The canonical release workflow is `.github/workflows/release.yml`.
+
+It always validates the root `VERSION` contract first:
+
+```bash
+python3 -m tools.release check
+```
+
+Protected publication requires a tag named `v<VERSION>`. Dry-run workflow
+dispatches can run against a branch or SHA without publishing.
+
+## Debian and Nexus
+
+Debian publication is driven by:
 
 - `RELEASE_PUBLISH_MODE` (`disabled` or `nexus`)
+- `RELEASE_PUBLISH_REQUIRED` (`auto`, `true`, or `false`)
 - `NEXUS_REPO_URL`
 - `NEXUS_USER`
 - `NEXUS_PASS`
 
-The workflow always runs the publication command:
+The workflow builds and validates artifacts with:
 
 ```bash
-python3 -m tools.release publish-deb --output-dir <artifact_dir>
+python3 -m tools.release build-deb --output-dir release
+python3 -m tools.release validate-release-artifacts --output-dir release --skip-changelog
 ```
 
-Behavior:
+Publication runs only in the protected path:
 
-- `RELEASE_PUBLISH_MODE=disabled`: publication is skipped with explicit logs.
-- `RELEASE_PUBLISH_MODE=nexus`: publication is required and fails fast if:
-  - Nexus credentials/config are missing
-  - no `.deb` artifacts exist in the release output directory
-  - Nexus upload fails for any selected artifact
+```bash
+python3 -m tools.release publish-deb --output-dir release --require-enabled
+```
 
-No runner-local environment sourcing is used in canonical CI publication logic.
+When publication is not required, CI forces `--mode disabled --dry-run` so a
+manual dry-run cannot upload to Nexus even if repository variables are already
+configured for production.
 
-## Artifact selection
+`publish-deb` publishes all staged `*.deb` files from the release output
+directory in deterministic order.
 
-`publish-deb` publishes deterministic Debian artifacts from the staged release
-output directory:
+## Homebrew tap
 
-- all files matching `*.deb` (sorted deterministically)
+Homebrew tap publication is driven by:
 
-This keeps selection explicit and aligned to the package action output contract.
+- `HOMEBREW_TAP_PUBLISH_MODE` (`disabled` or `tap`)
+- `HOMEBREW_TAP_REPOSITORY` (for example `valkyrianlabs/homebrew-tap`)
+- `HOMEBREW_TAP_BRANCH` (defaults to `main`)
+- `HOMEBREW_TAP_TOKEN`
 
-## Phase 12b live APT validation seam
+For protected tag releases, CI computes the GitHub tag archive SHA-256 and
+stages the release formula with:
 
-After publication is complete, live install validation should run against the
-real repository endpoint, not local files. Suggested validation flow:
+```bash
+python3 -m tools.release prepare-homebrew-formula \
+  --output-dir release \
+  --archive-url "https://github.com/valkyrianlabs/payload-markdown-docs/archive/refs/tags/v<VERSION>.tar.gz" \
+  --sha256 "<sha256>"
+```
 
-1. Provision a clean Debian/Ubuntu target.
-2. Configure APT source list to the published Nexus/APT endpoint.
-3. Run:
-   - `apt update`
-   - `apt install vaulthalla`
-4. Verify:
-   - package dependency resolution
-   - `vaulthalla-web.service` starts correctly
-   - web runtime payload exists at `/usr/share/vaulthalla-web`
-   - maintainer-script lifecycle semantics for remove/purge
-5. Execute upgrade validation:
-   - publish a newer package revision
-   - `apt upgrade vaulthalla`
-   - verify service/runtime continuity and expected script behavior
+The workflow then runs a local formula install/test on macOS before copying
+`release/homebrew/Formula/pmdocs.rb` into the configured tap repository.
+
+## Docs sync
+
+The docs publication step runs only after npm, Debian, and Homebrew publication
+steps succeed. It uses GitHub OIDC and the configured `DOCS_SYNC_ENDPOINT`:
+
+```bash
+node ./dist/cli/index.js push \
+  --endpoint "$DOCS_SYNC_ENDPOINT" \
+  --source payload-markdown-docs \
+  --github-oidc \
+  --publish
+```
+
+## Live APT validation follow-up
+
+The current release workflow validates local `.deb` installation. A later
+protected job should validate the published Nexus/APT repository from a clean
+Debian or Ubuntu target:
+
+1. Configure the production APT source and signing material.
+2. Run `apt update`.
+3. Install `pmdocs` from the configured repository.
+4. Verify `pmdocs --version`, `pmdocs doctor`, `pmdocs skill install --dry-run`,
+   and a fixture `pmdocs validate` run.
+5. Publish a newer package revision and validate `apt upgrade pmdocs`.

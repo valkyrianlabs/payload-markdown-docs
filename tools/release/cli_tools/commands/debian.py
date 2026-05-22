@@ -2,8 +2,13 @@ import argparse
 import os
 from pathlib import Path
 
-from tools.release.packaging import build_debian_package, validate_release_artifacts, \
-    resolve_debian_publication_settings, publish_debian_artifacts
+from tools.release.packaging import (
+    build_debian_package,
+    prepare_homebrew_formula,
+    publish_debian_artifacts,
+    resolve_debian_publication_settings,
+    validate_release_artifacts,
+)
 
 
 def cmd_build_deb(args: argparse.Namespace) -> int:
@@ -46,12 +51,13 @@ def cmd_validate_release_artifacts(args: argparse.Namespace) -> int:
     result = validate_release_artifacts(
         output_dir=output_dir,
         require_changelog=not bool(args.skip_changelog),
+        require_homebrew=bool(getattr(args, "require_homebrew", False)),
     )
     print("Release artifact validation")
     print("---------------------------")
     print(f"Output dir:        {result.output_dir}")
     print(f"Debian artifacts:  {len(result.debian_artifacts)}")
-    print(f"Web artifacts:     {len(result.web_artifacts)}")
+    print(f"Homebrew formula:  {len(result.homebrew_artifacts)}")
     if not args.skip_changelog:
         print(f"Changelog files:   {len(result.changelog_artifacts)}")
     print("Status:            OK")
@@ -102,4 +108,35 @@ def cmd_publish_deb(args: argparse.Namespace) -> int:
         print("Status:            DRY-RUN (validated, not uploaded)")
     else:
         print("Status:            PUBLISHED")
+    return 0
+
+
+def cmd_prepare_homebrew_formula(args: argparse.Namespace) -> int:
+    repo_root = Path(args.repo_root).resolve()
+    result = prepare_homebrew_formula(
+        repo_root=repo_root,
+        output_dir=args.output_dir,
+        archive_url=args.archive_url,
+        repository=args.repository,
+        sha256=args.sha256,
+        fetch_sha256=bool(args.fetch_sha256),
+        dry_run=bool(args.dry_run),
+    )
+
+    print("Homebrew formula")
+    print("----------------")
+    print(f"Repo root:    {result.repo_root}")
+    print(f"Version:      {result.version}")
+    print(f"Formula:      {result.formula_path}")
+    print(f"Output dir:   {result.output_dir}")
+    print(f"Archive URL:  {result.archive_url}")
+    print(f"SHA-256:      {result.sha256}")
+    if result.staged_formula is not None:
+        label = "Would stage" if result.dry_run else "Staged"
+        print(f"{label}:  {result.staged_formula}")
+
+    if result.dry_run:
+        print("\nDry run only. No formula files were modified.")
+    else:
+        print("Status:       STAGED")
     return 0

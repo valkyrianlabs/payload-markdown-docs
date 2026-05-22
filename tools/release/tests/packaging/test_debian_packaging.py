@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import subprocess
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -18,24 +17,21 @@ def _write(path: Path, content: str) -> None:
 
 
 def _make_repo_layout(repo_root: Path) -> None:
-    _write(repo_root / "debian" / "changelog", "vaulthalla (1.2.3-1) unstable; urgency=medium\n")
-    _write(repo_root / "debian" / "control", "Source: vaulthalla\n")
+    _write(repo_root / "VERSION", "1.2.3\n")
+    _write(repo_root / "meson.build", "project('payload-markdown-docs', 'cpp', version: '1.2.3')\n")
+    _write(repo_root / "package.json", '{"name":"@valkyrianlabs/payload-markdown-docs","version":"1.2.3"}\n')
+    _write(repo_root / "debian" / "changelog", "pmdocs (1.2.3-1) unstable; urgency=medium\n")
+    _write(repo_root / "debian" / "control", "Source: pmdocs\n")
     _write(repo_root / "debian" / "rules", "#!/usr/bin/make -f\n")
-    _write(repo_root / "debian" / "source" / "format", "3.0 (native)\n")
-    _write(repo_root / "web" / "package.json", '{"name":"vaulthalla-web","version":"1.2.3"}\n')
-
-
-def _make_web_build_outputs(repo_root: Path) -> None:
-    _write(repo_root / "web" / ".next" / "standalone" / "server.js", "console.log('ok')\n")
-    _write(repo_root / "web" / ".next" / "static" / "chunks" / "main.js", "chunk\n")
-    _write(repo_root / "web" / "public" / "favicon.ico", "ico\n")
-
-
-def _make_broken_standalone_symlink(repo_root: Path) -> None:
-    link_path = repo_root / "web" / ".next" / "standalone" / "node_modules" / ".pnpm" / "node_modules" / "semver"
-    link_path.parent.mkdir(parents=True, exist_ok=True)
-    link_path.symlink_to(
-        repo_root / "web" / ".next" / "standalone" / "node_modules" / ".pnpm" / "semver@0.0.0" / "node_modules" / "semver"
+    _write(repo_root / "debian" / "source" / "format", "3.0 (quilt)\n")
+    _write(
+        repo_root / "homebrew" / "Formula" / "pmdocs.rb",
+        (
+            "class Pmdocs < Formula\n"
+            "  url \"https://github.com/valkyrianlabs/payload-markdown-docs/archive/refs/tags/v1.2.3.tar.gz\"\n"
+            "  sha256 \"TODO_REPLACE_WITH_RELEASE_ARCHIVE_SHA256\"\n"
+            "end\n"
+        ),
     )
 
 
@@ -66,6 +62,7 @@ class DebianPackagingTests(unittest.TestCase):
             self.assertTrue(result.dry_run)
             self.assertEqual(result.command, ("dpkg-buildpackage", "-us", "-uc", "-b"))
             self.assertEqual(result.output_dir.resolve(), (repo_root / "release").resolve())
+            self.assertEqual(result.package_name, "pmdocs")
             self.assertEqual(result.artifacts, ())
             run_build.assert_not_called()
 
@@ -81,25 +78,9 @@ class DebianPackagingTests(unittest.TestCase):
         with TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir) / "repo"
             repo_root.mkdir()
-            _write(repo_root / "debian" / "changelog", "vaulthalla (1.2.3-1) unstable; urgency=medium\n")
+            _write(repo_root / "debian" / "changelog", "pmdocs (1.2.3-1) unstable; urgency=medium\n")
 
             with self.assertRaisesRegex(ValueError, "prerequisites are missing"):
-                with patch(
-                    "tools.release.packaging.debian.require_synced_release_state",
-                    return_value=_synced_state(repo_root),
-                ):
-                    _ = build_debian_package(repo_root=repo_root, dry_run=True)
-
-    def test_missing_web_prerequisite_fails(self) -> None:
-        with TemporaryDirectory() as temp_dir:
-            repo_root = Path(temp_dir) / "repo"
-            repo_root.mkdir()
-            _write(repo_root / "debian" / "changelog", "vaulthalla (1.2.3-1) unstable; urgency=medium\n")
-            _write(repo_root / "debian" / "control", "Source: vaulthalla\n")
-            _write(repo_root / "debian" / "rules", "#!/usr/bin/make -f\n")
-            _write(repo_root / "debian" / "source" / "format", "3.0 (native)\n")
-
-            with self.assertRaisesRegex(ValueError, "Web packaging prerequisites are missing"):
                 with patch(
                     "tools.release.packaging.debian.require_synced_release_state",
                     return_value=_synced_state(repo_root),
@@ -113,27 +94,13 @@ class DebianPackagingTests(unittest.TestCase):
             repo_root.mkdir()
             _make_repo_layout(repo_root)
 
-            # dpkg-buildpackage outputs artifacts in repo_root.parent by default.
             for filename in (
-                "vaulthalla_1.2.3-1_amd64.deb",
-                "vaulthalla_1.2.3-1_amd64.buildinfo",
-                "vaulthalla_1.2.3-1_amd64.changes",
+                "pmdocs_1.2.3-1_amd64.deb",
+                "pmdocs_1.2.3-1_amd64.buildinfo",
+                "pmdocs_1.2.3-1_amd64.changes",
             ):
                 (parent / filename).write_text("artifact\n", encoding="utf-8")
-            _make_web_build_outputs(repo_root)
 
-            web_install = subprocess.CompletedProcess(
-                args=["pnpm", "install", "--frozen-lockfile"],
-                returncode=0,
-                stdout="install ok\n",
-                stderr="",
-            )
-            web_build = subprocess.CompletedProcess(
-                args=["pnpm", "build"],
-                returncode=0,
-                stdout="build web ok\n",
-                stderr="",
-            )
             deb_build = subprocess.CompletedProcess(
                 args=["dpkg-buildpackage", "-us", "-uc", "-b"],
                 returncode=0,
@@ -150,10 +117,7 @@ class DebianPackagingTests(unittest.TestCase):
                     "tools.release.packaging.debian.shutil.which",
                     side_effect=lambda tool: f"/usr/bin/{tool}",
                 ),
-                patch(
-                    "tools.release.packaging.debian.subprocess.run",
-                    side_effect=[web_install, web_build, deb_build],
-                ),
+                patch("tools.release.packaging.debian.subprocess.run", return_value=deb_build),
             ):
                 result = build_debian_package(repo_root=repo_root)
 
@@ -162,16 +126,13 @@ class DebianPackagingTests(unittest.TestCase):
                 artifact_names,
                 sorted(
                     [
-                        "vaulthalla-web_1.2.3-1_next-standalone.tar.gz",
-                        "vaulthalla_1.2.3-1_amd64.buildinfo",
-                        "vaulthalla_1.2.3-1_amd64.changes",
-                        "vaulthalla_1.2.3-1_amd64.deb",
+                        "pmdocs_1.2.3-1_amd64.buildinfo",
+                        "pmdocs_1.2.3-1_amd64.changes",
+                        "pmdocs_1.2.3-1_amd64.deb",
                     ]
                 ),
             )
-            self.assertIsNotNone(result.web_artifact)
-            assert result.web_artifact is not None
-            self.assertEqual(result.web_artifact.name, "vaulthalla-web_1.2.3-1_next-standalone.tar.gz")
+            self.assertIsNone(result.web_artifact)
             self.assertIsNotNone(result.build_log)
             assert result.build_log is not None
             self.assertTrue(result.build_log.is_file())
@@ -183,20 +144,7 @@ class DebianPackagingTests(unittest.TestCase):
             repo_root.mkdir()
             _make_repo_layout(repo_root)
             output_dir = repo_root / "release"
-            _make_web_build_outputs(repo_root)
 
-            web_install = subprocess.CompletedProcess(
-                args=["pnpm", "install", "--frozen-lockfile"],
-                returncode=0,
-                stdout="install ok\n",
-                stderr="",
-            )
-            web_build = subprocess.CompletedProcess(
-                args=["pnpm", "build"],
-                returncode=0,
-                stdout="build web ok\n",
-                stderr="",
-            )
             deb_build = subprocess.CompletedProcess(
                 args=["dpkg-buildpackage", "-us", "-uc", "-b"],
                 returncode=2,
@@ -214,10 +162,7 @@ class DebianPackagingTests(unittest.TestCase):
                         "tools.release.packaging.debian.shutil.which",
                         side_effect=lambda tool: f"/usr/bin/{tool}",
                     ),
-                    patch(
-                        "tools.release.packaging.debian.subprocess.run",
-                        side_effect=[web_install, web_build, deb_build],
-                    ),
+                    patch("tools.release.packaging.debian.subprocess.run", return_value=deb_build),
                 ):
                     _ = build_debian_package(repo_root=repo_root, output_dir=output_dir)
 
@@ -238,99 +183,6 @@ class DebianPackagingTests(unittest.TestCase):
                     patch("tools.release.packaging.debian.shutil.which", return_value=None),
                 ):
                     _ = build_debian_package(repo_root=repo_root)
-
-    def test_web_build_failure_raises_and_writes_log(self) -> None:
-        with TemporaryDirectory() as temp_dir:
-            repo_root = Path(temp_dir) / "repo"
-            repo_root.mkdir()
-            _make_repo_layout(repo_root)
-            output_dir = repo_root / "release"
-
-            web_install = subprocess.CompletedProcess(
-                args=["pnpm", "install", "--frozen-lockfile"],
-                returncode=0,
-                stdout="install ok\n",
-                stderr="",
-            )
-            web_build = subprocess.CompletedProcess(
-                args=["pnpm", "build"],
-                returncode=1,
-                stdout="",
-                stderr="next build failed",
-            )
-
-            with self.assertRaisesRegex(ValueError, "Web build failed with exit code 1"):
-                with (
-                    patch(
-                        "tools.release.packaging.debian.require_synced_release_state",
-                        return_value=_synced_state(repo_root),
-                    ),
-                    patch(
-                        "tools.release.packaging.debian.shutil.which",
-                        side_effect=lambda tool: f"/usr/bin/{tool}",
-                    ),
-                    patch(
-                        "tools.release.packaging.debian.subprocess.run",
-                        side_effect=[web_install, web_build],
-                    ),
-                ):
-                    _ = build_debian_package(repo_root=repo_root, output_dir=output_dir)
-
-            self.assertTrue((output_dir / "build-deb.log").is_file())
-
-    def test_standalone_packaging_preserves_symlinks_and_handles_missing_link_targets(self) -> None:
-        if os.name == "nt":
-            self.skipTest("symlink semantics differ on Windows runners")
-
-        with TemporaryDirectory() as temp_dir:
-            parent = Path(temp_dir)
-            repo_root = parent / "repo"
-            repo_root.mkdir()
-            _make_repo_layout(repo_root)
-            _make_web_build_outputs(repo_root)
-            _make_broken_standalone_symlink(repo_root)
-
-            for filename in ("vaulthalla_1.2.3-1_amd64.deb",):
-                (parent / filename).write_text("artifact\n", encoding="utf-8")
-
-            web_install = subprocess.CompletedProcess(
-                args=["pnpm", "install", "--frozen-lockfile"],
-                returncode=0,
-                stdout="install ok\n",
-                stderr="",
-            )
-            web_build = subprocess.CompletedProcess(
-                args=["pnpm", "build"],
-                returncode=0,
-                stdout="build web ok\n",
-                stderr="",
-            )
-            deb_build = subprocess.CompletedProcess(
-                args=["dpkg-buildpackage", "-us", "-uc", "-b"],
-                returncode=0,
-                stdout="build ok\n",
-                stderr="",
-            )
-
-            with (
-                patch(
-                    "tools.release.packaging.debian.require_synced_release_state",
-                    return_value=_synced_state(repo_root),
-                ),
-                patch(
-                    "tools.release.packaging.debian.shutil.which",
-                    side_effect=lambda tool: f"/usr/bin/{tool}",
-                ),
-                patch(
-                    "tools.release.packaging.debian.subprocess.run",
-                    side_effect=[web_install, web_build, deb_build],
-                ),
-            ):
-                result = build_debian_package(repo_root=repo_root)
-
-            self.assertIsNotNone(result.web_artifact)
-            assert result.web_artifact is not None
-            self.assertTrue(result.web_artifact.is_file())
 
 
 if __name__ == "__main__":

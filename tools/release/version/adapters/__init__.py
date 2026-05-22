@@ -6,7 +6,10 @@ from tools.release.version.adapters.debian import (
     write_debian_version,
 )
 from tools.release.version.adapters.homebrew import (
+    UNKNOWN_RELEASE_SHA256,
+    read_homebrew_formula_sha256,
     read_homebrew_formula_version,
+    write_homebrew_formula_release,
     write_homebrew_formula_version,
 )
 from tools.release.version.adapters.meson import read_meson_version, write_meson_version
@@ -24,7 +27,10 @@ __all__ = [
     "read_debian_version",
     "write_debian_version",
     "read_homebrew_formula_version",
+    "read_homebrew_formula_sha256",
     "write_homebrew_formula_version",
+    "write_homebrew_formula_release",
+    "UNKNOWN_RELEASE_SHA256",
     "format_debian_version",
     "parse_debian_version",
 ]

@@ -5,111 +5,48 @@ import unittest
 
 
 class DebianRulesContractTests(unittest.TestCase):
+    def _repo_root(self) -> Path:
+        return Path(__file__).resolve().parents[4]
+
     def test_debian_rules_uses_repo_root_meson_entrypoint(self) -> None:
-        repo_root = Path(__file__).resolve().parents[4]
-        rules_path = repo_root / "debian" / "rules"
-        rules = rules_path.read_text(encoding="utf-8")
+        rules = (self._repo_root() / "debian" / "rules").read_text(encoding="utf-8")
 
-        self.assertIn(
-            "dh_auto_configure -- -Dmanpage=true",
-            rules,
-        )
-        self.assertIn(
-            "dh_auto_install --destdir=debian/tmp",
-            rules,
-        )
+        self.assertIn("dh $@ --buildsystem=meson", rules)
+        self.assertIn("dh_auto_install --destdir=debian/tmp", rules)
+        self.assertNotIn("web/.next", rules)
+        self.assertNotIn("systemctl", rules)
 
-    def test_debian_rules_leaves_static_payloads_to_meson(self) -> None:
-        repo_root = Path(__file__).resolve().parents[4]
-        rules = (repo_root / "debian" / "rules").read_text(encoding="utf-8")
+    def test_root_meson_installs_native_binary_and_skill_data(self) -> None:
+        meson = (self._repo_root() / "meson.build").read_text(encoding="utf-8")
+        cli_meson = (self._repo_root() / "cli" / "meson.build").read_text(encoding="utf-8")
 
-        meson_owned_fragments = (
-            "deploy/config/config.yaml",
-            "deploy/config/config_template.yaml.in",
-            "deploy/systemd/vaulthalla.service.in",
-            "deploy/systemd/vaulthalla-cli.service.in",
-            "deploy/systemd/vaulthalla-web.service.in",
-            "deploy/systemd/vaulthalla-swtpm.service.in",
-            "deploy/systemd/vaulthalla-cli.socket",
-            "deploy/nginx/vaulthalla.conf",
-            "deploy/psql/.",
-            "deploy/lifecycle/main.py",
-            "debian/vaulthalla.udev",
-            "debian/tmpfiles.d/vaulthalla.conf",
-        )
-        for fragment in meson_owned_fragments:
-            self.assertNotIn(fragment, rules)
+        self.assertIn("executable(\n  'pmdocs'", cli_meson)
+        self.assertIn("install: true", cli_meson)
+        self.assertIn("install_subdir(", meson)
+        self.assertIn("'skills/payload-markdown-docs'", meson)
+        self.assertIn("install_dir: pmdocs_data_dir / 'skills'", meson)
+        self.assertIn("if get_option('install_skill_data')", meson)
 
-        debian_assembled_fragments = (
-            "cp -a web/.next/standalone/. debian/tmp/usr/share/vaulthalla-web/",
-            "cp -a web/.next/static debian/tmp/usr/share/vaulthalla-web/.next/",
-        )
-        for fragment in debian_assembled_fragments:
-            self.assertIn(fragment, rules)
+    def test_debian_install_manifest_tracks_only_native_payload(self) -> None:
+        install_manifest = (self._repo_root() / "debian" / "pmdocs.install").read_text(encoding="utf-8")
 
-    def test_root_meson_installs_static_runtime_payloads_when_enabled(self) -> None:
-        repo_root = Path(__file__).resolve().parents[4]
-        meson = (repo_root / "meson.build").read_text(encoding="utf-8")
+        self.assertIn("usr/bin/pmdocs", install_manifest)
+        self.assertIn("usr/share/pmdocs/skills/payload-markdown-docs", install_manifest)
+        self.assertNotIn("usr/share/vaulthalla", install_manifest)
+        self.assertNotIn("lib/systemd/system", install_manifest)
+        self.assertNotIn("usr/share/pmdocs-web", install_manifest)
 
-        required_fragments = (
-            "if get_option('install_data')",
-            "install_emptydir(state_dir)",
-            "install_emptydir(log_dir)",
-            "'deploy/config/config.yaml'",
-            "'deploy/config/config_template.yaml.in'",
-            "install_subdir(\n        'deploy/psql'",
-            "'deploy/nginx/vaulthalla.conf'",
-            "'deploy/lifecycle/main.py'",
-            "'deploy/systemd/vaulthalla-cli.socket'",
-            "'debian/vaulthalla.udev'",
-            "'debian/tmpfiles.d/vaulthalla.conf'",
-            "install_symlink(\n        'vaulthalla'",
-            "install_symlink(\n        'vh'",
-        )
-        for fragment in required_fragments:
-            self.assertIn(fragment, meson)
+    def test_debian_control_is_native_cli_only(self) -> None:
+        control = (self._repo_root() / "debian" / "control").read_text(encoding="utf-8")
 
-    def test_debian_install_declares_meson_staged_payloads(self) -> None:
-        repo_root = Path(__file__).resolve().parents[4]
-        install_manifest = (repo_root / "debian" / "install").read_text(encoding="utf-8")
-
-        self.assertIn("usr/lib/*/libvaulthalla.a usr/lib/libvaulthalla.a", install_manifest)
-        self.assertIn("usr/lib/*/libvhusage.a usr/lib/libvhusage.a", install_manifest)
-        self.assertIn("var/lib/vaulthalla", install_manifest)
-        self.assertIn("var/log/vaulthalla", install_manifest)
-        self.assertIn("usr/lib/udev/rules.d/60-vaulthalla-tpm.rules", install_manifest)
-        self.assertIn("usr/lib/tmpfiles.d/vaulthalla.conf", install_manifest)
-        self.assertIn(
-            "lib/systemd/system/vaulthalla-web.service",
-            install_manifest,
-        )
-        self.assertIn(
-            "lib/systemd/system/vaulthalla-swtpm.service",
-            install_manifest,
-        )
-        self.assertIn(
-            "usr/share/vaulthalla/nginx/vaulthalla",
-            install_manifest,
-        )
-        self.assertIn(
-            "usr/share/vaulthalla/psql",
-            install_manifest,
-        )
-        self.assertIn(
-            "usr/share/vaulthalla-web usr/share/",
-            install_manifest,
-        )
-
-    def test_debian_control_declares_web_runtime_and_proxy_expectations(self) -> None:
-        repo_root = Path(__file__).resolve().parents[4]
-        control = (repo_root / "debian" / "control").read_text(encoding="utf-8")
-
-        self.assertIn("nodejs,", control)
-        self.assertIn("openssl,", control)
-        self.assertIn("Recommends:\n postgresql,\n nginx", control)
-        self.assertIn("swtpm,", control)
-        self.assertIn("swtpm-tools", control)
-        self.assertIn("Depends:\n adduser,\n nodejs,\n openssl,", control)
+        self.assertIn("Source: pmdocs", control)
+        self.assertIn("Package: pmdocs", control)
+        self.assertIn("libcurl4-openssl-dev", control)
+        self.assertIn("libssl-dev", control)
+        self.assertNotIn("nodejs", control)
+        self.assertNotIn("postgresql", control)
+        self.assertNotIn("nginx", control)
+        self.assertNotIn("swtpm", control)
 
 
 if __name__ == "__main__":

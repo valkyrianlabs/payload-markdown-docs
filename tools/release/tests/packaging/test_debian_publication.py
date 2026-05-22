@@ -39,7 +39,7 @@ class DebianPublicationSettingsTests(unittest.TestCase):
             _ = resolve_debian_publication_settings(
                 mode="nexus",
                 env={
-                    "NEXUS_REPO_URL": "https://nexus.example/repository/vaulthalla-debian",
+                    "NEXUS_REPO_URL": "https://nexus.example/repository/pmdocs-debian",
                     "NEXUS_USER": "",
                     "NEXUS_PASS": "",
                 },
@@ -69,7 +69,7 @@ class DebianPublicationTests(unittest.TestCase):
     def _settings_nexus(self) -> DebianPublicationSettings:
         return DebianPublicationSettings(
             mode="nexus",
-            nexus_repo_url="https://nexus.example/repository/vaulthalla-debian",
+            nexus_repo_url="https://nexus.example/repository/pmdocs-debian",
             nexus_user="ci-user",
             nexus_password="secret",
         )
@@ -86,18 +86,18 @@ class DebianPublicationTests(unittest.TestCase):
         with TemporaryDirectory() as temp_dir:
             output_dir = Path(temp_dir) / "release"
             output_dir.mkdir(parents=True, exist_ok=True)
-            _write(output_dir / "vaulthalla_1.2.3-1_amd64.deb", "deb")
-            _write(output_dir / "vaulthalla_1.2.3-1_amd64.changes", "changes")
-            _write(output_dir / "vaulthalla_1.2.3-1_amd64.buildinfo", "buildinfo")
+            _write(output_dir / "pmdocs_1.2.3-1_amd64.deb", "deb")
+            _write(output_dir / "pmdocs_1.2.3-1_amd64.changes", "changes")
+            _write(output_dir / "pmdocs_1.2.3-1_amd64.buildinfo", "buildinfo")
 
             artifacts = select_debian_publication_artifacts(output_dir=output_dir)
-            self.assertEqual([path.name for path in artifacts], ["vaulthalla_1.2.3-1_amd64.deb"])
+            self.assertEqual([path.name for path in artifacts], ["pmdocs_1.2.3-1_amd64.deb"])
 
     def test_publish_returns_skipped_result_when_disabled(self) -> None:
         with TemporaryDirectory() as temp_dir:
             output_dir = Path(temp_dir) / "release"
             output_dir.mkdir(parents=True, exist_ok=True)
-            _write(output_dir / "vaulthalla_1.2.3-1_amd64.deb", "deb")
+            _write(output_dir / "pmdocs_1.2.3-1_amd64.deb", "deb")
 
             result = publish_debian_artifacts(
                 output_dir=output_dir,
@@ -114,7 +114,7 @@ class DebianPublicationTests(unittest.TestCase):
         with TemporaryDirectory() as temp_dir:
             output_dir = Path(temp_dir) / "release"
             output_dir.mkdir(parents=True, exist_ok=True)
-            _write(output_dir / "vaulthalla_1.2.3-1_amd64.deb", "deb")
+            _write(output_dir / "pmdocs_1.2.3-1_amd64.deb", "deb")
 
             with self.assertRaisesRegex(ValueError, "publication is required.*RELEASE_PUBLISH_MODE is disabled"):
                 _ = publish_debian_artifacts(
@@ -139,7 +139,7 @@ class DebianPublicationTests(unittest.TestCase):
         with TemporaryDirectory() as temp_dir:
             output_dir = Path(temp_dir) / "release"
             output_dir.mkdir(parents=True, exist_ok=True)
-            _write(output_dir / "vaulthalla_1.2.3-1_amd64.deb", "deb")
+            _write(output_dir / "pmdocs_1.2.3-1_amd64.deb", "deb")
 
             upload_calls: list[tuple[Path, str, str, str]] = []
 
@@ -158,15 +158,15 @@ class DebianPublicationTests(unittest.TestCase):
             self.assertEqual(upload_calls, [])
             self.assertEqual(
                 result.target_urls,
-                ("https://nexus.example/repository/vaulthalla-debian",),
+                ("https://nexus.example/repository/pmdocs-debian",),
             )
 
     def test_publish_uploads_all_selected_debs_in_sorted_order(self) -> None:
         with TemporaryDirectory() as temp_dir:
             output_dir = Path(temp_dir) / "release"
             output_dir.mkdir(parents=True, exist_ok=True)
-            _write(output_dir / "vaulthalla_1.2.3-1_arm64.deb", "deb")
-            _write(output_dir / "vaulthalla_1.2.3-1_amd64.deb", "deb")
+            _write(output_dir / "pmdocs_1.2.3-1_arm64.deb", "deb")
+            _write(output_dir / "pmdocs_1.2.3-1_amd64.deb", "deb")
 
             upload_calls: list[tuple[Path, str, str, str]] = []
 
@@ -186,15 +186,15 @@ class DebianPublicationTests(unittest.TestCase):
             self.assertEqual(
                 [call[0].name for call in upload_calls],
                 [
-                    "vaulthalla_1.2.3-1_amd64.deb",
-                    "vaulthalla_1.2.3-1_arm64.deb",
+                    "pmdocs_1.2.3-1_amd64.deb",
+                    "pmdocs_1.2.3-1_arm64.deb",
                 ],
             )
             self.assertEqual(
                 [call[1] for call in upload_calls],
                 [
-                    "https://nexus.example/repository/vaulthalla-debian",
-                    "https://nexus.example/repository/vaulthalla-debian",
+                    "https://nexus.example/repository/pmdocs-debian",
+                    "https://nexus.example/repository/pmdocs-debian",
                 ],
             )
             self.assertEqual(
@@ -210,7 +210,7 @@ class DebianPublicationTests(unittest.TestCase):
         with TemporaryDirectory() as temp_dir:
             output_dir = Path(temp_dir) / "release"
             output_dir.mkdir(parents=True, exist_ok=True)
-            _write(output_dir / "vaulthalla_1.2.3-1_amd64.deb", "deb")
+            _write(output_dir / "pmdocs_1.2.3-1_amd64.deb", "deb")
 
             upload_calls: list[tuple[Path, str, str, str]] = []
 
@@ -231,7 +231,7 @@ class DebianPublicationTests(unittest.TestCase):
         with TemporaryDirectory() as temp_dir:
             output_dir = Path(temp_dir) / "release"
             output_dir.mkdir(parents=True, exist_ok=True)
-            _write(output_dir / "vaulthalla_1.2.3-1_amd64.deb", "deb")
+            _write(output_dir / "pmdocs_1.2.3-1_amd64.deb", "deb")
 
             result = publish_debian_artifacts(
                 output_dir=output_dir,
@@ -240,12 +240,12 @@ class DebianPublicationTests(unittest.TestCase):
             )
 
             self.assertEqual(len(result.target_urls), 1)
-            self.assertEqual(result.target_urls[0], "https://nexus.example/repository/vaulthalla-debian")
-            self.assertNotIn("vaulthalla_1.2.3-1_amd64.deb", result.target_urls[0])
+            self.assertEqual(result.target_urls[0], "https://nexus.example/repository/pmdocs-debian")
+            self.assertNotIn("pmdocs_1.2.3-1_amd64.deb", result.target_urls[0])
 
     def test_curl_upload_uses_post_binary_base_url_shape(self) -> None:
-        artifact = Path("/tmp/vaulthalla_1.2.3-1_amd64.deb")
-        target_url = "https://nexus.example/repository/vaulthalla-debian"
+        artifact = Path("/tmp/pmdocs_1.2.3-1_amd64.deb")
+        target_url = "https://nexus.example/repository/pmdocs-debian"
 
         with patch(
             "tools.release.packaging.publication.subprocess.run",
@@ -262,8 +262,8 @@ class DebianPublicationTests(unittest.TestCase):
         self.assertEqual(command[-1], target_url)
 
     def test_curl_upload_failure_reports_upload_mode_and_no_append(self) -> None:
-        artifact = Path("/tmp/vaulthalla_1.2.3-1_amd64.deb")
-        target_url = "https://nexus.example/repository/vaulthalla-debian"
+        artifact = Path("/tmp/pmdocs_1.2.3-1_amd64.deb")
+        target_url = "https://nexus.example/repository/pmdocs-debian"
 
         with (
             patch(

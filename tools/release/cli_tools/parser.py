@@ -14,6 +14,7 @@ from tools.release.cli_tools.commands.changelog.release import (
 )
 from tools.release.cli_tools.commands.debian import (
     cmd_build_deb,
+    cmd_prepare_homebrew_formula,
     cmd_validate_release_artifacts,
     cmd_publish_deb,
 )
@@ -341,6 +342,50 @@ COMMANDS = {
                     "help": "Skip changelog artifact checks.",
                 },
             },
+            {
+                "flags": ["--require-homebrew"],
+                "kwargs": {
+                    "action": "store_true",
+                    "help": "Require a staged Homebrew formula artifact.",
+                },
+            },
+        ],
+    },
+
+    "prepare-homebrew-formula": {
+        "help": "Update and stage the Homebrew formula for the current VERSION.",
+        "func": cmd_prepare_homebrew_formula,
+        "args": [
+            "output_dir_release",
+            {
+                "flags": ["--archive-url"],
+                "kwargs": {
+                    "default": None,
+                    "help": "Release archive URL. Defaults to the GitHub vVERSION tag archive.",
+                },
+            },
+            {
+                "flags": ["--repository"],
+                "kwargs": {
+                    "default": "valkyrianlabs/payload-markdown-docs",
+                    "help": "GitHub owner/repo used to build the default archive URL.",
+                },
+            },
+            {
+                "flags": ["--sha256"],
+                "kwargs": {
+                    "default": None,
+                    "help": "Release archive SHA-256. Required unless --fetch-sha256 is used.",
+                },
+            },
+            {
+                "flags": ["--fetch-sha256"],
+                "kwargs": {
+                    "action": "store_true",
+                    "help": "Download the archive URL and calculate SHA-256.",
+                },
+            },
+            "dry_run",
         ],
     },
 

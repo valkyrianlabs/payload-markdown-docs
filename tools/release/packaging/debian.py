@@ -3,10 +3,9 @@ from __future__ import annotations
 import shutil
 import subprocess
 import tarfile
-import tempfile
-from io import BytesIO
+from dataclasses import dataclass, field
 from fnmatch import fnmatch
-from dataclasses import dataclass
+from io import BytesIO
 from pathlib import Path
 from typing import Iterable
 
@@ -20,7 +19,6 @@ DEBIAN_REQUIRED_FILES: tuple[str, ...] = (
     "debian/rules",
     "debian/source/format",
 )
-WEB_REQUIRED_FILES: tuple[str, ...] = ("web/package.json",)
 DEFAULT_OUTPUT_DIR_NAME = "release"
 SUPPORTED_ARTIFACT_SUFFIXES: tuple[str, ...] = (
     ".deb",
@@ -34,39 +32,13 @@ SUPPORTED_ARTIFACT_SUFFIXES: tuple[str, ...] = (
     ".debian.tar.xz",
     ".debian.tar.gz",
 )
-WEB_DEPLOYABLE_SUFFIX = "_next-standalone.tar.gz"
-WEB_INSTALL_COMMAND: tuple[str, ...] = ("pnpm", "install", "--frozen-lockfile")
-WEB_BUILD_COMMAND: tuple[str, ...] = ("pnpm", "build")
 REQUIRED_DEBIAN_PACKAGE_PATHS: tuple[str, ...] = (
-    "usr/bin/vaulthalla-server",
-    "usr/bin/vaulthalla-cli",
-    "usr/bin/vaulthalla",
-    "usr/bin/vh",
-    "etc/vaulthalla/config.yaml",
-    "etc/vaulthalla/config_template.yaml.in",
-    "lib/systemd/system/vaulthalla.service",
-    "lib/systemd/system/vaulthalla-cli.service",
-    "lib/systemd/system/vaulthalla-cli.socket",
-    "lib/systemd/system/vaulthalla-web.service",
-    "lib/systemd/system/vaulthalla-swtpm.service",
-    "usr/share/doc/vaulthalla/copyright",
-    "usr/share/vaulthalla/nginx/vaulthalla",
-    "usr/share/vaulthalla/psql/000_schema.sql",
-    "usr/share/vaulthalla-web/server.js",
+    "usr/bin/pmdocs",
+    "usr/share/doc/pmdocs/copyright",
+    "usr/share/pmdocs/skills/payload-markdown-docs/codex/SKILL.md",
+    "usr/share/pmdocs/skills/payload-markdown-docs/claude/SKILL.md",
 )
-ALTERNATE_DEBIAN_PACKAGE_PATH_GROUPS: tuple[tuple[str, ...], ...] = (
-    # dh_compress may gzip supplementary docs under /usr/share/doc.
-    ("usr/share/doc/vaulthalla/LICENSE", "usr/share/doc/vaulthalla/LICENSE.gz"),
-    ("usr/share/man/man1/vh.1", "usr/share/man/man1/vh.1.gz"),
-    ("usr/share/vaulthalla-web/.next/static/*",),
-    ("usr/lib/libvaulthalla.a", "usr/lib/*/libvaulthalla.a"),
-    ("usr/lib/libvhusage.a", "usr/lib/*/libvhusage.a"),
-    ("usr/lib/udev/rules.d/60-vaulthalla-tpm.rules", "usr/lib/*/udev/rules.d/60-vaulthalla-tpm.rules"),
-    ("usr/lib/tmpfiles.d/vaulthalla.conf", "usr/lib/*/tmpfiles.d/vaulthalla.conf"),
-)
-REQUIRED_WEB_ARCHIVE_ROOT = "vaulthalla-web/"
-REQUIRED_WEB_SERVER_ENTRY = "vaulthalla-web/server.js"
-REQUIRED_WEB_STATIC_PREFIX = "vaulthalla-web/.next/static/"
+ALTERNATE_DEBIAN_PACKAGE_PATH_GROUPS: tuple[tuple[str, ...], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -86,8 +58,9 @@ class DebianBuildResult:
 class ReleaseArtifactValidationResult:
     output_dir: Path
     debian_artifacts: tuple[Path, ...]
-    web_artifacts: tuple[Path, ...]
-    changelog_artifacts: tuple[Path, ...]
+    web_artifacts: tuple[Path, ...] = ()
+    changelog_artifacts: tuple[Path, ...] = ()
+    homebrew_artifacts: tuple[Path, ...] = field(default_factory=tuple)
 
 
 def build_debian_package(
@@ -99,7 +72,6 @@ def build_debian_package(
     root = Path(repo_root).resolve()
     state = require_synced_release_state(root)
     _require_debian_prerequisites(state.paths)
-    _require_web_prerequisites(root)
 
     changelog_path = state.paths.debian_changelog_file
     package_name, package_version = _read_debian_changelog_identity(changelog_path)
@@ -120,53 +92,13 @@ def build_debian_package(
         )
 
     _require_build_tool(command[0])
-    _require_build_tool("pnpm")
     _ensure_output_dir_writable(destination)
-
-    web_install = _run_command(command=WEB_INSTALL_COMMAND, cwd=root / "web")
-    if web_install.returncode != 0:
-        log = _write_build_log(
-            destination=destination,
-            command=command,
-            cwd=root,
-            web_install=web_install,
-            web_build=None,
-            debian_build=None,
-        )
-        raise ValueError(
-            f"Web dependency install failed with exit code {web_install.returncode}. "
-            f"See log: {log}\n{_tail_lines(web_install.stderr, limit=25)}"
-        )
-
-    web_build = _run_command(command=WEB_BUILD_COMMAND, cwd=root / "web")
-    if web_build.returncode != 0:
-        log = _write_build_log(
-            destination=destination,
-            command=command,
-            cwd=root,
-            web_install=web_install,
-            web_build=web_build,
-            debian_build=None,
-        )
-        raise ValueError(
-            f"Web build failed with exit code {web_build.returncode}. "
-            f"See log: {log}\n{_tail_lines(web_build.stderr, limit=25)}"
-        )
-
-    web_artifact = _create_web_deployable_archive(
-        repo_root=root,
-        output_dir=destination,
-        package_name=package_name,
-        package_version=package_version,
-    )
 
     completed = _run_command(command=command, cwd=root)
     build_log = _write_build_log(
         destination=destination,
         command=command,
         cwd=root,
-        web_install=web_install,
-        web_build=web_build,
         debian_build=completed,
     )
 
@@ -189,7 +121,6 @@ def build_debian_package(
             f"Searched under {root.parent} for {package_name}_{package_version}*"
         )
 
-    artifacts_all = tuple(sorted(set(artifacts + (web_artifact,))))
     return DebianBuildResult(
         repo_root=root,
         output_dir=destination,
@@ -197,9 +128,9 @@ def build_debian_package(
         dry_run=False,
         package_name=package_name,
         package_version=package_version,
-        artifacts=artifacts_all,
+        artifacts=artifacts,
         build_log=build_log,
-        web_artifact=web_artifact,
+        web_artifact=None,
     )
 
 
@@ -207,10 +138,14 @@ def validate_release_artifacts(
     *,
     output_dir: Path | str,
     require_changelog: bool = True,
+    require_homebrew: bool = False,
 ) -> ReleaseArtifactValidationResult:
     destination = Path(output_dir).resolve()
     if not destination.is_dir():
-        raise ValueError(f"Release artifact validation failed: output directory does not exist: {destination}")
+        raise ValueError(
+            "Release artifact validation failed: output directory does not exist: "
+            f"{destination}"
+        )
 
     debian_artifacts = tuple(
         sorted(
@@ -219,13 +154,7 @@ def validate_release_artifacts(
             if path.is_file() and path.name.endswith(".deb")
         )
     )
-    web_artifacts = tuple(
-        sorted(
-            path
-            for path in destination.iterdir()
-            if path.is_file() and path.name.endswith(WEB_DEPLOYABLE_SUFFIX)
-        )
-    )
+    homebrew_artifacts = _find_homebrew_formula_artifacts(destination)
 
     changelog_expected = (
         destination / "changelog.release.md",
@@ -239,8 +168,8 @@ def validate_release_artifacts(
     missing: list[str] = []
     if not debian_artifacts:
         missing.append("Debian package artifact (*.deb)")
-    if not web_artifacts:
-        missing.append(f"web standalone artifact (*{WEB_DEPLOYABLE_SUFFIX})")
+    if require_homebrew and not homebrew_artifacts:
+        missing.append("Homebrew formula artifact (homebrew/Formula/pmdocs.rb)")
     if require_changelog and len(changelog_artifacts) != len(changelog_expected):
         missing.extend(str(path) for path in changelog_expected if not path.is_file())
 
@@ -254,8 +183,9 @@ def validate_release_artifacts(
     contract_issues: list[str] = []
     for artifact in debian_artifacts:
         contract_issues.extend(_validate_debian_package_contract(artifact))
-    for artifact in web_artifacts:
-        contract_issues.extend(_validate_web_archive_contract(artifact))
+    if require_homebrew:
+        for formula in homebrew_artifacts:
+            contract_issues.extend(_validate_homebrew_formula_artifact(formula))
     if contract_issues:
         rendered = "\n".join(f"- {item}" for item in contract_issues)
         raise ValueError(
@@ -267,8 +197,9 @@ def validate_release_artifacts(
     return ReleaseArtifactValidationResult(
         output_dir=destination,
         debian_artifacts=debian_artifacts,
-        web_artifacts=web_artifacts,
+        web_artifacts=(),
         changelog_artifacts=changelog_artifacts,
+        homebrew_artifacts=homebrew_artifacts,
     )
 
 
@@ -325,46 +256,6 @@ def _read_debian_package_members(deb_path: Path) -> set[str]:
     return normalized
 
 
-def _validate_web_archive_contract(archive_path: Path) -> list[str]:
-    issues: list[str] = []
-    try:
-        with tarfile.open(archive_path, "r:gz") as tar:
-            members = tar.getmembers()
-            member_names = {
-                _normalize_archive_path(member.name)
-                for member in members
-                if _normalize_archive_path(member.name)
-            }
-    except Exception as exc:
-        return [f"[web artifact] {archive_path.name}: failed to read archive: {exc}"]
-
-    if not any(name == REQUIRED_WEB_ARCHIVE_ROOT.rstrip("/") for name in member_names):
-        issues.append(
-            f"[web artifact] {archive_path.name}: missing archive root `{REQUIRED_WEB_ARCHIVE_ROOT}`"
-        )
-
-    if REQUIRED_WEB_SERVER_ENTRY not in member_names:
-        issues.append(
-            f"[web artifact] {archive_path.name}: missing runtime entry `{REQUIRED_WEB_SERVER_ENTRY}`"
-        )
-
-    has_static_payload = any(name.startswith(REQUIRED_WEB_STATIC_PREFIX) for name in member_names)
-    if not has_static_payload:
-        issues.append(
-            f"[web artifact] {archive_path.name}: missing static payload under `{REQUIRED_WEB_STATIC_PREFIX}`"
-        )
-
-    invalid_paths = [
-        name for name in member_names if name.startswith("/") or name.startswith("../") or "/../" in name
-    ]
-    if invalid_paths:
-        issues.append(
-            f"[web artifact] {archive_path.name}: contains unsafe paths ({', '.join(sorted(invalid_paths)[:5])})"
-        )
-
-    return issues
-
-
 def _normalize_archive_path(raw: str) -> str:
     normalized = raw.strip()
     if normalized in {"", ".", "./"}:
@@ -392,17 +283,6 @@ def _require_debian_prerequisites(paths: ReleasePaths) -> None:
     if missing:
         rendered = "\n".join(f"- {path}" for path in missing)
         raise ValueError(f"Debian packaging prerequisites are missing:\n{rendered}")
-
-
-def _require_web_prerequisites(repo_root: Path) -> None:
-    missing: list[Path] = []
-    for relative in WEB_REQUIRED_FILES:
-        path = repo_root / relative
-        if not path.is_file():
-            missing.append(path)
-    if missing:
-        rendered = "\n".join(f"- {path}" for path in missing)
-        raise ValueError(f"Web packaging prerequisites are missing:\n{rendered}")
 
 
 def _read_debian_changelog_identity(changelog_path: Path) -> tuple[str, str]:
@@ -466,14 +346,10 @@ def _write_build_log(
     destination: Path,
     command: Iterable[str],
     cwd: Path,
-    web_install: subprocess.CompletedProcess[str] | None,
-    web_build: subprocess.CompletedProcess[str] | None,
     debian_build: subprocess.CompletedProcess[str] | None,
 ) -> Path:
     log_path = destination / "build-deb.log"
     sections: list[str] = [f"debian_command: {' '.join(command)}", f"cwd: {cwd}", ""]
-    sections.extend(_render_completed_process("WEB INSTALL", web_install))
-    sections.extend(_render_completed_process("WEB BUILD", web_build))
     sections.extend(_render_completed_process("DEBIAN BUILD", debian_build))
     log_body = "\n".join(sections)
     log_path.write_text(log_body, encoding="utf-8")
@@ -502,47 +378,25 @@ def _collect_build_artifacts(
     return tuple(copied)
 
 
-def _create_web_deployable_archive(
-    *,
-    repo_root: Path,
-    output_dir: Path,
-    package_name: str,
-    package_version: str,
-) -> Path:
-    web_root = repo_root / "web"
-    standalone_dir = web_root / ".next" / "standalone"
-    static_dir = web_root / ".next" / "static"
-    public_dir = web_root / "public"
+def _find_homebrew_formula_artifacts(destination: Path) -> tuple[Path, ...]:
+    candidates = (
+        destination / "homebrew" / "Formula" / "pmdocs.rb",
+        destination / "Formula" / "pmdocs.rb",
+        destination / "pmdocs.rb",
+    )
+    return tuple(path for path in candidates if path.is_file())
 
-    if not standalone_dir.is_dir():
-        raise ValueError(
-            f"Next.js standalone output is missing: {standalone_dir}. "
-            "Ensure `pnpm build` completed successfully."
-        )
-    if not static_dir.is_dir():
-        raise ValueError(
-            f"Next.js static output is missing: {static_dir}. "
-            "Ensure `pnpm build` completed successfully."
-        )
 
-    archive_name = f"{package_name}-web_{package_version}{WEB_DEPLOYABLE_SUFFIX}"
-    archive_path = output_dir / archive_name
-
-    with tempfile.TemporaryDirectory(prefix="vh-web-artifact-") as temp_dir:
-        staging_root = Path(temp_dir) / "vaulthalla-web"
-        # Preserve symlinks from Next standalone output (notably pnpm node_modules links).
-        # Some runner layouts can contain links whose targets are not materialized inside
-        # `.next/standalone`; preserving links avoids copy-time FileNotFound failures.
-        shutil.copytree(standalone_dir, staging_root, dirs_exist_ok=True, symlinks=True)
-        (staging_root / ".next").mkdir(parents=True, exist_ok=True)
-        shutil.copytree(static_dir, staging_root / ".next" / "static", dirs_exist_ok=True, symlinks=True)
-        if public_dir.is_dir():
-            shutil.copytree(public_dir, staging_root / "public", dirs_exist_ok=True, symlinks=True)
-
-        with tarfile.open(archive_path, "w:gz") as tar:
-            tar.add(staging_root, arcname="vaulthalla-web")
-
-    return archive_path
+def _validate_homebrew_formula_artifact(formula_path: Path) -> list[str]:
+    content = formula_path.read_text(encoding="utf-8")
+    issues: list[str] = []
+    if "class Pmdocs < Formula" not in content:
+        issues.append(f"[homebrew formula] {formula_path.name}: missing Pmdocs formula class")
+    if "TODO_REPLACE_WITH_RELEASE_ARCHIVE_SHA256" in content:
+        issues.append(f"[homebrew formula] {formula_path.name}: release sha256 placeholder was not replaced")
+    if "/archive/refs/tags/v" not in content:
+        issues.append(f"[homebrew formula] {formula_path.name}: missing tagged release archive URL")
+    return issues
 
 
 def _is_supported_artifact(path: Path) -> bool:
