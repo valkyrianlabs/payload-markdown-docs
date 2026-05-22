@@ -17,40 +17,46 @@ Local validation is the fastest feedback loop for docs authors and agents.
 
 ### Validate
 
-Run `payload-markdown-docs validate ./docs --source main-docs`.
+Run `payload-markdown-docs validate --source main-docs`.
 
 ### Inspect a manifest
 
-Run `payload-markdown-docs manifest ./docs --source main-docs --pretty`.
+Run `payload-markdown-docs manifest --source main-docs --pretty`.
 
 ### Preview a plan
 
-Run `payload-markdown-docs plan ./docs --source main-docs`.
+Run `payload-markdown-docs plan --source main-docs`.
 
 :::
 
 ## Validate
 
 ```bash
-pnpm exec payload-markdown-docs validate ./docs --source main-docs
+pnpm exec payload-markdown-docs validate --source main-docs
 pmdocs validate ./docs --source main-docs
 ```
 
-Validation checks source paths, frontmatter, hashes, file limits, docs set slug, and manifest shape.
+Validation checks source paths, frontmatter, asset paths, hashes, file limits,
+docs set slug, and manifest shape.
 
 ## Manifest
 
 ```bash
-pnpm exec payload-markdown-docs manifest ./docs --source main-docs --pretty
+pnpm exec payload-markdown-docs manifest --source main-docs --pretty
 pmdocs manifest ./docs --source main-docs --pretty
 ```
 
-The manifest is JSON. It includes file content and SHA-256 hashes, but it does not include server-owned target collection or field names.
+The manifest is JSON. Human docs are emitted as `files`; skills and optional
+custom static fallback files are emitted as `assets`. Skills are optional: a
+missing default `./skills` directory is skipped, while an explicitly supplied
+missing `--skills <path>` is treated as a configuration error. The manifest
+includes content and SHA-256 hashes, but it does not include server-owned target
+collection or field names.
 
 ## Plan
 
 ```bash
-pnpm exec payload-markdown-docs plan ./docs --source main-docs
+pnpm exec payload-markdown-docs plan --source main-docs
 pmdocs plan ./docs --source main-docs
 ```
 

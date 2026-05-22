@@ -470,7 +470,7 @@ std::filesystem::path data_dir() {
 }
 
 std::filesystem::path bundled_skill_dir() {
-  return data_dir() / "skills" / std::string{kSkillName};
+  return data_dir() / "skills" / std::string{kSkillName} / "codex";
 }
 
 std::filesystem::path default_project_skill_dir() {

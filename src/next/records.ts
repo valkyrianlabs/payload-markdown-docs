@@ -1,14 +1,22 @@
 import type {
   PayloadMarkdownDocsDefaults,
+  PayloadMarkdownDocsGroupPageMode,
   PayloadMarkdownDocsHeroImage,
+  PayloadMarkdownDocsOpenGraph,
+  PayloadMarkdownDocsOpenGraphImage,
   PayloadMarkdownDocsOverrides,
+  PayloadMarkdownDocsRouteMode,
   ResolvedPayloadMarkdownDocsGroup,
   ResolvedPayloadMarkdownDocsRecord,
   ResolvedPayloadMarkdownDocsSet,
 } from './types.js'
 
-import { deriveDocsSetRouteBase, normalizeRoutePath } from '../routing/index.js'
-import { isAiMarkdownExportManifestPath, validateDocsAiExportManifest } from '../sync/index.js'
+import {
+  DEFAULT_DOCS_SET_ROUTE_MODE,
+  deriveDocsSetProductRoutePath,
+  deriveDocsSetRouteBase,
+  normalizeRoutePath,
+} from '../routing/index.js'
 
 export const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -41,6 +49,23 @@ const getOptionalNumber = (doc: Record<string, unknown>, key: string): number | 
 
 const getOptionalBoolean = (doc: Record<string, unknown>, key: string): boolean | undefined =>
   typeof doc[key] === 'boolean' ? doc[key] : undefined
+
+const getOptionalStringArray = (
+  doc: Record<string, unknown>,
+  key: string,
+): string[] | undefined => {
+  const value = doc[key]
+
+  if (!Array.isArray(value)) {
+    return undefined
+  }
+
+  const items = value.flatMap((item) =>
+    typeof item === 'string' && item.trim() !== '' ? [item.trim()] : [],
+  )
+
+  return items.length > 0 ? items : undefined
+}
 
 const cleanObject = <T extends Record<string, unknown>>(input: T): Partial<T> =>
   Object.fromEntries(
@@ -76,7 +101,7 @@ const toOverrides = (value: unknown): PayloadMarkdownDocsOverrides | undefined =
   return Object.keys(overrides).length > 0 ? overrides : undefined
 }
 
-const toHeroImage = (value: unknown): PayloadMarkdownDocsHeroImage | undefined => {
+const toMediaImage = (value: unknown): PayloadMarkdownDocsHeroImage | undefined => {
   const media = isRecord(value) && isRecord(value.value) ? value.value : value
 
   if (!isRecord(media)) {
@@ -99,39 +124,66 @@ const toHeroImage = (value: unknown): PayloadMarkdownDocsHeroImage | undefined =
   }) as PayloadMarkdownDocsHeroImage
 }
 
+const toHeroImage = (value: unknown): PayloadMarkdownDocsHeroImage | undefined =>
+  toMediaImage(value)
+
+const toOpenGraphImage = (value: unknown): PayloadMarkdownDocsOpenGraphImage | undefined =>
+  toMediaImage(value) as PayloadMarkdownDocsOpenGraphImage | undefined
+
+const toOpenGraph = (value: unknown): PayloadMarkdownDocsOpenGraph | undefined => {
+  if (!isRecord(value)) {
+    return undefined
+  }
+
+  const openGraph = cleanObject({
+    description: getOptionalString(value, 'description'),
+    image: toOpenGraphImage(value.image),
+    title: getOptionalString(value, 'title'),
+  } satisfies PayloadMarkdownDocsOpenGraph)
+
+  return Object.keys(openGraph).length > 0 ? (openGraph as PayloadMarkdownDocsOpenGraph) : undefined
+}
+
+const getRouteMode = (value: unknown): PayloadMarkdownDocsRouteMode =>
+  value === 'product-nested' || value === 'docs-root' ? value : DEFAULT_DOCS_SET_ROUTE_MODE
+
+const getPageMode = (pageMode: unknown): PayloadMarkdownDocsGroupPageMode =>
+  pageMode === 'custom' ? 'custom' : 'auto'
+
 export const toResolvedDocsSet = (doc: unknown): ResolvedPayloadMarkdownDocsSet | undefined => {
   if (!isRecord(doc)) {
     return undefined
   }
 
   const id = getRecordId(doc)
-  const routeBase = getOptionalString(doc, 'routeBase')
   const title = getOptionalString(doc, 'title')
   const slug = getOptionalString(doc, 'slug')
 
-  if (!id || !title || (!routeBase && !slug)) {
+  if (!id || !title || !slug) {
     return undefined
   }
 
-  const aiExportValidation =
-    doc.aiExport === undefined || doc.aiExport === null
-      ? undefined
-      : validateDocsAiExportManifest(doc.aiExport)
+  const routeMode = getRouteMode(doc.routeMode)
+  const productRoute = deriveDocsSetProductRoutePath({
+    docsSetSlug: slug,
+  })
 
   return {
-    ...(aiExportValidation?.ok ? { aiExport: aiExportValidation.manifest } : {}),
     id,
     slug,
     defaults: toDefaults(doc.defaults),
     description: getOptionalString(doc, 'description'),
     navTitle: getOptionalString(doc, 'navTitle'),
+    openGraph: toOpenGraph(doc.meta) ?? toOpenGraph(doc.openGraph),
     order: getOptionalNumber(doc, 'order') ?? 0,
+    productRoute,
     routeBase: normalizeRoutePath(
-      routeBase ??
-        deriveDocsSetRouteBase({
-          docsSetSlug: slug ?? id,
-        }),
+      deriveDocsSetRouteBase({
+        docsSetSlug: slug,
+        routeMode,
+      }),
     ),
+    routeMode,
     status: doc._status === 'draft' || doc._status === 'published' ? doc._status : undefined,
     title,
   }
@@ -143,13 +195,7 @@ export const isVisibleDocsSet = ({
 }: {
   docsSet: ResolvedPayloadMarkdownDocsSet
   includeDrafts?: boolean
-}): boolean => {
-  if (!includeDrafts && docsSet.status === 'draft') {
-    return false
-  }
-
-  return true
-}
+}): boolean => !(!includeDrafts && docsSet.status === 'draft')
 
 export const toResolvedDocsGroup = (doc: unknown): ResolvedPayloadMarkdownDocsGroup | undefined => {
   if (!isRecord(doc)) {
@@ -157,13 +203,14 @@ export const toResolvedDocsGroup = (doc: unknown): ResolvedPayloadMarkdownDocsGr
   }
 
   const id = getRecordId(doc)
-  const routePath = getOptionalString(doc, 'routePath')
   const title = getOptionalString(doc, 'title')
   const slug = getOptionalString(doc, 'slug')
 
-  if (!id || !title || (!routePath && !slug)) {
+  if (!id || !title || !slug) {
     return undefined
   }
+
+  const pageMode = getPageMode(doc.pageMode)
 
   return {
     id,
@@ -171,8 +218,8 @@ export const toResolvedDocsGroup = (doc: unknown): ResolvedPayloadMarkdownDocsGr
     description: getOptionalString(doc, 'description'),
     navTitle: getOptionalString(doc, 'navTitle'),
     order: getOptionalNumber(doc, 'order') ?? 0,
-    routePath: normalizeRoutePath(routePath ?? `/${slug}`),
-    serveIndex: getOptionalBoolean(doc, 'serveIndex') ?? false,
+    pageMode,
+    routePath: normalizeRoutePath(`/${slug}`),
     title,
   }
 }
@@ -204,6 +251,7 @@ export const toResolvedDocsRecord = ({
     id,
     archived: getOptionalBoolean(sync ?? {}, 'archived') ?? false,
     content: typeof doc[markdownField] === 'string' ? doc[markdownField] : undefined,
+    dependencies: getOptionalStringArray(doc, 'dependencies'),
     depth: getOptionalNumber(doc, 'depth') ?? 0,
     description: getOptionalString(doc, 'description'),
     docsSetId: getRelationshipId(doc.docsSet),
@@ -230,13 +278,5 @@ export const isVisibleDocsRecord = ({
     return false
   }
 
-  if (isAiMarkdownExportManifestPath(record.sourcePath)) {
-    return false
-  }
-
-  if (!includeDrafts && record.status === 'draft') {
-    return false
-  }
-
-  return true
+  return !(!includeDrafts && record.status === 'draft')
 }

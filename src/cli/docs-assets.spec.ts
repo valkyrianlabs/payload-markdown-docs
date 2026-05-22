@@ -2,10 +2,7 @@ import { readFile } from 'node:fs/promises'
 import { describe, expect, it } from 'vitest'
 
 import { buildDocsManifest, planDocsSync, validateDocsManifest } from '../sync/index.js'
-import {
-  readDocsAiExportManifest,
-  walkDocsFiles,
-} from './filesystem.js'
+import { walkDocsFiles } from './filesystem.js'
 
 const docsRoot = 'docs'
 const workflowPath = 'examples/github-actions/publish-docs.yml'
@@ -25,11 +22,7 @@ describe('dogfood docs assets', () => {
     const files = await walkDocsFiles({
       root: docsRoot,
     })
-    const aiExport = await readDocsAiExportManifest({
-      root: docsRoot,
-    })
     const manifest = buildDocsManifest({
-      aiExport: aiExport.ok ? aiExport.manifest : undefined,
       files,
       sourceId: 'main-docs',
     })
@@ -39,7 +32,6 @@ describe('dogfood docs assets', () => {
     })
 
     expect(validated.ok).toBe(true)
-    expect(aiExport.ok).toBe(true)
     expect(files.length).toBeGreaterThan(20)
 
     if (!validated.ok) {
@@ -49,7 +41,6 @@ describe('dogfood docs assets', () => {
     expect(validated.data.files.find((file) => file.path === 'index.md')?.route).toBe(
       '/plugins/payload-markdown-docs',
     )
-    expect(validated.data.aiExport?.output).toBe('/plugins/payload-markdown-docs.md')
   })
 
   it('plans the dogfood docs as creates against an empty target', async () => {
@@ -144,11 +135,11 @@ describe('GitHub Actions workflow docs asset', () => {
   it('uses supported commands and documents PR dry-run plus main publish sync', async () => {
     const workflow = await readFile(workflowPath, 'utf8')
 
-    expect(workflow).toContain('pnpm exec payload-markdown-docs validate ./docs --source main-docs')
+    expect(workflow).toContain('pnpm exec payload-markdown-docs validate --source main-docs')
     expect(workflow).toContain('if: github.event_name == \'pull_request\'')
     expect(workflow).toContain('--dry-run')
     expect(workflow).toContain('github.ref == \'refs/heads/main\'')
-    expect(workflow).toContain('--sync')
+    expect(workflow).not.toContain('--sync')
     expect(workflow).toContain('--publish')
     expect(workflow).toContain('DOCS_SYNC_ENDPOINT')
     expect(workflow).toContain('id-token: write')

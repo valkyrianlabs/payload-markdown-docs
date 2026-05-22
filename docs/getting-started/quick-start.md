@@ -10,8 +10,8 @@ tags:
 
 # Quick Start
 
-This quick start assumes your Markdown lives in `./docs` and your docs set slug
-is `main-docs`.
+This quick start assumes the conventional docs package layout and a docs set
+slug of `main-docs`.
 
 :::toc {title="On this page" depth="3" theme="compact"}
 :::
@@ -25,54 +25,88 @@ In `Docs Globals > Sets`, create:
 - `branch`: `main`
 - optional `group`: a group such as `plugins` when you want nested routes
 
-In `Docs Globals > Trusted`, create:
+In `Docs Globals > Access`, create a GitHub OIDC record:
 
+- `type`: GitHub OIDC
 - `owner`: your GitHub owner or organization
 - `limitRepos`: off for the normal owner-level trust model
 
 The set slug is the manifest source. The route base is derived from the
 optional group and the set slug.
 
-## Install The Codex Skill
+## Source Layout
 
-In the docs set target application, install the local agent skill so Codex has
-project-specific guidance for maintaining Markdown docs, supported frontmatter,
-`index.ai.yml`, validation, and sync safety rules.
-
-```bash
-pnpm exec payload-markdown-docs install skill --codex
+```text
+docs/
+  index.md
+skills/
+  main-docs/
+    codex/
+      SKILL.md
+    claude/
+      SKILL.md
 ```
 
-The installer writes `.agents/skills/payload-markdown-docs/` and creates or
-updates `AGENTS.md` so Codex can discover the skill guidance. It does not sync
-docs, call Payload, or publish content.
+Markdown docs become manifest `files`. Skills become manifest `assets`, so skill
+files do not need docs frontmatter. AI discovery files are generated from synced
+docs, docs set metadata, dependencies, and skills.
+
+## Install An Agent Skill
+
+In the docs set target application, install local agent skills so Codex or
+Claude has project-specific guidance for package structure, supported
+frontmatter, validation, sync safety rules, and Payload Markdown authoring.
+
+```bash
+pnpm exec payload-markdown-docs install skill --agent codex
+pnpm exec payload-markdown-docs install skill --agent claude
+```
+
+The Codex installer writes `.agents/skills/payload-markdown-docs/`,
+`.agents/skills/payload-markdown/`, and creates or updates `AGENTS.md`. The
+Claude installer writes `.claude/skills/payload-markdown-docs/` plus
+`.claude/skills/payload-markdown/` and does not modify `AGENTS.md` by default.
+Neither install syncs docs, calls Payload, or publishes content.
+
+## Install Public Asset Routes
+
+If the consuming Next app should serve generated `/llms.txt`, `/llms-full.txt`,
+docs-set `llms` files, or skill URLs outside `/api`, commit the generated route
+files:
+
+```bash
+pnpm exec payload-markdown-docs install routes --payload-app "src/app/(payload)"
+```
+
+Those route files delegate to the plugin-owned asset handlers. Without them, a
+frontend catch-all can return HTML 404 pages even when `/api/...` asset URLs
+work.
 
 ## Validate Local Docs
 
 ```bash
-pnpm exec payload-markdown-docs validate ./docs --source main-docs
+pnpm exec payload-markdown-docs validate --source main-docs
 ```
 
 ## Generate A Manifest
 
 ```bash
-pnpm exec payload-markdown-docs manifest ./docs --source main-docs --pretty
+pnpm exec payload-markdown-docs manifest --source main-docs --pretty
 ```
 
 ## Preview A Plan
 
 ```bash
-pnpm exec payload-markdown-docs plan ./docs --source main-docs
+pnpm exec payload-markdown-docs plan --source main-docs
 ```
 
 ## Push From GitHub Actions
 
 ```bash
-pnpm exec payload-markdown-docs push ./docs \
+pnpm exec payload-markdown-docs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
   --source main-docs \
-  --github-oidc \
-  --sync
+  --github-oidc
 ```
 
 When the docs set slug matches the repository name, `--source` can be omitted in

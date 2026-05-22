@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs'
-import { renderToStaticMarkup } from 'react-dom/server'
+import { createElement, Fragment, type ReactNode } from 'react'
+import { renderToReadableStream, renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 
 import type {
@@ -9,27 +10,77 @@ import type {
 } from './types.js'
 
 import {
+  DocsCTA,
+  docsHeroComponents,
+  DocsNativeHero,
+  DocsProductHero,
+  DocsSetHero,
+  isDocsSetHeroType,
+  SkillCTAGroup,
+  SkillTabs,
+} from './index.js'
+import {
   appendPayloadMarkdownDocsHeaderNavItems,
   getPayloadMarkdownDocsHeaderNavItems,
-  getPayloadMarkdownDocsLinks,
   getPayloadMarkdownDocsNavItems,
 } from './links.js'
-import { resolvePayloadMarkdownDocsMarkdownRoute } from './markdown.js'
 import { getPayloadMarkdownDocsMetadata } from './metadata.js'
 import { PayloadMarkdownDocsNavbar } from './PayloadMarkdownDocsNavbar.js'
-import { PayloadMarkdownDocsPage } from './PayloadMarkdownDocsPage.js'
+import {
+  PayloadMarkdownDocsPage,
+  rewritePayloadMarkdownDocsLinks,
+} from './PayloadMarkdownDocsPage.js'
 import { getPayloadMarkdownDocsRoutePath, resolvePayloadMarkdownDocsRoute } from './route.js'
 import { buildPayloadMarkdownDocsSidebar, getPayloadMarkdownDocsSidebar } from './sidebar.js'
+import {
+  getDocsForSitemap,
+  getPaginatedDocsForSitemap,
+  getPayloadMarkdownDocsAiSitemapRoutes,
+} from './sitemap.js'
+
+const cacheMocks = vi.hoisted(() => ({
+  unstableCache: vi.fn((callback: (...args: unknown[]) => Promise<unknown>) => callback),
+}))
+
+vi.mock('next/cache', () => ({
+  unstable_cache: cacheMocks.unstableCache,
+}))
 
 vi.mock('@valkyrianlabs/payload-markdown/server', () => ({
   MarkdownRenderer: ({ markdown }: { markdown?: string }) => markdown ?? null,
 }))
 
+const renderServerMarkup = async (node: ReactNode): Promise<string> => {
+  const stream = await renderToReadableStream(node)
+
+  return new Response(stream).text()
+}
+
 type TestPayloadData = {
   docs?: Record<string, unknown>[]
+  docsAssets?: Record<string, unknown>[]
   docsGroups?: Record<string, unknown>[]
   docsSets?: Record<string, unknown>[]
 }
+
+type TestFindArgs = {
+  collection: string
+  draft?: boolean
+  where?: unknown
+} & Parameters<PayloadMarkdownDocsReadPayload['find']>[0]
+
+const createPaginatedDocs = (docs: Record<string, unknown>[]) => ({
+  docs,
+  hasNextPage: false,
+  hasPrevPage: false,
+  limit: docs.length,
+  nextPage: null,
+  page: 1,
+  pagingCounter: 1,
+  prevPage: null,
+  totalDocs: docs.length,
+  totalPages: docs.length > 0 ? 1 : 0,
+})
 
 const docsSet = {
   id: 'set-1',
@@ -44,7 +95,6 @@ const docsGroup = {
   slug: 'plugins',
   description: 'Plugin documentation.',
   order: 0,
-  serveIndex: true,
   title: 'Plugins',
 }
 
@@ -124,6 +174,7 @@ const matchesWhere = (doc: Record<string, unknown>, where: unknown): boolean => 
 
 const createPayloadMock = ({
   docs = [],
+  docsAssets = [],
   docsGroups = [],
   docsSets = [],
 }: TestPayloadData): {
@@ -133,16 +184,21 @@ const createPayloadMock = ({
     docs,
     'docs-groups': docsGroups,
     'docs-sets': docsSets,
+    'payload-markdown-docs-assets': docsAssets,
   }
 
-  return {
-    find: vi.fn((args) =>
-      Promise.resolve({
-        docs: (collections[args.collection] ?? [])
+  const find = vi.fn((args: TestFindArgs) =>
+    Promise.resolve(
+      createPaginatedDocs(
+        (collections[args.collection] ?? [])
           .filter((doc) => args.draft === true || doc._status !== 'draft')
           .filter((doc) => matchesWhere(doc, args.where)),
-      }),
+      ),
     ),
+  ) as unknown as PayloadMarkdownDocsReadPayload['find'] & ReturnType<typeof vi.fn>
+
+  return {
+    find,
   }
 }
 
@@ -167,7 +223,9 @@ const resolvedDocsSet: ResolvedPayloadMarkdownDocsSet = {
   slug: 'payload-markdown',
   description: 'Docs set description.',
   order: 0,
+  productRoute: '/payload-markdown',
   routeBase: '/payload-markdown',
+  routeMode: 'docs-root',
   title: 'Payload Markdown',
 }
 
@@ -303,9 +361,274 @@ describe('Payload Markdown Docs route adapter', () => {
     expect(resolved?.type === 'docsSetIndex' ? resolved.doc : undefined).toBeUndefined()
   })
 
-  it('resolves docs group routes only when serveIndex is true', async () => {
+  it('normalizes docs set SEO metadata on resolved routes', async () => {
+    const payload = createPayloadMock({
+      docs: [],
+      docsSets: [
+        {
+          ...docsSet,
+          meta: {
+            description: 'Social description.',
+            image: {
+              relationTo: 'media',
+              value: {
+                id: 'media-1',
+                alt: 'Social preview',
+                height: 630,
+                url: '/media/social.png',
+                width: 1200,
+              },
+            },
+            title: 'Social title',
+          },
+        },
+      ],
+    })
+
+    const resolved = await resolvePayloadMarkdownDocsRoute({
+      path: '/payload-markdown',
+      payload,
+    })
+
+    expect(resolved).toMatchObject({
+      type: 'docsSetIndex',
+      docsSet: {
+        openGraph: {
+          description: 'Social description.',
+          image: {
+            id: 'media-1',
+            alt: 'Social preview',
+            height: 630,
+            relationTo: 'media',
+            url: '/media/social.png',
+            width: 1200,
+          },
+          title: 'Social title',
+        },
+      },
+    })
+  })
+
+  it('resolves product-nested docs under the docs segment', async () => {
+    const productDocsSet = {
+      ...docsSet,
+      routeMode: 'product-nested',
+    }
+    const payload = createPayloadMock({
+      docs: [
+        createDoc({
+          id: 'doc-index',
+          docsSet: productDocsSet,
+          route: '/plugins/payload-markdown/docs',
+          sourcePath: 'Index.md',
+          title: 'Overview',
+        }),
+        createDoc({
+          docsSet: productDocsSet,
+          route: '/plugins/payload-markdown/docs/getting-started',
+          sourcePath: 'getting-started/index.md',
+          title: 'Getting Started',
+        }),
+      ],
+      docsGroups: [docsGroup],
+      docsSets: [
+        {
+          ...productDocsSet,
+          group: docsGroup,
+        },
+      ],
+    })
+
+    await expect(
+      resolvePayloadMarkdownDocsRoute({
+        path: '/plugins/payload-markdown/docs',
+        payload,
+      }),
+    ).resolves.toMatchObject({
+      type: 'docsSetIndex',
+      docsSet: {
+        productRoute: '/plugins/payload-markdown',
+        routeBase: '/plugins/payload-markdown/docs',
+        routeMode: 'product-nested',
+      },
+    })
+
+    await expect(
+      resolvePayloadMarkdownDocsRoute({
+        path: '/plugins/payload-markdown/docs/getting-started',
+        payload,
+      }),
+    ).resolves.toMatchObject({
+      type: 'doc',
+      doc: {
+        title: 'Getting Started',
+      },
+      docsSet: {
+        routeBase: '/plugins/payload-markdown/docs',
+      },
+    })
+
+    await expect(
+      resolvePayloadMarkdownDocsRoute({
+        path: '/plugins/payload-markdown/getting-started',
+        payload,
+      }),
+    ).resolves.toMatchObject({
+      type: 'doc',
+      doc: {
+        title: 'Getting Started',
+      },
+      docsSet: {
+        routeBase: '/plugins/payload-markdown/docs',
+      },
+      route: '/plugins/payload-markdown/docs/getting-started',
+    })
+
+    await expect(
+      resolvePayloadMarkdownDocsRoute({
+        path: '/plugins/payload-markdown/Index',
+        payload,
+      }),
+    ).resolves.toMatchObject({
+      type: 'docsSetIndex',
+      doc: {
+        title: 'Overview',
+      },
+      docsSet: {
+        routeBase: '/plugins/payload-markdown/docs',
+      },
+      route: '/plugins/payload-markdown/docs',
+    })
+  })
+
+  it('uses current route mode when resolving product-nested aliases', async () => {
+    const productDocsSet = {
+      ...docsSet,
+      routeMode: 'product-nested',
+    }
+    const docsSets = [
+      {
+        ...productDocsSet,
+        group: docsGroup,
+      },
+    ]
+    const payload = createPayloadMock({
+      docs: [
+        createDoc({
+          docsSet: productDocsSet,
+          route: '/plugins/payload-markdown/docs/getting-started',
+          sourcePath: 'getting-started/index.md',
+          title: 'Getting Started',
+        }),
+      ],
+      docsGroups: [docsGroup],
+      docsSets,
+    })
+
+    await expect(
+      resolvePayloadMarkdownDocsRoute({
+        path: '/plugins/payload-markdown/getting-started',
+        payload,
+      }),
+    ).resolves.toMatchObject({
+      type: 'doc',
+    })
+
+    docsSets[0].routeMode = 'docs-root'
+
+    await expect(
+      resolvePayloadMarkdownDocsRoute({
+        path: '/plugins/payload-markdown/getting-started',
+        payload,
+      }),
+    ).resolves.toBeNull()
+  })
+
+  it('does not resolve the product route for product-nested docs sets', async () => {
     const payload = createPayloadMock({
       docsGroups: [docsGroup],
+      docsSets: [
+        {
+          ...docsSet,
+          group: docsGroup,
+          routeMode: 'product-nested',
+        },
+      ],
+    })
+
+    await expect(
+      resolvePayloadMarkdownDocsRoute({
+        path: '/plugins/payload-markdown',
+        payload,
+      }),
+    ).resolves.toBeNull()
+  })
+
+  it('does not let stale generated docs records shadow product-nested product pages', async () => {
+    const productDocsSet = {
+      ...docsSet,
+      routeMode: 'product-nested',
+    }
+    const payload = createPayloadMock({
+      docs: [
+        createDoc({
+          docsSet: 'set-1',
+          route: '/plugins/payload-markdown',
+          sourcePath: 'index.md',
+          title: 'Stale Overview',
+        }),
+        createDoc({
+          docsSet: 'set-1',
+          route: '/plugins/payload-markdown/docs',
+          sourcePath: 'index.md',
+          title: 'Overview',
+        }),
+      ],
+      docsGroups: [docsGroup],
+      docsSets: [
+        {
+          ...productDocsSet,
+          group: docsGroup,
+        },
+      ],
+    })
+
+    await expect(
+      resolvePayloadMarkdownDocsRoute({
+        path: '/plugins/payload-markdown',
+        payload,
+      }),
+    ).resolves.toBeNull()
+
+    await expect(
+      resolvePayloadMarkdownDocsRoute({
+        path: '/plugins/payload-markdown/docs',
+        payload,
+      }),
+    ).resolves.toMatchObject({
+      type: 'docsSetIndex',
+      doc: {
+        title: 'Overview',
+      },
+    })
+  })
+
+  it('resolves docs group routes when pageMode is auto', async () => {
+    const childGroup = {
+      id: 'group-guides',
+      slug: 'guides',
+      order: 0,
+      parent: docsGroup,
+      title: 'Guides',
+    }
+    const payload = createPayloadMock({
+      docsGroups: [
+        {
+          ...docsGroup,
+          pageMode: 'auto',
+        },
+        childGroup,
+      ],
       docsSets: [
         {
           ...docsSet,
@@ -321,6 +644,12 @@ describe('Payload Markdown Docs route adapter', () => {
 
     expect(resolved).toMatchObject({
       type: 'docsGroupIndex',
+      childGroups: [
+        {
+          id: 'group-guides',
+          routePath: '/plugins/guides',
+        },
+      ],
       docsSets: [
         {
           id: 'set-1',
@@ -332,7 +661,7 @@ describe('Payload Markdown Docs route adapter', () => {
       docsGroups: [
         {
           ...docsGroup,
-          serveIndex: false,
+          pageMode: 'custom',
         },
       ],
     })
@@ -341,6 +670,24 @@ describe('Payload Markdown Docs route adapter', () => {
       resolvePayloadMarkdownDocsRoute({
         path: '/plugins',
         payload: disabledPayload,
+      }),
+    ).resolves.toBeNull()
+  })
+
+  it('does not resolve custom docs group routes', async () => {
+    const payload = createPayloadMock({
+      docsGroups: [
+        {
+          ...docsGroup,
+          pageMode: 'custom',
+        },
+      ],
+    })
+
+    await expect(
+      resolvePayloadMarkdownDocsRoute({
+        path: '/plugins',
+        payload,
       }),
     ).resolves.toBeNull()
   })
@@ -385,27 +732,6 @@ describe('Payload Markdown Docs route adapter', () => {
     await expect(
       resolvePayloadMarkdownDocsRoute({
         path: '/missing',
-        payload,
-      }),
-    ).resolves.toBeNull()
-  })
-
-  it('does not resolve AI export manifest files as normal docs routes', async () => {
-    const payload = createPayloadMock({
-      docs: [
-        createDoc({
-          id: 'ai-manifest',
-          route: '/payload-markdown/index.ai.yml',
-          sourcePath: 'index.ai.yml',
-          title: 'AI Manifest',
-        }),
-      ],
-      docsSets: [docsSet],
-    })
-
-    await expect(
-      resolvePayloadMarkdownDocsRoute({
-        path: '/payload-markdown/index.ai.yml',
         payload,
       }),
     ).resolves.toBeNull()
@@ -494,249 +820,690 @@ describe('Payload Markdown Docs route adapter', () => {
       }),
     )
   })
-})
 
-describe('Payload Markdown Docs raw Markdown export', () => {
-  it('assembles raw Markdown from docs records using index.ai.yml ordering', async () => {
+  it('builds sitemap docs with resolved group URLs and last modified dates', async () => {
+    cacheMocks.unstableCache.mockClear()
+
+    const childGroup = {
+      id: 'group-2',
+      slug: 'cms',
+      parent: docsGroup.id,
+      title: 'CMS',
+    }
     const payload = createPayloadMock({
-      docs: [
-        createDoc({
-          id: 'doc-index',
-          content: '# Overview\n\nWelcome.\n',
-          order: 0,
-          route: '/payload-markdown',
-          sourcePath: 'index.md',
-          title: 'Overview',
-        }),
-        createDoc({
-          id: 'doc-usage',
-          content: '# Usage\n\nUse it.\n',
-          order: 30,
-          route: '/payload-markdown/usage',
-          sourcePath: 'usage.md',
-          title: 'Usage',
-        }),
-        createDoc({
-          id: 'doc-install',
-          content: '# Install\n\nInstall it.\n',
-          order: 20,
-          route: '/payload-markdown/install',
-          sourcePath: 'install.md',
-          title: 'Install',
-        }),
-        createDoc({
-          id: 'doc-internal',
-          content: '# Internal\n\nSecret.\n',
-          order: 10,
-          route: '/payload-markdown/internal',
-          sourcePath: 'internal.md',
-          title: 'Internal',
-        }),
-      ],
+      docsGroups: [docsGroup, childGroup],
       docsSets: [
         {
           ...docsSet,
-          aiExport: {
-            canonical: '/payload-markdown',
-            description: 'Consolidated AI docs.',
-            exclude: ['./internal.md'],
-            headingMode: 'normalize',
-            order: ['./index.md', './install.md'],
-            orphans: 'append',
-            output: '/payload-markdown.md',
-            preamble: 'Read the documents in order.',
-            sourcePath: 'index.ai.yml',
-            title: 'Payload Markdown Documentation',
-            version: 1,
-          },
+          _status: 'published',
+          group: childGroup.id,
+          updatedAt: '2026-05-14T12:00:00.000Z',
+        },
+        {
+          id: 'set-2',
+          slug: 'guides',
+          _status: 'published',
+          title: 'Guides',
+          updatedAt: '2026-05-13T12:00:00.000Z',
+        },
+        {
+          id: 'set-draft',
+          slug: 'draft-docs',
+          _status: 'draft',
+          title: 'Draft Docs',
+          updatedAt: '2026-05-12T12:00:00.000Z',
         },
       ],
     })
 
-    const resolved = await resolvePayloadMarkdownDocsMarkdownRoute({
-      path: '/payload-markdown.md',
+    const result = await getPaginatedDocsForSitemap({
+      cacheKey: ['custom-sitemap-docs'],
       payload,
+      siteUrl: 'https://example.com/base/',
+      tags: ['custom-sitemap'],
     })
 
-    expect(resolved).toMatchObject({
-      type: 'markdown',
-      contentType: 'text/markdown; charset=utf-8',
-      output: '/payload-markdown.md',
-    })
-    expect(resolved?.markdown.startsWith('# Payload Markdown Documentation')).toBe(true)
-    expect(resolved?.markdown).toContain('Read the documents in order.')
-    expect(resolved?.markdown).toContain('## Overview')
-    expect(resolved?.markdown).toContain('### Overview')
-    expect(resolved?.markdown).not.toContain('Secret.')
-    expect(resolved?.markdown.indexOf('## Overview')).toBeLessThan(
-      resolved?.markdown.indexOf('## Install') ?? -1,
+    expect(result.docs).toEqual([
+      {
+        lastModified: '2026-05-13T12:00:00.000Z',
+        url: 'https://example.com/base/guides',
+      },
+      {
+        lastModified: '2026-05-14T12:00:00.000Z',
+        url: 'https://example.com/base/plugins/cms/payload-markdown',
+      },
+    ])
+    expect(payload.find).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: 'docs-sets',
+        limit: 10000,
+        overrideAccess: true,
+        select: {
+          id: true,
+          slug: true,
+          group: true,
+          routeMode: true,
+          updatedAt: true,
+        },
+        where: {
+          _status: {
+            equals: 'published',
+          },
+        },
+      }),
     )
-    expect(resolved?.markdown.indexOf('## Install')).toBeLessThan(
-      resolved?.markdown.indexOf('## Usage') ?? -1,
+    expect(cacheMocks.unstableCache).toHaveBeenCalledWith(
+      expect.any(Function),
+      ['custom-sitemap-docs'],
+      {
+        tags: ['custom-sitemap'],
+      },
     )
   })
 
-  it('omits unlisted docs when manifest orphans is ignore', async () => {
+  it('returns ready-to-use Next sitemap entries', async () => {
     const payload = createPayloadMock({
-      docs: [
-        createDoc({
-          id: 'doc-index',
-          content: '# Overview\n',
-          route: '/payload-markdown',
-          sourcePath: 'index.md',
-          title: 'Overview',
-        }),
-        createDoc({
-          id: 'doc-usage',
-          content: '# Usage\n',
-          route: '/payload-markdown/usage',
-          sourcePath: 'usage.md',
-          title: 'Usage',
-        }),
-      ],
+      docsGroups: [docsGroup],
       docsSets: [
         {
           ...docsSet,
-          aiExport: {
-            exclude: [],
-            headingMode: 'preserve',
-            order: ['./index.md'],
-            orphans: 'ignore',
-            sourcePath: 'index.ai.yml',
-            version: 1,
-          },
+          _status: 'published',
+          group: docsGroup.id,
+          updatedAt: '2026-05-14T12:00:00.000Z',
         },
       ],
     })
 
-    const resolved = await resolvePayloadMarkdownDocsMarkdownRoute({
-      path: '/payload-markdown.md',
+    const result = await getDocsForSitemap({
       payload,
+      siteUrl: 'https://example.com',
     })
 
-    expect(resolved?.markdown).toContain('# Overview')
-    expect(resolved?.markdown).not.toContain('# Usage')
+    expect(result).toEqual([
+      {
+        lastModified: '2026-05-14T12:00:00.000Z',
+        url: 'https://example.com/plugins/payload-markdown',
+      },
+    ])
   })
 
-  it('uses manifest output as an alternate raw Markdown route', async () => {
+  it('uses product-nested docs route bases in sitemap output', async () => {
     const payload = createPayloadMock({
-      docs: [
-        createDoc({
-          id: 'doc-index',
-          content: '# Overview\n',
-          route: '/payload-markdown',
-          sourcePath: 'index.md',
-          title: 'Overview',
-        }),
-      ],
+      docsGroups: [docsGroup],
       docsSets: [
         {
           ...docsSet,
-          aiExport: {
-            exclude: [],
-            headingMode: 'normalize',
-            order: ['./index.md'],
-            orphans: 'append',
-            output: '/ai/payload-markdown.md',
-            sourcePath: 'index.ai.yml',
-            version: 1,
-          },
+          _status: 'published',
+          group: docsGroup.id,
+          routeMode: 'product-nested',
+          updatedAt: '2026-05-14T12:00:00.000Z',
         },
       ],
     })
 
-    const resolved = await resolvePayloadMarkdownDocsMarkdownRoute({
-      path: '/ai/payload-markdown.md',
+    const result = await getDocsForSitemap({
       payload,
+      recursive: false,
+      siteUrl: 'https://example.com',
     })
 
-    expect(resolved?.output).toBe('/ai/payload-markdown.md')
-    expect(resolved?.markdown).toContain('## Overview')
+    expect(result).toEqual([
+      {
+        lastModified: '2026-05-14T12:00:00.000Z',
+        url: 'https://example.com/plugins/payload-markdown/docs',
+      },
+    ])
   })
 
-  it('falls back to deterministic ordering when no AI manifest exists', async () => {
-    const payload = createPayloadMock({
-      docs: [
-        createDoc({
-          id: 'doc-b',
-          content: '# Beta\n',
-          order: 20,
-          route: '/payload-markdown/beta',
-          sourcePath: 'beta.md',
-          title: 'Beta',
-        }),
-        createDoc({
-          id: 'doc-a',
-          content: '# Alpha\n',
-          order: 10,
-          route: '/payload-markdown/alpha',
-          sourcePath: 'alpha.md',
-          title: 'Alpha',
-        }),
-      ],
-      docsSets: [docsSet],
-    })
-
-    const resolved = await resolvePayloadMarkdownDocsMarkdownRoute({
-      path: '/payload-markdown.md',
-      payload,
-    })
-
-    expect(resolved?.markdown.indexOf('## Alpha')).toBeLessThan(
-      resolved?.markdown.indexOf('## Beta') ?? -1,
-    )
-  })
-
-  it('resolves catch-all slug arrays ending in .md', async () => {
+  it('maps recursive product-nested docs records under the docs route base', async () => {
     const payload = createPayloadMock({
       docs: [
         createDoc({
           id: 'doc-index',
-          content: '# Overview\n',
-          docsSet: {
-            ...docsSet,
-            group: docsGroup,
-          },
+          _status: 'published',
+          docsSet: docsSet.id,
           route: '/plugins/payload-markdown',
           sourcePath: 'index.md',
           title: 'Overview',
+          updatedAt: '2026-05-15T12:00:00.000Z',
+        }),
+        createDoc({
+          id: 'doc-install',
+          _status: 'published',
+          docsSet: docsSet.id,
+          route: '/plugins/payload-markdown/getting-started/installation',
+          sourcePath: 'getting-started/installation.md',
+          title: 'Installation',
+          updatedAt: '2026-05-14T12:00:00.000Z',
         }),
       ],
       docsGroups: [docsGroup],
       docsSets: [
         {
           ...docsSet,
-          group: docsGroup,
+          _status: 'published',
+          group: docsGroup.id,
+          routeMode: 'product-nested',
+          updatedAt: '2026-05-14T11:00:00.000Z',
         },
       ],
     })
 
-    const resolved = await resolvePayloadMarkdownDocsMarkdownRoute({
-      slug: ['plugins', 'payload-markdown.md'],
+    const result = await getDocsForSitemap({
       payload,
+      siteUrl: 'https://example.com',
     })
 
-    expect(resolved).toMatchObject({
-      type: 'markdown',
-      output: '/plugins/payload-markdown.md',
-      route: '/plugins/payload-markdown.md',
-    })
-    expect(resolved?.markdown).toContain('## Overview')
+    expect(result).toEqual([
+      {
+        lastModified: '2026-05-15T12:00:00.000Z',
+        url: 'https://example.com/plugins/payload-markdown/docs',
+      },
+      {
+        lastModified: '2026-05-14T12:00:00.000Z',
+        url: 'https://example.com/plugins/payload-markdown/docs/getting-started/installation',
+      },
+    ])
   })
 
-  it('returns null for missing raw Markdown docs set routes', async () => {
-    const payload = createPayloadMock({
-      docs: [],
-      docsGroups: [docsGroup],
-      docsSets: [],
+  it('includes additional routes in paginated sitemap docs', async () => {
+    const payload = createPayloadMock({})
+
+    const result = await getPaginatedDocsForSitemap({
+      additionalRoutes: [
+        {
+          lastModified: new Date('2026-05-14T12:00:00.000Z'),
+          path: 'llms.txt',
+        },
+        {
+          path: '/llms-full.txt',
+        },
+        {
+          lastModified: '2026-05-13T12:00:00.000Z',
+          url: 'https://static.example.com/agent-index.txt',
+        },
+        {
+          path: '   ',
+        },
+        {
+          url: '',
+        },
+      ],
+      payload,
+      siteUrl: 'https://example.com/docs/',
     })
 
-    await expect(
-      resolvePayloadMarkdownDocsMarkdownRoute({
-        path: '/plugins/missing.md',
-        payload,
-      }),
-    ).resolves.toBeNull()
+    expect(result.docs).toEqual([
+      {
+        lastModified: null,
+        url: 'https://example.com/docs/llms-full.txt',
+      },
+      {
+        lastModified: '2026-05-14T12:00:00.000Z',
+        url: 'https://example.com/docs/llms.txt',
+      },
+      {
+        lastModified: '2026-05-13T12:00:00.000Z',
+        url: 'https://static.example.com/agent-index.txt',
+      },
+    ])
+  })
+
+  it('includes additional routes in Next sitemap entries and keeps latest duplicates', async () => {
+    const payload = createPayloadMock({
+      docsGroups: [docsGroup],
+      docsSets: [
+        {
+          ...docsSet,
+          _status: 'published',
+          group: docsGroup.id,
+          updatedAt: '2026-05-10T12:00:00.000Z',
+        },
+      ],
+    })
+
+    const result = await getDocsForSitemap({
+      additionalRoutes: [
+        {
+          lastModified: '2026-05-15T12:00:00.000Z',
+          path: '/plugins/payload-markdown',
+        },
+        {
+          lastModified: '2026-05-13T12:00:00.000Z',
+          path: '/legal',
+        },
+      ],
+      payload,
+      recursive: false,
+      siteUrl: 'https://example.com',
+    })
+
+    expect(result).toEqual([
+      {
+        lastModified: '2026-05-13T12:00:00.000Z',
+        url: 'https://example.com/legal',
+      },
+      {
+        lastModified: '2026-05-15T12:00:00.000Z',
+        url: 'https://example.com/plugins/payload-markdown',
+      },
+    ])
+  })
+
+  it('builds common AI sitemap routes for llms files and skill artifacts', () => {
+    const routes = getPayloadMarkdownDocsAiSitemapRoutes({
+      includeLlmsFull: true,
+      skills: [
+        {
+          agents: ['codex', 'claude'],
+          basePath: '/plugins/payload-markdown-docs/skills',
+          files: ['SKILL.md', 'reference/formatting.md'],
+          lastModified: '2026-05-14T12:00:00.000Z',
+        },
+        {
+          agents: ['codex'],
+          basePath: '/skills/payload-markdown-docs',
+        },
+      ],
+    })
+
+    expect(routes).toEqual([
+      {
+        path: '/llms.txt',
+      },
+      {
+        path: '/llms-full.txt',
+      },
+      {
+        lastModified: '2026-05-14T12:00:00.000Z',
+        path: '/plugins/payload-markdown-docs/skills/codex/SKILL.md',
+      },
+      {
+        lastModified: '2026-05-14T12:00:00.000Z',
+        path: '/plugins/payload-markdown-docs/skills/codex/reference/formatting.md',
+      },
+      {
+        lastModified: '2026-05-14T12:00:00.000Z',
+        path: '/plugins/payload-markdown-docs/skills/claude/SKILL.md',
+      },
+      {
+        lastModified: '2026-05-14T12:00:00.000Z',
+        path: '/plugins/payload-markdown-docs/skills/claude/reference/formatting.md',
+      },
+      {
+        path: '/skills/payload-markdown-docs/codex/SKILL.md',
+      },
+    ])
+  })
+
+  it('includes generated docs records recursively by default', async () => {
+    const payload = createPayloadMock({
+      docs: [
+        createDoc({
+          id: 'doc-index',
+          _status: 'published',
+          docsSet: docsSet.id,
+          route: '/plugins/payload-markdown',
+          sourcePath: 'index.md',
+          title: 'Overview',
+          updatedAt: '2026-05-15T12:00:00.000Z',
+        }),
+        createDoc({
+          id: 'doc-install',
+          _status: 'published',
+          docsSet: docsSet.id,
+          route: '/plugins/payload-markdown/getting-started/installation',
+          sourcePath: 'getting-started/installation.md',
+          title: 'Installation',
+          updatedAt: '2026-05-14T12:00:00.000Z',
+        }),
+        createDoc({
+          id: 'doc-archived',
+          _status: 'published',
+          docsSet: docsSet.id,
+          route: '/plugins/payload-markdown/archived',
+          sourcePath: 'archived.md',
+          sync: {
+            archived: true,
+          },
+          title: 'Archived',
+          updatedAt: '2026-05-13T12:00:00.000Z',
+        }),
+        createDoc({
+          id: 'doc-draft',
+          _status: 'draft',
+          docsSet: docsSet.id,
+          route: '/plugins/payload-markdown/draft',
+          sourcePath: 'draft.md',
+          title: 'Draft',
+          updatedAt: '2026-05-13T12:00:00.000Z',
+        }),
+      ],
+      docsGroups: [docsGroup],
+      docsSets: [
+        {
+          ...docsSet,
+          _status: 'published',
+          group: docsGroup.id,
+          updatedAt: '2026-05-14T11:00:00.000Z',
+        },
+      ],
+    })
+
+    const result = await getPaginatedDocsForSitemap({
+      payload,
+      siteUrl: 'https://example.com',
+    })
+
+    expect(result.docs).toEqual([
+      {
+        lastModified: '2026-05-15T12:00:00.000Z',
+        url: 'https://example.com/plugins/payload-markdown',
+      },
+      {
+        lastModified: '2026-05-14T12:00:00.000Z',
+        url: 'https://example.com/plugins/payload-markdown/getting-started/installation',
+      },
+    ])
+  })
+
+  it('can return only docs set base routes when recursion is disabled', async () => {
+    const payload = createPayloadMock({
+      docs: [
+        createDoc({
+          docsSet: docsSet.id,
+          route: '/plugins/payload-markdown/getting-started/installation',
+          sourcePath: 'getting-started/installation.md',
+          updatedAt: '2026-05-14T12:00:00.000Z',
+        }),
+      ],
+      docsGroups: [docsGroup],
+      docsSets: [
+        {
+          ...docsSet,
+          _status: 'published',
+          group: docsGroup.id,
+          updatedAt: '2026-05-14T11:00:00.000Z',
+        },
+      ],
+    })
+
+    const result = await getDocsForSitemap({
+      payload,
+      recursive: false,
+      siteUrl: 'https://example.com',
+    })
+
+    expect(result).toEqual([
+      {
+        lastModified: '2026-05-14T11:00:00.000Z',
+        url: 'https://example.com/plugins/payload-markdown',
+      },
+    ])
+    expect(payload.find).not.toHaveBeenCalledWith(expect.objectContaining({ collection: 'docs' }))
+  })
+
+  it('excludes raw AI asset routes from sitemap output by default', async () => {
+    const sitemapDocsSet = {
+      ...docsSet,
+      _status: 'published',
+      group: docsGroup.id,
+      updatedAt: '2026-05-14T11:00:00.000Z',
+    }
+    const payload = createPayloadMock({
+      docsAssets: [
+        {
+          id: 'asset-llms',
+          docsSet: sitemapDocsSet.id,
+          kind: 'llms',
+          route: '/llms.txt',
+          sync: {
+            archived: false,
+          },
+          updatedAt: '2026-05-16T12:00:00.000Z',
+        },
+        {
+          id: 'asset-skill',
+          docsSet: sitemapDocsSet.id,
+          kind: 'skill',
+          route: '/plugins/payload-markdown/skills/codex/SKILL.md',
+          sync: {
+            archived: false,
+          },
+          updatedAt: '2026-05-15T12:00:00.000Z',
+        },
+        {
+          id: 'asset-static',
+          kind: 'static',
+          route: '/downloads/payload-markdown.zip',
+          sync: {
+            archived: false,
+          },
+          updatedAt: '2026-05-17T12:00:00.000Z',
+        },
+        {
+          id: 'asset-llms-full',
+          kind: 'llms-full',
+          route: '/llms-full.txt',
+          sync: {
+            archived: false,
+          },
+          updatedAt: '2026-05-14T12:00:00.000Z',
+        },
+      ],
+      docsGroups: [docsGroup],
+      docsSets: [sitemapDocsSet],
+    })
+
+    const result = await getDocsForSitemap({
+      payload,
+      siteUrl: 'https://example.com',
+    })
+
+    expect(result).toEqual([
+      {
+        lastModified: sitemapDocsSet.updatedAt,
+        url: 'https://example.com/plugins/payload-markdown',
+      },
+    ])
+    expect(payload.find).not.toHaveBeenCalledWith(
+      expect.objectContaining({ collection: 'payload-markdown-docs-assets' }),
+    )
+  })
+
+  it('includes llms routes only when includeLlms is true', async () => {
+    const sitemapDocsSet = {
+      ...docsSet,
+      _status: 'published',
+      group: docsGroup.id,
+      updatedAt: '2026-05-14T11:00:00.000Z',
+    }
+    const payload = createPayloadMock({
+      docsAssets: [
+        {
+          id: 'asset-llms',
+          docsSet: sitemapDocsSet.id,
+          kind: 'llms',
+          route: '/llms.txt',
+          sync: {
+            archived: false,
+          },
+          updatedAt: '2026-05-16T12:00:00.000Z',
+        },
+        {
+          id: 'asset-skill',
+          docsSet: sitemapDocsSet.id,
+          kind: 'skill',
+          route: '/plugins/payload-markdown/skills/codex/SKILL.md',
+          sync: {
+            archived: false,
+          },
+          updatedAt: '2026-05-15T12:00:00.000Z',
+        },
+      ],
+      docsGroups: [docsGroup],
+      docsSets: [sitemapDocsSet],
+    })
+
+    const result = await getDocsForSitemap({
+      includeLlms: true,
+      payload,
+      siteUrl: 'https://example.com',
+    })
+
+    expect(result).toEqual([
+      {
+        lastModified: sitemapDocsSet.updatedAt,
+        url: 'https://example.com/llms-full.txt',
+      },
+      {
+        lastModified: '2026-05-16T12:00:00.000Z',
+        url: 'https://example.com/llms.txt',
+      },
+      {
+        lastModified: sitemapDocsSet.updatedAt,
+        url: 'https://example.com/plugins/payload-markdown',
+      },
+      {
+        lastModified: sitemapDocsSet.updatedAt,
+        url: 'https://example.com/plugins/payload-markdown/llms-full.txt',
+      },
+      {
+        lastModified: '2026-05-16T12:00:00.000Z',
+        url: 'https://example.com/plugins/payload-markdown/llms.txt',
+      },
+    ])
+  })
+
+  it('includes skill routes only when includeSkills is true', async () => {
+    const sitemapDocsSet = {
+      ...docsSet,
+      _status: 'published',
+      group: docsGroup.id,
+      updatedAt: '2026-05-14T11:00:00.000Z',
+    }
+    const payload = createPayloadMock({
+      docsAssets: [
+        {
+          id: 'asset-llms',
+          docsSet: sitemapDocsSet.id,
+          kind: 'llms',
+          route: '/llms.txt',
+          sync: {
+            archived: false,
+          },
+          updatedAt: '2026-05-16T12:00:00.000Z',
+        },
+        {
+          id: 'asset-skill',
+          docsSet: sitemapDocsSet.id,
+          kind: 'skill',
+          route: '/plugins/payload-markdown/skills/codex/SKILL.md',
+          sync: {
+            archived: false,
+          },
+          updatedAt: '2026-05-15T12:00:00.000Z',
+        },
+        {
+          id: 'asset-skill-reference',
+          docsSet: sitemapDocsSet.id,
+          kind: 'skill',
+          route: '/plugins/payload-markdown/skills/codex/reference/formatting.md',
+          sync: {
+            archived: false,
+          },
+          updatedAt: '2026-05-13T12:00:00.000Z',
+        },
+      ],
+      docsGroups: [docsGroup],
+      docsSets: [sitemapDocsSet],
+    })
+
+    const result = await getDocsForSitemap({
+      includeSkills: true,
+      payload,
+      siteUrl: 'https://example.com',
+    })
+
+    expect(result).toEqual([
+      {
+        lastModified: sitemapDocsSet.updatedAt,
+        url: 'https://example.com/plugins/payload-markdown',
+      },
+      {
+        lastModified: '2026-05-15T12:00:00.000Z',
+        url: 'https://example.com/plugins/payload-markdown/skills/codex',
+      },
+      {
+        lastModified: '2026-05-13T12:00:00.000Z',
+        url: 'https://example.com/plugins/payload-markdown/skills/codex/reference/formatting.md',
+      },
+      {
+        lastModified: '2026-05-15T12:00:00.000Z',
+        url: 'https://example.com/plugins/payload-markdown/skills/codex/SKILL.md',
+      },
+    ])
+  })
+
+  it('includeAssets only includes generic static asset routes', async () => {
+    const sitemapDocsSet = {
+      ...docsSet,
+      _status: 'published',
+      group: docsGroup.id,
+      updatedAt: '2026-05-14T11:00:00.000Z',
+    }
+    const payload = createPayloadMock({
+      docsAssets: [
+        {
+          id: 'asset-static',
+          kind: 'static',
+          route: '/downloads/payload-markdown.zip',
+          sync: {
+            archived: false,
+          },
+          updatedAt: '2026-05-17T12:00:00.000Z',
+        },
+        {
+          id: 'asset-llms',
+          docsSet: sitemapDocsSet.id,
+          kind: 'llms',
+          route: '/llms.txt',
+          sync: {
+            archived: false,
+          },
+          updatedAt: '2026-05-16T12:00:00.000Z',
+        },
+        {
+          id: 'asset-skill',
+          docsSet: sitemapDocsSet.id,
+          kind: 'skill',
+          route: '/plugins/payload-markdown/skills/codex/SKILL.md',
+          sync: {
+            archived: false,
+          },
+          updatedAt: '2026-05-15T12:00:00.000Z',
+        },
+      ],
+      docsGroups: [docsGroup],
+      docsSets: [sitemapDocsSet],
+    })
+
+    const result = await getDocsForSitemap({
+      includeAssets: true,
+      payload,
+      siteUrl: 'https://example.com',
+    })
+
+    expect(result).toEqual([
+      {
+        lastModified: '2026-05-17T12:00:00.000Z',
+        url: 'https://example.com/downloads/payload-markdown.zip',
+      },
+      {
+        lastModified: sitemapDocsSet.updatedAt,
+        url: 'https://example.com/plugins/payload-markdown',
+      },
+    ])
   })
 })
 
@@ -952,7 +1719,6 @@ describe('Payload Markdown Docs link helpers', () => {
           id: 'group-api',
           slug: 'api',
           order: 0,
-          serveIndex: true,
           title: 'API',
         },
       ],
@@ -1015,6 +1781,31 @@ describe('Payload Markdown Docs link helpers', () => {
         type: 'docsSet',
         label: 'CLI',
         url: '/cli',
+      }),
+    ])
+  })
+
+  it('links explicit custom groups to the custom group route', async () => {
+    const payload = createPayloadMock({
+      docsGroups: [
+        {
+          ...docsGroup,
+          pageMode: 'custom',
+        },
+      ],
+      docsSets: [
+        {
+          ...docsSet,
+          group: docsGroup,
+        },
+      ],
+    })
+
+    await expect(getPayloadMarkdownDocsNavItems({ payload })).resolves.toEqual([
+      expect.objectContaining({
+        id: 'group-1',
+        route: '/plugins',
+        url: '/plugins',
       }),
     ])
   })
@@ -1139,40 +1930,6 @@ describe('Payload Markdown Docs link helpers', () => {
     expect(existingItems).toEqual([{ link: { type: 'custom', label: 'Home', url: '/' } }])
   })
 
-  it('returns Header/CMSLink-compatible docs set links with derived group routes', async () => {
-    const payload = createPayloadMock({
-      docsGroups: [docsGroup],
-      docsSets: [
-        {
-          ...docsSet,
-          group: docsGroup,
-          navTitle: 'Docs',
-        },
-        {
-          id: 'api-set',
-          slug: 'api',
-          order: 20,
-          title: 'API',
-        },
-      ],
-    })
-
-    await expect(
-      getPayloadMarkdownDocsLinks({
-        payload,
-      }),
-    ).resolves.toEqual([
-      {
-        label: 'Docs',
-        url: '/plugins/payload-markdown',
-      },
-      {
-        label: 'API',
-        url: '/api',
-      },
-    ])
-  })
-
   it('renders a drop-in navbar with override classes and exact active state', async () => {
     const markup = renderToStaticMarkup(
       await PayloadMarkdownDocsNavbar({
@@ -1215,6 +1972,72 @@ describe('Payload Markdown Docs link helpers', () => {
 })
 
 describe('Payload Markdown Docs page component', () => {
+  it('rewrites docs-local markdown links into the current docs set route space', () => {
+    const productNestedDocsSet = {
+      ...resolvedDocsSet,
+      productRoute: '/plugins/payload-markdown',
+      routeBase: '/plugins/payload-markdown/docs',
+      routeMode: 'product-nested' as const,
+    }
+    const markdown = [
+      '[Getting started](/getting-started)',
+      '[Install](getting-started/install.md)',
+      '[Home](/Index.md)',
+      '<a href="/configuration">Configuration</a>',
+      '',
+      '```md',
+      '[Keep example](/example)',
+      '```',
+    ].join('\n')
+
+    expect(
+      rewritePayloadMarkdownDocsLinks({
+        doc: resolvedRecord({
+          sourcePath: 'Index.md',
+        }),
+        docsSet: productNestedDocsSet,
+        markdown,
+      }),
+    ).toBe(
+      [
+        '[Getting started](/plugins/payload-markdown/getting-started)',
+        '[Install](/plugins/payload-markdown/getting-started/install)',
+        '[Home](/plugins/payload-markdown/docs)',
+        '<a href="/plugins/payload-markdown/configuration">Configuration</a>',
+        '',
+        '```md',
+        '[Keep example](/example)',
+        '```',
+      ].join('\n'),
+    )
+  })
+
+  it('passes rewritten markdown to the renderer', async () => {
+    const markup = renderToStaticMarkup(
+      await PayloadMarkdownDocsPage({
+        resolved: {
+          type: 'doc',
+          doc: resolvedRecord({
+            content: '[Getting started](/getting-started)\n',
+            route: '/plugins/payload-markdown/docs',
+            sourcePath: 'Index.md',
+          }),
+          docsSet: {
+            ...resolvedDocsSet,
+            productRoute: '/plugins/payload-markdown',
+            routeBase: '/plugins/payload-markdown/docs',
+            routeMode: 'product-nested',
+          },
+          route: '/plugins/payload-markdown/docs',
+          sidebar: [],
+        },
+      }),
+    )
+
+    expect(markup).toContain('[Getting started](/plugins/payload-markdown/getting-started)')
+    expect(markup).not.toContain('[Getting started](/getting-started)')
+  })
+
   it('renders styled shell defaults for docs routes', async () => {
     const markup = renderToStaticMarkup(
       await PayloadMarkdownDocsPage({
@@ -1346,6 +2169,452 @@ describe('Payload Markdown Docs page component', () => {
     expect(markup).not.toContain('href="/payload-markdown/configuration"')
     expect(markup).toContain('href="/payload-markdown/configuration/options"')
   })
+
+  it('renders generated group indexes with child group and docs set cards', async () => {
+    const markup = renderToStaticMarkup(
+      await PayloadMarkdownDocsPage({
+        resolved: {
+          type: 'docsGroupIndex',
+          childGroups: [
+            {
+              id: 'group-guides',
+              description: 'Guides and tutorials.',
+              order: 0,
+              pageMode: 'auto',
+              routePath: '/plugins/guides',
+              title: 'Guides',
+            },
+          ],
+          docsSets: [
+            {
+              ...resolvedDocsSet,
+              productRoute: '/plugins/payload-markdown',
+              routeBase: '/plugins/payload-markdown/docs',
+              routeMode: 'product-nested',
+            },
+          ],
+          group: {
+            id: 'group-1',
+            description: 'Plugin documentation.',
+            order: 0,
+            pageMode: 'auto',
+            routePath: '/plugins',
+            title: 'Plugins',
+          },
+          route: '/plugins',
+        },
+      }),
+    )
+
+    expect(markup).toContain('href="/plugins/guides"')
+    expect(markup).toContain('href="/plugins/payload-markdown"')
+    expect(markup).toContain('href="/plugins/payload-markdown/docs"')
+    expect(markup).toContain('Guides and tutorials.')
+    expect(markup).toContain('Docs set description.')
+    expect(markup).toContain('Documentation')
+    expect(markup).toContain('margin-top:6rem')
+  })
+})
+
+describe('Payload Markdown Docs marketing components', () => {
+  it('exports renderable Docs CTA from /next', async () => {
+    const markup = await renderServerMarkup(
+      createElement(DocsCTA, {
+        docsLabel: 'Read configuration',
+        docsSet: {
+          relationTo: 'docs-sets',
+          value: {
+            id: 'set-1',
+            slug: 'payload-markdown',
+            description: 'Read the next step.',
+            group: {
+              slug: 'plugins',
+            },
+            routeMode: 'product-nested',
+            title: 'Payload Markdown',
+          },
+        },
+      }),
+    )
+
+    expect(markup).toContain('Payload Markdown')
+    expect(markup).toContain('Read the next step.')
+    expect(markup).toContain('Read configuration')
+    expect(markup).toContain('href="/plugins/payload-markdown/docs"')
+    expect(markup).toContain('data-payload-markdown-docs-block="docsCTA"')
+  })
+
+  it('uses overrideContent title and description when enabled', async () => {
+    const markup = await renderServerMarkup(
+      createElement(DocsCTA, {
+        description: 'Override description.',
+        docsSet: {
+          id: 'set-1',
+          slug: 'payload-markdown',
+          description: 'Docs set description.',
+          routeBase: '/plugins/payload-markdown/docs',
+          title: 'Docs set title',
+        },
+        heading: 'Override title',
+        overrideContent: true,
+      }),
+    )
+
+    expect(markup).toContain('Override title')
+    expect(markup).toContain('Override description.')
+    expect(markup).not.toContain('Docs set title')
+    expect(markup).not.toContain('Docs set description.')
+  })
+
+  it('renders Docs CTA variants at full parent width without old max-width caps', async () => {
+    const subtleMarkup = await renderServerMarkup(
+      createElement(DocsCTA, {
+        docsSet: {
+          id: 'set-1',
+          routeBase: '/docs',
+          title: 'Subtle CTA',
+        },
+        variant: 'subtle',
+      }),
+    )
+    const normalMarkup = await renderServerMarkup(
+      createElement(DocsCTA, {
+        docsSet: {
+          id: 'set-1',
+          routeBase: '/docs',
+          title: 'Normal CTA',
+        },
+        gradient: 'emerald',
+        variant: 'normal',
+      }),
+    )
+    const fullMarkup = await renderServerMarkup(
+      createElement(DocsCTA, {
+        background: {
+          media: {
+            url: '/media/docs-cta.jpg',
+          },
+          overlay: true,
+          overlayOpacity: 60,
+        },
+        docsSet: {
+          id: 'set-1',
+          routeBase: '/docs',
+          title: 'Full CTA',
+        },
+        gradient: 'violet',
+        variant: 'full',
+      }),
+    )
+
+    expect(subtleMarkup).toContain('w-full')
+    expect(subtleMarkup).toContain('rounded-xl')
+    expect(subtleMarkup).not.toContain('max-w-2xl')
+    expect(subtleMarkup).not.toContain('max-w-3xl')
+    expect(subtleMarkup).not.toContain('radial-gradient')
+    expect(normalMarkup).toContain('rounded-2xl')
+    expect(normalMarkup).toContain('radial-gradient')
+    expect(normalMarkup).toContain('rgba(52,211,153')
+    expect(normalMarkup).not.toContain('max-w-2xl')
+    expect(normalMarkup).not.toContain('max-w-3xl')
+    expect(fullMarkup).toContain('min-h-[150px]')
+    expect(fullMarkup).toContain('md:min-h-[180px]')
+    expect(fullMarkup).toContain('background-image:url(/media/docs-cta.jpg)')
+    expect(fullMarkup).toContain('rgba(167,139,250')
+    expect(fullMarkup).not.toContain('max-w-2xl')
+    expect(fullMarkup).not.toContain('max-w-3xl')
+  })
+
+  it('renders docsLink and skills action modes without mixing them', async () => {
+    const docsLinkMarkup = await renderServerMarkup(
+      createElement(DocsCTA, {
+        actionType: 'docsLink',
+        docsLabel: 'Open docs',
+        docsSet: {
+          id: 'set-1',
+          slug: 'payload-markdown',
+          group: {
+            slug: 'plugins',
+          },
+          routeMode: 'product-nested',
+          title: 'Choose a workflow',
+        },
+        skills: {
+          enabled: true,
+          resolvedItems: [
+            {
+              agent: 'codex',
+              href: '/plugins/payload-markdown/skills/codex.zip',
+              label: 'Codex skill',
+            },
+          ],
+        },
+      }),
+    )
+    const skillsMarkup = await renderServerMarkup(
+      createElement(DocsCTA, {
+        actionType: 'skills',
+        docsLabel: 'Ignored docs link',
+        docsSet: {
+          id: 'set-1',
+          slug: 'payload-markdown',
+          routeBase: '/plugins/payload-markdown/docs',
+          title: 'Install a skill',
+        },
+        skills: {
+          enabled: true,
+          resolvedItems: [
+            {
+              agent: 'codex',
+              description: 'Use the Codex workflow.',
+              href: '/plugins/payload-markdown/skills/codex.zip',
+              label: 'Codex skill',
+            },
+            {
+              agent: 'zed',
+              href: '/plugins/payload-markdown/skills/zed.zip',
+              label: 'Zed skill',
+            },
+          ],
+        },
+      }),
+    )
+
+    expect(docsLinkMarkup).toContain('Open docs')
+    expect(docsLinkMarkup).toContain('href="/plugins/payload-markdown/docs"')
+    expect(docsLinkMarkup).not.toContain('Codex skill')
+    expect(skillsMarkup).toContain('Codex skill')
+    expect(skillsMarkup).toContain('Zed skill')
+    expect(skillsMarkup).toContain('Use the Codex workflow.')
+    expect(skillsMarkup).toContain('href="/plugins/payload-markdown/skills/codex.zip"')
+    expect(skillsMarkup).toContain('href="/plugins/payload-markdown/skills/zed.zip"')
+    expect(skillsMarkup).not.toContain('Ignored docs link')
+  })
+
+  it('uses docs-root and product-nested docs set docs hrefs', async () => {
+    const docsRootMarkup = await renderServerMarkup(
+      createElement(DocsCTA, {
+        docsSet: {
+          id: 'set-1',
+          slug: 'guides',
+          group: {
+            slug: 'plugins',
+          },
+          routeMode: 'docs-root',
+          title: 'Guides',
+        },
+      }),
+    )
+    const productNestedMarkup = await renderServerMarkup(
+      createElement(DocsCTA, {
+        docsSet: {
+          id: 'set-2',
+          slug: 'payload-markdown',
+          group: {
+            slug: 'plugins',
+          },
+          routeMode: 'product-nested',
+          title: 'Payload Markdown',
+        },
+      }),
+    )
+
+    expect(docsRootMarkup).toContain('href="/plugins/guides"')
+    expect(productNestedMarkup).toContain('href="/plugins/payload-markdown/docs"')
+    expect(productNestedMarkup).not.toContain('href="/plugins/payload-markdown"')
+  })
+
+  it('throws a clear error when Docs CTA title cannot be derived', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+
+    try {
+      await expect(
+        renderServerMarkup(
+          createElement(DocsCTA, {
+            docsSet: {
+              routeBase: '/docs/read',
+            },
+          }),
+        ),
+      ).rejects.toThrow('docsCTA requires a selected docs set with a title')
+    } finally {
+      consoleError.mockRestore()
+    }
+  })
+
+  it('renders Docs CTA through the standard Payload block component map', async () => {
+    const blockComponents = {
+      docsCTA: DocsCTA,
+    }
+    const blocks: ({ blockType: 'docsCTA'; id: string } & Parameters<typeof DocsCTA>[0])[] = [
+      {
+        id: 'docs-cta-block',
+        blockType: 'docsCTA',
+        docsLabel: 'Open docs',
+        docsSet: {
+          id: 'set-1',
+          routeBase: '/plugins/payload-markdown/docs',
+          title: 'Next step',
+        },
+      },
+    ]
+    const markup = await renderServerMarkup(
+      createElement(
+        Fragment,
+        null,
+        ...blocks.map((block) => {
+          const Block = blockComponents[block.blockType] as (
+            props: {
+              collectionSlug: string
+            } & typeof block,
+          ) => ReactNode
+
+          return createElement(Block, {
+            ...block,
+            collectionSlug: 'pages',
+            key: block.id,
+          })
+        }),
+      ),
+    )
+
+    expect(markup).toContain('data-payload-markdown-docs-block="docsCTA"')
+    expect(markup).toContain('Next step')
+    expect(markup).toContain('Open docs')
+  })
+
+  it('renders docs set hero variants from spread props', async () => {
+    const heroDocsSet = {
+      id: 'set-1',
+      slug: 'payload-markdown',
+      description: 'Docs set hero description.',
+      group: {
+        id: 'group-1',
+        slug: 'plugins',
+      },
+      meta: {
+        image: {
+          alt: 'Payload Markdown preview',
+          url: '/media/payload-markdown.png',
+        },
+      },
+      routeMode: 'product-nested',
+      title: 'Payload Markdown',
+    } as const
+    const fullWidthMarkup = await renderServerMarkup(
+      createElement(DocsSetHero, {
+        type: 'docsSetFullWidth',
+        docsSet: heroDocsSet,
+        skills: {
+          enabled: true,
+          resolvedItems: [
+            {
+              type: 'codex',
+              href: '/skills/codex',
+              label: 'Codex skill',
+            },
+          ],
+        },
+      }),
+    )
+    const sideImageMarkup = await renderServerMarkup(
+      createElement(DocsSetHero, {
+        type: 'docsSetSideImage',
+        docsSet: heroDocsSet,
+        imagePosition: 'left',
+      }),
+    )
+    const sideInfoMarkup = await renderServerMarkup(
+      createElement(DocsSetHero, {
+        type: 'docsSetSideInfo',
+        docsSet: heroDocsSet,
+        skills: {
+          enabled: true,
+          resolvedItems: [
+            {
+              type: 'claude',
+              href: '/skills/claude',
+              label: 'Claude skill',
+            },
+          ],
+        },
+      }),
+    )
+    const mappedFullWidthMarkup = await renderServerMarkup(
+      createElement(docsHeroComponents.docsSetFullWidth, {
+        type: 'docsSetFullWidth',
+        docsSet: heroDocsSet,
+      }),
+    )
+
+    expect(isDocsSetHeroType('docsSetFullWidth')).toBe(true)
+    expect(isDocsSetHeroType('highImpact')).toBe(false)
+    expect(fullWidthMarkup).toContain('data-payload-markdown-docs-hero="docsSetFullWidth"')
+    expect(fullWidthMarkup).toContain('Payload Markdown')
+    expect(fullWidthMarkup).toContain('Docs set hero description.')
+    expect(fullWidthMarkup).toContain('href="/plugins/payload-markdown"')
+    expect(fullWidthMarkup).toContain('Codex skill')
+    expect(sideImageMarkup).toContain('data-payload-markdown-docs-hero="docsSetSideImage"')
+    expect(sideImageMarkup).toContain('src="/media/payload-markdown.png"')
+    expect(sideInfoMarkup).toContain('data-payload-markdown-docs-hero="docsSetSideInfo"')
+    expect(sideInfoMarkup).toContain('Claude skill')
+    expect(sideInfoMarkup).not.toContain('Group')
+    expect(sideInfoMarkup).not.toContain('Route')
+    expect(mappedFullWidthMarkup).toContain('data-payload-markdown-docs-hero="docsSetFullWidth"')
+  })
+
+  it('exports renderable heroes and skill CTAs from /next', () => {
+    const productHeroMarkup = renderToStaticMarkup(
+      DocsProductHero({
+        description: 'Guides, API references, and agent skills.',
+        heading: 'Payload Markdown Docs',
+        primaryAction: {
+          href: '/payload-markdown/docs',
+          label: 'Read docs',
+        },
+      }),
+    )
+    const nativeHeroMarkup = renderToStaticMarkup(
+      DocsNativeHero({
+        breadcrumb: [{ href: '/docs', label: 'Docs' }, { label: 'Configuration' }],
+        description: 'Plugin options.',
+        title: 'Configuration',
+      }),
+    )
+    const skillGroupMarkup = renderToStaticMarkup(
+      SkillCTAGroup({
+        align: 'center',
+        skills: {
+          enabled: true,
+          resolvedItems: [
+            {
+              type: 'codex',
+              href: '/skills/codex',
+              label: 'Codex skill',
+            },
+          ],
+        },
+      }),
+    )
+    const skillTabsMarkup = renderToStaticMarkup(
+      SkillTabs({
+        items: [
+          {
+            type: 'claude',
+            href: '/skills/claude',
+            label: 'Claude skill',
+          },
+        ],
+      }),
+    )
+
+    expect(productHeroMarkup).toContain('Payload Markdown Docs')
+    expect(nativeHeroMarkup).toContain('Configuration')
+    expect(skillGroupMarkup).toContain('Codex skill')
+    expect(skillGroupMarkup).toContain('justify-center')
+    expect(skillTabsMarkup).toContain('Claude skill')
+    expect(skillTabsMarkup).toContain('min-h-11')
+  })
 })
 
 describe('Payload Markdown Docs metadata helpers', () => {
@@ -1360,34 +2629,200 @@ describe('Payload Markdown Docs metadata helpers', () => {
 
     expect(metadata).toEqual({
       description: 'Install docs.',
+      openGraph: {
+        description: 'Install docs.',
+        title: 'Installation',
+      },
       title: 'Installation',
+      twitter: {
+        description: 'Install docs.',
+        title: 'Installation',
+      },
     })
   })
 
-  it('uses docs set metadata for docs set shell routes', () => {
+  it('uses docs set OpenGraph metadata for docs set shell routes', () => {
     const metadata = getPayloadMarkdownDocsMetadata({
       type: 'docsSetIndex',
-      docsSet: resolvedDocsSet,
+      docsSet: {
+        ...resolvedDocsSet,
+        openGraph: {
+          description: 'OpenGraph docs set description.',
+          image: {
+            id: 'media-1',
+            alt: 'OpenGraph preview',
+            height: 630,
+            relationTo: 'media',
+            url: '/media/docs-og.png',
+            width: 1200,
+          },
+          title: 'OpenGraph Payload Markdown',
+        },
+      },
+      route: '/payload-markdown',
+      sidebar: [],
+    })
+
+    expect(metadata).toEqual({
+      description: 'OpenGraph docs set description.',
+      openGraph: {
+        description: 'OpenGraph docs set description.',
+        images: [
+          {
+            alt: 'OpenGraph preview',
+            height: 630,
+            url: '/media/docs-og.png',
+            width: 1200,
+          },
+        ],
+        title: 'OpenGraph Payload Markdown',
+      },
+      title: 'OpenGraph Payload Markdown',
+      twitter: {
+        card: 'summary_large_image',
+        description: 'OpenGraph docs set description.',
+        images: [
+          {
+            alt: 'OpenGraph preview',
+            height: 630,
+            url: '/media/docs-og.png',
+            width: 1200,
+          },
+        ],
+        title: 'OpenGraph Payload Markdown',
+      },
+    })
+  })
+
+  it('lets docs pages inherit the docs set OpenGraph image while overriding title and description', () => {
+    const metadata = getPayloadMarkdownDocsMetadata({
+      type: 'doc',
+      doc: resolvedRecord(),
+      docsSet: {
+        ...resolvedDocsSet,
+        openGraph: {
+          description: 'OpenGraph docs set description.',
+          image: {
+            alt: 'OpenGraph preview',
+            height: 630,
+            url: '/media/docs-og.png',
+            width: 1200,
+          },
+          title: 'OpenGraph Payload Markdown',
+        },
+      },
+      route: '/payload-markdown/getting-started/installation',
+      sidebar: [],
+    })
+
+    expect(metadata).toEqual({
+      description: 'Install docs.',
+      openGraph: {
+        description: 'Install docs.',
+        images: [
+          {
+            alt: 'OpenGraph preview',
+            height: 630,
+            url: '/media/docs-og.png',
+            width: 1200,
+          },
+        ],
+        title: 'Installation',
+      },
+      title: 'Installation',
+      twitter: {
+        card: 'summary_large_image',
+        description: 'Install docs.',
+        images: [
+          {
+            alt: 'OpenGraph preview',
+            height: 630,
+            url: '/media/docs-og.png',
+            width: 1200,
+          },
+        ],
+        title: 'Installation',
+      },
+    })
+  })
+
+  it('keeps metadata compact when docs set fields are empty', () => {
+    const metadata = getPayloadMarkdownDocsMetadata({
+      type: 'docsSetIndex',
+      docsSet: {
+        ...resolvedDocsSet,
+        description: undefined,
+        navTitle: undefined,
+        openGraph: undefined,
+        title: '',
+      },
+      route: '/payload-markdown',
+      sidebar: [],
+    })
+
+    expect(metadata).toEqual({})
+  })
+
+  it('does not render docs set OpenGraph images in the page component', async () => {
+    const markup = renderToStaticMarkup(
+      await PayloadMarkdownDocsPage({
+        resolved: {
+          type: 'docsSetIndex',
+          docsSet: {
+            ...resolvedDocsSet,
+            openGraph: {
+              image: {
+                alt: 'OpenGraph preview',
+                url: '/media/docs-og.png',
+              },
+            },
+          },
+          route: '/payload-markdown',
+          sidebar: [],
+        },
+      }),
+    )
+
+    expect(markup).not.toContain('/media/docs-og.png')
+    expect(markup).not.toContain('data-payload-markdown-docs-hero')
+  })
+
+  it('uses docs set nav title before title when OpenGraph title is empty', () => {
+    const metadata = getPayloadMarkdownDocsMetadata({
+      type: 'docsSetIndex',
+      docsSet: {
+        ...resolvedDocsSet,
+        navTitle: 'Docs Nav',
+      },
       route: '/payload-markdown',
       sidebar: [],
     })
 
     expect(metadata).toEqual({
       description: 'Docs set description.',
-      title: 'Payload Markdown',
+      openGraph: {
+        description: 'Docs set description.',
+        title: 'Docs Nav',
+      },
+      title: 'Docs Nav',
+      twitter: {
+        description: 'Docs set description.',
+        title: 'Docs Nav',
+      },
     })
   })
 
   it('uses group metadata for group index routes', () => {
     const metadata = getPayloadMarkdownDocsMetadata({
       type: 'docsGroupIndex',
+      childGroups: [],
       docsSets: [],
       group: {
         id: 'group-1',
         description: 'Plugin documentation.',
         order: 0,
+        pageMode: 'auto',
         routePath: '/plugins',
-        serveIndex: true,
         title: 'Plugins',
       },
       route: '/plugins',
@@ -1395,7 +2830,15 @@ describe('Payload Markdown Docs metadata helpers', () => {
 
     expect(metadata).toEqual({
       description: 'Plugin documentation.',
+      openGraph: {
+        description: 'Plugin documentation.',
+        title: 'Plugins',
+      },
       title: 'Plugins',
+      twitter: {
+        description: 'Plugin documentation.',
+        title: 'Plugins',
+      },
     })
   })
 })
@@ -1415,6 +2858,14 @@ describe('Payload Markdown Docs /next package export', () => {
     expect(packageJson.exports['./next']).toMatchObject({
       import: './dist/next/index.js',
       types: './dist/next/index.d.ts',
+    })
+    expect(packageJson.exports['./admin']).toMatchObject({
+      import: './dist/admin/index.js',
+      types: './dist/admin/index.d.ts',
+    })
+    expect(packageJson.exports['./blocks']).toMatchObject({
+      import: './dist/blocks/index.js',
+      types: './dist/blocks/index.d.ts',
     })
   })
 })

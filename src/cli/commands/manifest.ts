@@ -4,10 +4,7 @@ import {
   buildDocsManifest,
   validateDocsManifest,
 } from '../../sync/index.js'
-import {
-  readDocsAiExportManifest,
-  walkDocsFiles,
-} from '../filesystem.js'
+import { collectPublishPackage } from '../filesystem.js'
 import { formatIssues, printJson } from '../format.js'
 import { getFlagBoolean } from '../parseArgs.js'
 import { getDocsCommandOptions } from './validate.js'
@@ -21,25 +18,22 @@ export const runManifestCommand = async (
     return options
   }
 
-  const files = await walkDocsFiles({
-    root: options.docsRoot,
-  })
-  const aiExport = await readDocsAiExportManifest({
-    root: options.docsRoot,
-  })
+  let publishPackage
 
-  if (!aiExport.ok) {
+  try {
+    publishPackage = await collectPublishPackage(options)
+  } catch (error) {
     return {
       exitCode: 1,
-      stderr: `AI export manifest is invalid.\n\nErrors:\n${formatIssues(aiExport.issues)}\n`,
+      stderr: error instanceof Error ? `${error.message}\n` : 'Could not read publish package.\n',
     }
   }
 
   const manifest = buildDocsManifest({
-    aiExport: aiExport.manifest,
+    assets: publishPackage.assets,
     branch: options.branch,
     commit: options.commit,
-    files,
+    files: publishPackage.files,
     repository: options.repository,
     sourceId: options.sourceId,
   })

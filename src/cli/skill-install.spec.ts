@@ -1,20 +1,49 @@
 import { randomUUID } from 'node:crypto'
-import {
-  mkdir,
-  readdir,
-  readFile,
-  rm,
-  symlink,
-  writeFile,
-} from 'node:fs/promises'
+import { mkdir, readdir, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 
+import { assetRouteScaffoldFiles } from './assetRoutes.js'
 import { isCliEntrypoint, runCli } from './index.js'
 
 const originalCwd = process.cwd()
 const tempRoots: string[] = []
+const docsSkillFiles = [
+  'SKILL.md',
+  'examples/github-actions.md',
+  'reference/admin.md',
+  'reference/docs-package.md',
+  'reference/frontmatter.md',
+  'reference/routing.md',
+  'reference/sync.md',
+  'reference/troubleshooting.md',
+  'reference/workflow.md',
+]
+const payloadMarkdownCodexSkillFiles = [
+  'SKILL.md',
+  'agents/openai.yaml',
+  'examples/docs-page.md',
+  'examples/reference-page.md',
+  'examples/release-notes.md',
+  'reference/automated-docs-workflow.md',
+  'reference/formatting.md',
+  'reference/payload-markdown-directives.md',
+  'reference/quality.md',
+  'scripts/check_payload_markdown_doc.py',
+]
+const payloadMarkdownClaudeSkillFiles = [
+  'SKILL.md',
+  'examples/docs-page.md',
+  'examples/reference-page.md',
+  'examples/release-notes.md',
+  'reference/automated-docs-workflow.md',
+  'reference/formatting.md',
+  'reference/payload-markdown-directives.md',
+  'reference/quality.md',
+  'scripts/check_payload_markdown_doc.py',
+]
+const assetRouteFiles = [...assetRouteScaffoldFiles.map((file) => file.relativePath)]
 
 const createTempRoot = async (): Promise<string> => {
   const root = path.join(tmpdir(), `payload-markdown-docs-skill-${randomUUID()}`)
@@ -86,31 +115,83 @@ describe('install skill command', () => {
     ).toBe(true)
   })
 
-  it('writes the Codex skill pack to the default output path', async () => {
+  it('installs the Codex skill pack with --agent codex', async () => {
+    const root = await createTempRoot()
+    process.chdir(root)
+
+    const result = await runCli(['install', 'skill', '--agent', 'codex'])
+
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout).toContain('Agent: codex')
+    expect(result.stdout).toContain('.agents/skills/payload-markdown-docs')
+    expect(result.stdout).toContain('.agents/skills/payload-markdown')
+    expect(result.stdout).toContain('AGENTS.md')
+    expect(await readInstalledFile(root, 'AGENTS.md')).toContain(
+      '.agents/skills/payload-markdown-docs/SKILL.md',
+    )
+    expect(await readInstalledFile(root, 'AGENTS.md')).toContain(
+      '.agents/skills/payload-markdown/SKILL.md',
+    )
+    expect(await listFiles(path.join(root, '.agents/skills/payload-markdown-docs'))).toEqual(
+      docsSkillFiles,
+    )
+    expect(await listFiles(path.join(root, '.agents/skills/payload-markdown'))).toEqual(
+      payloadMarkdownCodexSkillFiles,
+    )
+  })
+
+  it('installs the Codex skill pack with --codex', async () => {
     const root = await createTempRoot()
     process.chdir(root)
 
     const result = await runCli(['install', 'skill', '--codex'])
 
     expect(result.exitCode).toBe(0)
-    expect(result.stdout).toContain('.agents/skills/payload-markdown-docs')
-    expect(result.stdout).toContain('AGENTS.md')
+    expect(await listFiles(path.join(root, '.agents/skills/payload-markdown-docs'))).toEqual(
+      docsSkillFiles,
+    )
+    expect(await listFiles(path.join(root, '.agents/skills/payload-markdown'))).toEqual(
+      payloadMarkdownCodexSkillFiles,
+    )
     expect(await readInstalledFile(root, 'AGENTS.md')).toContain(
       '.agents/skills/payload-markdown-docs/SKILL.md',
     )
-    expect(await listFiles(path.join(root, '.agents/skills/payload-markdown-docs'))).toEqual([
-      'SKILL.md',
-      'examples/docs-page.md',
-      'examples/github-actions.md',
-      'reference/admin.md',
-      'reference/formatting.md',
-      'reference/frontmatter.md',
-      'reference/payload-markdown-directives.md',
-      'reference/routing.md',
-      'reference/sync.md',
-      'reference/troubleshooting.md',
-      'reference/workflow.md',
-    ])
+  })
+
+  it('installs the Claude skill pack with --agent claude without changing AGENTS.md', async () => {
+    const root = await createTempRoot()
+    process.chdir(root)
+
+    const result = await runCli(['install', 'skill', '--agent', 'claude'])
+
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout).toContain('Agent: claude')
+    expect(result.stdout).toContain('.claude/skills/payload-markdown-docs')
+    expect(result.stdout).toContain('.claude/skills/payload-markdown')
+    expect(result.stdout).not.toContain('AGENTS.md')
+    expect(await listFiles(path.join(root, '.claude/skills/payload-markdown-docs'))).toEqual(
+      docsSkillFiles,
+    )
+    expect(await listFiles(path.join(root, '.claude/skills/payload-markdown'))).toEqual(
+      payloadMarkdownClaudeSkillFiles,
+    )
+    await expect(readInstalledFile(root, 'AGENTS.md')).rejects.toThrow()
+  })
+
+  it('installs the Claude skill pack with --claude', async () => {
+    const root = await createTempRoot()
+    process.chdir(root)
+
+    const result = await runCli(['install', 'skill', '--claude'])
+
+    expect(result.exitCode).toBe(0)
+    expect(await listFiles(path.join(root, '.claude/skills/payload-markdown-docs'))).toEqual(
+      docsSkillFiles,
+    )
+    expect(await listFiles(path.join(root, '.claude/skills/payload-markdown'))).toEqual(
+      payloadMarkdownClaudeSkillFiles,
+    )
+    await expect(readInstalledFile(root, 'AGENTS.md')).rejects.toThrow()
   })
 
   it('merges Codex skill instructions into an existing AGENTS.md', async () => {
@@ -123,17 +204,18 @@ describe('install skill command', () => {
 
     expect(result.exitCode).toBe(0)
     expect(agents).toContain('Keep this existing note.')
-    expect(agents).toContain('Payload Markdown Docs Skill')
+    expect(agents).toContain('Payload Markdown Docs Skills')
     expect(agents).toContain('.agents/skills/payload-markdown-docs/SKILL.md')
+    expect(agents).toContain('.agents/skills/payload-markdown/SKILL.md')
   })
 
-  it('supports the ai-skill alias and custom output directory', async () => {
+  it('supports custom output and template substitutions', async () => {
     const root = await createTempRoot()
     const out = path.join(root, 'agent-skill')
 
     const result = await runCli([
       'install',
-      'ai-skill',
+      'skill',
       '--codex',
       '--out',
       out,
@@ -143,12 +225,21 @@ describe('install skill command', () => {
       'npm',
     ])
     const skill = await readInstalledFile(out, 'SKILL.md')
+    const payloadMarkdownSkill = await readInstalledFile(
+      path.join(root, 'payload-markdown'),
+      'SKILL.md',
+    )
 
     expect(result.exitCode).toBe(0)
-    expect(skill).toContain('npm exec payload-markdown-docs validate ./content/docs')
-    expect(skill).toContain('npm exec payload-markdown-docs plan ./content/docs')
-    expect(skill).toContain('npm exec payload-markdown-docs push ./content/docs')
-    expect(skill).toContain('./content/docs/index.ai.yml')
+    expect(skill).toContain('npm exec payload-markdown-docs validate --source main-docs')
+    expect(skill).toContain('npm exec payload-markdown-docs plan --source main-docs')
+    expect(skill).toContain('--docs ./content/docs')
+    expect(skill).toContain('npm exec payload-markdown-docs push \\')
+    expect(skill).not.toContain('payload-markdown-docs push ./content/docs')
+    expect(skill).not.toContain('--sync')
+    expect(skill).not.toContain('./content/docs/index.ai.yml')
+    expect(payloadMarkdownSkill).toContain('name: payload-markdown')
+    await expect(readInstalledFile(root, 'AGENTS.md')).rejects.toThrow()
   })
 
   it('repairs Codex discovery when skill files already exist unchanged', async () => {
@@ -157,18 +248,21 @@ describe('install skill command', () => {
     process.chdir(root)
 
     const first = await runCli(['install', 'skill', '--codex', '--out', out])
+    const second = await runCli(['install', 'skill', '--codex', '--out', out])
 
     expect(first.exitCode).toBe(0)
-    await expect(readInstalledFile(root, 'AGENTS.md')).rejects.toThrow()
-    const second = await runCli(['install', 'skill', '--codex'])
-
     expect(second.exitCode).toBe(0)
+    await expect(readInstalledFile(root, 'AGENTS.md')).rejects.toThrow()
+
+    const defaultInstall = await runCli(['install', 'skill', '--codex'])
+
+    expect(defaultInstall.exitCode).toBe(0)
     expect(await readInstalledFile(root, 'AGENTS.md')).toContain(
       '.agents/skills/payload-markdown-docs/SKILL.md',
     )
   })
 
-  it('installs AI export manifest guidance with a valid example', async () => {
+  it('installs skill guidance that forbids deprecated AI artifact files', async () => {
     const root = await createTempRoot()
     const out = path.join(root, 'skill')
 
@@ -176,12 +270,11 @@ describe('install skill command', () => {
     const skill = await readInstalledFile(out, 'SKILL.md')
 
     expect(result.exitCode).toBe(0)
-    expect(skill).toContain('create or\nupdate this file automatically')
-    expect(skill).toContain('output: /plugins/payload-markdown.md')
-    expect(skill).toContain('order:\n  - ./index.md')
-    expect(skill).toContain('The manifest is source-controlled alongside the docs')
-    expect(skill).toContain('Do not show the manifest in human docs navigation')
-    expect(skill).toContain('Do not render the manifest as a normal docs page')
+    expect(skill).toContain('Do not create `index.ai.yml`.')
+    expect(skill).toContain('Do not create `index.ai.yaml`.')
+    expect(skill).toContain('Do not create a single consolidated AI Markdown export file.')
+    expect(skill).not.toContain('output: /plugins/payload-markdown.md')
+    expect(skill.match(/index\.ai\.yml/g)).toHaveLength(1)
   })
 
   it('refuses overwrites unless forced', async () => {
@@ -190,14 +283,7 @@ describe('install skill command', () => {
     const first = await runCli(['install', 'skill', '--codex', '--out', out])
     await writeFile(path.join(out, 'SKILL.md'), 'stale\n', 'utf8')
     const second = await runCli(['install', 'skill', '--codex', '--out', out])
-    const forced = await runCli([
-      'install',
-      'skill',
-      '--codex',
-      '--out',
-      out,
-      '--force',
-    ])
+    const forced = await runCli(['install', 'skill', '--codex', '--out', out, '--force'])
 
     expect(first.exitCode).toBe(0)
     expect(second.exitCode).toBe(1)
@@ -210,22 +296,122 @@ describe('install skill command', () => {
     const root = await createTempRoot()
     const out = path.join(root, 'skill')
 
-    const result = await runCli([
-      'install',
-      'skill',
-      '--codex',
-      '--out',
-      out,
-      '--dry-run',
-    ])
+    const result = await runCli(['install', 'skill', '--codex', '--out', out, '--dry-run'])
 
     expect(result.exitCode).toBe(0)
     expect(result.stdout).toContain('dry-run')
     expect(result.stdout).toContain('SKILL.md')
     await expect(readdir(out)).rejects.toThrow()
+    await expect(readdir(path.join(root, 'payload-markdown'))).rejects.toThrow()
   })
 
-  it('does not write outside the target directory', async () => {
+  it('installs public Next asset route files', async () => {
+    const root = await createTempRoot()
+    const payloadApp = path.join(root, 'src/app/(payload)')
+    await mkdir(payloadApp, {
+      recursive: true,
+    })
+    process.chdir(root)
+
+    const result = await runCli(['install', 'routes'])
+
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout).toContain('/llms.txt')
+    expect(result.stdout).toContain('/plugins/<docs-set-slug>/skills/<agent>')
+    expect(result.stdout).toContain('IMPORTANT:')
+    expect(result.stdout).toContain('These files must be committed')
+    expect(await listFiles(payloadApp)).toEqual([...assetRouteFiles].sort())
+
+    const sharedRoute = await readInstalledFile(
+      root,
+      'src/app/(payload)/payloadMarkdownDocsAssetRoute.ts',
+    )
+    const rootRoute = await readInstalledFile(root, 'src/app/(payload)/llms.txt/route.ts')
+    const nestedRoute = await readInstalledFile(
+      root,
+      'src/app/(payload)/plugins/[docsSetSlug]/skills/[agent]/[[...assetPath]]/route.ts',
+    )
+
+    expect(sharedRoute).toContain("import config from '@payload-config'")
+    expect(sharedRoute).toContain('createPayloadMarkdownDocsAssetRouteHandler')
+    expect(sharedRoute).toContain('@valkyrianlabs/payload-markdown-docs/next')
+    expect(sharedRoute).not.toContain('../../../dist/next')
+    expect(rootRoute).toContain("export { GET } from '../payloadMarkdownDocsAssetRoute'")
+    expect(rootRoute).toContain("dynamic = 'force-dynamic'")
+    expect(nestedRoute).toContain(
+      "export { GET } from '../../../../../payloadMarkdownDocsAssetRoute'",
+    )
+
+    const unchanged = await runCli(['install', 'routes'])
+
+    expect(unchanged.exitCode).toBe(0)
+  })
+
+  it('supports asset route dry-run, explicit app path, and force overwrites', async () => {
+    const root = await createTempRoot()
+    const payloadApp = path.join(root, 'app/(payload)')
+    await mkdir(payloadApp, {
+      recursive: true,
+    })
+    process.chdir(root)
+
+    const dryRun = await runCli(['install', 'routes', '--payload-app', payloadApp, '--dry-run'])
+
+    expect(dryRun.exitCode).toBe(0)
+    expect(dryRun.stdout).toContain('dry-run')
+    await expect(readInstalledFile(root, 'app/(payload)/llms.txt/route.ts')).rejects.toThrow()
+
+    const first = await runCli(['install', 'routes', '--payload-app', payloadApp])
+    await writeFile(path.join(payloadApp, 'llms.txt/route.ts'), 'stale\n', 'utf8')
+    const second = await runCli(['install', 'routes', '--payload-app', payloadApp])
+    const forced = await runCli(['install', 'routes', '--payload-app', payloadApp, '--force'])
+
+    expect(first.exitCode).toBe(0)
+    expect(second.exitCode).toBe(1)
+    expect(second.stderr).toContain('Asset route files already exist')
+    expect(forced.exitCode).toBe(0)
+    expect(await readInstalledFile(root, 'app/(payload)/llms.txt/route.ts')).not.toBe('stale\n')
+  })
+
+  it('requires a Payload app route group for asset route installs', async () => {
+    const root = await createTempRoot()
+    process.chdir(root)
+
+    const implicit = await runCli(['install', 'routes'])
+    const explicit = await runCli([
+      'install',
+      'routes',
+      '--payload-app',
+      path.join(root, 'missing/(payload)'),
+    ])
+
+    expect(implicit.exitCode).toBe(1)
+    expect(implicit.stderr).toContain('Could not find a Payload app route group')
+    expect(explicit.exitCode).toBe(1)
+    expect(explicit.stderr).toContain('Payload app route group does not exist')
+  })
+
+  it('keeps the dev harness route shape aligned with the consuming-app scaffold', async () => {
+    const devPayloadApp = path.resolve('dev/app/(payload)')
+    const devFiles = await listFiles(devPayloadApp)
+
+    expect(devFiles.filter((file) => assetRouteFiles.includes(file))).toEqual(
+      [...assetRouteFiles].sort(),
+    )
+
+    const devSharedRoute = await readFile(
+      path.join(devPayloadApp, 'payloadMarkdownDocsAssetRoute.ts'),
+      'utf8',
+    )
+    const scaffoldSharedRoute = assetRouteScaffoldFiles.find(
+      (file) => file.relativePath === 'payloadMarkdownDocsAssetRoute.ts',
+    )?.content
+
+    expect(devSharedRoute).toContain('../../../dist/next')
+    expect(scaffoldSharedRoute).toContain('@valkyrianlabs/payload-markdown-docs/next')
+  })
+
+  it('does not write bundled skill files outside the target skill parent', async () => {
     const root = await createTempRoot()
     const out = path.join(root, 'skill')
 
@@ -233,24 +419,41 @@ describe('install skill command', () => {
     const files = await listFiles(root)
 
     expect(result.exitCode).toBe(0)
-    expect(files.every((file) => file.startsWith('skill/'))).toBe(true)
+    expect(
+      files.every((file) => file.startsWith('skill/') || file.startsWith('payload-markdown/')),
+    ).toBe(true)
   })
 
-  it('installs references with directives and supported frontmatter fields', async () => {
+  it('installs plugin references and the companion payload-markdown skill', async () => {
     const root = await createTempRoot()
     const out = path.join(root, 'skill')
 
     const result = await runCli(['install', 'skill', '--codex', '--out', out])
-    const directives = await readInstalledFile(
-      out,
+    const docsPackage = await readInstalledFile(out, 'reference/docs-package.md')
+    const frontmatter = await readInstalledFile(out, 'reference/frontmatter.md')
+    const workflow = await readInstalledFile(out, 'reference/workflow.md')
+    const payloadMarkdownDirectives = await readInstalledFile(
+      path.join(root, 'payload-markdown'),
       'reference/payload-markdown-directives.md',
     )
-    const frontmatter = await readInstalledFile(out, 'reference/frontmatter.md')
-    const formatting = await readInstalledFile(out, 'reference/formatting.md')
+    const payloadMarkdownExample = await readInstalledFile(
+      path.join(root, 'payload-markdown'),
+      'examples/docs-page.md',
+    )
 
     expect(result.exitCode).toBe(0)
-    for (const directive of [':::toc', ':::callout', ':::details', ':::steps', ':::cards', ':::card']) {
-      expect(directives).toContain(directive)
+    expect(docsPackage).toContain('Markdown files under `docs/` become manifest `files`')
+    expect(docsPackage).toContain('Skill files under `skills/<source>/<agent>/`')
+    expect(workflow).toContain('sibling `payload-markdown` skill')
+    for (const directive of [
+      ':::toc',
+      ':::callout',
+      ':::details',
+      ':::steps',
+      ':::cards',
+      ':::card',
+    ]) {
+      expect(payloadMarkdownDirectives).toContain(directive)
     }
     for (const field of [
       'title',
@@ -265,8 +468,11 @@ describe('install skill command', () => {
     ]) {
       expect(frontmatter).toContain(`\`${field}\``)
     }
-    expect(formatting).toContain('plain Markdown')
-    expect(formatting).toContain('Do not add')
+    expect(payloadMarkdownExample).toContain('#')
+    await expect(
+      readInstalledFile(out, 'reference/payload-markdown-directives.md'),
+    ).rejects.toThrow()
+    await expect(readInstalledFile(out, 'reference/formatting.md')).rejects.toThrow()
   })
 
   it('detects package manager from lockfiles', async () => {
@@ -275,18 +481,16 @@ describe('install skill command', () => {
     await writeFile(path.join(root, 'yarn.lock'), '', 'utf8')
 
     const result = await runCli(['install', 'skill', '--codex'])
-    const skill = await readInstalledFile(
-      root,
-      '.agents/skills/payload-markdown-docs/SKILL.md',
-    )
+    const skill = await readInstalledFile(root, '.agents/skills/payload-markdown-docs/SKILL.md')
 
     expect(result.exitCode).toBe(0)
-    expect(skill).toContain('yarn exec payload-markdown-docs validate ./docs')
+    expect(skill).toContain('yarn exec payload-markdown-docs validate --source main-docs')
   })
 
   it('validates target, agent, package manager, and help behavior', async () => {
     const missingAgent = await runCli(['install', 'skill'])
     const badAgent = await runCli(['install', 'skill', '--agent', 'cursor'])
+    const multipleAgents = await runCli(['install', 'skill', '--codex', '--claude'])
     const badTarget = await runCli(['install', 'plugin', '--codex'])
     const badPackageManager = await runCli([
       'install',
@@ -298,14 +502,18 @@ describe('install skill command', () => {
     const help = await runCli(['install', 'skill', '--help'])
 
     expect(missingAgent.exitCode).toBe(1)
-    expect(missingAgent.stderr).toContain('--codex')
+    expect(missingAgent.stderr).toContain('--agent codex|claude')
     expect(badAgent.exitCode).toBe(1)
-    expect(badAgent.stderr).toContain('only "codex"')
+    expect(badAgent.stderr).toContain('codex or claude')
+    expect(multipleAgents.exitCode).toBe(1)
+    expect(multipleAgents.stderr).toContain('one agent target')
     expect(badTarget.exitCode).toBe(1)
-    expect(badTarget.stderr).toContain('target "skill" or "ai-skill"')
+    expect(badTarget.stderr).toContain('target "skill" or "routes"')
     expect(badPackageManager.exitCode).toBe(1)
     expect(badPackageManager.stderr).toContain('pnpm, npm, yarn, or bun')
     expect(help.exitCode).toBe(0)
-    expect(help.stdout).toContain('payload-markdown-docs install skill --codex')
+    expect(help.stdout).toContain('payload-markdown-docs install skill --agent codex')
+    expect(help.stdout).toContain('--claude')
+    expect(help.stdout).toContain('payload-markdown-docs install routes')
   })
 })

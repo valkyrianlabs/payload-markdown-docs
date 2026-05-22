@@ -1,9 +1,13 @@
 export type PayloadMarkdownDocsConfig = {
   auth?: PayloadMarkdownDocsAuthConfig
+  blocks?: DocsBlockInstallSelection
   collections?: PayloadMarkdownDocsCollectionsConfig
   enabled?: boolean
   endpoint?: PayloadMarkdownDocsEndpointConfig
+  heroes?: DocsHeroInstallSelection
+  pages?: PayloadMarkdownDocsPagesConfig
   routing?: PayloadMarkdownDocsRoutingConfig
+  seo?: boolean
   sync?: PayloadMarkdownDocsSyncConfig
   target?: PayloadMarkdownDocsTargetConfig
 }
@@ -27,19 +31,35 @@ export type PayloadMarkdownDocsAuthToggle = {
 }
 
 export type PayloadMarkdownDocsCollectionConfig = {
+  blocks?: DocsBlockInstallSelection
   enabled?: boolean
+  heroes?: DocsHeroInstallSelection
   slug?: string
 }
 
+export type DocsMarketingBlockKey = 'docsCTA'
+
+export type DocsBlockInstallSelection = boolean | Partial<Record<DocsMarketingBlockKey, boolean>>
+
+export type DocsHeroInstallConfig = {
+  enabled?: boolean
+  fieldName?: string
+  installIfMissing?: boolean
+}
+
+export type DocsHeroInstallSelection = boolean | DocsHeroInstallConfig
+
+export type DocsCollectionInstallConfig = boolean | PayloadMarkdownDocsCollectionConfig
+
 export type PayloadMarkdownDocsCollectionsConfig = {
   docs?: PayloadMarkdownDocsCollectionConfig
+  docsAccess?: PayloadMarkdownDocsCollectionConfig
+  docsAssets?: PayloadMarkdownDocsCollectionConfig
   docsGroups?: PayloadMarkdownDocsCollectionConfig
-  docsKeys?: PayloadMarkdownDocsCollectionConfig
   docsSets?: PayloadMarkdownDocsCollectionConfig
-  docsTrusted?: PayloadMarkdownDocsCollectionConfig
   nonces?: PayloadMarkdownDocsCollectionConfig
   syncRuns?: PayloadMarkdownDocsCollectionConfig
-}
+} & Record<string, DocsCollectionInstallConfig | undefined>
 
 export type PayloadMarkdownDocsPagesRoutingConfig = {
   allowBridgePages?: boolean
@@ -51,6 +71,10 @@ export type PayloadMarkdownDocsPagesRoutingConfig = {
 
 export type PayloadMarkdownDocsRoutingConfig = {
   pages?: PayloadMarkdownDocsPagesRoutingConfig
+}
+
+export type PayloadMarkdownDocsPagesConfig = {
+  heroes?: DocsHeroInstallSelection
 }
 
 export type PayloadMarkdownDocsTargetConfig = {
@@ -70,5 +94,10 @@ export type PayloadMarkdownDocsSyncConfig = {
   allowPublish?: boolean
   allowWrites?: boolean
   deleteBehavior?: 'archive' | 'delete' | 'draft' | 'ignore'
-  requireDryRunBeforeApply?: boolean
+  revalidate?: false | PayloadMarkdownDocsSyncRevalidateConfig
+}
+
+export type PayloadMarkdownDocsSyncRevalidateConfig = {
+  paths?: boolean
+  tags?: string[]
 }

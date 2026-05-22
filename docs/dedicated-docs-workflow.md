@@ -11,10 +11,12 @@ tags:
 
 # Dedicated Docs Sync Workflow
 
-This guide covers the default workflow for syncing a Git-backed `docs/` folder into Payload-managed docs sets and generated docs records.
+This guide covers the default workflow for syncing a Git-backed docs package
+into Payload-managed docs sets, generated docs records, generated AI discovery
+files, and native agent skill asset records.
 
 The client sends docs content. Payload docs sets decide the source slug and
-branch; global Keys and Trusted records decide which credentials are allowed.
+branch; Access records decide which credentials and GitHub owners are allowed.
 Plugin config decides collections, fields, lifecycle behavior, and publishing
 modes.
 
@@ -53,10 +55,10 @@ payloadMarkdownDocs({
 The default endpoint is exposed at:
 
 ```text
-/api/payload-markdown-docs/sync
+/api/documentation/sync
 ```
 
-By default, the plugin adds Sets, Groups, Keys, and Trusted collections under
+By default, the plugin adds Sets, Groups, and Access collections under
 `Docs Globals`. Generated docs records are linked to docs sets and remain the
 internal records used for routing, search, and sync correctness.
 
@@ -74,7 +76,7 @@ The docs set edit view includes a generated docs manager. Use it to review gener
 
 ## Docs Source Tree
 
-Keep project documentation in a local Markdown tree:
+Keep project documentation in the conventional local package layout:
 
 ```text
 docs/
@@ -83,10 +85,23 @@ docs/
     installation.md
   configuration/
     sync.md
+skills/
+  main-docs/
+    codex/
+      SKILL.md
+    claude/
+      SKILL.md
 ```
 
 Supported files are `.md` only. Paths must be relative, must not contain
 traversal, and must remain inside the docs root passed to the CLI.
+
+Agent workflow packs are separate from human docs. Keep native skill artifacts
+under `skills/<source>/<agent>/` or install them into the target project with
+`payload-markdown-docs install skill --agent codex|claude`. During manifest
+generation, human docs become `files` and skills become `assets`. AI discovery
+files are generated at request time from synced docs, docs set metadata,
+dependencies, and skills.
 
 ## Key Generation
 
@@ -98,7 +113,7 @@ pnpm exec payload-markdown-docs keygen --out .docs-sync
 
 Use the generated keys this way:
 
-- `docs-sync-public.pem` goes into `Docs Globals > Keys` in Payload Admin.
+- `docs-sync-public.pem` goes into an Ed25519 record in `Docs Globals > Access`.
 - `docs-sync-private.pem` goes into a CI secret such as `DOCS_SYNC_PRIVATE_KEY`.
 - Do not commit the private key.
 
@@ -107,9 +122,9 @@ Use the generated keys this way:
 Validate the docs tree before any upload:
 
 ```bash
-pnpm exec payload-markdown-docs validate ./docs --source main-docs
-pnpm exec payload-markdown-docs manifest ./docs --source main-docs --pretty
-pnpm exec payload-markdown-docs plan ./docs --source main-docs
+pnpm exec payload-markdown-docs validate --source main-docs
+pnpm exec payload-markdown-docs manifest --source main-docs --pretty
+pnpm exec payload-markdown-docs plan --source main-docs
 ```
 
 `validate` catches path, frontmatter, hash, and manifest issues. `manifest` prints the JSON payload that will be signed. `plan` shows what would be created, updated, archived, drafted, deleted, or left unchanged against an optional existing-record input.
@@ -119,7 +134,7 @@ pnpm exec payload-markdown-docs plan ./docs --source main-docs
 Use dry-run before applying changes:
 
 ```bash
-pnpm exec payload-markdown-docs push ./docs \
+pnpm exec payload-markdown-docs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
   --source main-docs \
   --key-id github-actions-main \
@@ -136,15 +151,14 @@ without changing docs records.
 Apply docs changes only after server config enables writes:
 
 ```bash
-pnpm exec payload-markdown-docs push ./docs \
+pnpm exec payload-markdown-docs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
   --source main-docs \
   --key-id github-actions-main \
-  --private-key-env DOCS_SYNC_PRIVATE_KEY \
-  --sync
+  --private-key-env DOCS_SYNC_PRIVATE_KEY
 ```
 
-`--sync` requires:
+Sync writes require:
 
 ```ts
 sync: {
@@ -154,17 +168,41 @@ sync: {
 
 The server can create, update, reactivate, archive, draft, or hard-delete dedicated docs records according to server-owned config. It checks for manual edit conflicts before writing and records sync-run audit data.
 
+## Public AI Asset Routes
+
+Docs records render through the route adapter. Raw AI-facing assets use asset
+route handlers and committed Next route files.
+
+```bash
+pnpm exec payload-markdown-docs install routes --payload-app "src/app/(payload)"
+```
+
+The generated files must be committed and deployed. They expose public canonical
+routes outside `/api`, including:
+
+```text
+/llms.txt
+/llms-full.txt
+/<computed-docs-set-route>/llms.txt
+/<computed-docs-set-route>/llms-full.txt
+/<computed-docs-set-route>/skills/<agent>
+/<computed-docs-set-route>/skills/<agent>/SKILL.md
+/<computed-docs-set-route>/skills/<agent>.zip
+```
+
+If public asset route files are missing, `/api/...` asset URLs can work while
+the public URLs return rendered HTML 404 responses from the frontend catch-all.
+
 ## Publish
 
 Publishing is a request from the client and a server-owned decision.
 
 ```bash
-pnpm exec payload-markdown-docs push ./docs \
+pnpm exec payload-markdown-docs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
   --source main-docs \
   --key-id github-actions-main \
   --private-key-env DOCS_SYNC_PRIVATE_KEY \
-  --sync \
   --publish
 ```
 
@@ -210,8 +248,8 @@ Required secret:
 - `DOCS_SYNC_ENDPOINT`
 
 The matching docs set slug must match the CLI source. For GitHub OIDC, add a
-Trusted owner in Payload Admin. For Ed25519, add the public key in
-`Docs Globals > Keys`.
+GitHub OIDC record in `Docs Globals > Access`. For Ed25519, add an Ed25519 key
+record in `Docs Globals > Access`.
 
 ## Native Route Adapter
 
@@ -242,7 +280,9 @@ export default async function Page({ params }: { params: Promise<{ slug?: string
 }
 ```
 
-The route adapter can resolve exact docs records, docs set index routes, and docs group index routes where `serveIndex` is enabled. It returns `null` for normal Page routes so your app can fall back to existing Page rendering.
+The route adapter can resolve exact docs records, docs set index routes, and
+docs group index routes where `pageMode` is `auto`. It returns `null` for
+normal Page routes so your app can fall back to existing Page rendering.
 
 ## Docs Set Admin Manager
 
@@ -269,7 +309,10 @@ Implemented for this workflow:
 - signed sync endpoint
 - GitHub Actions OIDC auth
 - local CLI validation, manifest, plan, keygen, and push
-- native route adapter and frontend rendering helpers
+- native route adapter, dynamic sitemap helper, and frontend rendering helpers
+- generated root and docs-set AI discovery files
+- raw asset storage for skills and optional custom static assets
+- public asset route file installer for Next App Router apps
 - docs set admin manager
 - agent skill installer
 - sync writes behind `sync.allowWrites`

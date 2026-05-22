@@ -1,14 +1,16 @@
 import { postgresAdapter } from '@payloadcms/db-postgres'
 import { lexicalEditor } from '@payloadcms/richtext-lexical'
+import { payloadMarkdown } from '@valkyrianlabs/payload-markdown'
 import path from 'path'
 import { buildConfig } from 'payload'
 import sharp from 'sharp'
 import { fileURLToPath } from 'url'
 
 import { payloadMarkdownDocs } from '../dist'
+import { Pages } from './collections/Pages'
+import './helpers/loadDevEnv'
 import { Header } from './Header/config'
 import { testEmailAdapter } from './helpers/testEmailAdapter'
-import './helpers/loadDevEnv'
 import { seed } from './seed'
 
 const filename = fileURLToPath(import.meta.url)
@@ -25,6 +27,7 @@ export default buildConfig({
     },
   },
   collections: [
+    Pages,
     {
       slug: 'posts',
       fields: [],
@@ -49,7 +52,23 @@ export default buildConfig({
     await seed(payload)
   },
   plugins: [
+    payloadMarkdown({
+      collections: {
+        pages: {
+          installIntoBlocks: true,
+        }
+      }
+    }),
     payloadMarkdownDocs({
+      auth: {
+        ed25519: true
+      },
+      collections: {
+        pages: {
+          blocks: true,
+          heroes: true,
+        },
+      },
       enabled: true,
       sync: {
         allowHardDelete: false,

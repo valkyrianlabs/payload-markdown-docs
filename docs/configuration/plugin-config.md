@@ -61,9 +61,13 @@ export default buildConfig({
 - `sync` controls write, publish, and delete authority.
 - `routing` configures route collision checks.
 - `collections` customizes infrastructure collection slugs.
+- `blocks` optionally installs docs marketing blocks into existing layout block fields.
+- `heroes` optionally wraps or installs docs-set hero fields on the
+  pages collection. See [Docs Heroes](/frontend/docs-heroes).
+- `seo` controls docs set SEO fields. It defaults to `true`; set `false` to omit them.
 
-GitHub trust belongs in `Docs Globals > Trusted`. Ed25519 public keys belong in
-`Docs Globals > Keys`. Docs packages belong in `Docs Globals > Sets`.
+GitHub OIDC trust records and Ed25519 public keys both belong in
+`Docs Globals > Access`. Docs packages belong in `Docs Globals > Sets`.
 
 See [sync config](/configuration/sync-config) and [routing config](/configuration/routing-config) for the safety gates.
 
@@ -75,8 +79,8 @@ Payload Admin:
 - register the plugin once in `payload.config.ts`
 - create one docs set per docs package in `Docs Globals > Sets`
 - use docs groups for route namespaces such as `/plugins`
-- add global GitHub owners in `Docs Globals > Trusted`
-- add Ed25519 public keys in `Docs Globals > Keys` only for local or non-GitHub CI
+- add GitHub OIDC owners in `Docs Globals > Access`
+- add Ed25519 public keys in `Docs Globals > Access` only for local or non-GitHub CI
 - render docs from a Next route with the `/next` adapter
 - serve raw `.md` exports from explicit Next route handlers
 
@@ -160,10 +164,9 @@ the defaults:
 payloadMarkdownDocs({
   collections: {
     docs: { slug: 'generated-docs' },
+    docsAccess: { slug: 'docs-access' },
     docsGroups: { slug: 'docs-groups' },
     docsSets: { slug: 'docs-sets' },
-    docsKeys: { slug: 'docs-keys' },
-    docsTrusted: { slug: 'docs-trusted' },
     syncRuns: { slug: 'docs-sync-runs' },
     nonces: { slug: 'docs-sync-nonces' },
   },
@@ -197,15 +200,35 @@ payloadMarkdownDocs({
 
 Set `target.heroImage: false` to omit the field.
 
+## SEO Fields
+
+Docs sets include a `meta` group by default, powered by
+`@payloadcms/plugin-seo` field components:
+
+```ts
+payloadMarkdownDocs({
+  seo: true,
+})
+```
+
+Set `seo: false` when an app wants to manage docs set metadata outside this
+plugin:
+
+```ts
+payloadMarkdownDocs({
+  seo: false,
+})
+```
+
 ## Endpoint
 
-The sync endpoint defaults to `/api/payload-markdown-docs/sync` because Payload
+The sync endpoint defaults to `/api/documentation/sync` because Payload
 mounts plugin endpoints under `/api`.
 
 ```ts
 payloadMarkdownDocs({
   endpoint: {
-    path: '/payload-markdown-docs/sync',
+    path: '/documentation/sync',
     maxBodyBytes: 5_000_000,
   },
 })

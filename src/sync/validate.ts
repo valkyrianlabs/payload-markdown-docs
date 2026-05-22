@@ -1,10 +1,12 @@
 import type {
   DocsDeleteBehavior,
   DocsManifest,
+  DocsManifestAssetKind,
   DocsManifestFile,
   DocsManifestSource,
   DocsSyncMode,
   ValidatedDocsManifest,
+  ValidatedDocsManifestAsset,
   ValidatedDocsManifestFile,
 } from './manifest.js'
 
@@ -14,20 +16,26 @@ import {
   DEFAULT_MAX_DOCS_FILES,
   DEFAULT_MAX_DOCS_TOTAL_BYTES,
 } from '../constants.js'
-import { validateDocsAiExportManifest } from './aiExportManifest.js'
 import {
   parseDocsFrontmatter,
   resolveDocsTitle,
 } from './frontmatter.js'
 import { sha256Hex } from './hash.js'
-import { deriveRouteFromSourcePath, normalizeDocsPath } from './paths.js'
+import {
+  deriveAssetRouteFromSourcePath,
+  deriveRouteFromSourcePath,
+  normalizeAssetPath,
+  normalizeDocsPath,
+} from './paths.js'
 
 export type DocsValidationErrorCode =
+  | 'asset_too_large'
+  | 'duplicate_asset_path'
   | 'duplicate_existing_path'
   | 'duplicate_path'
   | 'empty_manifest'
   | 'file_too_large'
-  | 'invalid_ai_export_manifest'
+  | 'invalid_asset'
   | 'invalid_delete_behavior'
   | 'invalid_frontmatter'
   | 'invalid_hash'
@@ -37,9 +45,9 @@ export type DocsValidationErrorCode =
   | 'invalid_source'
   | 'invalid_version'
   | 'manifest_too_large'
-  | 'missing_ai_export_order_path'
   | 'non_markdown_file'
   | 'path_traversal'
+  | 'too_many_assets'
   | 'too_many_files'
 
 export type DocsValidationIssue = {
@@ -63,6 +71,8 @@ export type DocsValidationResult<T = unknown> =
 
 export type DocsValidationOptions = {
   allowedSourceIds?: string[]
+  assetRouteBase?: string
+  maxAssets?: number
   maxFileBytes?: number
   maxFiles?: number
   maxTotalBytes?: number
@@ -70,6 +80,7 @@ export type DocsValidationOptions = {
 }
 
 const syncModes = new Set<DocsSyncMode>(['dry-run', 'sync'])
+const assetKinds = new Set<DocsManifestAssetKind>(['llms', 'llms-full', 'skill', 'static'])
 const deleteBehaviors = new Set<DocsDeleteBehavior>([
   'archive',
   'delete',
@@ -319,6 +330,144 @@ const validateManifestFile = ({
   }
 }
 
+const validateManifestAsset = ({
+  asset,
+  assetRouteBase,
+  maxFileBytes,
+  sourceId,
+}: {
+  asset: unknown
+  assetRouteBase: string
+  maxFileBytes: number
+  sourceId?: string
+}): {
+  assetBytes: number
+  issues: DocsValidationIssue[]
+  normalizedPath?: string
+  validatedAsset?: ValidatedDocsManifestAsset
+  warnings: DocsValidationIssue[]
+} => {
+  const issues: DocsValidationIssue[] = []
+  const warnings: DocsValidationIssue[] = []
+
+  if (!isRecord(asset)) {
+    return {
+      assetBytes: 0,
+      issues: [
+        createIssue({
+          code: 'invalid_asset',
+          message: 'Manifest asset entries must be objects.',
+        }),
+      ],
+      warnings,
+    }
+  }
+
+  const path = typeof asset.path === 'string' ? asset.path : undefined
+  const content = typeof asset.content === 'string' ? asset.content : undefined
+  const contentType =
+    typeof asset.contentType === 'string' && asset.contentType.trim() !== ''
+      ? asset.contentType.trim()
+      : undefined
+  const kind = asset.kind as DocsManifestAssetKind | undefined
+  const route =
+    typeof asset.route === 'string' && asset.route.trim() !== '' ? asset.route : undefined
+
+  if (!path || content === undefined || !contentType || !kind) {
+    return {
+      assetBytes: 0,
+      issues: [
+        createIssue({
+          code: 'invalid_asset',
+          message: 'Manifest asset entries require string path, content, contentType, and kind.',
+          path,
+        }),
+      ],
+      warnings,
+    }
+  }
+
+  if (!assetKinds.has(kind)) {
+    return {
+      assetBytes: 0,
+      issues: [
+        createIssue({
+          code: 'invalid_asset',
+          message: 'Manifest asset kind must be llms, llms-full, skill, or static.',
+          path,
+        }),
+      ],
+      warnings,
+    }
+  }
+
+  const normalizedPath = normalizeAssetPath(path)
+
+  if (!normalizedPath.ok) {
+    return {
+      assetBytes: 0,
+      issues: [
+        createIssue({
+          code: normalizedPath.code,
+          message: normalizedPath.message,
+          path,
+        }),
+      ],
+      warnings,
+    }
+  }
+
+  const assetBytes = byteLength(content)
+
+  if (assetBytes > maxFileBytes) {
+    issues.push(
+      createIssue({
+        code: 'asset_too_large',
+        message: `Asset exceeds maximum size of ${maxFileBytes} bytes.`,
+        path: normalizedPath.path,
+      }),
+    )
+  }
+
+  const computedHash = sha256Hex(content)
+
+  if (
+    asset.sha256 !== undefined &&
+    (typeof asset.sha256 !== 'string' ||
+      !/^[a-f0-9]{64}$/i.test(asset.sha256) ||
+      asset.sha256.toLowerCase() !== computedHash)
+  ) {
+    issues.push(
+      createIssue({
+        code: 'invalid_hash',
+        message: 'Manifest asset sha256 does not match content.',
+        path: normalizedPath.path,
+      }),
+    )
+  }
+
+  return {
+    assetBytes,
+    issues,
+    normalizedPath: normalizedPath.path,
+    validatedAsset: {
+      content,
+      contentType,
+      kind,
+      path: normalizedPath.path,
+      route: deriveAssetRouteFromSourcePath({
+        kind,
+        route,
+        routeBase: assetRouteBase,
+        sourceId,
+        sourcePath: normalizedPath.path,
+      }),
+      sha256: computedHash,
+    },
+    warnings,
+  }
+}
+
 export const validateDocsManifest = (
   manifest: unknown,
   options: DocsValidationOptions = {},
@@ -326,9 +475,11 @@ export const validateDocsManifest = (
   const issues: DocsValidationIssue[] = []
   const warnings: DocsValidationIssue[] = []
   const maxFileBytes = options.maxFileBytes ?? DEFAULT_MAX_DOCS_FILE_BYTES
+  const maxAssets = options.maxAssets ?? DEFAULT_MAX_DOCS_FILES
   const maxFiles = options.maxFiles ?? DEFAULT_MAX_DOCS_FILES
   const maxTotalBytes = options.maxTotalBytes ?? DEFAULT_MAX_DOCS_TOTAL_BYTES
   const routeBase = options.routeBase ?? DEFAULT_DOCS_ROUTE_BASE
+  const assetRouteBase = options.assetRouteBase ?? routeBase
 
   if (!isRecord(manifest)) {
     return {
@@ -366,7 +517,7 @@ export const validateDocsManifest = (
   issues.push(...deleteBehaviorValidation.issues)
 
   const publish =
-    manifest.publish === undefined ? false : manifest.publish === true ? true : false
+    manifest.publish === undefined ? false : manifest.publish === true
 
   if (manifest.publish !== undefined && typeof manifest.publish !== 'boolean') {
     issues.push(
@@ -378,12 +529,36 @@ export const validateDocsManifest = (
   }
 
   const files = Array.isArray(manifest.files) ? manifest.files : undefined
+  const assets =
+    manifest.assets === undefined
+      ? []
+      : Array.isArray(manifest.assets)
+        ? manifest.assets
+        : undefined
 
-  if (!files || files.length === 0) {
+  if (!files) {
+    issues.push(
+      createIssue({
+        code: 'invalid_manifest',
+        message: 'Manifest files must be an array.',
+      }),
+    )
+  }
+
+  if (!assets) {
+    issues.push(
+      createIssue({
+        code: 'invalid_manifest',
+        message: 'Manifest assets must be an array when provided.',
+      }),
+    )
+  }
+
+  if ((files?.length ?? 0) === 0 && (assets?.length ?? 0) === 0) {
     issues.push(
       createIssue({
         code: 'empty_manifest',
-        message: 'Manifest must include at least one file.',
+        message: 'Manifest must include at least one docs file or asset.',
       }),
     )
   }
@@ -397,8 +572,19 @@ export const validateDocsManifest = (
     )
   }
 
+  if (assets && assets.length > maxAssets) {
+    issues.push(
+      createIssue({
+        code: 'too_many_assets',
+        message: `Manifest exceeds maximum asset count of ${maxAssets}.`,
+      }),
+    )
+  }
+
   const validatedFiles: ValidatedDocsManifestFile[] = []
+  const validatedAssets: ValidatedDocsManifestAsset[] = []
   const normalizedPaths = new Set<string>()
+  const normalizedAssetPaths = new Set<string>()
   let totalBytes = 0
 
   for (const file of files ?? []) {
@@ -431,6 +617,37 @@ export const validateDocsManifest = (
     }
   }
 
+  for (const asset of assets ?? []) {
+    const assetValidation = validateManifestAsset({
+      asset,
+      assetRouteBase,
+      maxFileBytes,
+      sourceId: sourceValidation.source?.id,
+    })
+
+    totalBytes += assetValidation.assetBytes
+    issues.push(...assetValidation.issues)
+    warnings.push(...assetValidation.warnings)
+
+    if (assetValidation.normalizedPath) {
+      if (normalizedAssetPaths.has(assetValidation.normalizedPath)) {
+        issues.push(
+          createIssue({
+            code: 'duplicate_asset_path',
+            message: 'Manifest contains duplicate normalized asset paths.',
+            path: assetValidation.normalizedPath,
+          }),
+        )
+      }
+
+      normalizedAssetPaths.add(assetValidation.normalizedPath)
+    }
+
+    if (assetValidation.validatedAsset) {
+      validatedAssets.push(assetValidation.validatedAsset)
+    }
+  }
+
   if (totalBytes > maxTotalBytes) {
     issues.push(
       createIssue({
@@ -440,23 +657,7 @@ export const validateDocsManifest = (
     )
   }
 
-  const aiExportValidation =
-    manifest.aiExport === undefined
-      ? undefined
-      : validateDocsAiExportManifest(manifest.aiExport, {
-          knownDocsPaths: normalizedPaths,
-        })
-
-  if (aiExportValidation) {
-    issues.push(...aiExportValidation.issues)
-    warnings.push(...aiExportValidation.warnings)
-  }
-
-  if (
-    issues.length > 0 ||
-    !sourceValidation.source ||
-    aiExportValidation?.ok === false
-  ) {
+  if (issues.length > 0 || !sourceValidation.source) {
     return {
       issues,
       ok: false,
@@ -466,8 +667,8 @@ export const validateDocsManifest = (
 
   return {
     data: {
+      assets: validatedAssets,
       deleteBehavior: deleteBehaviorValidation.deleteBehavior,
-      ...(aiExportValidation?.ok ? { aiExport: aiExportValidation.manifest } : {}),
       files: validatedFiles,
       mode: modeValidation.mode,
       publish,

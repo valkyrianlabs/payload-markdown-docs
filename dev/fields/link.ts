@@ -19,10 +19,10 @@ type LinkType = (options?: {
   overrides?: LinkGroupOverrides
 }) => Field
 
-type LinkGroupOverrides = Partial<Omit<NamedGroupField, 'admin' | 'fields' | 'name' | 'type'>> & {
+type LinkGroupOverrides = {
   admin?: NamedGroupField['admin']
   fields?: NamedGroupField['fields']
-}
+} & Partial<Omit<NamedGroupField, 'admin' | 'fields' | 'name' | 'type'>>
 
 const mergeGroupField = (field: NamedGroupField, overrides: LinkGroupOverrides): NamedGroupField => {
   const { admin, fields, ...rest } = overrides

@@ -21,7 +21,7 @@ Two auth modes are supported:
 ## Dry Run
 
 ```bash
-pnpm exec payload-markdown-docs push ./docs \
+pnpm exec payload-markdown-docs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
   --source main-docs \
   --key-id github-actions-main \
@@ -29,17 +29,17 @@ pnpm exec payload-markdown-docs push ./docs \
   --dry-run
 ```
 
-Dry-run is the default when neither `--dry-run` nor `--sync` is provided.
+Dry-run is an explicit validation-only mode. Without `--dry-run`, `push`
+defaults to sync mode.
 
 ## Sync
 
 ```bash
-pnpm exec payload-markdown-docs push ./docs \
+pnpm exec payload-markdown-docs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
   --source main-docs \
   --key-id github-actions-main \
-  --private-key-env DOCS_SYNC_PRIVATE_KEY \
-  --sync
+  --private-key-env DOCS_SYNC_PRIVATE_KEY
 ```
 
 Sync mode requires `sync.allowWrites: true` on the server.
@@ -58,21 +58,20 @@ Content-Type: application/json
 ```
 
 The endpoint reads the manifest source, resolves the matching docs set, and
-then verifies the request against the global Keys collection before it applies
-the manifest.
+then verifies the request against an Ed25519 record in the Access collection
+before it applies the manifest.
 
 Private keys may be CLI-generated PKCS#8 PEM/base64 keys or unencrypted
-OpenSSH Ed25519 private keys. Public keys in `Docs Globals > Keys` may be
+OpenSSH Ed25519 private keys. Public keys in `Docs Globals > Access` may be
 PKCS#8/SPKI public keys from `keygen` or `ssh-ed25519 ...` OpenSSH public keys.
 
 ## GitHub OIDC
 
 ```bash
-pnpm exec payload-markdown-docs push ./docs \
+pnpm exec payload-markdown-docs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
   --source main-docs \
-  --github-oidc \
-  --sync
+  --github-oidc
 ```
 
 In OIDC mode, the CLI sends:
@@ -85,7 +84,7 @@ Content-Type: application/json
 
 OIDC is bearer authentication, not a body signature. The server resolves the
 docs set, verifies the JWT against GitHub's JWKS, checks docs-set claim
-branch plus global Trusted owner/repository records, checks the body hash, and
+branch plus Access owner/repository records, checks the body hash, and
 uses the token `jti` for replay protection.
 
 See the [security model](/concepts/security-model).

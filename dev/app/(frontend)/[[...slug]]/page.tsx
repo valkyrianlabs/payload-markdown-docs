@@ -3,13 +3,27 @@ import { notFound } from 'next/navigation'
 import { getPayload } from 'payload'
 
 import type { PayloadMarkdownDocsReadPayload } from '../../../../dist/next'
+import type { Page as PageType } from '../../../payload-types'
 
-import { PayloadMarkdownDocsPage, resolvePayloadMarkdownDocsRoute } from '../../../../dist/next'
+import {
+  PayloadMarkdownDocsPage,
+  resolvePayloadMarkdownDocsRoute,
+} from '../../../../dist/next'
+import { RenderBlocks } from '../../../blocks/RenderBlocks'
+import { RenderHero } from '../../../heros/RenderHero'
 
 type PageProps = {
   params: Promise<{
     slug?: string[]
   }>
+}
+
+export const dynamic = 'force-dynamic'
+
+const getPagePath = (slug: string[]): string => {
+  const path = `/${slug.join('/')}`.replace(/\/+/g, '/')
+
+  return path.length > 1 ? path.replace(/\/+$/g, '') : path
 }
 
 const Page = async ({ params }: PageProps) => {
@@ -65,7 +79,30 @@ const Page = async ({ params }: PageProps) => {
     return <PayloadMarkdownDocsPage resolved={resolved} />
   }
 
-  notFound()
+  const pagePath = getPagePath(slug)
+  const pages = await payload.find({
+    collection: 'pages',
+    depth: 2,
+    limit: 1,
+    overrideAccess: false,
+    where: {
+      fullPath: {
+        equals: pagePath,
+      },
+    },
+  })
+  const page = pages.docs[0] as PageType | undefined
+
+  if (!page) {
+    notFound()
+  }
+
+  return (
+    <>
+      <RenderHero {...page.hero} />
+      <RenderBlocks blocks={page.layout} collectionSlug="pages" />
+    </>
+  )
 }
 
 export default Page

@@ -22,7 +22,7 @@ The sync protocol uses JSON manifest uploads, not ZIP files.
     "branch": "main",
     "repository": "valkyrianlabs/payload-markdown-docs"
   },
-  "mode": "dry-run",
+  "mode": "sync",
   "deleteBehavior": "archive",
   "publish": false,
   "files": [
@@ -30,6 +30,16 @@ The sync protocol uses JSON manifest uploads, not ZIP files.
       "path": "getting-started/installation.md",
       "sha256": "...",
       "content": "# Installation\n\n..."
+    }
+  ],
+  "assets": [
+    {
+      "kind": "skill",
+      "path": "skills/main-docs/codex/SKILL.md",
+      "route": "/plugins/main-docs/skills/codex/SKILL.md",
+      "contentType": "text/markdown; charset=utf-8",
+      "sha256": "...",
+      "content": "# Skill\n\n..."
     }
   ]
 }
@@ -46,64 +56,43 @@ The sync protocol uses JSON manifest uploads, not ZIP files.
 - frontmatter must use the supported subset
 - file count and size limits are enforced
 
+## Static Assets
+
+`files` are docs records and use frontmatter, title resolution, and route
+derivation. `assets` are native skill artifacts and optional static fallback
+artifacts stored separately. They do not require frontmatter and are not parsed
+as docs pages.
+
+Supported asset kinds:
+
+- `llms`
+- `llms-full`
+- `skill`
+- `static`
+
+`llms` and `llms-full` assets are optional custom static fallback files. By
+default, `/llms.txt`, `/llms-full.txt`, and docs-set `llms` files are generated
+by the plugin from synced docs, docs set metadata, dependencies, and skills.
+Skill routes are derived from the computed docs set route, so
+`skills/main-docs/codex/SKILL.md` serves under a public route such as
+`/plugins/main-docs/skills/codex/SKILL.md`. The agent root route, for example
+`/plugins/main-docs/skills/codex`, is generated as a Markdown directory index,
+and `/plugins/main-docs/skills/codex.zip` is generated from the synced text
+artifacts rather than stored as a static ZIP asset.
+
 :::callout {variant="info" title="No target config in the manifest"}
-The manifest does not include target collection, target fields, route base, publish authority, or hard-delete authority.
+The manifest does not include target collection, target fields, route identity,
+publish authority, or hard-delete authority.
 :::
 
 See [frontmatter](/reference/frontmatter).
 
-## AI Export Manifest
+## Agent Artifacts
 
-`docs/index.ai.yml` is a separate source-controlled YAML manifest for the
-AI-facing raw Markdown export. The CLI parses it during manifest generation and
-the sync endpoint stores the validated control data on the docs set. The file is
-not a docs page and is not shown in human docs navigation.
+The sync manifest is not the AI workflow artifact. AI-first support is delivered
+through native skill directories under `skills/payload-markdown-docs/<agent>/`.
+Those files can be installed by the CLI, packaged with the npm build, or served
+by a docs website for direct download.
 
-Preferred path:
-
-```text
-docs/index.ai.yml
-```
-
-`docs/index.ai.yaml` is also supported. Plain `docs/index.yml` is intentionally
-not used because that name is too generic for future human docs navigation,
-metadata, sidebar, or indexing features.
-
-```yaml
-version: 1
-title: Payload Markdown Documentation
-canonical: /plugins/payload-markdown
-output: /plugins/payload-markdown.md
-description: >
-  Consolidated AI-facing documentation export for Payload Markdown.
-preamble: |
-  This file is intended for AI agents, editor tooling, Codex, ChatGPT,
-  and offline reference.
-order:
-  - ./index.md
-  - ./install.md
-orphans: append
-headingMode: normalize
-```
-
-Supported first-pass behavior:
-
-- `orphans: append` includes unlisted docs at the end using deterministic fallback order.
-- `orphans: ignore` omits unlisted docs.
-- `headingMode: normalize` renders each page under a generated section heading and shifts nested headings down.
-- `headingMode: preserve` keeps original Markdown headings as-is.
-
-Defaults are `orphans: append` and `headingMode: normalize`.
-
-## Raw Markdown Route
-
-The `output` field is the intended public `.md` URL. The plugin stores the
-validated manifest data on the docs set during sync, and the `/next` helper uses
-that data to assemble one Markdown response from generated docs records.
-
-The route is served by a Next route handler, not by a generated Payload Page.
-If `output` is omitted, the fallback route is the docs set route base with `.md`
-appended, such as `/plugins/payload-markdown-docs.md`.
-
-Keep `canonical` pointed at the human docs route and `output` pointed at the raw
-Markdown route.
+Keep `/docs` focused on human documentation and `/skills` focused on
+agent-native workflow instructions.

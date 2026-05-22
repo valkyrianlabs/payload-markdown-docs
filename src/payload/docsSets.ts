@@ -1,6 +1,14 @@
+import type { DocsSetRouteMode } from '../routing/index.js'
 import type { PayloadMarkdownDocsAuthToggle } from '../types.js'
 
-import { deriveDocsSetRouteBase, joinRouteSegments, normalizeRoutePath } from '../routing/index.js'
+import {
+  DEFAULT_DOCS_SET_ROUTE_MODE,
+  deriveDocsSetProductRoutePath,
+  deriveDocsSetRouteBase,
+  isRouteDescendant,
+  joinRouteSegments,
+  normalizeRoutePath,
+} from '../routing/index.js'
 
 export type DocsSetPayloadOperations = {
   find: (args: {
@@ -9,6 +17,7 @@ export type DocsSetPayloadOperations = {
     draft?: boolean
     limit?: number
     overrideAccess?: boolean
+    sort?: string
     where?: unknown
   }) => Promise<{
     docs: unknown[]
@@ -26,6 +35,7 @@ export type PayloadRecordId = number | string
 
 export type ResolvedDocsGroup = {
   id: PayloadRecordId
+  pageMode: 'auto' | 'custom'
   parentId?: string
   routePath: string
   slug: string
@@ -38,10 +48,16 @@ export type ResolvedDocsSet = {
   }
   allowPullRequests: boolean
   branch: string
+  description?: string
   groupId?: string
+  groupPageMode?: 'auto' | 'custom'
+  groupRoutePath?: string
   id: PayloadRecordId
+  productRoute: string
   routeBase: string
+  routeMode: DocsSetRouteMode
   slug: string
+  title: string
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -71,6 +87,17 @@ const getRelationshipId = (value: unknown): string | undefined => {
 
 const getString = (value: unknown): string | undefined =>
   typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined
+
+const getRouteMode = (value: unknown): DocsSetRouteMode =>
+  value === 'product-nested' || value === 'docs-root' ? value : DEFAULT_DOCS_SET_ROUTE_MODE
+
+const getGroupPageMode = (doc: Record<string, unknown>): 'auto' | 'custom' => {
+  if (doc.pageMode === 'custom') {
+    return 'custom'
+  }
+
+  return 'auto'
+}
 
 const getStringArray = (value: unknown): string[] => {
   if (!Array.isArray(value)) {
@@ -116,23 +143,17 @@ export const isEd25519AuthEnabled = (
 ): boolean => auth?.mode !== 'disabled' && authToggleEnabled(auth?.ed25519, false)
 
 export const updateDocsSetAfterSync = async ({
-  aiExport,
   collectionSlug,
-  docsCount,
   docsSetId,
   now,
   payload,
   publish,
-  syncRunId,
 }: {
-  aiExport?: unknown
   collectionSlug: string
-  docsCount: number
   docsSetId: PayloadRecordId
   now: Date
   payload: DocsSetPayloadOperations
   publish: boolean
-  syncRunId?: PayloadRecordId
 }): Promise<void> => {
   if (!payload.update) {
     return
@@ -143,12 +164,9 @@ export const updateDocsSetAfterSync = async ({
     collection: collectionSlug,
     data: {
       _status: publish ? 'published' : 'draft',
-      aiExport: aiExport ?? null,
       sync: {
-        docsCount,
         lastStatus: 'success',
         lastSyncedAt: now.toISOString(),
-        lastSyncRunId: syncRunId,
       },
     },
     draft: !publish,
@@ -178,6 +196,7 @@ const toResolvedGroup = (
     return {
       id,
       slug,
+      pageMode: getGroupPageMode(doc),
       routePath: joinRouteSegments(slug),
     }
   }
@@ -191,6 +210,7 @@ const toResolvedGroup = (
   return {
     id,
     slug,
+    pageMode: getGroupPageMode(doc),
     parentId,
     routePath: joinRouteSegments(parentGroup?.routePath, slug),
   }
@@ -218,6 +238,11 @@ const toResolvedDocsSet = ({
   const group = groupId ? toResolvedGroup(groupsById.get(groupId), groupsById) : undefined
   const advancedSecurity = isRecord(doc.advancedSecurity) ? doc.advancedSecurity : undefined
   const advancedSecurityEnabled = advancedSecurity?.enabled === true
+  const routeMode = getRouteMode(doc.routeMode)
+  const productRoute = deriveDocsSetProductRoutePath({
+    docsSetSlug: slug,
+    groupRoutePath: group?.routePath,
+  })
 
   return {
     id,
@@ -232,13 +257,20 @@ const toResolvedDocsSet = ({
     slug,
     allowPullRequests: doc.allowPullRequests === true,
     branch: getString(doc.branch) ?? 'main',
+    description: getString(doc.description),
     groupId,
+    groupPageMode: group?.pageMode,
+    groupRoutePath: group?.routePath,
+    productRoute,
     routeBase: normalizeRoutePath(
       deriveDocsSetRouteBase({
         docsSetSlug: slug,
         groupRoutePath: group?.routePath,
+        routeMode,
       }),
     ),
+    routeMode,
+    title: getString(doc.title) ?? slug,
   }
 }
 
@@ -340,4 +372,99 @@ export const findDocsSetByRouteBase = async ({
       }),
     )
     .find((docsSet) => docsSet?.routeBase === normalizedRouteBase)
+}
+
+export const findDocsSetByRoutePrefix = async ({
+  collectionSlug,
+  docsGroupsCollectionSlug,
+  payload,
+  route,
+}: {
+  collectionSlug: string
+  docsGroupsCollectionSlug: string
+  payload: DocsSetPayloadOperations
+  route: string
+}): Promise<ResolvedDocsSet | undefined> => {
+  const [result, groupsById] = await Promise.all([
+    payload.find({
+      collection: collectionSlug,
+      depth: 0,
+      draft: false,
+      limit: 1000,
+      overrideAccess: true,
+    }),
+    getGroupsById({
+      collectionSlug: docsGroupsCollectionSlug,
+      payload,
+    }),
+  ])
+  const normalizedRoute = normalizeRoutePath(route)
+
+  return result.docs
+    .map((doc) =>
+      toResolvedDocsSet({
+        doc,
+        groupsById,
+      }),
+    )
+    .flatMap((docsSet) => {
+      if (!docsSet) {
+        return []
+      }
+
+      const matchedRoutePrefix =
+        docsSet.routeBase === normalizedRoute ||
+        isRouteDescendant(docsSet.routeBase, normalizedRoute)
+          ? docsSet.routeBase
+          : docsSet.productRoute === normalizedRoute ||
+              isRouteDescendant(docsSet.productRoute, normalizedRoute)
+            ? docsSet.productRoute
+            : undefined
+
+      return matchedRoutePrefix
+        ? [
+            {
+              docsSet,
+              matchedRoutePrefix,
+            },
+          ]
+        : []
+    })
+    .sort((first, second) => second.matchedRoutePrefix.length - first.matchedRoutePrefix.length)[0]
+    ?.docsSet
+}
+
+export const findAllDocsSets = async ({
+  collectionSlug,
+  docsGroupsCollectionSlug,
+  payload,
+}: {
+  collectionSlug: string
+  docsGroupsCollectionSlug: string
+  payload: DocsSetPayloadOperations
+}): Promise<ResolvedDocsSet[]> => {
+  const [result, groupsById] = await Promise.all([
+    payload.find({
+      collection: collectionSlug,
+      depth: 0,
+      draft: false,
+      limit: 1000,
+      overrideAccess: true,
+    }),
+    getGroupsById({
+      collectionSlug: docsGroupsCollectionSlug,
+      payload,
+    }),
+  ])
+
+  return result.docs
+    .flatMap((doc) => {
+      const docsSet = toResolvedDocsSet({
+        doc,
+        groupsById,
+      })
+
+      return docsSet ? [docsSet] : []
+    })
+    .sort((first, second) => first.routeBase.localeCompare(second.routeBase))
 }

@@ -1,10 +1,11 @@
 import type { Endpoint, PayloadRequest } from 'payload'
 
 import type {
+  ApplyDocsAssetsSyncPayloadOperations,
   ApplyDocsSyncPayloadOperations,
-  DocsKeyPayloadOperations,
+  DocsAccessPayloadOperations,
   DocsSetPayloadOperations,
-  DocsTrustedPayloadOperations,
+  ExistingAssetsPayloadOperations,
   ExistingDocsPayloadOperations,
   ExistingPayloadDocsRecord,
   ResolvedDocsSet,
@@ -16,31 +17,41 @@ import type {
   DocsDeleteBehavior,
   DocsManifest,
   DocsValidationIssue,
+  PlannedAssetChange,
   PlannedDocChange,
   ValidatedDocsManifest,
 } from '../sync/index.js'
-import type { PayloadMarkdownDocsAuthConfig } from '../types.js'
+import type {
+  PayloadMarkdownDocsAuthConfig,
+  PayloadMarkdownDocsSyncRevalidateConfig,
+} from '../types.js'
 
 import {
+  DEFAULT_DOCS_ASSETS_COLLECTION_SLUG,
   DEFAULT_MAX_BODY_BYTES,
   DEFAULT_MAX_SKEW_SECONDS,
   DEFAULT_NONCE_TTL_SECONDS,
 } from '../constants.js'
 import {
+  applyDocsAssetsSync,
   applyDocsSync,
   assertApplyDeleteBehaviorSupported,
   createSyncRunAudit,
   findConfiguredPagesRouteCollisions,
+  findDocsAssetsSyncConflicts,
   findDocsKeyById,
   findDocsSetBySlug,
   findDocsSyncConflicts,
   findDuplicateDesiredRouteCollisions,
+  findExistingAssetRouteCollisions,
   findExistingDocsRouteCollisions,
+  findExistingPayloadDocsAssetRecords,
   findExistingPayloadDocsRecords,
   findTrustedGitHubSources,
   getRecordId,
   isEd25519AuthEnabled,
   isGitHubOidcAuthEnabled,
+  toExistingAssetRecord,
   toExistingDocsRecord,
   updateDocsSetAfterSync,
   updateSyncRunAudit,
@@ -56,15 +67,20 @@ import {
   verifyEd25519Signature,
   verifyGitHubOidcToken,
 } from '../security/index.js'
-import { planDocsSync, validateDocsManifest } from '../sync/index.js'
+import { planDocsAssetsSync, planDocsSync, validateDocsManifest } from '../sync/index.js'
+import {
+  DOCS_ASSETS_STORAGE_UNAVAILABLE_MESSAGE,
+  getErrorMessage,
+  isDocsAssetsStorageUnavailableError,
+} from './assetsStorage.js'
 
 export type DocsSyncEndpointErrorCode =
+  | 'assets_storage_unavailable'
   | 'audit_unavailable'
   | 'auth_disabled'
   | 'body_hash_mismatch'
   | 'delete_behavior_not_implemented'
   | 'draft_behavior_not_available'
-  | 'dry_run_required_not_implemented'
   | 'hard_delete_disabled'
   | 'invalid_body'
   | 'invalid_manifest'
@@ -94,6 +110,7 @@ export type DocsSyncEndpointErrorCode =
   | 'route_collision'
   | 'source_not_allowed'
   | 'sync_apply_failed'
+  | 'sync_endpoint_failed'
   | 'sync_mode_not_implemented'
   | 'sync_writes_disabled'
   | 'unknown_key'
@@ -104,16 +121,16 @@ export type CreateSyncEndpointOptions = {
   allowWrites?: boolean
   auth?: PayloadMarkdownDocsAuthConfig
   deleteBehavior?: DocsDeleteBehavior
+  docsAccessCollectionSlug: string
+  docsAccessEnabled: boolean
+  docsAssetsCollectionSlug?: string
+  docsAssetsEnabled?: boolean
   docsCollectionSlug: string
   docsEnabled: boolean
   docsEnableDrafts: boolean
   docsGroupsCollectionSlug: string
-  docsKeysCollectionSlug: string
-  docsKeysEnabled: boolean
   docsSetsCollectionSlug: string
   docsSetsEnabled: boolean
-  docsTrustedCollectionSlug: string
-  docsTrustedEnabled: boolean
   endpointPath: string
   getNow?: () => Date
   markdownFieldName: string
@@ -123,7 +140,7 @@ export type CreateSyncEndpointOptions = {
   noncesEnabled: boolean
   nonceTtlSeconds?: number
   oidcFetchJson?: FetchJson
-  requireDryRunBeforeApply?: boolean
+  revalidate?: false | PayloadMarkdownDocsSyncRevalidateConfig
   routing?: {
     pages?: {
       allowBridgePages: boolean
@@ -170,7 +187,32 @@ type SerializedChange = {
   sourcePath: string
 }
 
+type SerializedAssetChange = {
+  current?: {
+    archived?: boolean
+    contentType: string
+    kind: string
+    route?: string
+    sourceHash?: string
+  }
+  desired?: {
+    contentType: string
+    kind: string
+    route?: string
+    sha256: string
+  }
+  reason: string
+  sourcePath: string
+}
+
 type SyncSuccessResponse = {
+  assetChanges: {
+    archive: SerializedAssetChange[]
+    create: SerializedAssetChange[]
+    delete: SerializedAssetChange[]
+    unchanged: SerializedAssetChange[]
+    update: SerializedAssetChange[]
+  }
   changes: {
     archive: SerializedChange[]
     create: SerializedChange[]
@@ -185,6 +227,11 @@ type SyncSuccessResponse = {
   publishRequested: boolean
   summary: {
     archive: number
+    assetArchive: number
+    assetCreate: number
+    assetDelete: number
+    assetUnchanged: number
+    assetUpdate: number
     create: number
     delete: number
     draft: number
@@ -219,6 +266,9 @@ const errorResponse = (
     status,
   )
 
+const docsAssetsStorageUnavailableResponse = (): Response =>
+  errorResponse('assets_storage_unavailable', DOCS_ASSETS_STORAGE_UNAVAILABLE_MESSAGE, 500)
+
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
 
@@ -233,6 +283,7 @@ const parseManifestBody = (rawBody: string): DocsManifest | undefined => {
 }
 
 type ResolvedSyncSource = {
+  assetRouteBase: string
   docsSet: ResolvedDocsSet
   routeBase: string
   sourceId: string
@@ -281,6 +332,7 @@ const resolveSyncSource = async ({
   if (docsSet) {
     return {
       source: {
+        assetRouteBase: docsSet.productRoute,
         docsSet,
         routeBase: docsSet.routeBase,
         sourceId,
@@ -305,6 +357,14 @@ const summarizePlan = (plan: ReturnType<typeof planDocsSync>) => ({
   unchanged: plan.unchanged.length,
   update: plan.update.length,
   warnings: plan.warnings.length,
+})
+
+const summarizeAssetPlan = (plan: ReturnType<typeof planDocsAssetsSync>) => ({
+  assetArchive: plan.archive.length,
+  assetCreate: plan.create.length,
+  assetDelete: plan.delete.length,
+  assetUnchanged: plan.unchanged.length,
+  assetUpdate: plan.update.length,
 })
 
 const serializeChange = (change: PlannedDocChange): SerializedChange => ({
@@ -336,8 +396,186 @@ const serializeChanges = (plan: ReturnType<typeof planDocsSync>) => ({
   update: plan.update.map(serializeChange),
 })
 
+const serializeAssetChange = (change: PlannedAssetChange): SerializedAssetChange => ({
+  current: change.current
+    ? {
+        archived: change.current.archived,
+        contentType: change.current.contentType,
+        kind: change.current.kind,
+        route: change.current.route,
+        sourceHash: change.current.sourceHash,
+      }
+    : undefined,
+  desired: change.desired
+    ? {
+        contentType: change.desired.contentType,
+        kind: change.desired.kind,
+        route: change.desired.route,
+        sha256: change.desired.sha256,
+      }
+    : undefined,
+  reason: change.reason,
+  sourcePath: change.sourcePath,
+})
+
+const serializeAssetChanges = (plan: ReturnType<typeof planDocsAssetsSync>) => ({
+  archive: plan.archive.map(serializeAssetChange),
+  create: plan.create.map(serializeAssetChange),
+  delete: plan.delete.map(serializeAssetChange),
+  unchanged: plan.unchanged.map(serializeAssetChange),
+  update: plan.update.map(serializeAssetChange),
+})
+
 const getTotalManifestBytes = (manifest: ValidatedDocsManifest): number =>
-  manifest.files.reduce((total, file) => total + Buffer.byteLength(file.content, 'utf8'), 0)
+  [...manifest.files, ...manifest.assets].reduce(
+    (total, file) => total + Buffer.byteLength(file.content, 'utf8'),
+    0,
+  )
+
+const DEFAULT_REVALIDATE_TAGS = [
+  'payload-markdown-docs',
+  'payload-markdown-docs:docs',
+  'sitemap',
+  'sitemap:docs',
+]
+
+type NextCacheModule = {
+  revalidatePath?: (path: string, type?: 'layout' | 'page') => void
+  revalidateTag?: (tag: string, profile?: { expire?: number } | string) => void
+}
+
+const importNextCache = async (): Promise<NextCacheModule | undefined> => {
+  try {
+    return (await import('next/cache')) as unknown as NextCacheModule
+  } catch {
+    return undefined
+  }
+}
+
+const getRevalidationTags = ({
+  revalidate,
+  sourceId,
+}: {
+  revalidate?: false | PayloadMarkdownDocsSyncRevalidateConfig
+  sourceId: string
+}): string[] => {
+  if (revalidate === false) {
+    return []
+  }
+
+  const configuredTags = typeof revalidate === 'object' ? revalidate.tags : undefined
+  const tags = configuredTags ?? [...DEFAULT_REVALIDATE_TAGS, `payload-markdown-docs:${sourceId}`]
+
+  return [...new Set(tags.map((tag) => tag.trim()).filter(Boolean))]
+}
+
+const getRevalidationPaths = ({
+  assetPlan,
+  docsSet,
+  manifest,
+  plan,
+}: {
+  assetPlan: ReturnType<typeof planDocsAssetsSync>
+  docsSet?: ResolvedDocsSet
+  manifest: ValidatedDocsManifest
+  plan: ReturnType<typeof planDocsSync>
+}): string[] => {
+  const paths = new Set<string>()
+
+  if (docsSet?.groupPageMode === 'auto' && docsSet.groupRoutePath) {
+    paths.add(docsSet.groupRoutePath)
+  }
+
+  for (const file of manifest.files) {
+    paths.add(file.route)
+  }
+
+  for (const asset of manifest.assets) {
+    if (asset.route) {
+      paths.add(asset.route)
+    }
+  }
+
+  for (const change of [...plan.archive, ...plan.delete, ...plan.draft, ...plan.update]) {
+    if (change.current?.route) {
+      paths.add(change.current.route)
+    }
+
+    if (change.desired?.route) {
+      paths.add(change.desired.route)
+    }
+  }
+
+  for (const change of [...assetPlan.archive, ...assetPlan.delete, ...assetPlan.update]) {
+    if (change.current?.route) {
+      paths.add(change.current.route)
+    }
+
+    if (change.desired?.route) {
+      paths.add(change.desired.route)
+    }
+  }
+
+  return [...paths].filter((path) => path.startsWith('/'))
+}
+
+const revalidateDocsSyncCache = async ({
+  assetPlan,
+  docsSet,
+  manifest,
+  options,
+  plan,
+}: {
+  assetPlan: ReturnType<typeof planDocsAssetsSync>
+  docsSet?: ResolvedDocsSet
+  manifest: ValidatedDocsManifest
+  options: CreateSyncEndpointOptions
+  plan: ReturnType<typeof planDocsSync>
+}): Promise<void> => {
+  if (options.revalidate === false) {
+    return
+  }
+
+  const nextCache = await importNextCache()
+
+  if (!nextCache) {
+    return
+  }
+
+  const tags = getRevalidationTags({
+    revalidate: options.revalidate,
+    sourceId: manifest.source.id,
+  })
+
+  for (const tag of tags) {
+    try {
+      nextCache.revalidateTag?.(tag, 'max')
+    } catch {
+      // Revalidation is best effort so sync writes are not rolled back by cache runtime limits.
+    }
+  }
+
+  const shouldRevalidatePaths =
+    options.revalidate === undefined ||
+    (typeof options.revalidate === 'object' && options.revalidate.paths !== false)
+
+  if (!shouldRevalidatePaths) {
+    return
+  }
+
+  for (const path of getRevalidationPaths({
+    assetPlan,
+    docsSet,
+    manifest,
+    plan,
+  })) {
+    try {
+      nextCache.revalidatePath?.(path)
+    } catch {
+      // Revalidation is best effort so sync writes are not rolled back by cache runtime limits.
+    }
+  }
+}
 
 const getPlannedConflictChanges = ({
   existing,
@@ -355,6 +593,12 @@ const getPlannedConflictChanges = ({
 
   return [...plan.update, ...plan.archive, ...plan.draft, ...plan.delete, ...archivedUnchanged]
 }
+
+const getPlannedAssetConflictChanges = ({
+  plan,
+}: {
+  plan: ReturnType<typeof planDocsAssetsSync>
+}): PlannedAssetChange[] => [...plan.update, ...plan.archive, ...plan.delete]
 
 const getLifecyclePolicyError = ({
   deleteBehavior,
@@ -409,7 +653,8 @@ const getRouteCollisionIssues = async ({
   payload: RouteCollisionPayloadOperations
   routeBase: string
 }) => {
-  const desiredRoutes = manifest.files.map((file) => file.route)
+  const desiredAssetRoutes = manifest.assets.flatMap((asset) => (asset.route ? [asset.route] : []))
+  const desiredRoutes = [...manifest.files.map((file) => file.route), ...desiredAssetRoutes]
   const duplicateDesiredRouteCollisions = findDuplicateDesiredRouteCollisions(desiredRoutes)
   const existingDocsRouteCollisions = options.docsEnabled
     ? await findExistingDocsRouteCollisions({
@@ -421,12 +666,32 @@ const getRouteCollisionIssues = async ({
         sourceId: manifest.source.id,
       })
     : []
+  const existingAssetRouteCollisions =
+    options.docsAssetsEnabled === true && desiredAssetRoutes.length > 0
+      ? await findExistingAssetRouteCollisions({
+          collectionSlug: options.docsAssetsCollectionSlug ?? DEFAULT_DOCS_ASSETS_COLLECTION_SLUG,
+          docsSetId: docsSet?.id,
+          payload,
+          routes: desiredRoutes,
+          sourceId: manifest.source.id,
+        })
+      : []
   const pageRouteCollisions =
     options.routing?.pages?.enabled === true
       ? await findConfiguredPagesRouteCollisions({
           allowBridgePages: options.routing.pages.allowBridgePages,
           bridgeField: options.routing.pages.bridgeField,
           collectionSlug: options.routing.pages.collection,
+          docsGroupRoutes:
+            docsSet?.groupRoutePath && docsSet.groupPageMode === 'auto'
+              ? [
+                  {
+                    ownerId: docsSet.groupId,
+                    pageMode: docsSet.groupPageMode,
+                    routePath: docsSet.groupRoutePath,
+                  },
+                ]
+              : [],
           docsSetRouteBase: routeBase,
           payload,
           routeField: options.routing.pages.routeField,
@@ -436,6 +701,7 @@ const getRouteCollisionIssues = async ({
   return [
     ...duplicateDesiredRouteCollisions,
     ...existingDocsRouteCollisions,
+    ...existingAssetRouteCollisions,
     ...pageRouteCollisions,
   ]
 }
@@ -522,20 +788,20 @@ const authenticateEd25519Request = async ({
     }
   }
 
-  if (!options.docsKeysEnabled) {
+  if (!options.docsAccessEnabled) {
     return {
       response: errorResponse(
         'auth_disabled',
-        'Signed sync authentication requires the docs Keys collection.',
+        'Signed sync authentication requires the docs Access collection.',
         401,
       ),
     }
   }
 
   const keyConfig = await findDocsKeyById({
-    collectionSlug: options.docsKeysCollectionSlug,
+    collectionSlug: options.docsAccessCollectionSlug,
     keyId: headersResult.headers.keyId,
-    payload: req.payload as unknown as DocsKeyPayloadOperations,
+    payload: req.payload as unknown as DocsAccessPayloadOperations,
   })
 
   if (!keyConfig) {
@@ -700,19 +966,19 @@ const authenticateGitHubOidcRequest = async ({
     }
   }
 
-  if (!options.docsTrustedEnabled) {
+  if (!options.docsAccessEnabled) {
     return {
       response: errorResponse(
         'auth_disabled',
-        'GitHub OIDC sync authentication requires the docs Trusted collection.',
+        'GitHub OIDC sync authentication requires the docs Access collection.',
         401,
       ),
     }
   }
 
   const trustedSources = await findTrustedGitHubSources({
-    collectionSlug: options.docsTrustedCollectionSlug,
-    payload: req.payload as unknown as DocsTrustedPayloadOperations,
+    collectionSlug: options.docsAccessCollectionSlug,
+    payload: req.payload as unknown as DocsAccessPayloadOperations,
   })
   const allowedRef = docsSet.branch.startsWith('refs/')
     ? docsSet.branch
@@ -917,6 +1183,7 @@ const createSyncEndpointHandler =
 
     const validation = validateDocsManifest(manifest, {
       allowedSourceIds: [sourceResolution.source.sourceId],
+      assetRouteBase: sourceResolution.source.assetRouteBase,
       maxTotalBytes: maxBodyBytes,
       routeBase: sourceResolution.source.routeBase,
     })
@@ -945,13 +1212,23 @@ const createSyncEndpointHandler =
       return lifecyclePolicyError
     }
 
-    const routeCollisions = await getRouteCollisionIssues({
-      docsSet: sourceResolution.source.docsSet,
-      manifest: validation.data,
-      options,
-      payload: req.payload as unknown as RouteCollisionPayloadOperations,
-      routeBase: sourceResolution.source.routeBase,
-    })
+    let routeCollisions
+
+    try {
+      routeCollisions = await getRouteCollisionIssues({
+        docsSet: sourceResolution.source.docsSet,
+        manifest: validation.data,
+        options,
+        payload: req.payload as unknown as RouteCollisionPayloadOperations,
+        routeBase: sourceResolution.source.routeBase,
+      })
+    } catch (error) {
+      if (validation.data.assets.length > 0 && isDocsAssetsStorageUnavailableError(error)) {
+        return docsAssetsStorageUnavailableResponse()
+      }
+
+      throw error
+    }
 
     if (routeCollisions.length > 0) {
       return errorResponse(
@@ -971,14 +1248,6 @@ const createSyncEndpointHandler =
         'sync_writes_disabled',
         'Sync writes are disabled by server configuration.',
         403,
-      )
-    }
-
-    if (isSyncMode && options.requireDryRunBeforeApply === true) {
-      return errorResponse(
-        'dry_run_required_not_implemented',
-        'Required dry-run proof before apply is not implemented yet.',
-        400,
       )
     }
 
@@ -1020,8 +1289,40 @@ const createSyncEndpointHandler =
       desired: validation.data,
       existing: existingDocs,
     })
-    const summary = summarizePlan(plan)
-    const warnings = [...validation.warnings, ...plan.warnings]
+    const docsAssetsCollectionSlug =
+      options.docsAssetsCollectionSlug ?? DEFAULT_DOCS_ASSETS_COLLECTION_SLUG
+    const shouldSyncAssets = options.docsAssetsEnabled === true && validation.data.assets.length > 0
+    let existingPayloadAssets: Awaited<ReturnType<typeof findExistingPayloadDocsAssetRecords>> = []
+
+    if (shouldSyncAssets) {
+      try {
+        existingPayloadAssets = await findExistingPayloadDocsAssetRecords({
+          collectionSlug: docsAssetsCollectionSlug,
+          docsSetId: sourceResolution.source.docsSet?.id,
+          payload: req.payload as unknown as ExistingAssetsPayloadOperations,
+          sourceId: validation.data.source.id,
+        })
+      } catch (error) {
+        if (isDocsAssetsStorageUnavailableError(error)) {
+          return docsAssetsStorageUnavailableResponse()
+        }
+
+        throw error
+      }
+    }
+
+    const existingAssets = existingPayloadAssets.map(toExistingAssetRecord)
+    const assetPlan = planDocsAssetsSync({
+      deleteBehavior: effectiveDeleteBehavior,
+      desired: validation.data,
+      existing: existingAssets,
+    })
+    const warnings = [...validation.warnings, ...plan.warnings, ...assetPlan.warnings]
+    const summary = {
+      ...summarizePlan(plan),
+      ...summarizeAssetPlan(assetPlan),
+      warnings: warnings.length,
+    }
     if (isSyncMode) {
       const existingBySourcePath = new Map(
         existingPayloadDocs.map((record) => [record.sourcePath, record]),
@@ -1041,6 +1342,27 @@ const createSyncEndpointHandler =
           409,
           {
             conflicts,
+          },
+        )
+      }
+
+      const existingAssetsBySourcePath = new Map(
+        existingPayloadAssets.map((record) => [record.sourcePath, record]),
+      )
+      const assetConflicts = findDocsAssetsSyncConflicts({
+        existingBySourcePath: existingAssetsBySourcePath,
+        plannedChanges: getPlannedAssetConflictChanges({
+          plan: assetPlan,
+        }),
+      })
+
+      if (assetConflicts.length > 0) {
+        return errorResponse(
+          'manual_edit_conflict',
+          'One or more docs assets were modified outside the docs sync workflow.',
+          409,
+          {
+            conflicts: assetConflicts,
           },
         )
       }
@@ -1069,7 +1391,7 @@ const createSyncEndpointHandler =
         completedAt: isSyncMode ? startedAt : (options.getNow?.() ?? new Date()),
         deleteBehavior: effectiveDeleteBehavior,
         errors: [],
-        fileCount: validation.data.files.length,
+        fileCount: validation.data.files.length + validation.data.assets.length,
         keyId: authentication.identity.keyId,
         mode: isSyncMode ? 'sync' : 'dry-run',
         payload: req.payload as unknown as SyncRunsPayloadOperations,
@@ -1122,6 +1444,31 @@ const createSyncEndpointHandler =
           )
         }
 
+        if (shouldSyncAssets) {
+          const applyAssetsResult = await applyDocsAssetsSync({
+            collectionSlug: docsAssetsCollectionSlug,
+            deleteBehavior: effectiveDeleteBehavior,
+            docsSetId: sourceResolution.source.docsSet?.id,
+            existing: existingPayloadAssets,
+            manifest: validation.data,
+            now: options.getNow?.() ?? new Date(),
+            payload: req.payload as unknown as ApplyDocsAssetsSyncPayloadOperations,
+            plan: assetPlan,
+            syncRunId,
+          })
+
+          if (!applyAssetsResult.ok) {
+            return errorResponse(
+              'manual_edit_conflict',
+              'One or more docs assets were modified outside the docs sync workflow.',
+              409,
+              {
+                conflicts: applyAssetsResult.conflicts,
+              },
+            )
+          }
+        }
+
         await updateSyncRunAudit({
           collectionSlug: options.syncRunsCollectionSlug,
           completedAt: options.getNow?.() ?? new Date(),
@@ -1134,16 +1481,21 @@ const createSyncEndpointHandler =
 
         if (sourceResolution.source.docsSet) {
           await updateDocsSetAfterSync({
-            aiExport: validation.data.aiExport,
             collectionSlug: options.docsSetsCollectionSlug,
-            docsCount: validation.data.files.length,
             docsSetId: sourceResolution.source.docsSet.id,
             now: options.getNow?.() ?? new Date(),
             payload: req.payload as unknown as DocsSetPayloadOperations,
             publish: validation.data.publish,
-            syncRunId,
           })
         }
+
+        await revalidateDocsSyncCache({
+          assetPlan,
+          docsSet: sourceResolution.source.docsSet,
+          manifest: validation.data,
+          options,
+          plan,
+        })
       } catch (error) {
         await updateSyncRunAudit({
           collectionSlug: options.syncRunsCollectionSlug,
@@ -1161,11 +1513,16 @@ const createSyncEndpointHandler =
           warnings,
         })
 
-        return errorResponse('sync_apply_failed', 'Sync apply failed.', 500)
+        return errorResponse(
+          'sync_apply_failed',
+          error instanceof Error ? `Sync apply failed: ${error.message}` : 'Sync apply failed.',
+          500,
+        )
       }
     }
 
     return jsonResponse({
+      assetChanges: serializeAssetChanges(assetPlan),
       changes: serializeChanges(plan),
       deleteBehavior: effectiveDeleteBehavior,
       dryRun: !isSyncMode,
@@ -1177,8 +1534,24 @@ const createSyncEndpointHandler =
     })
   }
 
+const createSyncEndpointHandlerWithErrorBoundary =
+  (options: CreateSyncEndpointOptions) =>
+  async (req: PayloadRequest): Promise<Response> => {
+    try {
+      return await createSyncEndpointHandler(options)(req)
+    } catch (error) {
+      return errorResponse(
+        'sync_endpoint_failed',
+        error instanceof Error
+          ? `Sync endpoint failed: ${getErrorMessage(error)}`
+          : 'Sync endpoint failed.',
+        500,
+      )
+    }
+  }
+
 export const createSyncEndpoint = (options: CreateSyncEndpointOptions): Endpoint => ({
-  handler: createSyncEndpointHandler(options),
+  handler: createSyncEndpointHandlerWithErrorBoundary(options),
   method: 'post',
   path: options.endpointPath,
 })

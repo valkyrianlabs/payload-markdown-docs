@@ -6,7 +6,8 @@ import type { CliResult, ParsedCliArgs, PushCommandOptions } from '../types.js'
 
 import { DocsSyncKeyError, signDocsSyncRequest } from '../../security/index.js'
 import { buildDocsManifest, sha256Hex, validateDocsManifest } from '../../sync/index.js'
-import { readDocsAiExportManifest, walkDocsFiles } from '../filesystem.js'
+import { findPayloadAppDirWithAssetRoutes } from '../assetRoutes.js'
+import { collectPublishPackage } from '../filesystem.js'
 import { formatIssues, formatPushSummary, printJson } from '../format.js'
 import { getJson, postJson } from '../http.js'
 import { getFlagBoolean, getFlagString } from '../parseArgs.js'
@@ -19,16 +20,30 @@ const supportedPushDeleteBehaviors = new Set<DocsDeleteBehavior>([
   'ignore',
 ])
 
+const missingAssetRoutesWarning =
+  'Assets were included in the manifest, but public asset route files were not found.\n' +
+  'Run:\n' +
+  'payload-markdown-docs install routes --payload-app "src/app/(payload)"\n' +
+  'Without these route files, public /llms.txt and /skills routes will 404 outside /api.\n'
+
 type ServerPushResponse = {
   deleteBehavior?: string
   error?: {
     code?: string
     message?: string
   }
+  errors?: Array<{
+    message?: string
+  }>
   ok?: boolean
   publishRequested?: boolean
   summary?: {
     archive?: number
+    assetArchive?: number
+    assetCreate?: number
+    assetDelete?: number
+    assetUnchanged?: number
+    assetUpdate?: number
     create?: number
     delete?: number
     draft?: number
@@ -213,13 +228,6 @@ const getPushCommandOptions = async (
     return endpoint
   }
 
-  if (getFlagBoolean(args, 'dry-run') && getFlagBoolean(args, 'sync')) {
-    return {
-      exitCode: 1,
-      stderr: 'Use either --dry-run or --sync, not both.\n',
-    }
-  }
-
   const deleteBehaviorFlag = getFlagString(args, 'delete-behavior')
 
   if (
@@ -232,13 +240,14 @@ const getPushCommandOptions = async (
     }
   }
 
-  const mode: PushCommandOptions['mode'] = getFlagBoolean(args, 'sync') ? 'sync' : 'dry-run'
+  const mode: PushCommandOptions['mode'] = getFlagBoolean(args, 'dry-run') ? 'dry-run' : 'sync'
   const baseOptions = {
     ...docsOptions,
     deleteBehavior: deleteBehaviorFlag as DocsDeleteBehavior | undefined,
     endpoint,
     mode,
     publish: getFlagBoolean(args, 'publish'),
+    strictRoutes: getFlagBoolean(args, 'strict-routes'),
   }
 
   if (getFlagBoolean(args, 'github-oidc')) {
@@ -286,9 +295,39 @@ const getPushCommandOptions = async (
   }
 }
 
-const formatServerFailure = ({ body, status }: { body: unknown; status: number }): string => {
+const trimResponseText = (text: string): string => {
+  const trimmed = text.trim()
+
+  if (trimmed.length <= 1000) {
+    return trimmed
+  }
+
+  return `${trimmed.slice(0, 1000)}...`
+}
+
+const formatServerFailure = ({
+  body,
+  status,
+  text,
+}: {
+  body: unknown
+  status: number
+  text?: string
+}): string => {
   if (isServerPushResponse(body) && body.error?.message) {
     return `${body.error.message}\n`
+  }
+
+  if (isServerPushResponse(body) && body.errors?.some((error) => error.message)) {
+    return `Sync request failed with HTTP status ${status}.\n\n${body.errors
+      .flatMap((error) => (error.message ? [`- ${error.message}`] : []))
+      .join('\n')}\n`
+  }
+
+  const responseText = text ? trimResponseText(text) : ''
+
+  if (responseText) {
+    return `Sync request failed with HTTP status ${status}.\n\nResponse body:\n${responseText}\n`
   }
 
   return `Sync request failed with HTTP status ${status}.\n`
@@ -305,26 +344,23 @@ export const runPushCommand = async (
     return options
   }
 
-  const files = await walkDocsFiles({
-    root: options.docsRoot,
-  })
-  const aiExport = await readDocsAiExportManifest({
-    root: options.docsRoot,
-  })
+  let publishPackage
 
-  if (!aiExport.ok) {
+  try {
+    publishPackage = await collectPublishPackage(options)
+  } catch (error) {
     return {
       exitCode: 1,
-      stderr: `AI export manifest is invalid.\n\nErrors:\n${formatIssues(aiExport.issues)}\n`,
+      stderr: error instanceof Error ? `${error.message}\n` : 'Could not read publish package.\n',
     }
   }
 
   const manifest = buildDocsManifest({
-    aiExport: aiExport.manifest,
+    assets: publishPackage.assets,
     branch: options.branch,
     commit: options.commit,
     deleteBehavior: options.deleteBehavior ?? 'archive',
-    files,
+    files: publishPackage.files,
     mode: options.mode,
     publish: options.publish,
     repository: options.repository,
@@ -341,6 +377,23 @@ export const runPushCommand = async (
     return {
       exitCode: 1,
       stderr: `Manifest is invalid.\n\nErrors:\n${formatIssues(validation.issues)}\n`,
+    }
+  }
+
+  let routeWarning = ''
+
+  if (manifest.assets && manifest.assets.length > 0) {
+    const routeAppDir = await findPayloadAppDirWithAssetRoutes()
+
+    if (!routeAppDir) {
+      if (options.strictRoutes) {
+        return {
+          exitCode: 1,
+          stderr: missingAssetRoutesWarning,
+        }
+      }
+
+      routeWarning = missingAssetRoutesWarning
     }
   }
 
@@ -401,10 +454,12 @@ export const runPushCommand = async (
     return {
       exitCode:
         response.ok && isServerPushResponse(response.body) && response.body.ok === true ? 0 : 1,
+      stderr: routeWarning || undefined,
       stdout: printJson(
         {
           endpoint: options.endpoint,
           mode: options.mode,
+          package: publishPackage.summary,
           response: response.body,
           sourceId: options.sourceId,
           status: response.status,
@@ -417,15 +472,17 @@ export const runPushCommand = async (
   if (!response.ok || !isServerPushResponse(response.body) || response.body.ok !== true) {
     return {
       exitCode: 1,
-      stderr: formatServerFailure({
+      stderr: `${routeWarning}${formatServerFailure({
         body: response.body,
         status: response.status,
-      }),
+        text: response.text,
+      })}`,
     }
   }
 
   return {
     exitCode: 0,
+    stderr: routeWarning || undefined,
     stdout: formatPushSummary({
       endpoint: options.endpoint,
       mode: options.mode,

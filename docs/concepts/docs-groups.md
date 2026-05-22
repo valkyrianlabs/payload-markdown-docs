@@ -37,15 +37,20 @@ Important docs group fields include:
 - `description`
 - `navTitle`
 - `order`
-- `serveIndex`
+- `pageMode`
 
 The route path is derived from parent group slugs plus the group slug.
 
-## `serveIndex`
+## `pageMode`
 
-When `serveIndex` is false, the group reserves descendant space but does not claim its own route. That allows a normal Page at `/plugins` while docs sets live under `/plugins/payload-markdown`.
+`pageMode` controls who owns the group route.
 
-When `serveIndex` is true, the route adapter can resolve the group route as a docs group index.
+- `auto` generates a docs group landing page at the group route, such as `/plugins`
+- `custom` leaves the group route for the host app or Pages collection
+
+With `auto`, `/plugins` can render a generated card index for direct child
+groups and docs sets. With `custom`, `/plugins` is left alone while docs sets can
+still live under routes like `/plugins/payload-markdown`.
 
 :::callout {variant="info" title="Groups are namespaces"}
 Groups are not a replacement for Pages. They are a docs routing and organization model.

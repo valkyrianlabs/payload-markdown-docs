@@ -54,6 +54,29 @@ sync: {
 Publishing requires both a draft-enabled dedicated docs collection and `allowPublish: true`.
 When `--publish` is not requested, synced generated docs are written as drafts.
 
+## Cache Revalidation
+
+After a successful sync, the endpoint attempts to revalidate generated docs
+paths, synced asset routes, and common docs sitemap tags through `next/cache`.
+This keeps production App Router pages from serving stale generated docs or raw
+AI assets after `push --publish`.
+
+Disable path revalidation or provide app-specific tags when needed.
+
+```ts
+sync: {
+  allowWrites: true,
+  allowPublish: true,
+  revalidate: {
+    paths: true,
+    tags: ['payload-markdown-docs', 'sitemap', 'sitemap:docs'],
+  },
+}
+```
+
+Use `revalidate: false` only when the app handles docs cache invalidation
+elsewhere.
+
 ## Delete Behavior
 
 `deleteBehavior` can be:

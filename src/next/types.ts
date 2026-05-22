@@ -1,13 +1,12 @@
 import type { CollectionSlug, Payload } from 'payload'
 
-import type { DocsAiExportManifest } from '../sync/index.js'
-
 export type PayloadMarkdownDocsFindArgs = Parameters<Payload['find']>[0]
 
 export type PayloadMarkdownDocsReadPayload = Pick<Payload, 'find'>
 
 export type PayloadMarkdownDocsCollectionSlugs = {
   docs?: CollectionSlug
+  docsAssets?: CollectionSlug
   docsGroups?: CollectionSlug
   docsSets?: CollectionSlug
 }
@@ -40,14 +39,35 @@ export type PayloadMarkdownDocsHeroImage = {
   width?: number
 }
 
+export type PayloadMarkdownDocsOpenGraphImage = {
+  alt?: string
+  height?: number
+  id?: string
+  relationTo?: string
+  url: string
+  width?: number
+}
+
+export type PayloadMarkdownDocsOpenGraph = {
+  description?: string
+  image?: PayloadMarkdownDocsOpenGraphImage
+  title?: string
+}
+
+export type PayloadMarkdownDocsGroupPageMode = 'auto' | 'custom'
+
+export type PayloadMarkdownDocsRouteMode = 'docs-root' | 'product-nested'
+
 export type ResolvedPayloadMarkdownDocsSet = {
-  aiExport?: DocsAiExportManifest
   defaults?: PayloadMarkdownDocsDefaults
   description?: string
   id: string
   navTitle?: string
+  openGraph?: PayloadMarkdownDocsOpenGraph
   order: number
+  productRoute: string
   routeBase: string
+  routeMode: PayloadMarkdownDocsRouteMode
   slug?: string
   status?: 'draft' | 'published'
   title: string
@@ -58,8 +78,8 @@ export type ResolvedPayloadMarkdownDocsGroup = {
   id: string
   navTitle?: string
   order: number
+  pageMode: PayloadMarkdownDocsGroupPageMode
   routePath: string
-  serveIndex: boolean
   slug?: string
   title: string
 }
@@ -67,6 +87,7 @@ export type ResolvedPayloadMarkdownDocsGroup = {
 export type ResolvedPayloadMarkdownDocsRecord = {
   archived: boolean
   content?: string
+  dependencies?: string[]
   depth: number
   description?: string
   docsSetId?: string
@@ -94,6 +115,13 @@ export type PayloadMarkdownDocsSidebarItem = {
 
 export type ResolvedPayloadMarkdownDocsRoute =
   | {
+      childGroups: ResolvedPayloadMarkdownDocsGroup[]
+      docsSets: ResolvedPayloadMarkdownDocsSet[]
+      group: ResolvedPayloadMarkdownDocsGroup
+      route: string
+      type: 'docsGroupIndex'
+    }
+  | {
       doc: ResolvedPayloadMarkdownDocsRecord
       docsSet: ResolvedPayloadMarkdownDocsSet
       route: string
@@ -107,14 +135,26 @@ export type ResolvedPayloadMarkdownDocsRoute =
       sidebar: PayloadMarkdownDocsSidebarItem[]
       type: 'docsSetIndex'
     }
-  | {
-      docsSets: ResolvedPayloadMarkdownDocsSet[]
-      group: ResolvedPayloadMarkdownDocsGroup
-      route: string
-      type: 'docsGroupIndex'
-    }
+
+export type PayloadMarkdownDocsMetadataImage = {
+  alt?: string
+  height?: number
+  url: string
+  width?: number
+}
 
 export type PayloadMarkdownDocsMetadata = {
   description?: string
+  openGraph?: {
+    description?: string
+    images?: PayloadMarkdownDocsMetadataImage[]
+    title?: string
+  }
   title?: string
+  twitter?: {
+    card?: 'summary' | 'summary_large_image'
+    description?: string
+    images?: PayloadMarkdownDocsMetadataImage[]
+    title?: string
+  }
 }

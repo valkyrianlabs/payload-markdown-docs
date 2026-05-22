@@ -19,14 +19,26 @@ const commands = new Set<CliCommandName>([
 const docsValueFlags = new Set([
   'branch',
   'commit',
+  'docs',
+  'llms',
+  'llms-full',
   'max-file-bytes',
   'max-files',
   'max-total-bytes',
   'repository',
+  'skills',
   'source',
 ])
 
-const docsBooleanFlags = new Set(['help', 'json', 'pretty'])
+const docsBooleanFlags = new Set([
+  'help',
+  'json',
+  'no-docs',
+  'no-llms',
+  'no-llms-full',
+  'no-skills',
+  'pretty',
+])
 const planValueFlags = new Set(['delete-behavior', 'existing', ...docsValueFlags])
 const pushValueFlags = new Set([
   'delete-behavior',
@@ -42,17 +54,23 @@ const pushBooleanFlags = new Set([
   'github-oidc',
   'help',
   'json',
+  'no-docs',
+  'no-llms',
+  'no-llms-full',
+  'no-skills',
   'pretty',
   'publish',
-  'sync',
+  'strict-routes',
 ])
 const installValueFlags = new Set([
   'agent',
+  'app',
   'docs-root',
   'out',
   'package-manager',
+  'payload-app',
 ])
-const installBooleanFlags = new Set(['codex', 'dry-run', 'force', 'help'])
+const installBooleanFlags = new Set(['claude', 'codex', 'dry-run', 'force', 'help'])
 const keygenValueFlags = new Set(['format', 'out'])
 const keygenBooleanFlags = new Set(['force', 'help'])
 

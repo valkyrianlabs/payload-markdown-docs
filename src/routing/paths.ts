@@ -22,13 +22,37 @@ export const joinRouteSegments = (...segments: (string | undefined)[]): string =
   return normalizeRoutePath(normalizedSegments.join('/'))
 }
 
-export const deriveDocsSetRouteBase = ({
+export type DocsSetRouteMode = 'docs-root' | 'product-nested'
+
+export const DEFAULT_DOCS_SET_ROUTE_MODE: DocsSetRouteMode = 'docs-root'
+export const DEFAULT_PRODUCT_NESTED_DOCS_SEGMENT = 'docs'
+
+export const deriveDocsSetProductRoutePath = ({
   docsSetSlug,
   groupRoutePath,
 }: {
   docsSetSlug: string
   groupRoutePath?: string
 }): string => joinRouteSegments(groupRoutePath ?? '/', docsSetSlug)
+
+export const deriveDocsSetRouteBase = ({
+  docsSetSlug,
+  groupRoutePath,
+  routeMode = DEFAULT_DOCS_SET_ROUTE_MODE,
+}: {
+  docsSetSlug: string
+  groupRoutePath?: string
+  routeMode?: DocsSetRouteMode
+}): string => {
+  const productRoute = deriveDocsSetProductRoutePath({
+    docsSetSlug,
+    groupRoutePath,
+  })
+
+  return routeMode === 'product-nested'
+    ? joinRouteSegments(productRoute, DEFAULT_PRODUCT_NESTED_DOCS_SEGMENT)
+    : productRoute
+}
 
 export const isRouteDescendant = (parent: string, child: string): boolean => {
   const normalizedParent = normalizeRoutePath(parent)

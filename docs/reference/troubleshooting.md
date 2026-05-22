@@ -37,8 +37,9 @@ repository name is the docs set slug.
 
 ## `oidc_repository_not_allowed`
 
-The token repository is not trusted. Check `Docs Globals > Trusted`, especially
-the owner, `limitRepos`, and repository list.
+The token repository is not trusted. Check GitHub OIDC records in
+`Docs Globals > Access`, especially the owner, `limitRepos`, and repository
+list.
 
 ## `oidc_ref_not_allowed`
 
@@ -72,6 +73,25 @@ The generated docs route conflicts with another docs route or an opt-in Pages co
 ## `manual_edit_conflict`
 
 A generated docs record changed outside the docs sync workflow. The sync aborts before writes to avoid overwriting human edits.
+
+## Public `/llms.txt` Or Skill Route 404
+
+If `/api/llms.txt` or a Payload API skill asset URL works but the public route
+outside `/api` returns HTML 404, the consuming Next app is missing the public
+asset route files. Run:
+
+```bash
+pnpm exec payload-markdown-docs install routes --payload-app "src/app/(payload)"
+```
+
+Commit and deploy the generated files, then purge any cached 404 responses.
+
+## Asset Schema Missing
+
+If an asset route or sync response says the docs assets schema is missing, the
+`payload-markdown-docs-assets` collection table has not been created yet. Run
+the Payload migration/dev flow against that database before syncing or serving
+static docs assets.
 
 ## Postgres In Tests
 

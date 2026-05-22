@@ -21,9 +21,11 @@ For a typical docs set, configure:
 - `title`
 - `slug`
 - `group`, optional
+- `routeMode`, default `docs-root`
 - `branch`, default `main`
 - `allowPullRequests`, default off
 - `description`, optional
+- `meta`, optional SEO/social preview metadata
 
 The `slug` is also the manifest source and the GitHub OIDC audience. The
 route base is derived from the optional group route plus the set slug.
@@ -38,6 +40,30 @@ branch: main
 ```
 
 This resolves to `/plugins/payload-markdown-docs`.
+
+Use `routeMode: product-nested` when the docs should live below `/docs` so the
+host app can own the product route:
+
+```text
+/plugins/payload-markdown-docs
+/plugins/payload-markdown-docs/docs
+```
+
+## SEO
+
+The `meta` group uses `@payloadcms/plugin-seo` field components for standard
+social preview metadata:
+
+- `title`
+- `description`
+- `image`
+
+The image uses the default Payload `media` collection. SEO data feeds metadata
+helpers only; it does not render a hero or banner in
+`PayloadMarkdownDocsPage`.
+
+SEO fields are enabled by default. Set `seo: false` in `payloadMarkdownDocs()`
+to omit them.
 
 ## Advanced Security
 
@@ -54,7 +80,7 @@ add the exact release workflow refs.
 
 ## Sync Metadata
 
-The `sync` group stores last sync status and counts. The Docs Set Admin Manager
-uses this metadata for the generated docs overview.
+The `sync` group stores `lastSyncedAt` and `lastStatus`. The Docs Set Admin
+Manager computes generated docs counts directly from linked generated records.
 
 See [Docs Set Admin Manager](/admin/docs-set-manager).

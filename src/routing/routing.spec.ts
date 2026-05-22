@@ -29,6 +29,13 @@ describe('route path helpers', () => {
         groupRoutePath: '/plugins',
       }),
     ).toBe('/plugins/payload-markdown')
+    expect(
+      deriveDocsSetRouteBase({
+        docsSetSlug: 'payload-markdown',
+        groupRoutePath: '/plugins',
+        routeMode: 'product-nested',
+      }),
+    ).toBe('/plugins/payload-markdown/docs')
   })
 
   it('detects descendants without treating exact routes as descendants', () => {
@@ -108,5 +115,43 @@ describe('route reservation helpers', () => {
     })
 
     expect(collisions).toHaveLength(0)
+  })
+
+  it('checks auto group page reservations without claiming custom group routes', () => {
+    expect(
+      findPageRouteCollisions({
+        docsGroupRoutes: [
+          {
+            pageMode: 'auto',
+            routePath: '/plugins',
+          },
+        ],
+        docsSetRouteBase: '/plugins/payload-markdown',
+        pages: [
+          {
+            id: 'plugins-page',
+            route: '/plugins',
+          },
+        ],
+      }),
+    ).toHaveLength(1)
+
+    expect(
+      findPageRouteCollisions({
+        docsGroupRoutes: [
+          {
+            pageMode: 'custom',
+            routePath: '/plugins',
+          },
+        ],
+        docsSetRouteBase: '/plugins/payload-markdown',
+        pages: [
+          {
+            id: 'plugins-page',
+            route: '/plugins',
+          },
+        ],
+      }),
+    ).toHaveLength(0)
   })
 })

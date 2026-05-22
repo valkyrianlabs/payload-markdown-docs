@@ -23,6 +23,8 @@ import {
   resolvePayloadMarkdownDocsRoute,
 } from '@valkyrianlabs/payload-markdown-docs/next'
 
+export const dynamic = 'force-dynamic'
+
 export default async function Page({
   params,
 }: {
@@ -52,59 +54,45 @@ In a real app, replace `notFound()` with your normal Pages collection lookup whe
 The route adapter reads generated docs records, docs sets, and docs groups. It does not create Pages, mutate Pages, or sync docs.
 :::
 
+Production App Router pages can otherwise cache generated docs output. The sync
+endpoint revalidates generated docs paths after successful writes, but
+`dynamic = 'force-dynamic'` is the simplest option when the app prefers always
+fresh docs reads.
+
 ## Resolution Order
 
 The helper resolves:
 
 1. exact generated docs records
 2. docs set index routes
-3. docs group index routes when `serveIndex` is enabled
+3. docs group index routes when `pageMode` is `auto`
 4. `null` for normal fallback routes
 
-See [metadata](/frontend/metadata) and [sidebar](/frontend/sidebar).
+See [metadata](/frontend/metadata), [dynamic sitemap](/frontend/sitemap), and
+[sidebar](/frontend/sidebar).
 
-## Raw Markdown Export
+## Agent Skill Files
 
-Use `createPayloadMarkdownDocsMarkdownResponse` from the `/next` export for an
-AI-facing `.md` route. It returns `text/markdown; charset=utf-8`, does not render
-React, and assembles generated docs records according to `docs/index.ai.yml`
-when that manifest was included in the docs sync.
+The route adapter is for rendered human docs pages. It does not serve raw
+`.txt` or `.md` AI assets.
 
-The raw export must be served from a Next route handler. It is not a Payload
-Page, it is not rendered by `PayloadMarkdownDocsPage`, and it is not created
-automatically by the plugin.
+Native agent skill artifacts live outside generated docs records under
+`skills/<source>/<agent>/`. When `payload-markdown-docs push` syncs those files,
+the plugin stores them as raw asset records and serves them through asset handlers
+such as
+`/plugins/payload-markdown-docs/skills/codex`,
+`/plugins/payload-markdown-docs/skills/codex/SKILL.md`, and
+`/plugins/payload-markdown-docs/skills/codex.zip`. The extensionless agent route
+is a generated Markdown directory index; raw files remain under
+`/skills/<agent>/<path...>`.
 
-For a known docs set output, add a static route at the exact `.md` URL:
+In a Next App Router app, public raw asset URLs need filesystem route files that
+delegate to the asset handlers:
 
-```ts
-import { notFound } from 'next/navigation'
-import { getPayload } from 'payload'
-import config from '@payload-config'
-import {
-  createPayloadMarkdownDocsMarkdownResponse,
-} from '@valkyrianlabs/payload-markdown-docs/next'
-
-export async function GET() {
-  const payload = await getPayload({ config })
-  const response = await createPayloadMarkdownDocsMarkdownResponse({
-    payload,
-    path: '/plugins/payload-markdown-docs.md',
-  })
-
-  if (response) {
-    return response
-  }
-
-  notFound()
-}
+```bash
+pnpm exec payload-markdown-docs install routes --payload-app "src/app/(payload)"
 ```
 
-Use the `path` form for static route handlers. Use the `slug` form only when the
-route handler itself receives a catch-all `slug` parameter.
-
-:::callout {variant="warning" title="Catch-all pages do not return Markdown"}
-An App Router `page.tsx` can render React, but it cannot return a
-`text/markdown` `Response`. If your human docs are handled by a catch-all page,
-add a separate route handler for the raw `.md` output, or put AI exports under a
-separate namespace such as `/ai/<docs-set>.md`.
-:::
+If public asset route files are missing, the frontend catch-all may return
+rendered 404 HTML even though `/api/...` asset URLs work. The `/api/...` routes
+are implementation/internal fallback routes, not the public canonical URLs.

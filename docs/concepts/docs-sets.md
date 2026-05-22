@@ -26,6 +26,7 @@ to a docs set, but users should not manage documentation as hundreds of Pages.
 - `title`
 - `slug`
 - `group`
+- `routeMode`
 - `branch`
 - `allowPullRequests`
 - `description`
@@ -47,6 +48,11 @@ If a docs set is found:
 
 ## Routes
 
+`routeMode` controls whether docs live at the product route or under a nested
+`/docs` segment.
+
+### `docs-root`
+
 An ungrouped docs set routes at:
 
 ```text
@@ -58,6 +64,33 @@ A grouped docs set routes at:
 ```text
 /{group-slug}/{set-slug}
 ```
+
+For example:
+
+```text
+/plugins/payload-markdown
+/plugins/payload-markdown/getting-started
+```
+
+### `product-nested`
+
+Grouped product docs route under `/docs`:
+
+```text
+/{group-slug}/{set-slug}/docs
+```
+
+For example:
+
+```text
+/plugins/payload-markdown
+/plugins/payload-markdown/docs
+/plugins/payload-markdown/docs/getting-started
+```
+
+The docs plugin owns `/plugins/payload-markdown/docs` and descendants. The
+parent `/plugins/payload-markdown` route is intentionally available for a
+product or marketing page owned by the host app or Pages collection.
 
 `index.md` routes to the route base. Nested files route below it.
 

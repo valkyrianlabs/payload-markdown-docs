@@ -1,6 +1,6 @@
 {
   "name": "@valkyrianlabs/payload-markdown-docs",
-  "version": "0.8.1",
+  "version": "0.16.1",
   "description": "Git-backed Markdown documentation sync for Payload CMS, powered by payload-markdown.",
   "bin": {
     "payload-markdown-docs": "./dist/cli/index.js"
@@ -29,6 +29,16 @@
       "import": "./dist/admin/index.js",
       "default": "./dist/admin/index.js"
     },
+    "./blocks": {
+      "types": "./dist/blocks/index.d.ts",
+      "import": "./dist/blocks/index.js",
+      "default": "./dist/blocks/index.js"
+    },
+    "./fields": {
+      "types": "./dist/fields/index.d.ts",
+      "import": "./dist/fields/index.js",
+      "default": "./dist/fields/index.js"
+    },
     "./next": {
       "types": "./dist/next/index.d.ts",
       "import": "./dist/next/index.js",
@@ -47,7 +57,7 @@
     "clean": "rimraf {dist,*.tsbuildinfo}",
     "cli": "node --import @swc-node/register/esm-register ./src/cli/index.ts",
     "cli:dist": "node ./dist/cli/index.js",
-    "copyfiles": "copyfiles -u 1 \"src/**/*.{html,css,scss,ttf,woff,woff2,eot,svg,jpg,png,json,md}\" dist/",
+    "copyfiles": "copyfiles -u 1 \"src/**/*.{html,css,scss,ttf,woff,woff2,eot,svg,jpg,png,json,md}\" dist/ && copyfiles -u 0 \"skills/**/*\" dist/",
     "dev": "next dev dev --turbo",
     "dev:docs:keygen": "pnpm dev:payload run ./dev/scripts/create-docs-keypair.ts",
     "dev:docs:manifest": "node --import @swc-node/register/esm-register ./src/cli/index.ts manifest ./dev/docs-fixtures/basic --source payload-markdown-docs --pretty",
@@ -126,7 +136,9 @@
   },
   "registry": "https://registry.npmjs.org/",
   "dependencies": {
-    "@valkyrianlabs/payload-markdown": "latest"
+    "@payloadcms/plugin-seo": "latest",
+    "@valkyrianlabs/payload-markdown": "latest",
+    "fflate": "^0.8.3"
   },
   "packageManager": "pnpm@10.33.0"
 }

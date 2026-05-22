@@ -65,36 +65,42 @@ export interface Config {
   auth: {
     users: UserAuthOperations;
   };
-  blocks: {};
+  blocks: {
+    vlMdBlock: MarkdownBlock;
+  };
   collections: {
+    pages: Page;
     posts: Post;
     media: Media;
     'docs-groups': DocsGroup;
     'docs-sets': DocsSet;
-    'docs-keys': DocsKey;
-    'docs-trusted': DocsTrusted;
+    'docs-access': DocsAccess;
+    'payload-markdown-docs-assets': PayloadMarkdownDocsAsset;
     docs: Doc;
     'docs-sync-runs': DocsSyncRun;
     'docs-sync-nonces': DocsSyncNonce;
     'payload-kv': PayloadKv;
     users: User;
+    'payload-jobs': PayloadJob;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
     'payload-migrations': PayloadMigration;
   };
   collectionsJoins: {};
   collectionsSelect: {
+    pages: PagesSelect<false> | PagesSelect<true>;
     posts: PostsSelect<false> | PostsSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
     'docs-groups': DocsGroupsSelect<false> | DocsGroupsSelect<true>;
     'docs-sets': DocsSetsSelect<false> | DocsSetsSelect<true>;
-    'docs-keys': DocsKeysSelect<false> | DocsKeysSelect<true>;
-    'docs-trusted': DocsTrustedSelect<false> | DocsTrustedSelect<true>;
+    'docs-access': DocsAccessSelect<false> | DocsAccessSelect<true>;
+    'payload-markdown-docs-assets': PayloadMarkdownDocsAssetsSelect<false> | PayloadMarkdownDocsAssetsSelect<true>;
     docs: DocsSelect<false> | DocsSelect<true>;
     'docs-sync-runs': DocsSyncRunsSelect<false> | DocsSyncRunsSelect<true>;
     'docs-sync-nonces': DocsSyncNoncesSelect<false> | DocsSyncNoncesSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
     users: UsersSelect<false> | UsersSelect<true>;
+    'payload-jobs': PayloadJobsSelect<false> | PayloadJobsSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
     'payload-migrations': PayloadMigrationsSelect<false> | PayloadMigrationsSelect<true>;
@@ -115,7 +121,13 @@ export interface Config {
   };
   user: User;
   jobs: {
-    tasks: unknown;
+    tasks: {
+      schedulePublish: TaskSchedulePublish;
+      inline: {
+        input: unknown;
+        output: unknown;
+      };
+    };
     workflows: unknown;
   };
 }
@@ -139,12 +151,259 @@ export interface UserAuthOperations {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "posts".
+ * via the `definition` "MarkdownBlock".
  */
-export interface Post {
+export interface MarkdownBlock {
+  'md-params'?: {
+    /**
+     * Whether to enable custom parameters for markdown blocks. This is required to use any of the other block parameter fields, but can be left disabled if you only need the default styles and behavior.
+     */
+    enable?: boolean | null;
+    config?: {
+      /**
+       * Additional Tailwind classes to apply to the block wrapper element.
+       */
+      wrapperClassName?: string | null;
+      /**
+       * Additional Tailwind classes to apply to the block element itself.
+       */
+      className?: string | null;
+      /**
+       * Additional Tailwind classes to apply to the block section element.
+       */
+      sectionClassName?: string | null;
+      /**
+       * Additional Tailwind classes to apply to the block column element.
+       */
+      columnClassName?: string | null;
+      /**
+       * The visual style variant to apply to the block.
+       */
+      variant?: ('blog' | 'compact' | 'docs' | 'unstyled') | null;
+      /**
+       * The typography size to apply to the block.
+       */
+      size?: ('lg' | 'md' | 'sm') | null;
+      /**
+       * Whether to apply horizontal gutter padding to the block wrapper.
+       */
+      enableGutter?: boolean | null;
+      /**
+       * Whether fenced code blocks should extend beyond the normal content width on larger screens.
+       */
+      fullBleedCode?: boolean | null;
+      /**
+       * Whether heading colors should be slightly muted.
+       */
+      mutedHeadings?: boolean | null;
+      options?: {
+        /**
+         * The Shiki theme to use for syntax highlighting this code block. Defaults to "github-dark". Note that this plugin is optimized around themes that still look good when block backgrounds are removed or reduced. Some light themes may require additional customization to maintain good contrast and readability.
+         */
+        theme?:
+          | (
+              | 'andromeeda'
+              | 'aurora-x'
+              | 'ayu-dark'
+              | 'ayu-light'
+              | 'ayu-mirage'
+              | 'catppuccin-frappe'
+              | 'catppuccin-latte'
+              | 'catppuccin-macchiato'
+              | 'catppuccin-mocha'
+              | 'dark-plus'
+              | 'dracula'
+              | 'dracula-soft'
+              | 'everforest-dark'
+              | 'everforest-light'
+              | 'github-dark'
+              | 'github-dark-default'
+              | 'github-dark-dimmed'
+              | 'github-dark-high-contrast'
+              | 'github-light'
+              | 'github-light-default'
+              | 'github-light-high-contrast'
+              | 'gruvbox-dark-hard'
+              | 'gruvbox-dark-medium'
+              | 'gruvbox-dark-soft'
+              | 'gruvbox-light-hard'
+              | 'gruvbox-light-medium'
+              | 'gruvbox-light-soft'
+              | 'horizon'
+              | 'horizon-bright'
+              | 'houston'
+              | 'kanagawa-dragon'
+              | 'kanagawa-lotus'
+              | 'kanagawa-wave'
+              | 'laserwave'
+              | 'light-plus'
+              | 'material-theme'
+              | 'material-theme-darker'
+              | 'material-theme-lighter'
+              | 'material-theme-ocean'
+              | 'material-theme-palenight'
+              | 'min-dark'
+              | 'min-light'
+              | 'monokai'
+              | 'night-owl'
+              | 'night-owl-light'
+              | 'nord'
+              | 'one-dark-pro'
+              | 'one-light'
+              | 'plastic'
+              | 'poimandres'
+              | 'red'
+              | 'rose-pine'
+              | 'rose-pine-dawn'
+              | 'rose-pine-moon'
+              | 'slack-dark'
+              | 'slack-ochin'
+              | 'snazzy-light'
+              | 'solarized-dark'
+              | 'solarized-light'
+              | 'synthwave-84'
+              | 'tokyo-night'
+              | 'vesper'
+              | 'vitesse-black'
+              | 'vitesse-dark'
+              | 'vitesse-light'
+            )
+          | null;
+        /**
+         * Whether to show line numbers in the code block.
+         */
+        showLineNumbers?: boolean | null;
+        /**
+         * Whether to apply the plugin's enhanced code block formatting. When enabled, the renderer normalizes Shiki output for better integration with markdown prose styling. This includes adjustments such as background removal, spacing cleanup, line layout normalization, and other structural fixes needed for features like line numbers and consistent empty-line rendering. Set this to false if you want to preserve raw Shiki block styling as much as possible.
+         */
+        enhancedCodeBlocks?: boolean | null;
+      };
+    };
+  };
+  content: string;
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'vlMdBlock';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "pages".
+ */
+export interface Page {
   id: number;
+  title: string;
+  /**
+   * Hero picker with docs set hero variants. Docs heroes derive title, description, links, and skill buttons from the selected docs set.
+   */
+  hero: {
+    type:
+      | 'none'
+      | 'highImpact'
+      | 'highImpactCard'
+      | 'mediumImpact'
+      | 'lowImpact'
+      | 'docsSetFullWidth'
+      | 'docsSetSideImage'
+      | 'docsSetSideInfo';
+    /**
+     * Local dev hero heading.
+     */
+    heading?: string | null;
+    /**
+     * Local dev hero description.
+     */
+    description?: string | null;
+    media?: (number | null) | Media;
+    /**
+     * Select the docs set this block should reference. Links, page choices, and skill buttons are derived from this set.
+     */
+    docsSet?: (number | null) | DocsSet;
+    /**
+     * Small uppercase pre-heading text rendered above the main heading.
+     */
+    eyebrow?: string | null;
+    /**
+     * Single pill label rendered near the hero heading for status, version, category, or launch metadata.
+     */
+    badge?: string | null;
+    /**
+     * Label for the fallback link to the selected docs set.
+     */
+    docsLabel?: string | null;
+    /**
+     * Optional decorative background media and overlay controls.
+     */
+    background?: {
+      media?: (number | null) | Media;
+      position?: ('center' | 'top' | 'bottom' | 'left' | 'right') | null;
+      /**
+       * Show fit, overlay, opacity, variant, and gradient controls.
+       */
+      advancedControls?: boolean | null;
+      overlay?: boolean | null;
+      /**
+       * 0 to 95.
+       */
+      overlayOpacity?: number | null;
+      overlayVariant?: ('dark' | 'light' | 'brand' | 'gradient') | null;
+      fit?: ('cover' | 'contain' | 'fill') | null;
+      gradient?: ('none' | 'subtle' | 'brand') | null;
+    };
+    /**
+     * Optional side image. Defaults to the selected docs set SEO image when present.
+     */
+    image?: (number | null) | Media;
+    /**
+     * Controls which side the image appears on for the side image hero.
+     */
+    imagePosition?: ('left' | 'right') | null;
+    ctaButtons?:
+      | {
+          label?: string | null;
+          variant?: ('primary' | 'secondary' | 'outline' | 'ghost' | 'link') | null;
+          target?: ('set' | 'setPage' | 'custom') | null;
+          newTab?: boolean | null;
+          /**
+           * Select a docs page from the selected docs set.
+           */
+          page?: (number | null) | Doc;
+          /**
+           * Custom URL used only when the button target is Custom URL.
+           */
+          url?: string | null;
+          /**
+           * Optional icon name. SVG/icon rendering requires renderer or plugin icon support.
+           */
+          icon?: string | null;
+          id?: string | null;
+        }[]
+      | null;
+    /**
+     * Feature available skill downloads from the selected docs set.
+     */
+    skills?: {
+      enabled?: boolean | null;
+      display?: ('buttons' | 'tabs' | 'cards') | null;
+      heading?: string | null;
+      description?: string | null;
+    };
+  };
+  layout: (MarkdownBlock | DocsCTABlock)[];
+  meta?: {
+    title?: string | null;
+    description?: string | null;
+    image?: (number | null) | Media;
+  };
+  publishedAt?: string | null;
+  /**
+   * When enabled, the slug will auto-generate from the title field on save and autosave.
+   */
+  generateSlug?: boolean | null;
+  slug: string;
+  fullPath?: string | null;
   updatedAt: string;
   createdAt: string;
+  _status?: ('draft' | 'published') | null;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -166,29 +425,20 @@ export interface Media {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "docs-groups".
- */
-export interface DocsGroup {
-  id: number;
-  title: string;
-  slug: string;
-  parent?: (number | null) | DocsGroup;
-  description?: string | null;
-  navTitle?: string | null;
-  order?: number | null;
-  serveIndex?: boolean | null;
-  updatedAt: string;
-  createdAt: string;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "docs-sets".
  */
 export interface DocsSet {
   id: number;
-  title: string;
+  /**
+   * When enabled, the slug will auto-generate from the title field on save and autosave.
+   */
+  generateSlug?: boolean | null;
   slug: string;
   group?: (number | null) | DocsGroup;
+  /**
+   * docs-root serves docs at the docs set route. product-nested serves docs under /docs so the parent route can be used as a product page.
+   */
+  routeMode?: ('docs-root' | 'product-nested') | null;
   /**
    * Git branch allowed to publish this docs set. The full Git ref is handled internally.
    */
@@ -197,8 +447,17 @@ export interface DocsSet {
    * Allow GitHub pull request events to dry-run or publish this docs set.
    */
   allowPullRequests?: boolean | null;
-  description?: string | null;
   publishedAt?: string | null;
+  title: string;
+  description?: string | null;
+  meta?: {
+    title?: string | null;
+    description?: string | null;
+    /**
+     * Maximum upload file size: 12MB. Recommended file size for images is <500KB.
+     */
+    image?: (number | null) | Media;
+  };
   /**
    * Optional workflow lock-down. Leave disabled to allow any workflow from a trusted GitHub owner/repository and branch.
    */
@@ -218,9 +477,52 @@ export interface DocsSet {
       | null;
   };
   /**
-   * Parsed index.ai.yml control data for the raw Markdown AI export route.
+   * Latest successful docs set sync status.
    */
-  aiExport?:
+  sync?: {
+    lastSyncedAt?: string | null;
+    lastStatus?: ('failed' | 'pending' | 'success') | null;
+  };
+  updatedAt: string;
+  createdAt: string;
+  _status?: ('draft' | 'published') | null;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "docs-groups".
+ */
+export interface DocsGroup {
+  id: number;
+  title: string;
+  /**
+   * When enabled, the slug will auto-generate from the title field on save and autosave.
+   */
+  generateSlug?: boolean | null;
+  slug: string;
+  parent?: (number | null) | DocsGroup;
+  description?: string | null;
+  navTitle?: string | null;
+  order?: number | null;
+  /**
+   * auto generates a docs group landing page. custom lets the site own this group route.
+   */
+  pageMode?: ('auto' | 'custom') | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "docs".
+ */
+export interface Doc {
+  id: number;
+  title: string;
+  navTitle?: string | null;
+  description?: string | null;
+  /**
+   * Optional fully qualified package names used to link related docs sets in generated AI discovery files.
+   */
+  dependencies?:
     | {
         [k: string]: unknown;
       }
@@ -229,11 +531,33 @@ export interface DocsSet {
     | number
     | boolean
     | null;
+  publishedAt?: string | null;
+  route: string;
+  sourcePath: string;
+  docsSet?: (number | null) | DocsSet;
+  sourceHash?: string | null;
+  depth?: number | null;
+  order?: number | null;
+  parent?: (number | null) | Doc;
+  /**
+   * Optional hero image rendered above generated docs content.
+   */
+  heroImage?: (number | null) | Media;
+  content?: string | null;
+  overrides?: {
+    navTitle?: string | null;
+    hideFromNav?: boolean | null;
+  };
   sync?: {
+    sourceId?: string | null;
+    sourcePath?: string | null;
+    sourceHashAtLastSync?: string | null;
+    contentHashAtLastSync?: string | null;
     lastSyncedAt?: string | null;
     lastSyncRunId?: (number | null) | DocsSyncRun;
-    lastStatus?: ('failed' | 'pending' | 'success') | null;
-    docsCount?: number | null;
+    managedBy?: string | null;
+    archived?: boolean | null;
+    archivedAt?: string | null;
   };
   updatedAt: string;
   createdAt: string;
@@ -286,33 +610,93 @@ export interface DocsSyncRun {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "docs-keys".
+ * via the `definition` "DocsCTABlock".
  */
-export interface DocsKey {
+export interface DocsCTABlock {
+  /**
+   * Select the docs set this block should reference. Links, page choices, and skill buttons are derived from this set.
+   */
+  docsSet: number | DocsSet;
+  actionType: 'docsLink' | 'skills';
+  overrideContent?: boolean | null;
+  heading?: string | null;
+  description?: string | null;
+  docsLabel?: string | null;
+  /**
+   * Optional label and description overrides keyed by detected skill agent. Skill buttons are derived from docs assets for the selected docs set.
+   */
+  skillOverrides?:
+    | {
+        /**
+         * Must match a detected skill agent from the selected docs set, such as codex or claude. Do not hardcode options.
+         */
+        agent: string;
+        /**
+         * Optional override for the detected skill label.
+         */
+        label?: string | null;
+        /**
+         * Optional override for the detected skill description.
+         */
+        description?: string | null;
+        id?: string | null;
+      }[]
+    | null;
+  variant?: ('subtle' | 'normal' | 'full') | null;
+  gradient?: ('none' | 'brand' | 'cyan' | 'emerald' | 'violet') | null;
+  /**
+   * Optional decorative background media and overlay controls.
+   */
+  background?: {
+    media?: (number | null) | Media;
+    position?: ('center' | 'top' | 'bottom' | 'left' | 'right') | null;
+    /**
+     * Show fit, overlay, opacity, variant, and gradient controls.
+     */
+    advancedControls?: boolean | null;
+    overlay?: boolean | null;
+    /**
+     * 0 to 95.
+     */
+    overlayOpacity?: number | null;
+    overlayVariant?: ('dark' | 'light' | 'brand' | 'gradient') | null;
+    fit?: ('cover' | 'contain' | 'fill') | null;
+    gradient?: ('none' | 'subtle' | 'brand') | null;
+  };
+  id?: string | null;
+  blockName?: string | null;
+  blockType: 'docsCTA';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "posts".
+ */
+export interface Post {
   id: number;
-  title: string;
-  /**
-   * Identifier sent by signed docs sync requests. Keep this stable for each publishing environment.
-   */
-  keyId: string;
-  /**
-   * Ed25519 public key allowed to publish docs. Private keys never belong in Payload.
-   */
-  publicKey: string;
   updatedAt: string;
   createdAt: string;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "docs-trusted".
+ * via the `definition` "docs-access".
  */
-export interface DocsTrusted {
+export interface DocsAccess {
   id: number;
   title: string;
+  accessType: 'ed25519' | 'githubOidc';
+  identityKey?: string | null;
+  /**
+   * Identifier sent by signed docs sync requests. Keep this stable for each publishing environment.
+   */
+  keyId?: string | null;
+  /**
+   * Ed25519 public key allowed to publish docs. Private keys never belong in Payload.
+   */
+  publicKey?: string | null;
   /**
    * GitHub owner or organization trusted to publish docs through OIDC.
    */
-  owner: string;
+  owner?: string | null;
   /**
    * Leave off to trust every repository owned by this GitHub owner. Enable to list specific repositories.
    */
@@ -331,30 +715,18 @@ export interface DocsTrusted {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "docs".
+ * via the `definition` "payload-markdown-docs-assets".
  */
-export interface Doc {
+export interface PayloadMarkdownDocsAsset {
   id: number;
-  title: string;
-  navTitle?: string | null;
-  description?: string | null;
-  publishedAt?: string | null;
-  route: string;
-  sourcePath: string;
+  sourceId: string;
   docsSet?: (number | null) | DocsSet;
+  kind: 'llms' | 'llms-full' | 'skill' | 'static';
+  sourcePath: string;
+  route?: string | null;
+  contentType: string;
+  content: string;
   sourceHash?: string | null;
-  depth?: number | null;
-  order?: number | null;
-  parent?: (number | null) | Doc;
-  /**
-   * Optional hero image rendered above generated docs content.
-   */
-  heroImage?: (number | null) | Media;
-  content?: string | null;
-  overrides?: {
-    navTitle?: string | null;
-    hideFromNav?: boolean | null;
-  };
   sync?: {
     sourceId?: string | null;
     sourcePath?: string | null;
@@ -368,7 +740,6 @@ export interface Doc {
   };
   updatedAt: string;
   createdAt: string;
-  _status?: ('draft' | 'published') | null;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -430,11 +801,107 @@ export interface User {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "payload-jobs".
+ */
+export interface PayloadJob {
+  id: number;
+  /**
+   * Input data provided to the job
+   */
+  input?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  taskStatus?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  completedAt?: string | null;
+  totalTried?: number | null;
+  /**
+   * If hasError is true this job will not be retried
+   */
+  hasError?: boolean | null;
+  /**
+   * If hasError is true, this is the error that caused it
+   */
+  error?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
+  /**
+   * Task execution log
+   */
+  log?:
+    | {
+        executedAt: string;
+        completedAt: string;
+        taskSlug: 'inline' | 'schedulePublish';
+        taskID: string;
+        input?:
+          | {
+              [k: string]: unknown;
+            }
+          | unknown[]
+          | string
+          | number
+          | boolean
+          | null;
+        output?:
+          | {
+              [k: string]: unknown;
+            }
+          | unknown[]
+          | string
+          | number
+          | boolean
+          | null;
+        state: 'failed' | 'succeeded';
+        error?:
+          | {
+              [k: string]: unknown;
+            }
+          | unknown[]
+          | string
+          | number
+          | boolean
+          | null;
+        id?: string | null;
+      }[]
+    | null;
+  taskSlug?: ('inline' | 'schedulePublish') | null;
+  queue?: string | null;
+  waitUntil?: string | null;
+  processing?: boolean | null;
+  updatedAt: string;
+  createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-locked-documents".
  */
 export interface PayloadLockedDocument {
   id: number;
   document?:
+    | ({
+        relationTo: 'pages';
+        value: number | Page;
+      } | null)
     | ({
         relationTo: 'posts';
         value: number | Post;
@@ -452,12 +919,12 @@ export interface PayloadLockedDocument {
         value: number | DocsSet;
       } | null)
     | ({
-        relationTo: 'docs-keys';
-        value: number | DocsKey;
+        relationTo: 'docs-access';
+        value: number | DocsAccess;
       } | null)
     | ({
-        relationTo: 'docs-trusted';
-        value: number | DocsTrusted;
+        relationTo: 'payload-markdown-docs-assets';
+        value: number | PayloadMarkdownDocsAsset;
       } | null)
     | ({
         relationTo: 'docs';
@@ -519,6 +986,149 @@ export interface PayloadMigration {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "pages_select".
+ */
+export interface PagesSelect<T extends boolean = true> {
+  title?: T;
+  hero?:
+    | T
+    | {
+        type?: T;
+        heading?: T;
+        description?: T;
+        media?: T;
+        docsSet?: T;
+        eyebrow?: T;
+        badge?: T;
+        docsLabel?: T;
+        background?:
+          | T
+          | {
+              media?: T;
+              position?: T;
+              advancedControls?: T;
+              overlay?: T;
+              overlayOpacity?: T;
+              overlayVariant?: T;
+              fit?: T;
+              gradient?: T;
+            };
+        image?: T;
+        imagePosition?: T;
+        ctaButtons?:
+          | T
+          | {
+              label?: T;
+              variant?: T;
+              target?: T;
+              newTab?: T;
+              page?: T;
+              url?: T;
+              icon?: T;
+              id?: T;
+            };
+        skills?:
+          | T
+          | {
+              enabled?: T;
+              display?: T;
+              heading?: T;
+              description?: T;
+            };
+      };
+  layout?:
+    | T
+    | {
+        vlMdBlock?: T | MarkdownBlockSelect<T>;
+        docsCTA?: T | DocsCTABlockSelect<T>;
+      };
+  meta?:
+    | T
+    | {
+        title?: T;
+        description?: T;
+        image?: T;
+      };
+  publishedAt?: T;
+  generateSlug?: T;
+  slug?: T;
+  fullPath?: T;
+  updatedAt?: T;
+  createdAt?: T;
+  _status?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "MarkdownBlock_select".
+ */
+export interface MarkdownBlockSelect<T extends boolean = true> {
+  'md-params'?:
+    | T
+    | {
+        enable?: T;
+        config?:
+          | T
+          | {
+              wrapperClassName?: T;
+              className?: T;
+              sectionClassName?: T;
+              columnClassName?: T;
+              variant?: T;
+              size?: T;
+              enableGutter?: T;
+              fullBleedCode?: T;
+              mutedHeadings?: T;
+              options?:
+                | T
+                | {
+                    theme?: T;
+                    showLineNumbers?: T;
+                    enhancedCodeBlocks?: T;
+                  };
+            };
+      };
+  content?: T;
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "DocsCTABlock_select".
+ */
+export interface DocsCTABlockSelect<T extends boolean = true> {
+  docsSet?: T;
+  actionType?: T;
+  overrideContent?: T;
+  heading?: T;
+  description?: T;
+  docsLabel?: T;
+  skillOverrides?:
+    | T
+    | {
+        agent?: T;
+        label?: T;
+        description?: T;
+        id?: T;
+      };
+  variant?: T;
+  gradient?: T;
+  background?:
+    | T
+    | {
+        media?: T;
+        position?: T;
+        advancedControls?: T;
+        overlay?: T;
+        overlayOpacity?: T;
+        overlayVariant?: T;
+        fit?: T;
+        gradient?: T;
+      };
+  id?: T;
+  blockName?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "posts_select".
  */
 export interface PostsSelect<T extends boolean = true> {
@@ -548,12 +1158,13 @@ export interface MediaSelect<T extends boolean = true> {
  */
 export interface DocsGroupsSelect<T extends boolean = true> {
   title?: T;
+  generateSlug?: T;
   slug?: T;
   parent?: T;
   description?: T;
   navTitle?: T;
   order?: T;
-  serveIndex?: T;
+  pageMode?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -562,13 +1173,22 @@ export interface DocsGroupsSelect<T extends boolean = true> {
  * via the `definition` "docs-sets_select".
  */
 export interface DocsSetsSelect<T extends boolean = true> {
-  title?: T;
+  generateSlug?: T;
   slug?: T;
   group?: T;
+  routeMode?: T;
   branch?: T;
   allowPullRequests?: T;
-  description?: T;
   publishedAt?: T;
+  title?: T;
+  description?: T;
+  meta?:
+    | T
+    | {
+        title?: T;
+        description?: T;
+        image?: T;
+      };
   advancedSecurity?:
     | T
     | {
@@ -580,14 +1200,11 @@ export interface DocsSetsSelect<T extends boolean = true> {
               id?: T;
             };
       };
-  aiExport?: T;
   sync?:
     | T
     | {
         lastSyncedAt?: T;
-        lastSyncRunId?: T;
         lastStatus?: T;
-        docsCount?: T;
       };
   updatedAt?: T;
   createdAt?: T;
@@ -595,21 +1212,14 @@ export interface DocsSetsSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "docs-keys_select".
+ * via the `definition` "docs-access_select".
  */
-export interface DocsKeysSelect<T extends boolean = true> {
+export interface DocsAccessSelect<T extends boolean = true> {
   title?: T;
+  accessType?: T;
+  identityKey?: T;
   keyId?: T;
   publicKey?: T;
-  updatedAt?: T;
-  createdAt?: T;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "docs-trusted_select".
- */
-export interface DocsTrustedSelect<T extends boolean = true> {
-  title?: T;
   owner?: T;
   limitRepos?: T;
   repositories?:
@@ -623,12 +1233,42 @@ export interface DocsTrustedSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "payload-markdown-docs-assets_select".
+ */
+export interface PayloadMarkdownDocsAssetsSelect<T extends boolean = true> {
+  sourceId?: T;
+  docsSet?: T;
+  kind?: T;
+  sourcePath?: T;
+  route?: T;
+  contentType?: T;
+  content?: T;
+  sourceHash?: T;
+  sync?:
+    | T
+    | {
+        sourceId?: T;
+        sourcePath?: T;
+        sourceHashAtLastSync?: T;
+        contentHashAtLastSync?: T;
+        lastSyncedAt?: T;
+        lastSyncRunId?: T;
+        managedBy?: T;
+        archived?: T;
+        archivedAt?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "docs_select".
  */
 export interface DocsSelect<T extends boolean = true> {
   title?: T;
   navTitle?: T;
   description?: T;
+  dependencies?: T;
   publishedAt?: T;
   route?: T;
   sourcePath?: T;
@@ -742,6 +1382,37 @@ export interface UsersSelect<T extends boolean = true> {
         createdAt?: T;
         expiresAt?: T;
       };
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "payload-jobs_select".
+ */
+export interface PayloadJobsSelect<T extends boolean = true> {
+  input?: T;
+  taskStatus?: T;
+  completedAt?: T;
+  totalTried?: T;
+  hasError?: T;
+  error?: T;
+  log?:
+    | T
+    | {
+        executedAt?: T;
+        completedAt?: T;
+        taskSlug?: T;
+        taskID?: T;
+        input?: T;
+        output?: T;
+        state?: T;
+        error?: T;
+        id?: T;
+      };
+  taskSlug?: T;
+  queue?: T;
+  waitUntil?: T;
+  processing?: T;
+  updatedAt?: T;
+  createdAt?: T;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -909,6 +1580,23 @@ export interface CollectionsWidget {
     [k: string]: unknown;
   };
   width: 'full';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "TaskSchedulePublish".
+ */
+export interface TaskSchedulePublish {
+  input: {
+    type?: ('publish' | 'unpublish') | null;
+    locale?: string | null;
+    doc?: {
+      relationTo: 'pages';
+      value: number | Page;
+    } | null;
+    global?: string | null;
+    user?: (number | null) | User;
+  };
+  output?: unknown;
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema

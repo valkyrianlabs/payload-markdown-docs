@@ -33,9 +33,40 @@ When enabled, docs-side Pages checks can reject:
 
 - an exact docs set route colliding with a Page
 - a Page route inside a docs set namespace
+- an auto docs group route colliding with a Page
 - a generated doc route colliding with a Page
 
 Ancestor Pages can still exist. For example, a Page at `/plugins` can coexist with a docs set at `/plugins/payload-markdown-docs`.
+
+## Docs Set Route Modes
+
+New docs sets default to `routeMode: "docs-root"`.
+
+```text
+/plugins/payload-markdown
+/plugins/payload-markdown/getting-started
+```
+
+Use `routeMode: "product-nested"` when the product route should be owned by the
+host app or Pages collection:
+
+```text
+/plugins/payload-markdown
+/plugins/payload-markdown/docs
+/plugins/payload-markdown/docs/getting-started
+```
+
+In product-nested mode, route collision checks protect
+`/plugins/payload-markdown/docs` and descendants but allow
+`/plugins/payload-markdown`.
+
+## Docs Group Page Modes
+
+New docs groups default to `pageMode: "auto"`, which lets the docs plugin render
+a generated group landing page, such as `/plugins`, with cards for direct child
+groups and docs sets.
+
+Use `pageMode: "custom"` when the site owns the group route manually.
 
 ## Bridge Pages
 

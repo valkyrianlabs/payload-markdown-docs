@@ -136,7 +136,7 @@ std::vector<std::string_view> args(std::initializer_list<std::string_view> value
 
 std::filesystem::path create_skill_fixture(const std::filesystem::path& root) {
   const auto data_root = root / "data";
-  const auto skill_root = data_root / "skills" / "payload-markdown-docs";
+  const auto skill_root = data_root / "skills" / "payload-markdown-docs" / "codex";
 
   write_text(
     skill_root / "SKILL.md",
@@ -272,7 +272,7 @@ TEST_CASE("skill install reports conflicts without force and overwrites with for
 TEST_CASE("skill install skips bundled symlinks") {
   TempDir temp{"pmdocs-test-symlink"};
   const auto data_root = create_skill_fixture(temp.path());
-  const auto skill_root = data_root / "skills" / "payload-markdown-docs";
+  const auto skill_root = data_root / "skills" / "payload-markdown-docs" / "codex";
   const auto project_root = temp.path() / "project";
   const auto out = project_root / "skill";
   const auto out_string = out.string();

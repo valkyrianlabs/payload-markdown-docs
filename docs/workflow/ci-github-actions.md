@@ -32,8 +32,8 @@ Required secret or environment value:
 
 - `DOCS_SYNC_ENDPOINT`
 
-Create a docs set whose slug matches the CLI source and add a Trusted GitHub
-owner in Payload Admin. The docs set branch remains the normal publishing
+Create a docs set whose slug matches the CLI source and add a GitHub OIDC record
+in `Docs Globals > Access`. The docs set branch remains the normal publishing
 boundary. Advanced workflow refs are optional and disabled by default.
 
 ## Ed25519 Secrets
@@ -42,7 +42,7 @@ boundary. Advanced workflow refs are optional and disabled by default.
 - `DOCS_SYNC_PRIVATE_KEY`
 
 Use these only for the Ed25519 workflow. The matching docs set must have the
-public key configured under the same key id in `Docs Globals > Keys`.
+public key configured under the same key id in `Docs Globals > Access`.
 
 ## Workflow Example
 
@@ -51,11 +51,22 @@ See `examples/github-actions/publish-docs.yml` in this repository.
 Important commands:
 
 ```bash
-pnpm exec payload-markdown-docs validate ./docs --source main-docs
+pnpm exec payload-markdown-docs validate --source main-docs
 ```
 
+Main-branch sync defaults to sync mode:
+
 ```bash
-pnpm exec payload-markdown-docs push ./docs \
+pnpm exec payload-markdown-docs push \
+  --endpoint "$DOCS_SYNC_ENDPOINT" \
+  --source main-docs \
+  --github-oidc
+```
+
+Pull request dry-run is explicit:
+
+```bash
+pnpm exec payload-markdown-docs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
   --source main-docs \
   --github-oidc \
@@ -63,11 +74,10 @@ pnpm exec payload-markdown-docs push ./docs \
 ```
 
 ```bash
-pnpm exec payload-markdown-docs push ./docs \
+pnpm exec payload-markdown-docs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
   --source main-docs \
   --github-oidc \
-  --sync \
   --publish
 ```
 

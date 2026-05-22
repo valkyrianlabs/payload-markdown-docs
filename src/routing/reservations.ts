@@ -43,10 +43,7 @@ const isAllowedBridgeCollision = (
     return false
   }
 
-  return (
-    (first.ownerType === 'page' && first.allowBridge === true) ||
-    (second.ownerType === 'page' && second.allowBridge === true)
-  )
+  return first.allowBridge === true || second.allowBridge === true
 }
 
 export const findRouteReservationCollisions = (
@@ -123,26 +120,36 @@ export const createDocsSetRouteReservation = ({
 
 export const createDocsGroupRouteReservation = ({
   ownerId,
+  pageMode,
   routePath,
-  serveIndex,
 }: {
   ownerId?: string
+  pageMode?: 'auto' | 'custom'
   routePath: string
-  serveIndex?: boolean
-}): DocsRouteReservation => ({
-  ownerId,
-  ownerType: 'docsGroup',
-  reservesDescendants: false,
-  route: routePath,
-  ...(serveIndex ? {} : { allowBridge: true }),
-})
+}): DocsRouteReservation => {
+  const ownsRoute = pageMode !== 'custom'
+
+  return {
+    ownerId,
+    ownerType: 'docsGroup',
+    reservesDescendants: false,
+    route: routePath,
+    ...(ownsRoute ? {} : { allowBridge: true }),
+  }
+}
 
 export const findPageRouteCollisions = ({
   allowBridgePages = true,
+  docsGroupRoutes = [],
   docsSetRouteBase,
   pages,
 }: {
   allowBridgePages?: boolean
+  docsGroupRoutes?: {
+    ownerId?: string
+    pageMode?: 'auto' | 'custom'
+    routePath: string
+  }[]
   docsSetRouteBase: string
   pages: {
     bridge?: boolean
@@ -154,6 +161,13 @@ export const findPageRouteCollisions = ({
     createDocsSetRouteReservation({
       routeBase: docsSetRouteBase,
     }),
+    ...docsGroupRoutes.map((group) =>
+      createDocsGroupRouteReservation({
+        ownerId: group.ownerId,
+        pageMode: group.pageMode,
+        routePath: group.routePath,
+      }),
+    ),
     ...pages.map((page) => ({
       allowBridge: allowBridgePages && page.bridge === true,
       ownerId: page.id,

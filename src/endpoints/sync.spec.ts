@@ -1,14 +1,14 @@
 import type { Config, PayloadRequest } from 'payload'
 
 import { generateKeyPairSync, randomUUID, sign } from 'node:crypto'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  DEFAULT_DOCS_ACCESS_COLLECTION_SLUG,
+  DEFAULT_DOCS_ASSETS_COLLECTION_SLUG,
   DEFAULT_DOCS_GROUPS_COLLECTION_SLUG,
-  DEFAULT_DOCS_KEYS_COLLECTION_SLUG,
   DEFAULT_DOCS_SETS_COLLECTION_SLUG,
   DEFAULT_DOCS_SYNC_ENDPOINT_PATH,
-  DEFAULT_DOCS_TRUSTED_COLLECTION_SLUG,
   MANAGED_BY,
 } from '../constants.js'
 import { payloadMarkdownDocs } from '../plugin.js'
@@ -19,6 +19,18 @@ import {
 } from '../security/index.js'
 import { buildDocsManifest, sha256Hex } from '../sync/index.js'
 import { createSyncEndpoint } from './index.js'
+
+const cacheMocks = vi.hoisted(() => ({
+  revalidatePath: vi.fn(),
+  revalidateTag: vi.fn(),
+  unstableCache: vi.fn((callback: (...args: unknown[]) => Promise<unknown>) => callback),
+}))
+
+vi.mock('next/cache', () => ({
+  revalidatePath: cacheMocks.revalidatePath,
+  revalidateTag: cacheMocks.revalidateTag,
+  unstable_cache: cacheMocks.unstableCache,
+}))
 
 const now = new Date('2026-01-01T00:00:00.000Z')
 
@@ -47,6 +59,12 @@ type MockPayload = {
 }
 
 let currentPublicKey = ''
+
+beforeEach(() => {
+  cacheMocks.revalidatePath.mockClear()
+  cacheMocks.revalidateTag.mockClear()
+  cacheMocks.unstableCache.mockClear()
+})
 
 const getEqualsConstraint = (where: unknown, field: string): string | undefined => {
   if (typeof where !== 'object' || where === null || Array.isArray(where)) {
@@ -84,26 +102,53 @@ const filterDocsByEquals = (docs: unknown[], where: unknown, field: string): unk
   })
 }
 
-const createMockPayload = ({
-  docsGroups = [],
-  docsKeys,
-  docsSets = [],
-  docsTrusted = [
-    {
-      id: 'trusted-id',
-      limitRepos: false,
-      owner: 'valkyrianlabs',
-      title: 'Valkyrian Labs',
+const filterDocsByWhereEquals = (docs: unknown[], where: unknown): unknown[] => {
+  if (typeof where !== 'object' || where === null || Array.isArray(where)) {
+    return docs
+  }
+
+  const constraints = Object.entries(where as Record<string, unknown>).flatMap(
+    ([field, constraint]) => {
+      if (typeof constraint !== 'object' || constraint === null || Array.isArray(constraint)) {
+        return []
+      }
+
+      const expected = (constraint as Record<string, unknown>).equals
+
+      return expected === undefined ? [] : [{ expected, field }]
     },
-  ],
+  )
+
+  if (constraints.length === 0) {
+    return docs
+  }
+
+  return docs.filter((doc) => {
+    if (typeof doc !== 'object' || doc === null || Array.isArray(doc)) {
+      return false
+    }
+
+    const record = doc as Record<string, unknown>
+
+    return constraints.every(({ expected, field }) => record[field] === expected)
+  })
+}
+
+const createMockPayload = ({
+  assetsFindError,
+  docsAccess,
+  docsGroups = [],
+  docsSets = [],
+  existingAssets = [],
   existingDocs = [],
   pages = [],
   replayNonce = false,
 }: {
+  assetsFindError?: Error
+  docsAccess?: unknown[]
   docsGroups?: unknown[]
-  docsKeys?: unknown[]
   docsSets?: unknown[]
-  docsTrusted?: unknown[]
+  existingAssets?: unknown[]
   existingDocs?: unknown[]
   pages?: unknown[]
   replayNonce?: boolean
@@ -133,6 +178,16 @@ const createMockPayload = ({
       })
     }
 
+    if (collection === DEFAULT_DOCS_ASSETS_COLLECTION_SLUG) {
+      if (assetsFindError) {
+        return Promise.reject(assetsFindError)
+      }
+
+      return Promise.resolve({
+        docs: existingAssets,
+      })
+    }
+
     if (collection === DEFAULT_DOCS_GROUPS_COLLECTION_SLUG) {
       return Promise.resolve({
         docs: docsGroups,
@@ -157,24 +212,28 @@ const createMockPayload = ({
       })
     }
 
-    if (collection === DEFAULT_DOCS_KEYS_COLLECTION_SLUG) {
-      const resolvedDocsKeys = docsKeys ?? [
+    if (collection === DEFAULT_DOCS_ACCESS_COLLECTION_SLUG) {
+      const resolvedDocsAccess = docsAccess ?? [
         {
-          id: 'key-id',
+          id: 'access-key-id',
+          accessType: 'ed25519',
+          identityKey: 'ed25519:test-key',
           keyId: 'test-key',
           publicKey: currentPublicKey,
           title: 'Test Key',
         },
+        {
+          id: 'access-github-id',
+          accessType: 'githubOidc',
+          identityKey: 'githubOidc:valkyrianlabs',
+          limitRepos: false,
+          owner: 'valkyrianlabs',
+          title: 'Valkyrian Labs',
+        },
       ]
 
       return Promise.resolve({
-        docs: filterDocsByEquals(resolvedDocsKeys, args.where, 'keyId'),
-      })
-    }
-
-    if (collection === DEFAULT_DOCS_TRUSTED_COLLECTION_SLUG) {
-      return Promise.resolve({
-        docs: docsTrusted,
+        docs: filterDocsByWhereEquals(resolvedDocsAccess, args.where),
       })
     }
 
@@ -214,7 +273,7 @@ const signBody = ({
   body,
   keyId = 'test-key',
   nonce = 'nonce-1',
-  path = '/api/payload-markdown-docs/sync',
+  path = '/api/documentation/sync',
   privateKey,
   timestamp = now.toISOString(),
 }: {
@@ -309,7 +368,7 @@ const createRequest = ({
   headers,
   method = 'POST',
   payload = createMockPayload(),
-  url = 'https://example.test/api/payload-markdown-docs/sync',
+  url = 'https://example.test/api/documentation/sync',
 }: {
   body?: string
   headers?: Headers
@@ -359,16 +418,16 @@ const createEndpointForTests = ({
       ed25519: true,
     },
     deleteBehavior,
+    docsAccessCollectionSlug: DEFAULT_DOCS_ACCESS_COLLECTION_SLUG,
+    docsAccessEnabled: true,
+    docsAssetsCollectionSlug: DEFAULT_DOCS_ASSETS_COLLECTION_SLUG,
+    docsAssetsEnabled: true,
     docsCollectionSlug: 'docs',
     docsEnabled: true,
     docsEnableDrafts,
     docsGroupsCollectionSlug: DEFAULT_DOCS_GROUPS_COLLECTION_SLUG,
-    docsKeysCollectionSlug: DEFAULT_DOCS_KEYS_COLLECTION_SLUG,
-    docsKeysEnabled: true,
     docsSetsCollectionSlug: DEFAULT_DOCS_SETS_COLLECTION_SLUG,
     docsSetsEnabled,
-    docsTrustedCollectionSlug: DEFAULT_DOCS_TRUSTED_COLLECTION_SLUG,
-    docsTrustedEnabled: true,
     endpointPath: DEFAULT_DOCS_SYNC_ENDPOINT_PATH,
     getNow: () => now,
     markdownFieldName: 'content',
@@ -443,16 +502,14 @@ const createOidcEndpointForTests = ({
     auth: {
       githubOidc: true,
     },
+    docsAccessCollectionSlug: DEFAULT_DOCS_ACCESS_COLLECTION_SLUG,
+    docsAccessEnabled: true,
     docsCollectionSlug: 'docs',
     docsEnabled: true,
     docsEnableDrafts: true,
     docsGroupsCollectionSlug: DEFAULT_DOCS_GROUPS_COLLECTION_SLUG,
-    docsKeysCollectionSlug: DEFAULT_DOCS_KEYS_COLLECTION_SLUG,
-    docsKeysEnabled: true,
     docsSetsCollectionSlug: DEFAULT_DOCS_SETS_COLLECTION_SLUG,
     docsSetsEnabled: true,
-    docsTrustedCollectionSlug: DEFAULT_DOCS_TRUSTED_COLLECTION_SLUG,
-    docsTrustedEnabled: true,
     endpointPath: DEFAULT_DOCS_SYNC_ENDPOINT_PATH,
     getNow: () => now,
     markdownFieldName: 'content',
@@ -477,16 +534,14 @@ const createMultiAuthEndpointForTests = ({
       ed25519: true,
       githubOidc: true,
     },
+    docsAccessCollectionSlug: DEFAULT_DOCS_ACCESS_COLLECTION_SLUG,
+    docsAccessEnabled: true,
     docsCollectionSlug: 'docs',
     docsEnabled: true,
     docsEnableDrafts: true,
     docsGroupsCollectionSlug: DEFAULT_DOCS_GROUPS_COLLECTION_SLUG,
-    docsKeysCollectionSlug: DEFAULT_DOCS_KEYS_COLLECTION_SLUG,
-    docsKeysEnabled: true,
     docsSetsCollectionSlug: DEFAULT_DOCS_SETS_COLLECTION_SLUG,
     docsSetsEnabled: true,
-    docsTrustedCollectionSlug: DEFAULT_DOCS_TRUSTED_COLLECTION_SLUG,
-    docsTrustedEnabled: true,
     endpointPath: DEFAULT_DOCS_SYNC_ENDPOINT_PATH,
     getNow: () => now,
     markdownFieldName: 'content',
@@ -515,16 +570,14 @@ const createCmsManagedEndpointForTests = ({
     allowPublish,
     allowWrites,
     auth,
+    docsAccessCollectionSlug: DEFAULT_DOCS_ACCESS_COLLECTION_SLUG,
+    docsAccessEnabled: true,
     docsCollectionSlug: 'docs',
     docsEnabled: true,
     docsEnableDrafts: true,
     docsGroupsCollectionSlug: DEFAULT_DOCS_GROUPS_COLLECTION_SLUG,
-    docsKeysCollectionSlug: DEFAULT_DOCS_KEYS_COLLECTION_SLUG,
-    docsKeysEnabled: true,
     docsSetsCollectionSlug: DEFAULT_DOCS_SETS_COLLECTION_SLUG,
     docsSetsEnabled: true,
-    docsTrustedCollectionSlug: DEFAULT_DOCS_TRUSTED_COLLECTION_SLUG,
-    docsTrustedEnabled: true,
     endpointPath: DEFAULT_DOCS_SYNC_ENDPOINT_PATH,
     getNow: () => now,
     markdownFieldName: 'content',
@@ -602,16 +655,14 @@ describe('sync endpoint registration', () => {
 describe('sync endpoint dry-run handling', () => {
   it('rejects requests when auth is not configured', async () => {
     const endpoint = createSyncEndpoint({
+      docsAccessCollectionSlug: DEFAULT_DOCS_ACCESS_COLLECTION_SLUG,
+      docsAccessEnabled: true,
       docsCollectionSlug: 'docs',
       docsEnabled: true,
       docsEnableDrafts: false,
       docsGroupsCollectionSlug: DEFAULT_DOCS_GROUPS_COLLECTION_SLUG,
-      docsKeysCollectionSlug: DEFAULT_DOCS_KEYS_COLLECTION_SLUG,
-      docsKeysEnabled: true,
       docsSetsCollectionSlug: DEFAULT_DOCS_SETS_COLLECTION_SLUG,
       docsSetsEnabled: true,
-      docsTrustedCollectionSlug: DEFAULT_DOCS_TRUSTED_COLLECTION_SLUG,
-      docsTrustedEnabled: true,
       endpointPath: DEFAULT_DOCS_SYNC_ENDPOINT_PATH,
       getNow: () => now,
       markdownFieldName: 'content',
@@ -791,6 +842,106 @@ describe('sync endpoint dry-run handling', () => {
     expect(json.error).toMatchObject({ code: 'source_not_allowed' })
   })
 
+  it('returns structured errors for unexpected endpoint failures', async () => {
+    const { privateKey, publicKey } = keyPair()
+    const body = JSON.stringify(createManifest())
+    const payload = createMockPayload()
+    payload.find.mockRejectedValueOnce(new Error('database unavailable'))
+
+    const { json, response } = await callEndpoint({
+      body,
+      headers: signBody({
+        body,
+        privateKey,
+      }),
+      payload,
+      publicKey: publicKey.toString(),
+    })
+
+    expect(response.status).toBe(500)
+    expect(json.error).toMatchObject({
+      code: 'sync_endpoint_failed',
+      message: 'Sync endpoint failed: database unavailable',
+    })
+  })
+
+  it('does not require docs asset storage for docs-only manifests', async () => {
+    const { privateKey, publicKey } = keyPair()
+    const body = JSON.stringify(createManifest())
+    const payload = createMockPayload({
+      assetsFindError: new Error(
+        'Failed query: relation "payload_markdown_docs_assets" does not exist',
+      ),
+    })
+
+    const { json, response } = await callEndpoint({
+      body,
+      headers: signBody({
+        body,
+        privateKey,
+      }),
+      payload,
+      publicKey: publicKey.toString(),
+    })
+
+    expect(response.status).toBe(200)
+    expect(json).toMatchObject({
+      ok: true,
+    })
+    expect(payload.find).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: DEFAULT_DOCS_ASSETS_COLLECTION_SLUG,
+      }),
+    )
+  })
+
+  it('returns a migration hint when docs asset storage is missing for asset manifests', async () => {
+    const { privateKey, publicKey } = keyPair()
+    const body = JSON.stringify(
+      buildDocsManifest({
+        assets: [
+          {
+            content: '# Main Docs\n',
+            contentType: 'text/plain; charset=utf-8',
+            kind: 'llms',
+            path: 'llms.txt',
+            route: '/llms.txt',
+          },
+        ],
+        files: [
+          {
+            content: '# Home\n',
+            path: 'index.md',
+          },
+        ],
+        repository: 'valkyrianlabs/payload-markdown',
+        sourceId: 'main-docs',
+      }),
+    )
+    const payload = createMockPayload({
+      assetsFindError: new Error(
+        'Failed query: select count(*) from "payload_markdown_docs_assets"',
+      ),
+    })
+
+    const { json, response } = await callEndpoint({
+      body,
+      headers: signBody({
+        body,
+        privateKey,
+      }),
+      payload,
+      publicKey: publicKey.toString(),
+    })
+
+    expect(response.status).toBe(500)
+    expect(json.error).toMatchObject({
+      code: 'assets_storage_unavailable',
+    })
+    expect(JSON.stringify(json.error)).toContain('Run Payload locally')
+    expect(JSON.stringify(json.error)).toContain(DEFAULT_DOCS_ASSETS_COLLECTION_SLUG)
+  })
+
   it('rejects sync mode when writes are not enabled', async () => {
     const { privateKey, publicKey } = keyPair()
     const body = JSON.stringify(createManifest({ mode: 'sync' }))
@@ -948,7 +1099,7 @@ describe('sync endpoint dry-run handling', () => {
     })
   })
 
-  it('accepts signed requests using global Ed25519 keys and docs set slugs', async () => {
+  it('accepts signed requests using Access Ed25519 keys and docs set slugs', async () => {
     const { privateKey, publicKey } = keyPair()
     const body = JSON.stringify(createManifest({ mode: 'sync' }))
     const payload = createMockPayload({
@@ -991,20 +1142,15 @@ describe('sync endpoint dry-run handling', () => {
     )
   })
 
-  it('accepts GitHub OIDC using global Trusted records with repo limiting', async () => {
+  it('accepts GitHub OIDC using Access records with repo limiting', async () => {
     const tokenFixture = createOidcTokenFixture()
     const body = JSON.stringify(createManifest())
     const payload = createMockPayload({
-      docsSets: [
+      docsAccess: [
         {
-          id: 'docs-set-1',
-          slug: 'main-docs',
-          branch: 'main',
-        },
-      ],
-      docsTrusted: [
-        {
-          id: 'trusted-id',
+          id: 'access-github-id',
+          accessType: 'githubOidc',
+          identityKey: 'githubOidc:valkyrianlabs',
           limitRepos: true,
           owner: 'valkyrianlabs',
           repositories: [
@@ -1013,6 +1159,13 @@ describe('sync endpoint dry-run handling', () => {
             },
           ],
           title: 'Valkyrian Labs',
+        },
+      ],
+      docsSets: [
+        {
+          id: 'docs-set-1',
+          slug: 'main-docs',
+          branch: 'main',
         },
       ],
     })
@@ -1161,7 +1314,7 @@ describe('sync endpoint dry-run handling', () => {
         {
           id: 'doc-1',
           content: '# Home\n',
-          route: '/docs',
+          route: '/main-docs',
           sourceHash: sha256Hex('# Home\n'),
           sourcePath: 'index.md',
           sync: {
@@ -1484,6 +1637,115 @@ describe('sync endpoint dry-run handling', () => {
     expect(JSON.stringify(json)).not.toContain('# Home')
   })
 
+  it('revalidates auto-generated group index pages when syncing a docs set', async () => {
+    const { privateKey, publicKey } = keyPair()
+    const body = JSON.stringify(createManifest({ mode: 'sync' }))
+    const payload = createMockPayload({
+      docsGroups: [
+        {
+          id: 'docs-group-1',
+          slug: 'plugins',
+          pageMode: 'auto',
+        },
+      ],
+      docsSets: [
+        {
+          id: 'docs-set-1',
+          slug: 'main-docs',
+          branch: 'main',
+          group: 'docs-group-1',
+        },
+      ],
+    })
+    const { json, response } = await callEndpoint({
+      body,
+      endpointOptions: {
+        allowWrites: true,
+        docsSetsEnabled: true,
+      },
+      headers: signBody({
+        body,
+        privateKey,
+      }),
+      payload,
+      publicKey: publicKey.toString(),
+    })
+
+    expect(response.status).toBe(200)
+    expect(json).toMatchObject({ ok: true })
+    expect(cacheMocks.revalidatePath).toHaveBeenCalledWith('/plugins')
+    expect(cacheMocks.revalidatePath).toHaveBeenCalledWith('/plugins/main-docs')
+  })
+
+  it('applies sync mode by creating llms and skill asset records', async () => {
+    const { privateKey, publicKey } = keyPair()
+    const body = JSON.stringify(
+      buildDocsManifest({
+        assets: [
+          {
+            content: '# Main Docs\n',
+            contentType: 'text/plain; charset=utf-8',
+            kind: 'llms',
+            path: 'llms.txt',
+            route: '/llms.txt',
+          },
+          {
+            content: '# Codex Skill\n',
+            contentType: 'text/markdown; charset=utf-8',
+            kind: 'skill',
+            path: 'skills/main-docs/codex/SKILL.md',
+          },
+        ],
+        files: [
+          {
+            content: '# Home\n',
+            path: 'index.md',
+          },
+        ],
+        mode: 'sync',
+        sourceId: 'main-docs',
+      }),
+    )
+    const payload = createMockPayload()
+    const { json, response } = await callEndpoint({
+      body,
+      endpointOptions: {
+        allowWrites: true,
+      },
+      headers: signBody({
+        body,
+        privateKey,
+      }),
+      payload,
+      publicKey: publicKey.toString(),
+    })
+
+    expect(response.status).toBe(200)
+    expect(json.summary).toMatchObject({
+      assetCreate: 2,
+    })
+    expect(payload.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: DEFAULT_DOCS_ASSETS_COLLECTION_SLUG,
+        data: expect.objectContaining({
+          kind: 'llms',
+          route: '/llms.txt',
+          sourcePath: 'llms.txt',
+        }),
+      }),
+    )
+    expect(payload.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: DEFAULT_DOCS_ASSETS_COLLECTION_SLUG,
+        data: expect.objectContaining({
+          kind: 'skill',
+          route: '/main-docs/skills/codex/SKILL.md',
+          sourcePath: 'skills/main-docs/codex/SKILL.md',
+        }),
+      }),
+    )
+  })
+
   it('resolves docs sets by slug and derives the docs set route base', async () => {
     const { privateKey, publicKey } = keyPair()
     const body = JSON.stringify(createManifest({ mode: 'sync' }))
@@ -1542,29 +1804,23 @@ describe('sync endpoint dry-run handling', () => {
     )
   })
 
-  it('stores validated AI export manifest data on the docs set when syncing', async () => {
+  it('derives product-nested docs routes below the docs segment', async () => {
     const { privateKey, publicKey } = keyPair()
-    const body = JSON.stringify(
-      createManifest({
-        aiExport: {
-          exclude: ['./internal.md'],
-          headingMode: 'normalize',
-          order: ['./index.md'],
-          orphans: 'append',
-          output: '/plugins/payload-markdown.md',
-          sourcePath: 'index.ai.yml',
-          title: 'Payload Markdown Documentation',
-          version: 1,
-        },
-        mode: 'sync',
-      }),
-    )
+    const body = JSON.stringify(createManifest({ mode: 'sync' }))
     const payload = createMockPayload({
+      docsGroups: [
+        {
+          id: 'docs-group-1',
+          slug: 'plugins',
+        },
+      ],
       docsSets: [
         {
           id: 'docs-set-1',
           slug: 'main-docs',
           branch: 'main',
+          group: 'docs-group-1',
+          routeMode: 'product-nested',
         },
       ],
     })
@@ -1583,17 +1839,90 @@ describe('sync endpoint dry-run handling', () => {
     })
 
     expect(response.status).toBe(200)
-    expect(json.ok).toBe(true)
-    expect(payload.update).toHaveBeenCalledWith(
+    expect(json.summary).toMatchObject({ create: 1 })
+    expect(payload.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        id: 'docs-set-1',
-        collection: DEFAULT_DOCS_SETS_COLLECTION_SLUG,
+        collection: 'docs',
         data: expect.objectContaining({
-          aiExport: expect.objectContaining({
-            order: ['index.md'],
-            output: '/plugins/payload-markdown.md',
-            title: 'Payload Markdown Documentation',
-          }),
+          docsSet: 'docs-set-1',
+          route: '/plugins/main-docs/docs',
+        }),
+      }),
+    )
+  })
+
+  it('keeps product-nested skill assets beside docs instead of under the docs segment', async () => {
+    const { privateKey, publicKey } = keyPair()
+    const body = JSON.stringify(
+      buildDocsManifest({
+        assets: [
+          {
+            content: '# Codex Skill\n',
+            contentType: 'text/markdown; charset=utf-8',
+            kind: 'skill',
+            path: 'skills/main-docs/codex/SKILL.md',
+          },
+        ],
+        files: [
+          {
+            content: '# Home\n',
+            path: 'index.md',
+          },
+        ],
+        mode: 'sync',
+        sourceId: 'main-docs',
+      }),
+    )
+    const payload = createMockPayload({
+      docsGroups: [
+        {
+          id: 'docs-group-1',
+          slug: 'plugins',
+        },
+      ],
+      docsSets: [
+        {
+          id: 'docs-set-1',
+          slug: 'main-docs',
+          branch: 'main',
+          group: 'docs-group-1',
+          routeMode: 'product-nested',
+        },
+      ],
+    })
+    const { json, response } = await callEndpoint({
+      body,
+      endpointOptions: {
+        allowWrites: true,
+        docsSetsEnabled: true,
+      },
+      headers: signBody({
+        body,
+        privateKey,
+      }),
+      payload,
+      publicKey: publicKey.toString(),
+    })
+
+    expect(response.status).toBe(200)
+    expect(json.summary).toMatchObject({
+      assetCreate: 1,
+      create: 1,
+    })
+    expect(payload.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: 'docs',
+        data: expect.objectContaining({
+          route: '/plugins/main-docs/docs',
+        }),
+      }),
+    )
+    expect(payload.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        collection: DEFAULT_DOCS_ASSETS_COLLECTION_SLUG,
+        data: expect.objectContaining({
+          kind: 'skill',
+          route: '/plugins/main-docs/skills/codex/SKILL.md',
         }),
       }),
     )
@@ -1683,6 +2012,95 @@ describe('sync endpoint dry-run handling', () => {
     expect(JSON.stringify(json)).toContain('descendant_route_collision')
   })
 
+  it('allows Pages at product routes for product-nested docs sets', async () => {
+    const { privateKey, publicKey } = keyPair()
+    const body = JSON.stringify(createManifest({ mode: 'sync' }))
+    const payload = createMockPayload({
+      docsGroups: [
+        {
+          id: 'docs-group-1',
+          slug: 'plugins',
+        },
+      ],
+      docsSets: [
+        {
+          id: 'docs-set-1',
+          slug: 'main-docs',
+          branch: 'main',
+          group: 'docs-group-1',
+          routeMode: 'product-nested',
+        },
+      ],
+      pages: [
+        {
+          id: 'page-1',
+          slug: '/plugins/main-docs',
+        },
+      ],
+    })
+    const { response } = await callEndpoint({
+      body,
+      endpointOptions: {
+        allowWrites: true,
+        docsSetsEnabled: true,
+        routingPagesEnabled: true,
+      },
+      headers: signBody({
+        body,
+        privateKey,
+      }),
+      payload,
+      publicKey: publicKey.toString(),
+    })
+
+    expect(response.status).toBe(200)
+  })
+
+  it('rejects Pages inside product-nested docs namespaces', async () => {
+    const { privateKey, publicKey } = keyPair()
+    const body = JSON.stringify(createManifest())
+    const payload = createMockPayload({
+      docsGroups: [
+        {
+          id: 'docs-group-1',
+          slug: 'plugins',
+        },
+      ],
+      docsSets: [
+        {
+          id: 'docs-set-1',
+          slug: 'main-docs',
+          branch: 'main',
+          group: 'docs-group-1',
+          routeMode: 'product-nested',
+        },
+      ],
+      pages: [
+        {
+          id: 'page-1',
+          slug: '/plugins/main-docs/docs',
+        },
+      ],
+    })
+    const { json, response } = await callEndpoint({
+      body,
+      endpointOptions: {
+        docsSetsEnabled: true,
+        routingPagesEnabled: true,
+      },
+      headers: signBody({
+        body,
+        privateKey,
+      }),
+      payload,
+      publicKey: publicKey.toString(),
+    })
+
+    expect(response.status).toBe(409)
+    expect(json.error).toMatchObject({ code: 'route_collision' })
+    expect(JSON.stringify(json)).toContain('exact_route_collision')
+  })
+
   it('updates changed docs in sync mode', async () => {
     const { privateKey, publicKey } = keyPair()
     const body = JSON.stringify(createManifest({ mode: 'sync' }))
@@ -1729,7 +2147,7 @@ describe('sync endpoint dry-run handling', () => {
     )
   })
 
-  it('updates legacy frontmatter docs without treating stripped content as a manual edit', async () => {
+  it('rejects records missing content hash tracking without docs writes', async () => {
     const { privateKey, publicKey } = keyPair()
     const previousManifest = buildDocsManifest({
       files: [
@@ -1784,20 +2202,9 @@ describe('sync endpoint dry-run handling', () => {
       publicKey: publicKey.toString(),
     })
 
-    expect(response.status).toBe(200)
-    expect(json.summary).toMatchObject({ update: 1 })
-    expect(payload.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        id: 'doc-1',
-        data: expect.objectContaining({
-          content: '# New\n',
-          sync: expect.objectContaining({
-            contentHashAtLastSync: sha256Hex('# New\n'),
-            sourceHashAtLastSync: manifest.files[0]?.sha256,
-          }),
-        }),
-      }),
-    )
+    expect(response.status).toBe(409)
+    expect(json.error).toMatchObject({ code: 'manual_edit_conflict' })
+    expect(payload.update).not.toHaveBeenCalledWith(expect.objectContaining({ collection: 'docs' }))
   })
 
   it('archives missing docs in sync mode', async () => {
@@ -1822,6 +2229,7 @@ describe('sync endpoint dry-run handling', () => {
           sourcePath: 'old.md',
           sync: {
             archived: false,
+            contentHashAtLastSync: sha256Hex('# Old\n'),
             managedBy: 'payload-markdown-docs',
             sourceHashAtLastSync: sha256Hex('# Old\n'),
             sourceId: 'main-docs',
@@ -1881,6 +2289,7 @@ describe('sync endpoint dry-run handling', () => {
           sourcePath: 'old.md',
           sync: {
             archived: false,
+            contentHashAtLastSync: sha256Hex('# Old\n'),
             managedBy: 'payload-markdown-docs',
             sourceHashAtLastSync: sha256Hex('# Old\n'),
             sourceId: 'main-docs',
@@ -1937,6 +2346,7 @@ describe('sync endpoint dry-run handling', () => {
           sourcePath: 'old.md',
           sync: {
             archived: false,
+            contentHashAtLastSync: sha256Hex('# Old\n'),
             managedBy: 'payload-markdown-docs',
             sourceHashAtLastSync: sha256Hex('# Old\n'),
             sourceId: 'main-docs',
@@ -1999,6 +2409,7 @@ describe('sync endpoint dry-run handling', () => {
           sourcePath: 'old.md',
           sync: {
             archived: false,
+            contentHashAtLastSync: sha256Hex('# Old\n'),
             managedBy: 'payload-markdown-docs',
             sourceHashAtLastSync: sha256Hex('# Old\n'),
             sourceId: 'main-docs',
@@ -2046,6 +2457,7 @@ describe('sync endpoint dry-run handling', () => {
           sourcePath: 'index.md',
           sync: {
             archived: false,
+            contentHashAtLastSync: sha256Hex('# Old\n'),
             managedBy: 'payload-markdown-docs',
             sourceHashAtLastSync: sha256Hex('# Old\n'),
             sourceId: 'main-docs',
@@ -2126,8 +2538,8 @@ describe('sync endpoint dry-run handling', () => {
     expect(
       getCanonicalPathFromRequestUrl({
         endpointPath: DEFAULT_DOCS_SYNC_ENDPOINT_PATH,
-        url: 'https://example.test/api/payload-markdown-docs/sync',
+        url: 'https://example.test/api/documentation/sync',
       }),
-    ).toBe('/api/payload-markdown-docs/sync')
+    ).toBe('/api/documentation/sync')
   })
 })

@@ -116,14 +116,14 @@ describe('sync security helpers', () => {
         bodySha256: 'ABC123',
         method: 'post',
         nonce: 'nonce-1',
-        path: '/api/payload-markdown-docs/sync',
+        path: '/api/documentation/sync',
         timestamp: '2026-01-01T00:00:00.000Z',
       }),
     ).toBe(
       [
         'v1',
         'POST',
-        '/api/payload-markdown-docs/sync',
+        '/api/documentation/sync',
         '2026-01-01T00:00:00.000Z',
         'nonce-1',
         'abc123',
@@ -185,7 +185,7 @@ describe('sync security helpers', () => {
 
   it('verifies Ed25519 signatures generated from PEM keys', () => {
     const { privateKey, publicKey } = keyPair()
-    const canonicalString = 'v1\nPOST\n/api/payload-markdown-docs/sync\nt\nn\nh'
+    const canonicalString = 'v1\nPOST\n/api/documentation/sync\nt\nn\nh'
     const signature = sign(null, Buffer.from(canonicalString), privateKey).toString(
       'base64',
     )
@@ -201,7 +201,7 @@ describe('sync security helpers', () => {
 
   it('rejects invalid Ed25519 signatures', () => {
     const { privateKey, publicKey } = keyPair()
-    const canonicalString = 'v1\nPOST\n/api/payload-markdown-docs/sync\nt\nn\nh'
+    const canonicalString = 'v1\nPOST\n/api/documentation/sync\nt\nn\nh'
     const signature = sign(null, Buffer.from('different'), privateKey).toString('base64')
 
     expect(
@@ -248,7 +248,7 @@ describe('sync security helpers', () => {
     const body = '{"version":1}'
     const signed = signDocsSyncRequest({
       body,
-      endpoint: 'https://example.com/api/payload-markdown-docs/sync',
+      endpoint: 'https://example.com/api/documentation/sync',
       keyId: 'github-actions-main',
       nonce: 'nonce-1',
       now: new Date('2026-01-01T00:00:00.000Z'),
@@ -271,7 +271,7 @@ describe('sync security helpers', () => {
     const body = '{"version":1}'
     const signed = signDocsSyncRequest({
       body,
-      endpoint: 'https://example.com/api/payload-markdown-docs/sync',
+      endpoint: 'https://example.com/api/documentation/sync',
       keyId: 'ssh-docs-key',
       nonce: 'nonce-1',
       now: new Date('2026-01-01T00:00:00.000Z'),
@@ -281,7 +281,7 @@ describe('sync security helpers', () => {
       bodySha256: sha256Hex(body),
       method: 'POST',
       nonce: 'nonce-1',
-      path: '/api/payload-markdown-docs/sync',
+      path: '/api/documentation/sync',
       timestamp: '2026-01-01T00:00:00.000Z',
     })
 
@@ -299,7 +299,7 @@ describe('sync security helpers', () => {
     const body = '{"version":1}'
     const signed = signDocsSyncRequest({
       body,
-      endpoint: 'https://example.com/api/payload-markdown-docs/sync?ignored=true',
+      endpoint: 'https://example.com/api/documentation/sync?ignored=true',
       keyId: 'github-actions-main',
       nonce: 'nonce-1',
       now: new Date('2026-01-01T00:00:00.000Z'),
@@ -309,7 +309,7 @@ describe('sync security helpers', () => {
       bodySha256: sha256Hex(body),
       method: 'POST',
       nonce: 'nonce-1',
-      path: '/api/payload-markdown-docs/sync',
+      path: '/api/documentation/sync',
       timestamp: '2026-01-01T00:00:00.000Z',
     })
 
@@ -326,7 +326,7 @@ describe('sync security helpers', () => {
     const { privateKey } = keyPair()
     const signed = signDocsSyncRequest({
       body: '{"version":1}',
-      endpoint: 'https://example.com/api/payload-markdown-docs/sync',
+      endpoint: 'https://example.com/api/documentation/sync',
       keyId: 'github-actions-main',
       nonce: 'nonce-1',
       now: new Date('2026-01-01T00:00:00.000Z'),
