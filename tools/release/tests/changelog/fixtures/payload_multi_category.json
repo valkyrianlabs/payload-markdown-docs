@@ -1,0 +1,374 @@
+{
+  "schema_version": "vaulthalla.release.ai_payload.v1",
+  "metadata": {
+    "version": "2.4.0",
+    "previous_tag": "v2.3.1",
+    "head_sha": "1234567890abcdef",
+    "commit_count": 7
+  },
+  "generation": {
+    "category_order_used": [
+      "debian",
+      "tools",
+      "core",
+      "meta"
+    ],
+    "selected_category_order": [
+      "debian",
+      "tools",
+      "core",
+      "meta"
+    ],
+    "limits_applied": {
+      "max_categories": null,
+      "max_commits_per_category": 3,
+      "max_files_per_category": 3,
+      "max_snippets_per_category": 2,
+      "max_snippet_lines": 20,
+      "max_snippet_chars": 800,
+      "max_commit_subject_chars": 160,
+      "max_snippet_reason_chars": 220
+    },
+    "include_weak_categories": true,
+    "truncation": {
+      "any_truncation": false,
+      "categories_omitted_for_weak_signal": [],
+      "categories_truncated_by_limit": [],
+      "categories_with_evidence_truncated": []
+    }
+  },
+  "categories": [
+    {
+      "name": "debian",
+      "summary": {
+        "signal_strength": "weak",
+        "commit_count": 1,
+        "file_count": 1,
+        "snippet_count": 0,
+        "insertions": 2,
+        "deletions": 1,
+        "themes": [
+          "packaging"
+        ]
+      },
+      "evidence": {
+        "top_commits": [
+          {
+            "sha": "aaaaaaa",
+            "subject": "Adjust package install destinations",
+            "subject_truncated": false
+          }
+        ],
+        "top_files": [
+          {
+            "path": "debian/install",
+            "insertions": 2,
+            "deletions": 1,
+            "score": 6.2,
+            "commit_count": 1,
+            "flags": [
+              "packaging"
+            ]
+          }
+        ],
+        "top_snippets": []
+      },
+      "truncation": {
+        "any_truncation": false,
+        "commits": {
+          "applied_cap": 3,
+          "input_count": 1,
+          "output_count": 1,
+          "truncated": false,
+          "dropped_count": 0
+        },
+        "files": {
+          "applied_cap": 3,
+          "input_count": 1,
+          "output_count": 1,
+          "truncated": false,
+          "dropped_count": 0
+        },
+        "snippets": {
+          "applied_cap": 2,
+          "input_count": 0,
+          "output_count": 0,
+          "truncated": false,
+          "dropped_count": 0,
+          "excerpt_truncated_count": 0
+        }
+      }
+    },
+    {
+      "name": "tools",
+      "summary": {
+        "signal_strength": "moderate",
+        "commit_count": 2,
+        "file_count": 2,
+        "snippet_count": 1,
+        "insertions": 14,
+        "deletions": 4,
+        "themes": [
+          "release-automation",
+          "tools"
+        ]
+      },
+      "evidence": {
+        "top_commits": [
+          {
+            "sha": "bbbbbbb",
+            "subject": "Refine release payload determinism",
+            "subject_truncated": false
+          },
+          {
+            "sha": "ccccccc",
+            "subject": "Expand release CLI payload command tests",
+            "subject_truncated": false
+          }
+        ],
+        "top_files": [
+          {
+            "path": "tools/release/changelog/payload.py",
+            "insertions": 9,
+            "deletions": 2,
+            "score": 14.6,
+            "commit_count": 1,
+            "flags": [
+              "release-tooling"
+            ]
+          },
+          {
+            "path": "tools/release/tests/test_cli_changelog.py",
+            "insertions": 5,
+            "deletions": 2,
+            "score": 10.1,
+            "commit_count": 1,
+            "flags": [
+              "release-tooling"
+            ]
+          }
+        ],
+        "top_snippets": [
+          {
+            "path": "tools/release/changelog/payload.py",
+            "score": 8.4,
+            "reason": "Selected from high-scoring tools file; flags: release-tooling",
+            "reason_truncated": false,
+            "flags": [
+              "release-tooling"
+            ],
+            "excerpt": "@@ -20,6 +20,14 @@\n+def build_ai_payload(...):\n+    return payload",
+            "excerpt_line_count": 3,
+            "excerpt_char_count": 66,
+            "excerpt_truncated": false
+          }
+        ]
+      },
+      "truncation": {
+        "any_truncation": false,
+        "commits": {
+          "applied_cap": 3,
+          "input_count": 2,
+          "output_count": 2,
+          "truncated": false,
+          "dropped_count": 0
+        },
+        "files": {
+          "applied_cap": 3,
+          "input_count": 2,
+          "output_count": 2,
+          "truncated": false,
+          "dropped_count": 0
+        },
+        "snippets": {
+          "applied_cap": 2,
+          "input_count": 1,
+          "output_count": 1,
+          "truncated": false,
+          "dropped_count": 0,
+          "excerpt_truncated_count": 0
+        }
+      }
+    },
+    {
+      "name": "core",
+      "summary": {
+        "signal_strength": "strong",
+        "commit_count": 3,
+        "file_count": 3,
+        "snippet_count": 2,
+        "insertions": 48,
+        "deletions": 16,
+        "themes": [
+          "core",
+          "filesystem",
+          "protocols"
+        ]
+      },
+      "evidence": {
+        "top_commits": [
+          {
+            "sha": "ddddddd",
+            "subject": "Harden websocket server handshake flow",
+            "subject_truncated": false
+          },
+          {
+            "sha": "eeeeeee",
+            "subject": "Improve fuse daemon mount cleanup on shutdown",
+            "subject_truncated": false
+          },
+          {
+            "sha": "fffffff",
+            "subject": "Refine usage parser aliases for vh shell commands",
+            "subject_truncated": false
+          }
+        ],
+        "top_files": [
+          {
+            "path": "core/protocols/websocket/server.cpp",
+            "insertions": 22,
+            "deletions": 7,
+            "score": 19.2,
+            "commit_count": 1,
+            "flags": [
+              "implementation"
+            ]
+          },
+          {
+            "path": "core/fuse/mount_service.cpp",
+            "insertions": 18,
+            "deletions": 6,
+            "score": 18.4,
+            "commit_count": 1,
+            "flags": [
+              "filesystem",
+              "implementation"
+            ]
+          },
+          {
+            "path": "core/usage/parser.cpp",
+            "insertions": 8,
+            "deletions": 3,
+            "score": 11.8,
+            "commit_count": 1,
+            "flags": [
+              "implementation"
+            ]
+          }
+        ],
+        "top_snippets": [
+          {
+            "path": "core/protocols/websocket/server.cpp",
+            "score": 9.8,
+            "reason": "Selected from high-scoring core file; flags: implementation",
+            "reason_truncated": false,
+            "flags": [
+              "implementation"
+            ],
+            "excerpt": "@@ -101,6 +101,10 @@\n+if (!validate_client_nonce(request)) {\n+    return handshake_error(\"invalid nonce\");\n+}",
+            "excerpt_line_count": 4,
+            "excerpt_char_count": 109,
+            "excerpt_truncated": false
+          },
+          {
+            "path": "core/fuse/mount_service.cpp",
+            "score": 9.1,
+            "reason": "Selected from high-scoring core file; flags: filesystem, implementation",
+            "reason_truncated": false,
+            "flags": [
+              "filesystem",
+              "implementation"
+            ],
+            "excerpt": "@@ -44,7 +44,12 @@\n-cleanup_mount_point(path);\n+if (is_mount_active(path)) {\n+    cleanup_mount_point(path);\n+}",
+            "excerpt_line_count": 5,
+            "excerpt_char_count": 111,
+            "excerpt_truncated": false
+          }
+        ]
+      },
+      "truncation": {
+        "any_truncation": false,
+        "commits": {
+          "applied_cap": 3,
+          "input_count": 3,
+          "output_count": 3,
+          "truncated": false,
+          "dropped_count": 0
+        },
+        "files": {
+          "applied_cap": 3,
+          "input_count": 3,
+          "output_count": 3,
+          "truncated": false,
+          "dropped_count": 0
+        },
+        "snippets": {
+          "applied_cap": 2,
+          "input_count": 2,
+          "output_count": 2,
+          "truncated": false,
+          "dropped_count": 0,
+          "excerpt_truncated_count": 0
+        }
+      }
+    },
+    {
+      "name": "meta",
+      "summary": {
+        "signal_strength": "weak",
+        "commit_count": 1,
+        "file_count": 1,
+        "snippet_count": 0,
+        "insertions": 0,
+        "deletions": 0,
+        "themes": []
+      },
+      "evidence": {
+        "top_commits": [
+          {
+            "sha": "1111111",
+            "subject": "Touch README heading",
+            "subject_truncated": false
+          }
+        ],
+        "top_files": [
+          {
+            "path": "README.md",
+            "insertions": 0,
+            "deletions": 0,
+            "score": 1.2,
+            "commit_count": 1,
+            "flags": []
+          }
+        ],
+        "top_snippets": []
+      },
+      "truncation": {
+        "any_truncation": false,
+        "commits": {
+          "applied_cap": 3,
+          "input_count": 1,
+          "output_count": 1,
+          "truncated": false,
+          "dropped_count": 0
+        },
+        "files": {
+          "applied_cap": 3,
+          "input_count": 1,
+          "output_count": 1,
+          "truncated": false,
+          "dropped_count": 0
+        },
+        "snippets": {
+          "applied_cap": 2,
+          "input_count": 0,
+          "output_count": 0,
+          "truncated": false,
+          "dropped_count": 0,
+          "excerpt_truncated_count": 0
+        }
+      }
+    }
+  ],
+  "notes": []
+}

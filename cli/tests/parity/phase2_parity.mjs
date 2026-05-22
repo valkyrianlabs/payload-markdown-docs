@@ -181,7 +181,7 @@ withTempRoot('frontmatter', (root) => {
   )
 })
 
-withTempRoot('ai-export', (root) => {
+withTempRoot('legacy-index-ai', (root) => {
   const docs = path.join(root, 'docs')
   write(path.join(docs, 'index.md'), '# Home\n')
   write(path.join(docs, 'guides', 'intro.md'), '# Intro\n')
@@ -203,7 +203,7 @@ withTempRoot('ai-export', (root) => {
     ].join('\n'),
   )
 
-  compareJsonCommand('AI export warning: validate', [
+  compareJsonCommand('legacy index.ai.yml is ignored: validate', [
     'validate',
     docs,
     '--source',
@@ -211,7 +211,7 @@ withTempRoot('ai-export', (root) => {
     '--json',
     '--pretty',
   ])
-  compareJsonCommand('AI export warning does not leak into plan warnings', [
+  compareJsonCommand('legacy index.ai.yml is ignored: plan', [
     'plan',
     docs,
     '--source',

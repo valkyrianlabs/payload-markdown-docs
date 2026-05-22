@@ -1,0 +1,135 @@
+{
+  "schema_version": "vaulthalla.release.ai_payload.v1",
+  "metadata": {
+    "version": "2.4.1",
+    "previous_tag": "v2.4.0",
+    "head_sha": "fedcba0987654321",
+    "commit_count": 6
+  },
+  "generation": {
+    "category_order_used": [
+      "core",
+      "meta"
+    ],
+    "selected_category_order": [
+      "core"
+    ],
+    "limits_applied": {
+      "max_categories": 1,
+      "max_commits_per_category": 2,
+      "max_files_per_category": 2,
+      "max_snippets_per_category": 1,
+      "max_snippet_lines": 3,
+      "max_snippet_chars": 60,
+      "max_commit_subject_chars": 24,
+      "max_snippet_reason_chars": 28
+    },
+    "include_weak_categories": true,
+    "truncation": {
+      "any_truncation": true,
+      "categories_omitted_for_weak_signal": [],
+      "categories_truncated_by_limit": [
+        "meta"
+      ],
+      "categories_with_evidence_truncated": [
+        "core"
+      ]
+    }
+  },
+  "categories": [
+    {
+      "name": "core",
+      "summary": {
+        "signal_strength": "strong",
+        "commit_count": 5,
+        "file_count": 4,
+        "snippet_count": 3,
+        "insertions": 110,
+        "deletions": 40,
+        "themes": [
+          "core",
+          "runtime"
+        ]
+      },
+      "evidence": {
+        "top_commits": [
+          {
+            "sha": "2222222",
+            "subject": "Very long subject alpha",
+            "subject_truncated": true
+          },
+          {
+            "sha": "3333333",
+            "subject": "Very long subject beta f",
+            "subject_truncated": true
+          }
+        ],
+        "top_files": [
+          {
+            "path": "core/src/runtime/alpha.cpp",
+            "insertions": 30,
+            "deletions": 8,
+            "score": 21.1,
+            "commit_count": 2,
+            "flags": [
+              "implementation"
+            ]
+          },
+          {
+            "path": "core/src/runtime/beta.cpp",
+            "insertions": 25,
+            "deletions": 7,
+            "score": 20.4,
+            "commit_count": 2,
+            "flags": [
+              "implementation"
+            ]
+          }
+        ],
+        "top_snippets": [
+          {
+            "path": "core/src/runtime/alpha.cpp",
+            "score": 10.2,
+            "reason": "Very long snippet reason alp",
+            "reason_truncated": true,
+            "flags": [
+              "implementation"
+            ],
+            "excerpt": "@@ -1,8 +1,12 @@\n+line1\n+line2\n...[truncated]",
+            "excerpt_line_count": 3,
+            "excerpt_char_count": 45,
+            "excerpt_truncated": true
+          }
+        ]
+      },
+      "truncation": {
+        "any_truncation": true,
+        "commits": {
+          "applied_cap": 2,
+          "input_count": 5,
+          "output_count": 2,
+          "truncated": true,
+          "dropped_count": 3
+        },
+        "files": {
+          "applied_cap": 2,
+          "input_count": 4,
+          "output_count": 2,
+          "truncated": true,
+          "dropped_count": 2
+        },
+        "snippets": {
+          "applied_cap": 1,
+          "input_count": 3,
+          "output_count": 1,
+          "truncated": true,
+          "dropped_count": 2,
+          "excerpt_truncated_count": 1
+        }
+      }
+    }
+  ],
+  "notes": [
+    "Category cap applied; dropped categories: `meta`"
+  ]
+}

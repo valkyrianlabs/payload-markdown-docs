@@ -6,6 +6,10 @@
 .pnp.js
 .yarn/install-state.gz
 
+# python
+/.venv/
+*__pycache__*
+
 /.idea/*
 !/.idea/runConfigurations
 
@@ -22,7 +26,6 @@
 # production
 /build
 /dist
-/stage
 
 # misc
 .DS_Store

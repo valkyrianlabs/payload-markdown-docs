@@ -47,6 +47,14 @@ struct NormalizedPath {
   std::string message;
 };
 
+struct NormalizedAssetPath {
+  bool ok = false;
+  std::string path;
+  std::vector<std::string> segments;
+  std::string code;
+  std::string message;
+};
+
 struct Frontmatter {
   std::optional<std::string> description;
   std::optional<bool> draft;
@@ -73,24 +81,26 @@ struct WalkedDocsFile {
   std::string path;
 };
 
-struct AiExportManifest {
-  std::optional<std::string> canonical;
-  std::optional<std::string> description;
-  std::vector<std::string> exclude;
-  std::string heading_mode = "normalize";
-  std::vector<std::string> order;
-  std::string orphans = "append";
-  std::optional<std::string> output;
-  std::optional<std::string> preamble;
-  std::string source_path = "index.ai.yml";
-  std::optional<std::string> title;
+struct PackageAsset {
+  std::string content;
+  std::string content_type;
+  std::string kind;
+  std::string path;
+  std::optional<std::string> route;
 };
 
-struct AiExportReadResult {
-  std::optional<AiExportManifest> manifest;
-  bool ok = true;
-  std::vector<Issue> issues;
-  std::vector<Issue> warnings;
+struct PublishPackageSummary {
+  std::size_t assets = 0;
+  std::size_t docs = 0;
+  std::string llms = "missing";
+  std::string llms_full = "missing";
+  std::size_t skills = 0;
+};
+
+struct PublishPackage {
+  std::vector<PackageAsset> assets;
+  std::vector<WalkedDocsFile> files;
+  PublishPackageSummary summary;
 };
 
 struct ValidatedFile {
@@ -102,8 +112,17 @@ struct ValidatedFile {
   std::string title;
 };
 
+struct ValidatedAsset {
+  std::string content;
+  std::string content_type;
+  std::string kind;
+  std::string path;
+  std::optional<std::string> route;
+  std::string sha256;
+};
+
 struct ValidationResult {
-  std::optional<json> ai_export;
+  std::vector<ValidatedAsset> assets;
   std::string delete_behavior = "archive";
   std::vector<ValidatedFile> files;
   bool mode_dry_run = true;
@@ -140,6 +159,31 @@ struct Plan {
   std::vector<PlannedChange> draft;
   std::vector<PlannedChange> unchanged;
   std::vector<PlannedChange> update;
+  std::vector<Issue> warnings;
+};
+
+struct ExistingAssetRecord {
+  std::optional<bool> archived;
+  std::string content_type;
+  std::string kind;
+  std::optional<std::string> route;
+  std::optional<std::string> source_hash;
+  std::string source_path;
+};
+
+struct PlannedAssetChange {
+  std::optional<ExistingAssetRecord> current;
+  std::optional<ValidatedAsset> desired;
+  std::string reason;
+  std::string source_path;
+};
+
+struct AssetPlan {
+  std::vector<PlannedAssetChange> archive;
+  std::vector<PlannedAssetChange> create;
+  std::vector<PlannedAssetChange> delete_items;
+  std::vector<PlannedAssetChange> unchanged;
+  std::vector<PlannedAssetChange> update;
   std::vector<Issue> warnings;
 };
 
@@ -246,25 +290,6 @@ std::string strip_quotes(std::string_view value) {
   }
 
   return stripped;
-}
-
-std::string trim_comment(std::string value) {
-  for (std::size_t index = 0; index + 1 < value.size(); ++index) {
-    if (std::isspace(static_cast<unsigned char>(value[index])) && value[index + 1] == '#') {
-      value.resize(index);
-      break;
-    }
-  }
-
-  while (!value.empty() && std::isspace(static_cast<unsigned char>(value.back()))) {
-    value.pop_back();
-  }
-
-  return value;
-}
-
-std::string unquote_manifest_value(std::string_view value) {
-  return strip_quotes(trim_comment(trim(value)));
 }
 
 std::vector<std::string> split_path(std::string_view path) {
@@ -397,6 +422,66 @@ NormalizedPath normalize_docs_path(std::string_view input) {
   };
 }
 
+NormalizedAssetPath normalize_asset_path(std::string_view input) {
+  if (trim(input).empty()) {
+    return {
+      .code = "invalid_path",
+      .message = "Asset path must be a non-empty string.",
+    };
+  }
+
+  auto normalized = normalize_slashes(trim(input));
+
+  if (normalized.size() >= 3 && std::isalpha(static_cast<unsigned char>(normalized[0])) && normalized[1] == ':' && normalized[2] == '/') {
+    return {
+      .code = "invalid_path",
+      .message = "Asset path must not be an absolute Windows path.",
+    };
+  }
+
+  if (starts_with(normalized, "/")) {
+    return {
+      .code = "invalid_path",
+      .message = "Asset path must not be an absolute path.",
+    };
+  }
+
+  while (starts_with(normalized, "./")) {
+    normalized.erase(0, 2);
+  }
+
+  if (normalized.empty() || ends_with(normalized, "/")) {
+    return {
+      .code = "invalid_path",
+      .message = "Asset path must point to a file.",
+    };
+  }
+
+  const auto segments = split_path(normalized);
+
+  for (const auto& segment : segments) {
+    if (segment == "..") {
+      return {
+        .code = "path_traversal",
+        .message = "Asset path must not contain path traversal segments.",
+      };
+    }
+
+    if (segment.empty() || segment == ".") {
+      return {
+        .code = "invalid_path",
+        .message = "Asset path contains an invalid path segment.",
+      };
+    }
+  }
+
+  return {
+    .ok = true,
+    .path = normalized,
+    .segments = segments,
+  };
+}
+
 std::string normalize_route_base(std::string route_base) {
   route_base = normalize_slashes(trim(route_base));
   route_base = "/" + route_base;
@@ -409,18 +494,26 @@ std::string normalize_route_base(std::string route_base) {
   return route_base.empty() ? "/" : route_base;
 }
 
-std::string normalize_route_like_path(std::optional<std::string> value) {
-  if (!value || value->empty()) {
-    return {};
+std::string normalize_route_path(std::string route_path) {
+  return normalize_route_base(std::move(route_path));
+}
+
+std::string join_route_paths(const std::vector<std::string>& segments) {
+  std::ostringstream joined;
+
+  for (const auto& segment : segments) {
+    if (trim(segment).empty()) {
+      continue;
+    }
+
+    if (joined.tellp() > 0) {
+      joined << '/';
+    }
+
+    joined << trim(segment);
   }
 
-  const auto trimmed = trim(*value);
-
-  if (trimmed.find("://") != std::string::npos) {
-    return trimmed;
-  }
-
-  return normalize_route_base(trimmed);
+  return normalize_route_path(joined.str());
 }
 
 std::string derive_route_from_source_path(const std::string& source_path, const std::string& route_base, const std::optional<std::string>& slug) {
@@ -453,7 +546,10 @@ std::string derive_route_from_source_path(const std::string& source_path, const 
     }
   }
 
-  if (slug && !slug->empty()) {
+  const auto is_index_source_path = !split_path(normalized_path.path).empty() && split_path(normalized_path.path).back() == "index.md";
+  const auto should_apply_slug = slug && !slug->empty() && !(is_index_source_path && *slug == "index");
+
+  if (should_apply_slug) {
     if (!route_segments.empty()) {
       route_segments.back() = *slug;
     } else {
@@ -476,6 +572,44 @@ std::string derive_route_from_source_path(const std::string& source_path, const 
   }
 
   return normalize_slashes(normalized_route_base + "/" + suffix.str());
+}
+
+std::optional<std::string> derive_asset_route_from_source_path(
+  const std::string& kind,
+  const std::optional<std::string>& route,
+  const std::string& route_base,
+  const std::string& source_id,
+  const std::string& source_path
+) {
+  if (route && !trim(*route).empty()) {
+    return normalize_route_path(*route);
+  }
+
+  if (kind == "llms") {
+    return "/llms.txt";
+  }
+
+  if (kind == "llms-full") {
+    return "/llms-full.txt";
+  }
+
+  if (kind != "skill" || source_id.empty()) {
+    return std::nullopt;
+  }
+
+  const auto expected_prefix = "skills/" + source_id + "/";
+
+  if (!starts_with(source_path, expected_prefix)) {
+    return std::nullopt;
+  }
+
+  const auto skill_path = source_path.substr(expected_prefix.size());
+
+  if (skill_path.empty()) {
+    return std::nullopt;
+  }
+
+  return join_route_paths({route_base, "skills", skill_path});
 }
 
 Issue issue(std::string code, std::string message, std::optional<std::string> path = std::nullopt) {
@@ -845,35 +979,6 @@ json frontmatter_to_json(const Frontmatter& frontmatter) {
   return output;
 }
 
-json ai_export_to_json(const AiExportManifest& manifest) {
-  json output = json::object();
-  output["version"] = 1;
-
-  if (manifest.title) {
-    output["title"] = *manifest.title;
-  }
-  if (manifest.canonical) {
-    output["canonical"] = *manifest.canonical;
-  }
-  if (manifest.output) {
-    output["output"] = *manifest.output;
-  }
-  if (manifest.description) {
-    output["description"] = *manifest.description;
-  }
-  if (manifest.preamble) {
-    output["preamble"] = *manifest.preamble;
-  }
-
-  output["order"] = manifest.order;
-  output["exclude"] = manifest.exclude;
-  output["orphans"] = manifest.orphans;
-  output["headingMode"] = manifest.heading_mode;
-  output["sourcePath"] = manifest.source_path;
-
-  return output;
-}
-
 std::string json_string(const json& value, bool pretty) {
   return value.dump(pretty ? 2 : -1) + "\n";
 }
@@ -905,13 +1010,23 @@ std::string default_source_id(const std::filesystem::path& docs_root) {
   return name == "docs" ? "local-docs" : name;
 }
 
+std::filesystem::path effective_docs_root(const DocsCommandOptions& options) {
+  return options.docs_flag.value_or(options.docs_root);
+}
+
+bool effective_docs_root_explicit(const DocsCommandOptions& options) {
+  return options.docs_flag.has_value() || options.docs_root_explicit;
+}
+
 std::string source_id_for(const DocsCommandOptions& options) {
   if (options.source_id && !options.source_id->empty()) {
     return *options.source_id;
   }
 
-  return default_source_id(options.docs_root);
+  return default_source_id(effective_docs_root(options));
 }
+
+std::string lower_copy(std::string value);
 
 std::vector<WalkedDocsFile> walk_docs_files(const std::filesystem::path& root) {
   static const std::set<std::string> ignored_directories = {".git", ".next", "build", "dist", "node_modules"};
@@ -980,448 +1095,242 @@ std::vector<WalkedDocsFile> walk_docs_files(const std::filesystem::path& root) {
     });
   }
 
-  std::ranges::sort(files, {}, &WalkedDocsFile::path);
+  std::ranges::sort(files, [](const auto& left, const auto& right) {
+    const auto left_path = lower_copy(left.path);
+    const auto right_path = lower_copy(right.path);
+
+    return left_path == right_path ? left.path < right.path : left_path < right_path;
+  });
 
   return files;
 }
 
-std::optional<std::pair<std::string, std::string>> top_level_key_line(const std::string& line) {
-  if (!line.empty() && std::isspace(static_cast<unsigned char>(line.front()))) {
-    return std::nullopt;
-  }
-
-  const auto separator = line.find(':');
-
-  if (separator == std::string::npos || separator == 0) {
-    return std::nullopt;
-  }
-
-  const auto key = line.substr(0, separator);
-
-  if (key.empty() || !std::isalpha(static_cast<unsigned char>(key.front()))) {
-    return std::nullopt;
-  }
-
-  if (!std::ranges::all_of(key, [](const auto ch) {
-    return std::isalnum(static_cast<unsigned char>(ch));
-  })) {
-    return std::nullopt;
-  }
-
-  return std::pair{key, trim(std::string_view{line}.substr(separator + 1))};
+bool path_exists(const std::filesystem::path& path) {
+  std::error_code error;
+  return std::filesystem::exists(path, error);
 }
 
-std::vector<std::string> strip_common_indent(std::vector<std::string> lines) {
-  std::optional<std::size_t> common_indent;
+std::string lower_copy(std::string value) {
+  std::ranges::transform(value, value.begin(), [](const auto ch) {
+    return static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+  });
 
-  for (const auto& line : lines) {
-    if (trim(line).empty()) {
-      continue;
-    }
-
-    std::size_t indent = 0;
-    while (indent < line.size() && line[indent] == ' ') {
-      ++indent;
-    }
-
-    common_indent = common_indent ? std::min(*common_indent, indent) : indent;
-  }
-
-  if (!common_indent || *common_indent == 0) {
-    return lines;
-  }
-
-  for (auto& line : lines) {
-    if (line.size() >= *common_indent) {
-      line.erase(0, *common_indent);
-    }
-  }
-
-  return lines;
+  return value;
 }
 
-std::vector<std::string> strip_outer_blank_lines(std::vector<std::string> lines) {
-  while (!lines.empty() && trim(lines.front()).empty()) {
-    lines.erase(lines.begin());
+std::string asset_content_type(const std::string& asset_path) {
+  const auto extension = lower_copy(std::filesystem::path{asset_path}.extension().string());
+
+  if (extension == ".md") {
+    return "text/markdown; charset=utf-8";
   }
 
-  while (!lines.empty() && trim(lines.back()).empty()) {
-    lines.pop_back();
+  if (extension == ".json") {
+    return "application/json; charset=utf-8";
   }
 
-  return lines;
+  if (extension == ".yaml" || extension == ".yml") {
+    return "application/yaml; charset=utf-8";
+  }
+
+  return "text/plain; charset=utf-8";
 }
 
-std::string fold_block_lines(const std::vector<std::string>& lines) {
-  std::vector<std::string> paragraphs;
-  std::vector<std::string> current;
-
-  for (const auto& line : lines) {
-    if (trim(line).empty()) {
-      if (!current.empty()) {
-        std::ostringstream paragraph;
-        for (std::size_t index = 0; index < current.size(); ++index) {
-          if (index > 0) {
-            paragraph << ' ';
-          }
-          paragraph << trim(current[index]);
-        }
-        paragraphs.push_back(paragraph.str());
-        current.clear();
-      }
-      paragraphs.emplace_back();
-      continue;
-    }
-
-    current.push_back(line);
-  }
-
-  if (!current.empty()) {
-    std::ostringstream paragraph;
-    for (std::size_t index = 0; index < current.size(); ++index) {
-      if (index > 0) {
-        paragraph << ' ';
-      }
-      paragraph << trim(current[index]);
-    }
-    paragraphs.push_back(paragraph.str());
-  }
-
-  std::ostringstream out;
-  for (std::size_t index = 0; index < paragraphs.size(); ++index) {
-    if (index > 0) {
-      out << '\n';
-    }
-    out << paragraphs[index];
-  }
-
-  return trim(out.str());
-}
-
-std::pair<std::string, std::size_t> collect_block(const std::vector<std::string>& lines, std::size_t start, char style) {
-  std::vector<std::string> block_lines;
-  auto index = start;
-
-  while (index < lines.size()) {
-    if (top_level_key_line(lines[index])) {
-      break;
-    }
-
-    block_lines.push_back(lines[index]);
-    ++index;
-  }
-
-  auto stripped = strip_outer_blank_lines(strip_common_indent(std::move(block_lines)));
-
-  if (style == '|') {
-    std::ostringstream out;
-    for (std::size_t line_index = 0; line_index < stripped.size(); ++line_index) {
-      if (line_index > 0) {
-        out << '\n';
-      }
-      out << stripped[line_index];
-    }
-
-    return {out.str(), index};
-  }
-
-  return {fold_block_lines(stripped), index};
-}
-
-std::pair<std::vector<std::string>, std::size_t> collect_list(const std::vector<std::string>& lines, std::size_t start) {
-  std::vector<std::string> values;
-  auto index = start;
-  bool saw_list = false;
-
-  while (index < lines.size()) {
-    const auto line = lines[index];
-
-    if (trim(line).empty()) {
-      ++index;
-      continue;
-    }
-
-    if (top_level_key_line(line)) {
-      break;
-    }
-
-    auto trimmed_start = line;
-    trimmed_start.erase(trimmed_start.begin(), std::ranges::find_if(trimmed_start, [](const auto ch) {
-      return !std::isspace(static_cast<unsigned char>(ch));
-    }));
-
-    if (trimmed_start.size() < 2 || (trimmed_start[0] != '-' && trimmed_start[0] != '*') || trimmed_start[1] != ' ') {
-      break;
-    }
-
-    saw_list = true;
-    values.push_back(unquote_manifest_value(trimmed_start.substr(2)));
-    ++index;
-  }
-
-  return {saw_list ? values : std::vector<std::string>{}, saw_list ? index : start};
-}
-
-std::optional<std::vector<std::string>> parse_inline_array(const std::string& raw_value) {
-  const auto cleaned = trim_comment(trim(raw_value));
-
-  if (!starts_with(cleaned, "[") || !ends_with(cleaned, "]")) {
-    return std::nullopt;
-  }
-
-  const auto body = trim(std::string_view{cleaned}.substr(1, cleaned.size() - 2));
-
-  if (body.empty()) {
-    return std::vector<std::string>{};
-  }
-
-  std::vector<std::string> values;
-  std::string current;
-
-  for (const auto ch : body) {
-    if (ch == ',') {
-      values.push_back(unquote_manifest_value(current));
-      current.clear();
-      continue;
-    }
-
-    current.push_back(ch);
-  }
-
-  values.push_back(unquote_manifest_value(current));
-
-  return values;
-}
-
-std::optional<std::string> normalize_manifest_docs_path(std::vector<Issue>& issues, const std::string& path, const std::string& source_path) {
-  auto trimmed_path = normalize_slashes(trim(path));
-
-  if (starts_with(trimmed_path, "./")) {
-    trimmed_path.erase(0, 2);
-  }
-
-  const auto normalized = normalize_docs_path(trimmed_path);
-
-  if (!normalized.ok) {
-    issues.push_back(issue("invalid_ai_export_manifest", "AI export manifest order path \"" + path + "\" is invalid: " + normalized.message, source_path));
-    return std::nullopt;
-  }
-
-  return normalized.path;
-}
-
-std::optional<std::string> normalize_exclude_pattern(std::vector<Issue>& issues, const std::string& pattern, const std::string& source_path) {
-  auto trimmed_pattern = normalize_slashes(trim(pattern));
-
-  if (starts_with(trimmed_pattern, "./")) {
-    trimmed_pattern.erase(0, 2);
-  }
-
-  if (trimmed_pattern.empty() || trimmed_pattern.find("..") != std::string::npos || starts_with(trimmed_pattern, "/")) {
-    issues.push_back(issue("invalid_ai_export_manifest", "AI export manifest exclude pattern \"" + pattern + "\" is invalid.", source_path));
-    return std::nullopt;
-  }
-
-  return trimmed_pattern;
-}
-
-AiExportReadResult validate_ai_export_manifest(const json& input, const std::string& source_path, const std::optional<std::set<std::string>>& known_docs_paths = std::nullopt) {
-  AiExportReadResult result;
-  result.manifest = AiExportManifest{.source_path = source_path};
-
-  if (!input.is_object()) {
-    result.ok = false;
-    result.issues.push_back(issue("invalid_ai_export_manifest", "AI export manifest must be an object.", source_path));
-    result.manifest.reset();
-    return result;
-  }
-
-  if (!input.contains("version") || !input["version"].is_number_integer() || input["version"].get<int>() != 1) {
-    result.issues.push_back(issue("invalid_ai_export_manifest", "AI export manifest version must be 1.", source_path));
-  }
-
-  auto get_optional_string = [&](const std::string& key) -> std::optional<std::string> {
-    if (!input.contains(key)) {
-      return std::nullopt;
-    }
-
-    if (input[key].is_string()) {
-      const auto value = input[key].get<std::string>();
-      return trim(value).empty() ? std::optional<std::string>{} : value;
-    }
-
-    result.issues.push_back(issue("invalid_ai_export_manifest", "AI export manifest field \"" + key + "\" must be a string.", source_path));
-    return std::nullopt;
-  };
-
-  auto get_string_array = [&](const std::string& key) {
-    std::vector<std::string> values;
-
-    if (!input.contains(key)) {
-      return values;
-    }
-
-    if (!input[key].is_array()) {
-      result.issues.push_back(issue("invalid_ai_export_manifest", "AI export manifest field \"" + key + "\" must be a list of strings.", source_path));
-      return values;
-    }
-
-    for (const auto& item : input[key]) {
-      if (!item.is_string()) {
-        result.issues.push_back(issue("invalid_ai_export_manifest", "AI export manifest field \"" + key + "\" must be a list of strings.", source_path));
-        return values;
-      }
-
-      values.push_back(item.get<std::string>());
-    }
-
-    return values;
-  };
-
-  if (input.contains("orphans")) {
-    if (input["orphans"].is_string() && (input["orphans"] == "append" || input["orphans"] == "ignore")) {
-      result.manifest->orphans = input["orphans"].get<std::string>();
-    } else {
-      result.issues.push_back(issue("invalid_ai_export_manifest", "AI export manifest orphans must be \"append\" or \"ignore\".", source_path));
-    }
-  }
-
-  if (input.contains("headingMode")) {
-    if (input["headingMode"].is_string() && (input["headingMode"] == "normalize" || input["headingMode"] == "preserve")) {
-      result.manifest->heading_mode = input["headingMode"].get<std::string>();
-    } else {
-      result.issues.push_back(issue("invalid_ai_export_manifest", "AI export manifest headingMode must be \"normalize\" or \"preserve\".", source_path));
-    }
-  }
-
-  for (const auto& item : get_string_array("order")) {
-    if (auto normalized = normalize_manifest_docs_path(result.issues, item, source_path)) {
-      result.manifest->order.push_back(*normalized);
-    }
-  }
-
-  for (const auto& item : get_string_array("exclude")) {
-    if (auto normalized = normalize_exclude_pattern(result.issues, item, source_path)) {
-      result.manifest->exclude.push_back(*normalized);
-    }
-  }
-
-  if (known_docs_paths) {
-    for (const auto& ordered_path : result.manifest->order) {
-      if (!known_docs_paths->contains(ordered_path)) {
-        result.warnings.push_back(issue("missing_ai_export_order_path", "AI export manifest order path \"" + ordered_path + "\" does not exist in the docs files.", source_path));
-      }
-    }
-  }
-
-  result.manifest->title = get_optional_string("title");
-  if (const auto canonical = normalize_route_like_path(get_optional_string("canonical")); !canonical.empty()) {
-    result.manifest->canonical = canonical;
-  }
-  if (const auto output = normalize_route_like_path(get_optional_string("output")); !output.empty()) {
-    result.manifest->output = output;
-  }
-  result.manifest->description = get_optional_string("description");
-  result.manifest->preamble = get_optional_string("preamble");
-
-  if (!result.issues.empty()) {
-    result.ok = false;
-    result.manifest.reset();
-  }
-
-  return result;
-}
-
-AiExportReadResult parse_ai_export_yaml(const std::string& content, const std::string& source_path) {
-  json parsed = json::object();
-  parsed["sourcePath"] = source_path;
-  const auto lines = split_lines(content);
-  std::size_t index = 0;
-
-  while (index < lines.size()) {
-    const auto line = lines[index];
-
-    if (trim(line).empty() || starts_with(trim(std::string_view{line}), "#")) {
-      ++index;
-      continue;
-    }
-
-    const auto key_line = top_level_key_line(line);
-
-    if (!key_line) {
-      return {
-        .ok = false,
-        .issues = {issue("invalid_ai_export_manifest", "Could not parse AI export manifest line: " + trim(line), source_path)},
-      };
-    }
-
-    const auto& [key, raw] = *key_line;
-
-    if (raw == "|" || raw == ">") {
-      const auto [value, next_index] = collect_block(lines, index + 1, raw[0]);
-      parsed[key] = value;
-      index = next_index;
-      continue;
-    }
-
-    if (const auto inline_array = parse_inline_array(raw)) {
-      parsed[key] = *inline_array;
-      ++index;
-      continue;
-    }
-
-    if (raw.empty()) {
-      const auto [values, next_index] = collect_list(lines, index + 1);
-
-      if (next_index != index + 1 || !values.empty()) {
-        parsed[key] = values;
-        index = next_index;
-        continue;
-      }
-    }
-
-    const auto scalar = unquote_manifest_value(raw);
-    if (!scalar.empty() && std::ranges::all_of(scalar, [](const auto ch) {
-      return std::isdigit(static_cast<unsigned char>(ch)) || ch == '-';
-    })) {
-      try {
-        parsed[key] = std::stoi(scalar);
-      } catch (...) {
-        parsed[key] = scalar;
-      }
-    } else {
-      parsed[key] = scalar;
-    }
-
-    ++index;
-  }
-
-  return validate_ai_export_manifest(parsed, source_path);
-}
-
-AiExportReadResult read_ai_export_manifest(const std::filesystem::path& root) {
-  const std::array<std::string, 2> filenames = {"index.ai.yml", "index.ai.yaml"};
-  std::vector<std::string> present;
-
-  for (const auto& filename : filenames) {
-    std::error_code error;
-    if (std::filesystem::exists(root / filename, error)) {
-      present.push_back(filename);
-    }
-  }
-
-  if (present.empty()) {
+std::vector<PackageAsset> walk_skill_files(const std::filesystem::path& root, const std::string& source_id) {
+  static const std::set<std::string> ignored_directories = {".git", ".next", "build", "dist", "node_modules"};
+  static const std::set<std::string> allowed_extensions = {".json", ".md", ".txt", ".yaml", ".yml"};
+  const auto absolute_root = std::filesystem::absolute(root).lexically_normal();
+  const auto skill_package_root = absolute_root / source_id;
+  std::error_code error;
+
+  if (!std::filesystem::exists(skill_package_root, error)) {
     return {};
   }
 
-  const auto selected = present.front();
-  auto parsed = parse_ai_export_yaml(read_file(root / selected), selected);
-
-  if (present.size() > 1) {
-    parsed.warnings.push_back(issue("invalid_ai_export_manifest", "Both index.ai.yml and index.ai.yaml exist. Using index.ai.yml.", selected));
+  if (!std::filesystem::is_directory(skill_package_root, error)) {
+    return {};
   }
 
-  return parsed;
+  std::vector<PackageAsset> files;
+  std::filesystem::recursive_directory_iterator iterator{skill_package_root, error};
+  const std::filesystem::recursive_directory_iterator end;
+
+  if (error) {
+    throw std::runtime_error{"Could not read skills root: " + error.message()};
+  }
+
+  for (; iterator != end; iterator.increment(error)) {
+    if (error) {
+      throw std::runtime_error{"Could not walk skills root: " + error.message()};
+    }
+
+    const auto& entry = *iterator;
+    const auto status = entry.symlink_status(error);
+
+    if (error) {
+      throw std::runtime_error{"Could not inspect skill entry: " + error.message()};
+    }
+
+    if (std::filesystem::is_symlink(status)) {
+      if (std::filesystem::is_directory(entry.path(), error)) {
+        iterator.disable_recursion_pending();
+      }
+
+      continue;
+    }
+
+    if (std::filesystem::is_directory(status)) {
+      if (ignored_directories.contains(entry.path().filename().string())) {
+        iterator.disable_recursion_pending();
+      }
+
+      continue;
+    }
+
+    if (!std::filesystem::is_regular_file(status) || !allowed_extensions.contains(lower_copy(entry.path().extension().string()))) {
+      continue;
+    }
+
+    auto relative = std::filesystem::relative(entry.path(), absolute_root, error);
+
+    if (error) {
+      throw std::runtime_error{"Could not compute skill relative path: " + error.message()};
+    }
+
+    const auto normalized = normalize_asset_path("skills/" + relative.generic_string());
+
+    if (!normalized.ok) {
+      throw std::runtime_error{normalized.message};
+    }
+
+    files.push_back({
+      .content = read_file(entry.path()),
+      .content_type = asset_content_type(normalized.path),
+      .kind = "skill",
+      .path = normalized.path,
+    });
+  }
+
+  std::ranges::sort(files, [](const auto& left, const auto& right) {
+    const auto left_path = lower_copy(left.path);
+    const auto right_path = lower_copy(right.path);
+
+    return left_path == right_path ? left.path < right.path : left_path < right_path;
+  });
+
+  return files;
+}
+
+std::optional<PackageAsset> read_optional_asset_file(
+  const std::filesystem::path& file_path,
+  const std::string& asset_path,
+  const std::string& kind,
+  const std::string& route
+) {
+  const auto absolute_path = std::filesystem::absolute(file_path).lexically_normal();
+
+  if (!path_exists(absolute_path)) {
+    return std::nullopt;
+  }
+
+  const auto normalized = normalize_asset_path(asset_path);
+
+  if (!normalized.ok) {
+    throw std::runtime_error{normalized.message};
+  }
+
+  return PackageAsset{
+    .content = read_file(absolute_path),
+    .content_type = asset_content_type(normalized.path),
+    .kind = kind,
+    .path = normalized.path,
+    .route = route,
+  };
+}
+
+PublishPackage collect_publish_package(const DocsCommandOptions& options, const std::string& source_id) {
+  PublishPackage package;
+  const auto docs_root = effective_docs_root(options);
+
+  if (options.include_docs) {
+    const auto absolute_docs_root = std::filesystem::absolute(docs_root).lexically_normal();
+
+    if (!path_exists(absolute_docs_root)) {
+      throw std::runtime_error{
+        effective_docs_root_explicit(options)
+          ? "Docs root does not exist: " + docs_root.string()
+          : "Docs root does not exist: ./docs. Pass --docs <path> or --no-docs."
+      };
+    }
+
+    package.files = walk_docs_files(docs_root);
+  }
+
+  std::vector<PackageAsset> skill_assets;
+
+  if (options.include_skills) {
+    const auto absolute_skills_root = std::filesystem::absolute(options.skills_root).lexically_normal();
+
+    if (!path_exists(absolute_skills_root)) {
+      if (options.skills_root_explicit) {
+        throw std::runtime_error{"Skills root does not exist: " + options.skills_root.string()};
+      }
+    } else {
+      skill_assets = walk_skill_files(options.skills_root, source_id);
+    }
+  }
+
+  const auto llms_asset =
+    options.include_llms && (path_exists(std::filesystem::absolute(options.llms_path).lexically_normal()) || options.llms_path_explicit)
+      ? read_optional_asset_file(options.llms_path, "llms.txt", "llms", "/llms.txt")
+      : std::optional<PackageAsset>{};
+
+  if (options.include_llms && options.llms_path_explicit && !llms_asset) {
+    throw std::runtime_error{"llms.txt file does not exist: " + options.llms_path.string()};
+  }
+
+  const auto llms_full_asset =
+    options.include_llms_full && (path_exists(std::filesystem::absolute(options.llms_full_path).lexically_normal()) || options.llms_full_path_explicit)
+      ? read_optional_asset_file(options.llms_full_path, "llms-full.txt", "llms-full", "/llms-full.txt")
+      : std::optional<PackageAsset>{};
+
+  if (options.include_llms_full && options.llms_full_path_explicit && !llms_full_asset) {
+    throw std::runtime_error{"llms-full.txt file does not exist: " + options.llms_full_path.string()};
+  }
+
+  if (llms_asset) {
+    package.assets.push_back(*llms_asset);
+  }
+
+  if (llms_full_asset) {
+    package.assets.push_back(*llms_full_asset);
+  }
+
+  package.assets.insert(package.assets.end(), skill_assets.begin(), skill_assets.end());
+
+  if (package.files.empty() && package.assets.empty()) {
+    throw std::runtime_error{"Publish package is empty. Enable at least one of docs, skills, llms.txt, or llms-full.txt."};
+  }
+
+  package.summary = {
+    .assets = package.assets.size(),
+    .docs = package.files.size(),
+    .llms = llms_asset ? "present" : "missing",
+    .llms_full = llms_full_asset ? "present" : "missing",
+    .skills = skill_assets.size(),
+  };
+
+  return package;
+}
+
+json package_summary_to_json(const PublishPackageSummary& summary) {
+  return {
+    {"assets", summary.assets},
+    {"docs", summary.docs},
+    {"llms", summary.llms},
+    {"llmsFull", summary.llms_full},
+    {"skills", summary.skills},
+  };
 }
 
 json source_to_json(const std::string& source_id, const DocsCommandOptions& options) {
@@ -1441,25 +1350,38 @@ json source_to_json(const std::string& source_id, const DocsCommandOptions& opti
   return source;
 }
 
-json build_manifest(const std::vector<WalkedDocsFile>& files, const std::string& source_id, const DocsCommandOptions& options, const std::optional<AiExportManifest>& ai_export, const std::optional<std::string>& delete_behavior = std::nullopt) {
+json build_manifest(const PublishPackage& package, const std::string& source_id, const DocsCommandOptions& options, const std::optional<std::string>& delete_behavior = std::nullopt) {
   json manifest = json::object();
   manifest["version"] = 1;
   manifest["source"] = source_to_json(source_id, options);
   if (delete_behavior) {
     manifest["deleteBehavior"] = *delete_behavior;
   }
+  manifest["assets"] = json::array();
   manifest["files"] = json::array();
 
-  for (const auto& file : files) {
+  for (const auto& asset : package.assets) {
+    json asset_json = {
+      {"content", asset.content},
+      {"contentType", asset.content_type},
+      {"kind", asset.kind},
+      {"path", asset.path},
+      {"sha256", sha256_hex(asset.content)},
+    };
+
+    if (asset.route) {
+      asset_json["route"] = *asset.route;
+    }
+
+    manifest["assets"].push_back(std::move(asset_json));
+  }
+
+  for (const auto& file : package.files) {
     manifest["files"].push_back({
       {"path", file.path},
       {"content", file.content},
       {"sha256", sha256_hex(file.content)},
     });
-  }
-
-  if (ai_export) {
-    manifest["aiExport"] = ai_export_to_json(*ai_export);
   }
 
   return manifest;
@@ -1472,6 +1394,7 @@ bool is_valid_delete_behavior(const std::string& value) {
 ValidationResult validate_manifest(const json& manifest, const DocsCommandOptions& options, const std::string& route_base) {
   ValidationResult result;
   const auto max_file_bytes = options.max_file_bytes.value_or(kDefaultMaxFileBytes);
+  const auto max_assets = options.max_files.value_or(kDefaultMaxFiles);
   const auto max_files = options.max_files.value_or(kDefaultMaxFiles);
   const auto max_total_bytes = options.max_total_bytes.value_or(kDefaultMaxTotalBytes);
 
@@ -1523,13 +1446,33 @@ ValidationResult validate_manifest(const json& manifest, const DocsCommandOption
     }
   }
 
-  if (!manifest.contains("files") || !manifest["files"].is_array() || manifest["files"].empty()) {
-    result.issues.push_back(issue("empty_manifest", "Manifest must include at least one file."));
-  } else if (manifest["files"].size() > max_files) {
+  const auto has_files_array = manifest.contains("files") && manifest["files"].is_array();
+  const auto has_assets_array = !manifest.contains("assets") || manifest["assets"].is_array();
+  const auto file_count = has_files_array ? manifest["files"].size() : 0;
+  const auto asset_count = has_assets_array && manifest.contains("assets") ? manifest["assets"].size() : 0;
+
+  if (!has_files_array) {
+    result.issues.push_back(issue("invalid_manifest", "Manifest files must be an array."));
+  }
+
+  if (!has_assets_array) {
+    result.issues.push_back(issue("invalid_manifest", "Manifest assets must be an array when provided."));
+  }
+
+  if (file_count == 0 && asset_count == 0) {
+    result.issues.push_back(issue("empty_manifest", "Manifest must include at least one docs file or asset."));
+  }
+
+  if (has_files_array && manifest["files"].size() > max_files) {
     result.issues.push_back(issue("too_many_files", "Manifest exceeds maximum file count of " + std::to_string(max_files) + "."));
   }
 
+  if (has_assets_array && manifest.contains("assets") && manifest["assets"].size() > max_assets) {
+    result.issues.push_back(issue("too_many_assets", "Manifest exceeds maximum asset count of " + std::to_string(max_assets) + "."));
+  }
+
   std::set<std::string> normalized_paths;
+  std::set<std::string> normalized_asset_paths;
   std::size_t total_bytes = 0;
 
   if (manifest.contains("files") && manifest["files"].is_array()) {
@@ -1594,17 +1537,85 @@ ValidationResult validate_manifest(const json& manifest, const DocsCommandOption
     }
   }
 
-  if (total_bytes > max_total_bytes) {
-    result.issues.push_back(issue("manifest_too_large", "Manifest content exceeds maximum total size of " + std::to_string(max_total_bytes) + " bytes."));
+  if (manifest.contains("assets") && manifest["assets"].is_array()) {
+    static const std::set<std::string> asset_kinds = {"llms", "llms-full", "skill", "static"};
+
+    for (const auto& asset : manifest["assets"]) {
+      if (
+        !asset.is_object() ||
+        !asset.contains("path") || !asset["path"].is_string() ||
+        !asset.contains("content") || !asset["content"].is_string() ||
+        !asset.contains("contentType") || !asset["contentType"].is_string() || trim(asset["contentType"].get<std::string>()).empty() ||
+        !asset.contains("kind") || !asset["kind"].is_string()
+      ) {
+        std::optional<std::string> bad_path;
+        if (asset.is_object() && asset.contains("path") && asset["path"].is_string()) {
+          bad_path = asset["path"].get<std::string>();
+        }
+        result.issues.push_back(issue("invalid_asset", "Manifest asset entries require string path, content, contentType, and kind.", bad_path));
+        continue;
+      }
+
+      const auto path = asset["path"].get<std::string>();
+      const auto content = asset["content"].get<std::string>();
+      const auto content_type = trim(asset["contentType"].get<std::string>());
+      const auto kind = asset["kind"].get<std::string>();
+      const auto route = asset.contains("route") && asset["route"].is_string() && !trim(asset["route"].get<std::string>()).empty()
+        ? std::optional<std::string>{asset["route"].get<std::string>()}
+        : std::optional<std::string>{};
+
+      if (!asset_kinds.contains(kind)) {
+        result.issues.push_back(issue("invalid_asset", "Manifest asset kind must be llms, llms-full, skill, or static.", path));
+        continue;
+      }
+
+      const auto normalized = normalize_asset_path(path);
+
+      if (!normalized.ok) {
+        result.issues.push_back(issue(normalized.code, normalized.message, path));
+        continue;
+      }
+
+      total_bytes += content.size();
+
+      if (content.size() > max_file_bytes) {
+        result.issues.push_back(issue("asset_too_large", "Asset exceeds maximum size of " + std::to_string(max_file_bytes) + " bytes.", normalized.path));
+      }
+
+      const auto computed_hash = sha256_hex(content);
+
+      if (asset.contains("sha256")) {
+        const auto valid_hash = asset["sha256"].is_string() && asset["sha256"].get<std::string>().size() == 64;
+        auto hash_value = valid_hash ? asset["sha256"].get<std::string>() : std::string{};
+        std::ranges::transform(hash_value, hash_value.begin(), [](const auto ch) {
+          return static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+        });
+
+        if (!valid_hash || !std::ranges::all_of(hash_value, [](const auto ch) {
+          return std::isxdigit(static_cast<unsigned char>(ch));
+        }) || hash_value != computed_hash) {
+          result.issues.push_back(issue("invalid_hash", "Manifest asset sha256 does not match content.", normalized.path));
+        }
+      }
+
+      if (normalized_asset_paths.contains(normalized.path)) {
+        result.issues.push_back(issue("duplicate_asset_path", "Manifest contains duplicate normalized asset paths.", normalized.path));
+      }
+      normalized_asset_paths.insert(normalized.path);
+
+      result.assets.push_back({
+        .content = content,
+        .content_type = content_type,
+        .kind = kind,
+        .path = normalized.path,
+        .route = derive_asset_route_from_source_path(kind, route, route_base, result.source_id, normalized.path),
+        .sha256 = computed_hash,
+      });
+    }
   }
 
-  if (manifest.contains("aiExport")) {
-    const auto ai_validation = validate_ai_export_manifest(manifest["aiExport"], manifest["aiExport"].value("sourcePath", "index.ai.yml"), normalized_paths);
-    result.issues.insert(result.issues.end(), ai_validation.issues.begin(), ai_validation.issues.end());
-    result.warnings.insert(result.warnings.end(), ai_validation.warnings.begin(), ai_validation.warnings.end());
-    if (ai_validation.ok && ai_validation.manifest) {
-      result.ai_export = ai_export_to_json(*ai_validation.manifest);
-    }
+  if (total_bytes > max_total_bytes) {
+    result.issues.push_back(issue("manifest_too_large", "Manifest content exceeds maximum total size of " + std::to_string(max_total_bytes) + " bytes."));
   }
 
   result.ok = result.issues.empty() && !result.source_id.empty();
@@ -1622,13 +1633,39 @@ json validated_file_to_json(const ValidatedFile& file) {
   };
 }
 
+json validated_asset_to_json(const ValidatedAsset& asset) {
+  json output = {
+    {"content", asset.content},
+    {"contentType", asset.content_type},
+    {"kind", asset.kind},
+    {"path", asset.path},
+    {"sha256", asset.sha256},
+  };
+
+  if (asset.route) {
+    output["route"] = *asset.route;
+  }
+
+  return output;
+}
+
 json validation_to_json(const ValidationResult& validation) {
   json output = json::object();
   output["ok"] = validation.ok;
 
   if (validation.ok) {
     json data = json::object();
-    data["version"] = 1;
+    data["assets"] = json::array();
+    for (const auto& asset : validation.assets) {
+      data["assets"].push_back(validated_asset_to_json(asset));
+    }
+    data["deleteBehavior"] = validation.delete_behavior;
+    data["files"] = json::array();
+    for (const auto& file : validation.files) {
+      data["files"].push_back(validated_file_to_json(file));
+    }
+    data["mode"] = validation.mode_dry_run ? "dry-run" : "sync";
+    data["publish"] = validation.publish;
     data["source"] = json::object({{"id", validation.source_id}});
     if (validation.source_branch) {
       data["source"]["branch"] = *validation.source_branch;
@@ -1639,16 +1676,7 @@ json validation_to_json(const ValidationResult& validation) {
     if (validation.source_repository) {
       data["source"]["repository"] = *validation.source_repository;
     }
-    data["mode"] = validation.mode_dry_run ? "dry-run" : "sync";
-    data["deleteBehavior"] = validation.delete_behavior;
-    data["publish"] = validation.publish;
-    data["files"] = json::array();
-    for (const auto& file : validation.files) {
-      data["files"].push_back(validated_file_to_json(file));
-    }
-    if (validation.ai_export) {
-      data["aiExport"] = *validation.ai_export;
-    }
+    data["version"] = 1;
     output["data"] = data;
   }
 
@@ -1658,12 +1686,16 @@ json validation_to_json(const ValidationResult& validation) {
   return output;
 }
 
-std::string format_validation_summary(const std::filesystem::path& root, const std::string& source_id, std::size_t file_count, const ValidationResult& validation) {
+std::string format_validation_summary(const std::filesystem::path& root, const std::string& source_id, std::size_t file_count, const PublishPackageSummary& summary, const ValidationResult& validation) {
   std::ostringstream out;
   out << "pmdocs validate\n\n";
   out << "Source: " << source_id << "\n";
   out << "Root: " << root.string() << "\n";
   out << "Files: " << file_count << "\n";
+  out << "Assets: " << summary.assets << "\n";
+  out << "Skills: " << summary.skills << "\n";
+  out << "llms.txt: " << summary.llms << "\n";
+  out << "llms-full.txt: " << summary.llms_full << "\n";
   out << "Status: " << (validation.ok ? "valid" : "invalid") << "\n";
 
   if (!validation.warnings.empty()) {
@@ -1754,7 +1786,10 @@ Plan plan_docs_sync(const ValidationResult& desired, const std::vector<ExistingR
     const auto desired_status = desired.publish ? "published" : "draft";
     const auto has_status_mismatch = current->second.status && *current->second.status != desired_status;
 
-    if (current->second.source_hash && *current->second.source_hash == desired_file.sha256 && !has_status_mismatch) {
+    const auto has_source_hash_mismatch = !current->second.source_hash || *current->second.source_hash != desired_file.sha256;
+    const auto has_route_mismatch = current->second.route != desired_file.route;
+
+    if (!has_source_hash_mismatch && !has_status_mismatch && !has_route_mismatch) {
       plan.unchanged.push_back({
         .current = current->second,
         .desired = desired_file,
@@ -1767,7 +1802,11 @@ Plan plan_docs_sync(const ValidationResult& desired, const std::vector<ExistingR
     plan.update.push_back({
       .current = current->second,
       .desired = desired_file,
-      .reason = has_status_mismatch ? "Existing draft status differs from desired publish state." : "Existing source hash differs from desired source hash.",
+      .reason = has_status_mismatch
+        ? "Existing draft status differs from desired publish state."
+        : has_source_hash_mismatch
+          ? "Existing source hash differs from desired source hash."
+          : "Existing route differs from desired route.",
       .source_path = desired_file.path,
     });
   }
@@ -1796,6 +1835,91 @@ Plan plan_docs_sync(const ValidationResult& desired, const std::vector<ExistingR
   return plan;
 }
 
+AssetPlan plan_docs_assets_sync(const ValidationResult& desired, const std::vector<ExistingAssetRecord>& existing, const std::optional<std::string>& delete_behavior_override) {
+  AssetPlan plan;
+  const auto effective_delete_behavior = delete_behavior_override.value_or(desired.delete_behavior);
+  std::map<std::string, ExistingAssetRecord> existing_by_source_path;
+  std::vector<std::string> existing_source_path_order;
+
+  for (const auto& record : existing) {
+    if (existing_by_source_path.contains(record.source_path)) {
+      plan.warnings.push_back(issue("duplicate_existing_path", "Existing assets contain duplicate sourcePath \"" + record.source_path + "\".", record.source_path));
+      continue;
+    }
+
+    existing_by_source_path[record.source_path] = record;
+    existing_source_path_order.push_back(record.source_path);
+  }
+
+  std::set<std::string> desired_paths;
+
+  for (const auto& desired_asset : desired.assets) {
+    desired_paths.insert(desired_asset.path);
+    const auto current = existing_by_source_path.find(desired_asset.path);
+
+    if (current == existing_by_source_path.end()) {
+      plan.create.push_back({
+        .desired = desired_asset,
+        .reason = "No existing asset has this sourcePath.",
+        .source_path = desired_asset.path,
+      });
+      continue;
+    }
+
+    const auto has_source_hash_mismatch = !current->second.source_hash || *current->second.source_hash != desired_asset.sha256;
+    const auto has_route_mismatch = current->second.route != desired_asset.route;
+    const auto has_content_type_mismatch = current->second.content_type != desired_asset.content_type;
+    const auto has_kind_mismatch = current->second.kind != desired_asset.kind;
+    const auto is_archived = current->second.archived.value_or(false);
+
+    if (!has_source_hash_mismatch && !has_route_mismatch && !has_content_type_mismatch && !has_kind_mismatch && !is_archived) {
+      plan.unchanged.push_back({
+        .current = current->second,
+        .desired = desired_asset,
+        .reason = "Existing source hash matches desired source hash.",
+        .source_path = desired_asset.path,
+      });
+      continue;
+    }
+
+    plan.update.push_back({
+      .current = current->second,
+      .desired = desired_asset,
+      .reason = is_archived
+        ? "Existing asset is archived and should be reactivated."
+        : has_source_hash_mismatch
+          ? "Existing source hash differs from desired source hash."
+          : has_route_mismatch
+            ? "Existing route differs from desired route."
+            : has_content_type_mismatch
+              ? "Existing content type differs from desired content type."
+              : "Existing asset kind differs from desired kind.",
+      .source_path = desired_asset.path,
+    });
+  }
+
+  for (const auto& source_path : existing_source_path_order) {
+    if (desired_paths.contains(source_path)) {
+      continue;
+    }
+
+    const auto current = existing_by_source_path.at(source_path);
+    PlannedAssetChange change = {
+      .current = current,
+      .reason = "Existing asset is missing from desired manifest.",
+      .source_path = source_path,
+    };
+
+    if (effective_delete_behavior == "archive" || effective_delete_behavior == "draft") {
+      plan.archive.push_back(change);
+    } else if (effective_delete_behavior == "delete") {
+      plan.delete_items.push_back(change);
+    }
+  }
+
+  return plan;
+}
+
 json existing_record_to_json(const ExistingRecord& record) {
   json output = {
     {"route", record.route},
@@ -1818,6 +1942,26 @@ json existing_record_to_json(const ExistingRecord& record) {
   return output;
 }
 
+json existing_asset_record_to_json(const ExistingAssetRecord& record) {
+  json output = {
+    {"contentType", record.content_type},
+    {"kind", record.kind},
+    {"sourcePath", record.source_path},
+  };
+
+  if (record.archived) {
+    output["archived"] = *record.archived;
+  }
+  if (record.route) {
+    output["route"] = *record.route;
+  }
+  if (record.source_hash) {
+    output["sourceHash"] = *record.source_hash;
+  }
+
+  return output;
+}
+
 json planned_change_to_json(const PlannedChange& change) {
   json output = {
     {"reason", change.reason},
@@ -1834,11 +1978,37 @@ json planned_change_to_json(const PlannedChange& change) {
   return output;
 }
 
+json planned_asset_change_to_json(const PlannedAssetChange& change) {
+  json output = {
+    {"reason", change.reason},
+    {"sourcePath", change.source_path},
+  };
+
+  if (change.current) {
+    output["current"] = existing_asset_record_to_json(*change.current);
+  }
+  if (change.desired) {
+    output["desired"] = validated_asset_to_json(*change.desired);
+  }
+
+  return output;
+}
+
 json changes_to_json(const std::vector<PlannedChange>& changes) {
   json output = json::array();
 
   for (const auto& change : changes) {
     output.push_back(planned_change_to_json(change));
+  }
+
+  return output;
+}
+
+json asset_changes_to_json(const std::vector<PlannedAssetChange>& changes) {
+  json output = json::array();
+
+  for (const auto& change : changes) {
+    output.push_back(planned_asset_change_to_json(change));
   }
 
   return output;
@@ -1856,9 +2026,25 @@ json plan_to_json(const Plan& plan) {
   };
 }
 
-std::string format_plan_summary(const Plan& plan) {
+json asset_plan_to_json(const AssetPlan& plan) {
+  return {
+    {"archive", asset_changes_to_json(plan.archive)},
+    {"create", asset_changes_to_json(plan.create)},
+    {"delete", asset_changes_to_json(plan.delete_items)},
+    {"unchanged", asset_changes_to_json(plan.unchanged)},
+    {"update", asset_changes_to_json(plan.update)},
+    {"warnings", issues_to_json(plan.warnings)},
+  };
+}
+
+std::string format_plan_summary(const Plan& plan, const AssetPlan& asset_plan, const PublishPackageSummary& summary) {
   std::ostringstream out;
   out << "pmdocs plan\n\n";
+  out << "Docs: " << summary.docs << "\n";
+  out << "Assets: " << summary.assets << "\n";
+  out << "Skills: " << summary.skills << "\n";
+  out << "llms.txt: " << summary.llms << "\n";
+  out << "llms-full.txt: " << summary.llms_full << "\n\n";
   out << "Create: " << plan.create.size() << "\n";
   out << "Update: " << plan.update.size() << "\n";
   out << "Unchanged: " << plan.unchanged.size() << "\n";
@@ -1866,9 +2052,19 @@ std::string format_plan_summary(const Plan& plan) {
   out << "Delete: " << plan.delete_items.size() << "\n";
   out << "Draft: " << plan.draft.size() << "\n";
   out << "Warnings: " << plan.warnings.size() << "\n";
+  out << "\n";
+  out << "Asset create: " << asset_plan.create.size() << "\n";
+  out << "Asset update: " << asset_plan.update.size() << "\n";
+  out << "Asset unchanged: " << asset_plan.unchanged.size() << "\n";
+  out << "Asset archive: " << asset_plan.archive.size() << "\n";
+  out << "Asset delete: " << asset_plan.delete_items.size() << "\n";
+  out << "Asset warnings: " << asset_plan.warnings.size() << "\n";
 
-  if (!plan.warnings.empty()) {
-    out << "\nWarnings:\n" << format_issues(plan.warnings) << "\n";
+  auto warnings = plan.warnings;
+  warnings.insert(warnings.end(), asset_plan.warnings.begin(), asset_plan.warnings.end());
+
+  if (!warnings.empty()) {
+    out << "\nWarnings:\n" << format_issues(warnings) << "\n";
   }
 
   return out.str();
@@ -1877,19 +2073,9 @@ std::string format_plan_summary(const Plan& plan) {
 CommandResult validate_or_manifest(const DocsCommandOptions& options, bool print_manifest) {
   try {
     const auto source_id = source_id_for(options);
-    const auto files = walk_docs_files(options.docs_root);
-    auto ai_export = read_ai_export_manifest(options.docs_root);
-
-    if (!ai_export.ok) {
-      return {
-        .exit_code = 1,
-        .stderr_text = "AI export manifest is invalid.\n\nErrors:\n" + format_issues(ai_export.issues) + "\n",
-      };
-    }
-
-    const auto manifest = build_manifest(files, source_id, options, ai_export.manifest);
+    const auto package = collect_publish_package(options, source_id);
+    const auto manifest = build_manifest(package, source_id, options);
     auto validation = validate_manifest(manifest, options, "/" + source_id);
-    validation.warnings.insert(validation.warnings.begin(), ai_export.warnings.begin(), ai_export.warnings.end());
 
     if (print_manifest) {
       if (!validation.ok) {
@@ -1907,8 +2093,9 @@ CommandResult validate_or_manifest(const DocsCommandOptions& options, bool print
 
     if (options.print_json) {
       json output = {
-        {"fileCount", files.size()},
-        {"root", options.docs_root.string()},
+        {"fileCount", package.files.size()},
+        {"package", package_summary_to_json(package.summary)},
+        {"root", effective_docs_root(options).string()},
         {"sourceId", source_id},
         {"validation", validation_to_json(validation)},
       };
@@ -1921,7 +2108,7 @@ CommandResult validate_or_manifest(const DocsCommandOptions& options, bool print
 
     return {
       .exit_code = validation.ok ? 0 : 1,
-      .stdout_text = format_validation_summary(options.docs_root, source_id, files.size(), validation),
+      .stdout_text = format_validation_summary(effective_docs_root(options), source_id, package.files.size(), package.summary, validation),
     };
   } catch (const std::exception& error) {
     return {
@@ -2049,19 +2236,9 @@ CommandResult run_plan_command(const PlanCommandOptions& options) {
     }
 
     const auto source_id = source_id_for(options);
-    const auto files = walk_docs_files(options.docs_root);
-    auto ai_export = read_ai_export_manifest(options.docs_root);
-
-    if (!ai_export.ok) {
-      return {
-        .exit_code = 1,
-        .stderr_text = "AI export manifest is invalid.\n\nErrors:\n" + format_issues(ai_export.issues) + "\n",
-      };
-    }
-
-    const auto manifest = build_manifest(files, source_id, options, ai_export.manifest, options.delete_behavior);
+    const auto package = collect_publish_package(options, source_id);
+    const auto manifest = build_manifest(package, source_id, options, options.delete_behavior);
     auto validation = validate_manifest(manifest, options, "/" + source_id);
-    validation.warnings.insert(validation.warnings.begin(), ai_export.warnings.begin(), ai_export.warnings.end());
 
     if (!validation.ok) {
       return {
@@ -2076,17 +2253,22 @@ CommandResult run_plan_command(const PlanCommandOptions& options) {
     }
 
     auto plan = plan_docs_sync(validation, existing, options.delete_behavior);
+    auto asset_plan = plan_docs_assets_sync(validation, {}, options.delete_behavior);
 
     if (options.print_json) {
       return {
         .exit_code = 0,
-        .stdout_text = json_string(plan_to_json(plan), options.pretty),
+        .stdout_text = json_string({
+          {"assets", asset_plan_to_json(asset_plan)},
+          {"docs", plan_to_json(plan)},
+          {"package", package_summary_to_json(package.summary)},
+        }, options.pretty),
       };
     }
 
     return {
       .exit_code = 0,
-      .stdout_text = format_plan_summary(plan),
+      .stdout_text = format_plan_summary(plan, asset_plan, package.summary),
     };
   } catch (const std::exception& error) {
     return {

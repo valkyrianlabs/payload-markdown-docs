@@ -305,20 +305,55 @@ Usage:
   pmdocs --version
   pmdocs doctor
   pmdocs skill install [options]
+  pmdocs validate [docs-root] [options]
+  pmdocs manifest [docs-root] [options]
+  pmdocs plan [docs-root] [options]
 
 Commands:
   doctor          Show native CLI diagnostics.
   skill install   Install bundled Codex skill guidance into the current project.
   skill update    Update an installed Codex skill. (planned)
-  validate        Validate a local Markdown docs directory. (planned)
-  manifest        Print a JSON docs manifest. (planned)
-  plan            Build a dry sync plan. (planned)
+  validate        Validate a local docs package.
+  manifest        Print a JSON docs package manifest.
+  plan            Build a sync plan against optional existing docs records.
   push            Sign and upload a docs manifest. (planned)
   keygen          Generate Ed25519 keys for signed sync. (planned)
 
 The npm binary remains the reference implementation for docs sync behavior
 until each command is ported.
 )";
+}
+
+std::string docs_command_help_text(std::string_view command) {
+  std::ostringstream out;
+  out << "pmdocs " << command << " [docs-root]\n\n";
+  out << "Options:\n";
+  out << "  --docs <path>             Docs source root. Defaults to ./docs.\n";
+  out << "  --skills <path>           Skills source root. Defaults to ./skills.\n";
+  out << "  --llms <path>             llms.txt path. Defaults to ./llms.txt.\n";
+  out << "  --llms-full <path>        llms-full.txt path. Defaults to ./llms-full.txt.\n";
+  out << "  --no-docs                 Exclude Markdown docs records.\n";
+  out << "  --no-skills               Exclude skill artifacts.\n";
+  out << "  --no-llms                 Exclude llms.txt.\n";
+  out << "  --no-llms-full            Exclude llms-full.txt.\n";
+
+  if (command == "plan") {
+    out << "  --existing <path>          JSON array of existing docs records.\n";
+    out << "  --delete-behavior <value>  archive, delete, draft, or ignore.\n";
+  }
+
+  out << "  --json                     Print JSON output.\n";
+  out << "  --pretty                   Pretty-print JSON output.\n";
+  out << "  --source <id>              Docs set slug. Defaults to the GitHub repository name in GitHub Actions, otherwise local-docs.\n";
+  out << "  --repository <repo>        Source repository metadata.\n";
+  out << "  --branch <branch>          Source branch metadata.\n";
+  out << "  --commit <sha>             Source commit metadata.\n";
+  out << "  --max-files <number>       Maximum file count.\n";
+  out << "  --max-file-bytes <number>  Maximum single file size.\n";
+  out << "  --max-total-bytes <number> Maximum total Markdown bytes.\n";
+  out << "  --help                     Show this help.\n";
+
+  return out.str();
 }
 
 std::string doctor_help_text() {
@@ -436,6 +471,13 @@ struct ArgvBuffer {
   std::vector<char*> argv;
 };
 
+struct DocsOptionsRefs {
+  CLI::Option* docs_root = nullptr;
+  CLI::Option* llms = nullptr;
+  CLI::Option* llms_full = nullptr;
+  CLI::Option* skills = nullptr;
+};
+
 ArgvBuffer to_argv_buffer(const std::vector<std::string_view>& args) {
   ArgvBuffer buffer;
   buffer.storage.reserve(args.size() + 1);
@@ -547,6 +589,9 @@ CommandResult run(std::vector<std::string_view> args) {
   DocsCommandOptions validate_options;
   DocsCommandOptions manifest_options;
   PlanCommandOptions plan_options;
+  DocsOptionsRefs validate_options_refs;
+  DocsOptionsRefs manifest_options_refs;
+  DocsOptionsRefs plan_options_refs;
   bool doctor_requested = false;
   bool manifest_requested = false;
   bool plan_requested = false;
@@ -582,7 +627,19 @@ CommandResult run(std::vector<std::string_view> args) {
   });
 
   const auto add_docs_options = [](CLI::App* command, DocsCommandOptions& options) {
-    command->add_option("docs-root", options.docs_root, "Docs root path.")->required();
+    DocsOptionsRefs refs;
+    refs.docs_root = command->add_option("docs-root", options.docs_root, "Docs root path.");
+    command->add_option("--docs", options.docs_flag, "Docs source root.");
+    refs.skills = command->add_option("--skills", options.skills_root, "Skills source root.")
+      ->default_val(options.skills_root.string());
+    refs.llms = command->add_option("--llms", options.llms_path, "llms.txt path.")
+      ->default_val(options.llms_path.string());
+    refs.llms_full = command->add_option("--llms-full", options.llms_full_path, "llms-full.txt path.")
+      ->default_val(options.llms_full_path.string());
+    command->add_flag("--no-docs", options.no_docs, "Exclude Markdown docs records.");
+    command->add_flag("--no-skills", options.no_skills, "Exclude skill artifacts.");
+    command->add_flag("--no-llms", options.no_llms, "Exclude llms.txt.");
+    command->add_flag("--no-llms-full", options.no_llms_full, "Exclude llms-full.txt.");
     command->add_option("--source", options.source_id, "Docs set/source id.");
     command->add_option("--repository", options.repository, "Source repository metadata.");
     command->add_option("--branch", options.branch, "Source branch metadata.");
@@ -592,22 +649,23 @@ CommandResult run(std::vector<std::string_view> args) {
     command->add_option("--max-total-bytes", options.max_total_bytes, "Maximum total Markdown bytes.");
     command->add_flag("--json", options.print_json, "Print JSON output.");
     command->add_flag("--pretty", options.pretty, "Pretty-print JSON output.");
+    return refs;
   };
 
   auto* validate = app.add_subcommand("validate", "Validate a local Markdown docs directory.");
-  add_docs_options(validate, validate_options);
+  validate_options_refs = add_docs_options(validate, validate_options);
   validate->callback([&validate_requested]() {
     validate_requested = true;
   });
 
   auto* manifest = app.add_subcommand("manifest", "Print a JSON docs manifest.");
-  add_docs_options(manifest, manifest_options);
+  manifest_options_refs = add_docs_options(manifest, manifest_options);
   manifest->callback([&manifest_requested]() {
     manifest_requested = true;
   });
 
   auto* plan = app.add_subcommand("plan", "Build a dry sync plan against optional existing docs records.");
-  add_docs_options(plan, plan_options);
+  plan_options_refs = add_docs_options(plan, plan_options);
   plan->add_option("--existing", plan_options.existing_path, "JSON array of existing docs records.");
   plan->add_option("--delete-behavior", plan_options.delete_behavior, "archive, delete, draft, or ignore.");
   plan->callback([&plan_requested]() {
@@ -633,6 +691,10 @@ CommandResult run(std::vector<std::string_view> args) {
 
     if (args.size() >= 2 && args[0] == "doctor") {
       return make_stdout(doctor_help_text());
+    }
+
+    if (args.size() >= 2 && (args[0] == "validate" || args[0] == "manifest" || args[0] == "plan")) {
+      return make_stdout(docs_command_help_text(args[0]));
     }
 
     if (args.size() >= 2 && args[0] == "skill") {
@@ -669,6 +731,27 @@ CommandResult run(std::vector<std::string_view> args) {
       .stdout_text = out.str(),
       .stderr_text = err.str(),
     };
+  }
+
+  const auto finalize_docs_options = [](DocsCommandOptions& options, const DocsOptionsRefs& refs) {
+    options.docs_root_explicit = refs.docs_root != nullptr && refs.docs_root->count() > 0;
+    options.include_docs = !options.no_docs;
+    options.include_llms = !options.no_llms;
+    options.include_llms_full = !options.no_llms_full;
+    options.include_skills = !options.no_skills;
+    options.llms_path_explicit = refs.llms != nullptr && refs.llms->count() > 0;
+    options.llms_full_path_explicit = refs.llms_full != nullptr && refs.llms_full->count() > 0;
+    options.skills_root_explicit = refs.skills != nullptr && refs.skills->count() > 0;
+  };
+
+  if (validate_requested) {
+    finalize_docs_options(validate_options, validate_options_refs);
+  }
+  if (manifest_requested) {
+    finalize_docs_options(manifest_options, manifest_options_refs);
+  }
+  if (plan_requested) {
+    finalize_docs_options(plan_options, plan_options_refs);
   }
 
   if (doctor_requested) {

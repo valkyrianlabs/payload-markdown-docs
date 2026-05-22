@@ -1,0 +1,59 @@
+{
+  "schema_version": "vaulthalla.release.semantic_payload.v1",
+  "version": "2.5.0",
+  "previous_tag": "v2.4.9",
+  "head_sha": "feedfacecafebeef",
+  "commit_count": 11,
+  "categories": [
+    {
+      "name": "tools",
+      "signal_strength": "strong",
+      "summary_hint": "Release tooling updates covering API request/response contract handling and release artifact generation paths.",
+      "key_commits": [
+        "Introduce ai-compare profile comparison artifact",
+        "Add release_notes terminal stage",
+        "Switch triage to semantic payload v2"
+      ],
+      "supporting_files": [
+        "tools/release/cli.py",
+        "tools/release/changelog/ai/contracts/triage.py"
+      ],
+      "semantic_hunks": [
+        {
+          "path": "tools/release/changelog/ai/contracts/triage.py",
+          "kind": "schema-change",
+          "why_selected": "captures structured schema field changes; anchors: `grounded_claims`, `theme`.",
+          "excerpt": "@@ -80,6 +80,13 @@\n+\"required\": [\"name\", \"signal_strength\", \"priority_rank\", \"theme\", \"grounded_claims\"]\n+\"evidence_refs\": {\"type\": \"array\"}"
+        },
+        {
+          "path": "tools/release/changelog/release_workflow.py",
+          "kind": "output-artifact",
+          "why_selected": "captures release artifact output path/format changes; anchors: `changelog.semantic_payload.json`.",
+          "excerpt": "@@ -1186,6 +1187,7 @@\n+semantic_payload = build_semantic_ai_payload(context)\n+write_output(semantic_payload_json, semantic_target)"
+        }
+      ],
+      "caution_notes": []
+    },
+    {
+      "name": "core",
+      "signal_strength": "moderate",
+      "summary_hint": "Core runtime updates covering validation and error handling and lifecycle and teardown behavior.",
+      "key_commits": [
+        "Guard websocket handshake against invalid nonces"
+      ],
+      "supporting_files": [
+        "core/protocols/websocket/server.cpp"
+      ],
+      "semantic_hunks": [
+        {
+          "path": "core/protocols/websocket/server.cpp",
+          "kind": "error-handling",
+          "why_selected": "captures validation or error-handling behavior changes; anchors: `validate_client_nonce`.",
+          "excerpt": "@@ -101,6 +101,10 @@\n+if (!validate_client_nonce(request)) {\n+    return handshake_error(\"invalid nonce\");\n+}"
+        }
+      ],
+      "caution_notes": []
+    }
+  ],
+  "notes": []
+}

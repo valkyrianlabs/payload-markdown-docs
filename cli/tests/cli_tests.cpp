@@ -329,45 +329,77 @@ TEST_CASE("validate JSON output includes warnings") {
   CHECK(output["validation"]["warnings"][0]["message"].get<std::string>().find("Unknown frontmatter field") != std::string::npos);
 }
 
-TEST_CASE("AI export manifest is parsed and missing order paths warn") {
-  TempDir temp{"pmdocs-test-ai-export"};
+TEST_CASE("manifest includes skill and llms assets") {
+  TempDir temp{"pmdocs-test-assets"};
   const auto root = temp.path() / "docs";
   const auto root_string = root.string();
+  const auto skills = temp.path() / "skills";
+  const auto skills_string = skills.string();
+  const auto llms = temp.path() / "llms.txt";
+  const auto llms_string = llms.string();
   write_text(root / "index.md", "# Home\n");
-  write_text(
-    root / "index.ai.yml",
-    "version: 1\n"
-    "title: Payload Markdown Documentation\n"
-    "canonical: /plugins/payload-markdown\n"
-    "output: /plugins/payload-markdown.md\n"
-    "preamble: |\n"
-    "  This file is intended for AI agents.\n"
-    "order:\n"
-    "  - ./index.md\n"
-    "  - ./missing.md\n"
-    "orphans: append\n"
-    "headingMode: normalize\n"
-  );
+  write_text(root / "index.ai.yml", "version: 1\norder:\n  - ./missing.md\n");
+  write_text(skills / "main-docs" / "codex" / "SKILL.md", "# Skill\n");
+  write_text(skills / "main-docs" / "codex" / "config.json", "{}\n");
+  write_text(llms, "# llms\n");
 
-  const auto validate = pmdocs::run(args({"validate", root_string}));
+  const auto validate = pmdocs::run(args({
+    "validate",
+    root_string,
+    "--source",
+    "main-docs",
+    "--skills",
+    skills_string,
+    "--llms",
+    llms_string,
+  }));
   CHECK(validate.exit_code == 0);
-  CHECK(validate.stdout_text.find("Warnings:") != std::string::npos);
-  CHECK(validate.stdout_text.find("missing.md") != std::string::npos);
+  CHECK(validate.stdout_text.find("Assets: 3") != std::string::npos);
+  CHECK(validate.stdout_text.find("Skills: 2") != std::string::npos);
+  CHECK(validate.stdout_text.find("llms.txt: present") != std::string::npos);
 
-  const auto manifest_result = pmdocs::run(args({"manifest", root_string, "--source", "main-docs"}));
+  const auto manifest_result = pmdocs::run(args({
+    "manifest",
+    root_string,
+    "--source",
+    "main-docs",
+    "--skills",
+    skills_string,
+    "--llms",
+    llms_string,
+  }));
   REQUIRE(manifest_result.exit_code == 0);
   const auto manifest = nlohmann::json::parse(manifest_result.stdout_text);
   CHECK(manifest["files"].size() == 1);
-  CHECK(manifest["aiExport"]["title"] == "Payload Markdown Documentation");
-  CHECK(manifest["aiExport"]["canonical"] == "/plugins/payload-markdown");
-  CHECK(manifest["aiExport"]["output"] == "/plugins/payload-markdown.md");
-  CHECK(manifest["aiExport"]["preamble"] == "This file is intended for AI agents.");
-  CHECK(manifest["aiExport"]["order"][0] == "index.md");
+  CHECK(manifest["assets"].size() == 3);
+  CHECK(manifest["assets"][0]["kind"] == "llms");
+  CHECK(manifest["assets"][0]["route"] == "/llms.txt");
 
-  const auto plan_result = pmdocs::run(args({"plan", root_string, "--source", "main-docs", "--json"}));
+  bool found_skill = false;
+  for (const auto& asset : manifest["assets"]) {
+    if (asset["path"] == "skills/main-docs/codex/SKILL.md") {
+      found_skill = true;
+      CHECK_FALSE(asset.contains("route"));
+    }
+  }
+  CHECK(found_skill);
+
+  const auto plan_result = pmdocs::run(args({
+    "plan",
+    root_string,
+    "--source",
+    "main-docs",
+    "--skills",
+    skills_string,
+    "--llms",
+    llms_string,
+    "--json",
+  }));
   REQUIRE(plan_result.exit_code == 0);
   const auto plan = nlohmann::json::parse(plan_result.stdout_text);
-  CHECK(plan["warnings"].empty());
+  CHECK(plan["docs"]["create"].size() == 1);
+  CHECK(plan["assets"]["create"].size() == 3);
+  CHECK(plan["package"]["assets"] == 3);
 }
 
 TEST_CASE("manifest fails when generated manifest is invalid") {
@@ -419,5 +451,6 @@ TEST_CASE("plan supports existing records and delete behavior") {
   const auto json_result = pmdocs::run(args({"plan", root_string, "--json"}));
   REQUIRE(json_result.exit_code == 0);
   const auto plan = nlohmann::json::parse(json_result.stdout_text);
-  CHECK(plan["create"].size() == 1);
+  CHECK(plan["docs"]["create"].size() == 1);
+  CHECK(plan["assets"]["create"].size() == 0);
 }
