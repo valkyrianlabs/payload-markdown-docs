@@ -28,12 +28,14 @@ proven end to end.
   and `pnpm test:int`.
 - Remaining native CLI gap: add safe mock/local endpoint tests and protected
   smoke tests for Ed25519 dry-run, GitHub OIDC dry-run, and publish requests.
-- Release packaging: Debian and Homebrew skeletons exist, but publication and
-  version automation are not adapted to this repo yet.
-- Version state: root `package.json` is currently the npm release source, while
-  Meson, Debian, and Homebrew native versions are separate. The imported release
-  tooling expects a Vaulthalla-style `VERSION` file and `web/package.json`, so
-  version authority needs to be adapted deliberately.
+- Release packaging: Debian and Homebrew skeletons exist, but publication,
+  package artifact validation, Nexus upload, and tap automation are not adapted
+  to this repo yet.
+- Version state: Option B is active. Root `VERSION` is canonical and
+  `python -m tools.release check`, `sync`, `set-version`, `set-release`, and
+  `bump` enforce/sync root `package.json`, root `meson.build`,
+  `debian/changelog`, and `homebrew/Formula/pmdocs.rb`. The current synced
+  version is `0.16.1`.
 
 ## Safety Rules
 
@@ -74,12 +76,20 @@ Done when:
 
 Goal: make release tooling understand this repository instead of Vaulthalla.
 
+Status: versioning integration is active for Option B. Root `VERSION` is now
+canonical, version checks include npm/Meson/Debian/Homebrew, and the current
+repo state passes `python -m tools.release check`.
+
 Scope:
 
-- Decide version authority: root `package.json` as canonical, or a new root
-  `VERSION` file synced into npm/native package metadata.
-- Update release path discovery for root `package.json`, `meson.build`,
+- Keep root `VERSION` as canonical and require release version changes through
+  `python -m tools.release bump <major|minor|patch>`, `set-version`, or the
+  `set-release` alias.
+- Maintain release path discovery for root `package.json`, `meson.build`,
   `debian/changelog`, and `homebrew/Formula/pmdocs.rb`.
+- Keep the Homebrew formula URL synced to the release tag and reset the formula
+  `sha256` to `TODO_REPLACE_WITH_RELEASE_ARCHIVE_SHA256` when the version
+  changes.
 - Rename CLI descriptions, schema identifiers, prompt roles, and request IDs to
   `payload-markdown-docs` / `pmdocs`.
 - Retarget changelog categories to plugin, npm CLI, native CLI, sync, frontend,
@@ -92,11 +102,13 @@ Scope:
 
 Done when:
 
-- `python -m tools.release check` succeeds for this repo shape.
+- `python -m tools.release check` succeeds for this repo shape. Current status:
+  done for versioning.
 - Version sync dry-runs show root npm, Meson, Debian, and Homebrew changes
-  without writing files.
+  without writing files. Current status: done for versioning.
 - Release tooling unit tests pass with real provider and publication calls
-  blocked.
+  blocked. Current status: focused version tests pass; broader release tooling
+  still needs Vaulthalla cleanup before it becomes a release gate.
 
 ### 3. Finish Debian/Nexus And Homebrew Publication
 

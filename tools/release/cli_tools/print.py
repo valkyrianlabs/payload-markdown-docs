@@ -10,6 +10,7 @@ def print_release_state(state) -> None:
     print(f"meson.build:       {format_value(state.versions.meson)}")
     print(f"package.json:      {format_value(state.versions.package_json)}")
     print(f"debian/changelog:  {format_value(state.versions.debian)}")
+    print(f"Homebrew formula:  {format_value(state.versions.homebrew)}")
     print(f"Status:            {'OK' if state.is_valid else 'INVALID'}")
 
     if state.issues:
@@ -24,6 +25,7 @@ def print_planned_changes(
     current_meson,
     current_package_json,
     current_debian,
+    current_homebrew,
     target_version: Version,
     target_debian_revision: int,
 ) -> None:
@@ -36,6 +38,7 @@ def print_planned_changes(
         f"debian/changelog:  {format_value(current_debian)} -> "
         f"{target_version}-{target_debian_revision}"
     )
+    print(f"Homebrew formula:  {format_value(current_homebrew)} -> {target_version}")
 
 
 def format_value(value) -> str:

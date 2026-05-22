@@ -19,16 +19,16 @@ def _make_repo(repo_root: Path, *, canonical: str, debian_full: str) -> None:
     _write(
         repo_root / "meson.build",
         (
-            "project('vaulthalla', 'cpp',\n"
+            "project('payload-markdown-docs', 'cpp',\n"
             f"  version: '{canonical}'\n"
             ")\n"
         ),
     )
     _write(
-        repo_root / "web" / "package.json",
+        repo_root / "package.json",
         (
             "{\n"
-            "  \"name\": \"vaulthalla-web\",\n"
+            "  \"name\": \"@valkyrianlabs/payload-markdown-docs\",\n"
             f"  \"version\": \"{canonical}\"\n"
             "}\n"
         ),
@@ -36,9 +36,23 @@ def _make_repo(repo_root: Path, *, canonical: str, debian_full: str) -> None:
     _write(
         repo_root / "debian" / "changelog",
         (
-            f"vaulthalla ({debian_full}) unstable; urgency=medium\n\n"
+            f"pmdocs ({debian_full}) unstable; urgency=medium\n\n"
             "  * test entry\n\n"
             " -- Test User <test@example.com>  Sun, 19 Apr 2026 00:00:00 +0000\n"
+        ),
+    )
+    _write(
+        repo_root / "homebrew" / "Formula" / "pmdocs.rb",
+        (
+            "# frozen_string_literal: true\n\n"
+            "class Pmdocs < Formula\n"
+            "  desc \"Native CLI for Payload Markdown Docs\"\n"
+            "  homepage \"https://github.com/valkyrianlabs/payload-markdown-docs\"\n"
+            "  url \"https://github.com/valkyrianlabs/payload-markdown-docs/"
+            f"archive/refs/tags/v{canonical}.tar.gz\"\n"
+            "  sha256 \"old-sha\"\n"
+            "  license \"MIT\"\n"
+            "end\n"
         ),
     )
 
@@ -83,7 +97,7 @@ class CliVersionSyncTests(unittest.TestCase):
             self.assertEqual(rc_sync, 0, msg=err_sync or out_sync)
 
             header = (repo_root / "debian" / "changelog").read_text(encoding="utf-8").splitlines()[0]
-            self.assertEqual(header, "vaulthalla (0.28.1-7) unstable; urgency=medium")
+            self.assertEqual(header, "pmdocs (0.28.1-7) unstable; urgency=medium")
 
             rc_check_after, _, _ = _run_cli(["--repo-root", str(repo_root), "check"])
             self.assertEqual(rc_check_after, 0)
@@ -104,7 +118,10 @@ class CliVersionSyncTests(unittest.TestCase):
             version_value = (repo_root / "VERSION").read_text(encoding="utf-8").strip()
             header = (repo_root / "debian" / "changelog").read_text(encoding="utf-8").splitlines()[0]
             self.assertEqual(version_value, "0.30.0")
-            self.assertEqual(header, "vaulthalla (0.30.0-1) unstable; urgency=medium")
+            self.assertEqual(header, "pmdocs (0.30.0-1) unstable; urgency=medium")
+            formula = (repo_root / "homebrew" / "Formula" / "pmdocs.rb").read_text(encoding="utf-8")
+            self.assertIn("refs/tags/v0.30.0.tar.gz", formula)
+            self.assertIn('sha256 "TODO_REPLACE_WITH_RELEASE_ARCHIVE_SHA256"', formula)
 
     def test_bump_clears_changelog_scratch_artifacts(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -141,7 +158,46 @@ class CliVersionSyncTests(unittest.TestCase):
             self.assertEqual(rc_sync, 0, msg=err_sync or out_sync)
 
             header = (repo_root / "debian" / "changelog").read_text(encoding="utf-8").splitlines()[0]
-            self.assertEqual(header, "vaulthalla (0.28.1-3) unstable; urgency=medium")
+            self.assertEqual(header, "pmdocs (0.28.1-3) unstable; urgency=medium")
+
+    def test_set_release_alias_updates_managed_versions(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir) / "repo"
+            repo_root.mkdir(parents=True, exist_ok=True)
+            _make_repo(repo_root, canonical="0.29.0", debian_full="0.29.0-1")
+
+            rc_set, out_set, err_set = _run_cli(
+                ["--repo-root", str(repo_root), "set-release", "0.31.0"]
+            )
+            self.assertEqual(rc_set, 0, msg=err_set or out_set)
+
+            self.assertEqual(
+                (repo_root / "VERSION").read_text(encoding="utf-8").strip(),
+                "0.31.0",
+            )
+            self.assertIn(
+                '"version": "0.31.0"',
+                (repo_root / "package.json").read_text(encoding="utf-8"),
+            )
+            self.assertIn(
+                "refs/tags/v0.31.0.tar.gz",
+                (repo_root / "homebrew" / "Formula" / "pmdocs.rb").read_text(encoding="utf-8"),
+            )
+
+    def test_check_fails_when_homebrew_mismatch_exists(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir) / "repo"
+            repo_root.mkdir(parents=True, exist_ok=True)
+            _make_repo(repo_root, canonical="0.29.1", debian_full="0.29.1-1")
+            formula = repo_root / "homebrew" / "Formula" / "pmdocs.rb"
+            formula.write_text(
+                formula.read_text(encoding="utf-8").replace("v0.29.1.tar.gz", "v0.29.0.tar.gz"),
+                encoding="utf-8",
+            )
+
+            rc_check, out_check, _ = _run_cli(["--repo-root", str(repo_root), "check"])
+            self.assertEqual(rc_check, 1)
+            self.assertIn("homebrew_version_mismatch", out_check)
 
     def test_check_passes_when_upstream_matches_and_revision_differs(self) -> None:
         with TemporaryDirectory() as temp_dir:

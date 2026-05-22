@@ -257,6 +257,28 @@ COMMANDS = {
         ],
     },
 
+    "set-release": {
+        "help": "Alias for set-version.",
+        "func": cmd_set_version,
+        "args": [
+            {
+                "flags": ["version"],
+                "kwargs": {
+                    "help": "Semantic version to set (e.g. 0.3.0).",
+                },
+            },
+            {
+                "flags": ["--debian-revision"],
+                "kwargs": {
+                    "type": int,
+                    "default": 1,
+                    "help": "Debian package revision to write (default: 1).",
+                },
+            },
+            "dry_run",
+        ],
+    },
+
     "bump": {
         "help": "Bump the current semantic version.",
         "func": cmd_bump,
@@ -577,7 +599,7 @@ def add_command(subparsers, name, spec):
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m tools.release",
-        description="Vaulthalla release and packaging tooling.",
+        description="Payload Markdown Docs release and packaging tooling.",
     )
 
     parser.add_argument(

@@ -1,6 +1,13 @@
 from __future__ import annotations
 
-from tools.release.version.adapters import DebianVersion, write_debian_version, write_meson_version, write_package_json_version, write_version_file
+from tools.release.version.adapters import (
+    DebianVersion,
+    write_debian_version,
+    write_homebrew_formula_version,
+    write_meson_version,
+    write_package_json_version,
+    write_version_file,
+)
 from tools.release.version.models import Version
 from tools.release.version.validate import ReleasePaths
 
@@ -31,3 +38,4 @@ def apply_version_update(
     write_meson_version(paths.meson_file, version)
     write_package_json_version(paths.package_json_file, version)
     write_debian_version(paths.debian_changelog_file, version, revision=debian_revision)
+    write_homebrew_formula_version(paths.homebrew_formula_file, version)

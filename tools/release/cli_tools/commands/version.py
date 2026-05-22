@@ -59,6 +59,7 @@ def cmd_sync(args: argparse.Namespace) -> int:
         current_meson=state.versions.meson,
         current_package_json=state.versions.package_json,
         current_debian=state.versions.debian,
+        current_homebrew=state.versions.homebrew,
         target_version=canonical,
         target_debian_revision=debian_revision,
     )
@@ -103,6 +104,7 @@ def cmd_set_version(args: argparse.Namespace) -> int:
         current_meson=state.versions.meson,
         current_package_json=state.versions.package_json,
         current_debian=state.versions.debian,
+        current_homebrew=state.versions.homebrew,
         target_version=target_version,
         target_debian_revision=debian_revision,
     )

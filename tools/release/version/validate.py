@@ -6,6 +6,7 @@ from pathlib import Path
 from tools.release.version.adapters import (
     DebianVersion,
     read_debian_version,
+    read_homebrew_formula_version,
     read_meson_version,
     read_package_json_version,
     read_version_file,
@@ -20,6 +21,7 @@ class ReleasePaths:
     meson_file: Path
     package_json_file: Path
     debian_changelog_file: Path
+    homebrew_formula_file: Path
 
     @classmethod
     def from_repo_root(cls, repo_root: Path | str) -> "ReleasePaths":
@@ -28,8 +30,9 @@ class ReleasePaths:
             repo_root=root,
             version_file=root / "VERSION",
             meson_file=root / "meson.build",
-            package_json_file=root / "web" / "package.json",
+            package_json_file=root / "package.json",
             debian_changelog_file=root / "debian" / "changelog",
+            homebrew_formula_file=root / "homebrew" / "Formula" / "pmdocs.rb",
         )
 
 
@@ -39,6 +42,7 @@ class VersionReadResult:
     meson: Version | None = None
     package_json: Version | None = None
     debian: DebianVersion | None = None
+    homebrew: Version | None = None
 
 
 @dataclass(frozen=True)
@@ -87,6 +91,7 @@ def validate_release_state(paths: ReleasePaths) -> ReleaseState:
     meson_version: Version | None = None
     package_json_version: Version | None = None
     debian_version: DebianVersion | None = None
+    homebrew_version: Version | None = None
 
     if paths.version_file.is_file():
         try:
@@ -132,11 +137,23 @@ def validate_release_state(paths: ReleasePaths) -> ReleaseState:
                 )
             )
 
+    if paths.homebrew_formula_file.is_file():
+        try:
+            homebrew_version = read_homebrew_formula_version(paths.homebrew_formula_file)
+        except Exception as exc:
+            issues.append(
+                ValidationIssue(
+                    code="homebrew_read_failed",
+                    message=f"Failed to read Homebrew formula version from {paths.homebrew_formula_file}: {exc}",
+                )
+            )
+
     versions = VersionReadResult(
         canonical=canonical_version,
         meson=meson_version,
         package_json=package_json_version,
         debian=debian_version,
+        homebrew=homebrew_version,
     )
 
     _validate_version_consistency(versions, issues)
@@ -156,7 +173,9 @@ def require_release_files(repo_root: Path | str = ".") -> ReleaseState:
     state = get_release_state(repo_root)
 
     if state.has_structural_errors:
-        rendered = "\n".join(f"- [{issue.code}] {issue.message}" for issue in state.structural_issues)
+        rendered = "\n".join(
+            f"- [{issue.code}] {issue.message}" for issue in state.structural_issues
+        )
         raise ValueError(f"Release state has structural errors:\n{rendered}")
 
     if state.canonical_version is None:
@@ -182,7 +201,14 @@ def build_sync_required_message(state: ReleaseState) -> str:
         f"VERSION:          {format_value(canonical)}",
         f"meson.build:      {format_value(state.versions.meson)}{mismatch_suffix(state.versions.meson, canonical)}",
         f"package.json:     {format_value(state.versions.package_json)}{mismatch_suffix(state.versions.package_json, canonical)}",
-        f"debian/changelog: {format_value(state.versions.debian)}{debian_mismatch_suffix(state.versions.debian, canonical)}",
+        (
+            f"debian/changelog: {format_value(state.versions.debian)}"
+            f"{debian_mismatch_suffix(state.versions.debian, canonical)}"
+        ),
+        (
+            f"Homebrew formula: {format_value(state.versions.homebrew)}"
+            f"{mismatch_suffix(state.versions.homebrew, canonical)}"
+        ),
         "",
         "Run:",
         "  python -m tools.release sync",
@@ -215,6 +241,7 @@ def _validate_required_paths(paths: ReleasePaths, issues: list[ValidationIssue])
         ("meson_missing", paths.meson_file),
         ("package_json_missing", paths.package_json_file),
         ("debian_changelog_missing", paths.debian_changelog_file),
+        ("homebrew_formula_missing", paths.homebrew_formula_file),
     )
 
     for code, file_path in required_files:
@@ -257,6 +284,17 @@ def _validate_version_consistency(
                 code="debian_version_mismatch",
                 message=(
                     f"debian/changelog upstream version {versions.debian.upstream} "
+                    f"does not match VERSION {canonical}"
+                ),
+            )
+        )
+
+    if versions.homebrew is not None and versions.homebrew != canonical:
+        issues.append(
+            ValidationIssue(
+                code="homebrew_version_mismatch",
+                message=(
+                    f"Homebrew formula version {versions.homebrew} "
                     f"does not match VERSION {canonical}"
                 ),
             )
