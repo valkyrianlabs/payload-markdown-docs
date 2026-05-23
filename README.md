@@ -47,28 +47,28 @@ sudo chmod 0644 /etc/apt/keyrings/valkyrianlabs.gpg
 echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/valkyrianlabs.gpg] https://apt.valkyrianlabs.com stable main" | \
   sudo tee /etc/apt/sources.list.d/valkyrianlabs.list > /dev/null
 
-sudo apt-get update
-sudo apt-get install -y pmdocs
+sudo apt update
+sudo apt install -y pmdocs
 
 pmdocs --version
-pmdocs --help
 ```
 
 ### Homebrew
 
 ```bash
-brew tap valkyrianlabs/tap
-brew install pmdocs
-
+brew install valkyrianlabs/tap/pmdocs
 pmdocs --version
-pmdocs --help
 ```
 
 ### Why no native Windows CLI?
 
-Alright, I won’t beat around the bush: it’s because I don’t respect Windows as an operating system.
+Alright, I already know what you're thinking:
 
-For v1, `pmdocs` targets macOS developer machines and Debian/Ubuntu Linux CI/server environments. Windows users should use WSL2 or a Linux CI runner.
+> *"This guy doesn't respect Windows as an operating system."*
+
+And you would be correct.
+
+**Jokes aside:** For v1, `pmdocs` targets macOS developer machines and Debian/Ubuntu Linux CI/server environments. Windows users should use WSL2 or a Linux CI runner.
 
 ## Native CLI Philosophy
 
