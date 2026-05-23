@@ -30,10 +30,8 @@ if ! command -v sudo >/dev/null 2>&1; then
 fi
 
 if ! sudo -n true >/dev/null 2>&1; then
-  runner_user="$(id -un)"
   echo "::error::Missing apt packages: ${missing[*]}"
-  echo "::error::Passwordless sudo is unavailable for runner user '${runner_user}'."
-  echo "::error::Run the Actions service as the sudoers NOPASSWD user, or add '${runner_user} ALL=(ALL) NOPASSWD:ALL' under /etc/sudoers.d and validate it with visudo."
+  echo "::error::Passwordless sudo is unavailable to the runner process. Verify the runner service user and sudoers configuration directly on the VM."
   exit 1
 fi
 
