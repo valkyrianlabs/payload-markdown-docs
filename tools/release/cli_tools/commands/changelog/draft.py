@@ -10,6 +10,8 @@ from tools.release.changelog.ai import run_emergency_triage_stage, render_emerge
 from tools.release.changelog.ai.providers import StructuredJSONProvider
 from tools.release.changelog.release_workflow import (
     DEFAULT_CHANGELOG_SCRATCH_DIR,
+    _copy_release_framing,
+    _is_major_release_payload,
     render_cached_draft_markdown,
     write_release_notes_context_metadata,
 )
@@ -60,6 +62,7 @@ def cmd_changelog_ai_draft(args: argparse.Namespace) -> int:
 
     draft_input: dict = payload
     source_kind = "payload"
+    major_release = _is_major_release_payload(payload)
     triage_input_mode = "raw_semantic"
     triage_input_payload: dict = semantic_payload if semantic_payload is not None else payload
     emergency_triage_stage_cfg = pipeline_config.stages["emergency_triage"]
@@ -159,6 +162,7 @@ def cmd_changelog_ai_draft(args: argparse.Namespace) -> int:
                 )
                 raise stage_failure("Triage", exc) from exc
             draft_input = build_triage_ir_payload(triage_result)
+            _copy_release_framing(payload, draft_input)
             source_kind = "triage"
 
             if args.save_triage_json:
@@ -238,6 +242,9 @@ def cmd_changelog_ai_draft(args: argparse.Namespace) -> int:
     def _run_release_notes():
         assert release_notes_provider is not None
         assert draft_markdown is not None
+        stage_kwargs = {}
+        if major_release:
+            stage_kwargs["major_release"] = True
         try:
             return run_release_notes_stage(
                 draft_markdown,
@@ -247,6 +254,7 @@ def cmd_changelog_ai_draft(args: argparse.Namespace) -> int:
                 structured_mode=release_notes_stage_cfg.structured_mode,
                 temperature=release_notes_stage_cfg.temperature,
                 max_output_tokens_policy=release_notes_stage_cfg.max_output_tokens,
+                **stage_kwargs,
             )
         except Exception as exc:
             capture_stage_failure_artifact(

@@ -87,29 +87,29 @@ profiles:
     provider: openai
 
     default_max_output_tokens:
-      emergency_triage: 10000
-      triage: 10000
-      draft: 14000
-      polish: 12000
+      emergency_triage: 30000
+      triage: 25000
+      draft: 20000
+      polish: 15000
       release_notes: 25000
 
     stages:
       emergency_triage:
-        model: gpt-5-nano
+        model: gpt-5.4-nano
         reasoning_effort: low
       triage:
-        model: gpt-5-nano
+        model: gpt-5.4-mini
         reasoning_effort: medium
       draft:
-        model: gpt-5-mini
+        model: gpt-5.4
         reasoning_effort: medium
         structured_mode: strict_json_schema
       polish:
-        model: gpt-5.4
+        model: gpt-5.5
         reasoning_effort: high
       release_notes:
-        model: gpt-5.4
-        reasoning_effort: high
+        model: gpt-5.5
+        reasoning_effort: xhigh
 
   gemma-solo-stable:
     provider: openai-compatible

@@ -266,7 +266,7 @@ profiles:
         structured_mode: prompt_json
       release_notes:
         model: gpt-5.4
-        reasoning_effort: high
+        reasoning_effort: xhigh
 """,
             )
             args = self._args(repo_root=str(repo_root), ai_profile="openai-balanced")
@@ -290,7 +290,7 @@ profiles:
         self.assertEqual(pipeline.stages["draft"].temperature, 0.1)
         self.assertEqual(pipeline.stages["draft"].max_output_tokens, 1200)
         self.assertEqual(pipeline.stages["polish"].structured_mode, "prompt_json")
-        self.assertEqual(pipeline.stages["release_notes"].reasoning_effort, "high")
+        self.assertEqual(pipeline.stages["release_notes"].reasoning_effort, "xhigh")
 
     def test_cli_model_override_beats_profile_stage_models(self) -> None:
         with TemporaryDirectory() as temp_dir:

@@ -5,7 +5,11 @@ from pathlib import Path
 from unittest.mock import patch
 
 from tools.release.changelog.context_builder import build_release_context
-from tools.release.changelog.git_collect import get_commits_since_tag, get_previous_release_tag_before
+from tools.release.changelog.git_collect import (
+    get_commits_since_tag,
+    get_first_release_tag_for_major,
+    get_previous_release_tag_before,
+)
 from tools.release.changelog.models import CommitInfo
 from tools.release.version.models import Version
 
@@ -49,7 +53,7 @@ class ContextBuilderTests(unittest.TestCase):
     def test_current_non_patch_release_tag_with_no_lower_release_defaults_to_none(self) -> None:
         with (
             patch("tools.release.changelog.context_builder.get_latest_tag", return_value="v1.0.0"),
-            patch("tools.release.changelog.context_builder.get_previous_release_tag_before", return_value=None),
+            patch("tools.release.changelog.context_builder.get_first_release_tag_for_major") as first_major,
             patch("tools.release.changelog.context_builder.get_head_sha", return_value="abc123"),
             patch("tools.release.changelog.context_builder.get_commits_since_tag", return_value=[]),
             patch("tools.release.changelog.context_builder.get_release_file_stats", return_value={}),
@@ -58,8 +62,35 @@ class ContextBuilderTests(unittest.TestCase):
             context = build_release_context(version="1.0.0", repo_root=".")
 
         self.assertIsNone(context.previous_tag)
+        self.assertEqual(context.release_kind, "major")
+        self.assertEqual(context.release_focus, ("new features", "breaking changes if any", "general release notes"))
+        first_major.assert_not_called()
         self.assertTrue(context.cross_cutting_notes)
         self.assertIn("using previous tag `none`", context.cross_cutting_notes[0])
+        self.assertIn("full project history", context.cross_cutting_notes[-1])
+
+    def test_major_release_defaults_to_first_tag_from_previous_major_line(self) -> None:
+        with (
+            patch("tools.release.changelog.context_builder.get_latest_tag", return_value="v2.0.0"),
+            patch(
+                "tools.release.changelog.context_builder.get_first_release_tag_for_major",
+                return_value="v1.0.0",
+            ) as first_major,
+            patch("tools.release.changelog.context_builder.get_previous_release_tag_before") as previous_before,
+            patch("tools.release.changelog.context_builder.get_head_sha", return_value="abc123"),
+            patch("tools.release.changelog.context_builder.get_commits_since_tag", return_value=[]),
+            patch("tools.release.changelog.context_builder.get_release_file_stats", return_value={}),
+            patch("tools.release.changelog.context_builder.extract_relevant_snippets", return_value={}),
+        ):
+            context = build_release_context(version="2.0.0", repo_root=".")
+
+        self.assertEqual(context.previous_tag, "v1.0.0")
+        self.assertEqual(context.release_kind, "major")
+        first_major.assert_called_once_with(Path(".").resolve(), 1)
+        previous_before.assert_not_called()
+        self.assertTrue(context.cross_cutting_notes)
+        self.assertIn("Current release tag was skipped", context.cross_cutting_notes[0])
+        self.assertIn("full previous major cycle", context.cross_cutting_notes[-1])
 
     def test_default_resolution_rejects_current_release_tag_checkpoint(self) -> None:
         with (
@@ -213,6 +244,12 @@ class GitCollectTests(unittest.TestCase):
         with patch("tools.release.changelog.git_collect._run_git", return_value=tags):
             resolved = get_previous_release_tag_before(".", Version(0, 58, 0))
         self.assertEqual(resolved, "v0.33.0")
+
+    def test_first_release_tag_for_major_prefers_earliest_in_major_line(self) -> None:
+        tags = "\n".join(["v1.2.0", "v1.0.0", "v2.0.0", "v1.1.1", "not-semver"])
+        with patch("tools.release.changelog.git_collect._run_git", return_value=tags):
+            resolved = get_first_release_tag_for_major(".", 1)
+        self.assertEqual(resolved, "v1.0.0")
 
 
 

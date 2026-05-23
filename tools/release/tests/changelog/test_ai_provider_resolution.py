@@ -99,10 +99,10 @@ class AIProviderResolutionTests(unittest.TestCase):
         resolved = resolve_generation_settings(
             provider_kind="openai",
             requested_structured_mode="strict_json_schema",
-            requested_reasoning_effort="high",
+            requested_reasoning_effort="xhigh",
         )
         self.assertEqual(resolved.structured_mode, "strict_json_schema")
-        self.assertEqual(resolved.reasoning_effort, "high")
+        self.assertEqual(resolved.reasoning_effort, "xhigh")
         self.assertEqual(resolved.degradations, ())
 
     def test_resolve_generation_settings_degrades_unsupported_local_requests(self) -> None:

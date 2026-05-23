@@ -763,6 +763,32 @@ class PayloadContractTests(unittest.TestCase):
         self.assertEqual([item["name"] for item in payload["categories"]], ["debian", "tools", "core", "meta"])
         self.assertEqual(payload["generation"]["truncation"]["any_truncation"], False)
 
+    def test_major_release_framing_is_carried_in_model_payloads(self) -> None:
+        context = ReleaseContext(
+            version="2.0.0",
+            previous_tag="v1.0.0",
+            head_sha="1234567890abcdef",
+            commit_count=0,
+            categories={},
+            release_kind="major",
+            release_focus=("new features", "breaking changes if any", "general release notes"),
+        )
+
+        payload = build_ai_payload(context)
+        semantic = build_semantic_ai_payload(context)
+
+        self.assertEqual(payload["metadata"]["release_kind"], "major")
+        self.assertEqual(
+            payload["metadata"]["release_focus"],
+            ["new features", "breaking changes if any", "general release notes"],
+        )
+        self.assertTrue(any("Major release framing requested" in note for note in payload["notes"]))
+        self.assertEqual(semantic["release_kind"], "major")
+        self.assertEqual(
+            semantic["release_focus"],
+            ("new features", "breaking changes if any", "general release notes"),
+        )
+
     def test_truncation_rules_fixture(self) -> None:
         config = PayloadBuildConfig(
             limits=PayloadLimits(

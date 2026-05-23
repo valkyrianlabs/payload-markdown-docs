@@ -36,13 +36,14 @@ def run_release_notes_stage(
     structured_mode: AIStructuredMode | None = None,
     temperature: float | None = None,
     max_output_tokens_policy: AIMaxOutputTokensPolicy | None = None,
+    major_release: bool = False,
 ) -> AIReleaseNotesResult:
     active_provider = provider or OpenAIProvider(
         model=model or DEFAULT_AI_RELEASE_NOTES_MODEL,
         provider_kind=provider_kind,
     )
     system_prompt = build_release_notes_system_prompt()
-    user_prompt = build_release_notes_user_prompt(changelog_markdown)
+    user_prompt = build_release_notes_user_prompt(changelog_markdown, major_release=major_release)
     policy = max_output_tokens_policy or DEFAULT_STAGE_MAX_OUTPUT_TOKENS["release_notes"]
     max_output_tokens = compute_max_output_tokens(
         policy,

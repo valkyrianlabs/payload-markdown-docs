@@ -60,6 +60,8 @@ class ReleaseContext:
     latest_tag: str | None = None
     skipped_current_release_tag: bool = False
     explicit_previous_tag: bool = False
+    release_kind: str = "standard"
+    release_focus: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -108,3 +110,5 @@ class SemanticReleasePayload:
     categories: tuple[CategorySemanticPacket, ...]
     all_commits: tuple[SemanticCommitCandidate, ...] = ()
     notes: tuple[str, ...] = ()
+    release_kind: str = "standard"
+    release_focus: tuple[str, ...] = ()

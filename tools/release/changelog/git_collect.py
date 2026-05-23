@@ -54,6 +54,34 @@ def get_previous_release_tag_before(repo_root: Path | str, target: Version) -> s
     return parsed[0][1]
 
 
+def get_first_release_tag_for_major(repo_root: Path | str, major: int) -> str | None:
+    """Return the earliest release tag in a major line merged into HEAD."""
+    try:
+        output = _run_git(["tag", "--merged", "HEAD", "--list"], repo_root)
+    except RuntimeError:
+        return None
+
+    parsed: list[tuple[Version, str]] = []
+    for raw_tag in output.splitlines():
+        tag = raw_tag.strip()
+        if not tag:
+            continue
+        normalized = tag[1:] if tag.startswith("v") else tag
+        try:
+            tag_version = Version.parse(normalized)
+        except ValueError:
+            continue
+        if tag_version.major != major:
+            continue
+        parsed.append((tag_version, tag))
+
+    if not parsed:
+        return None
+
+    parsed.sort(key=lambda item: item[0])
+    return parsed[0][1]
+
+
 def get_commits_since_tag(
     repo_root: Path | str = ".",
     previous_tag: str | None = None,

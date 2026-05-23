@@ -18,6 +18,7 @@ def build_draft_system_prompt() -> str:
 def build_draft_user_prompt(source_data: dict[str, Any], *, source_kind: str = "payload") -> str:
     source_json = json.dumps(source_data, indent=2, sort_keys=False)
     input_name = "Triage IR" if source_kind == "triage" else "Release payload"
+    major_release_requirements = _major_release_requirements(source_data)
     return (
         "Draft a concise release summary from the structured input below.\n"
         "Requirements:\n"
@@ -38,7 +39,29 @@ def build_draft_user_prompt(source_data: dict[str, Any], *, source_kind: str = "
         "- Required top-level output fields: `title`, `summary`, `sections`.\n"
         "- Required section fields: `category`, `overview`, `bullets`.\n"
         "- `title` must be concise and non-empty.\n"
+        f"{major_release_requirements}"
         "- Return JSON only.\n\n"
         f"{input_name}:\n"
         f"{source_json}"
     )
+
+
+def _major_release_requirements(source_data: dict[str, Any]) -> str:
+    if not _is_major_release_input(source_data):
+        return ""
+    return (
+        "- This is a major feature release; frame the release around new features, "
+        "breaking changes if any, and other general release notes.\n"
+        "- Breaking-change claims require explicit evidence; if none are evidenced, "
+        "state that no breaking changes are identified from the input evidence instead of inventing any.\n"
+        "- Prioritize user-facing and operator-facing capability changes over routine maintenance.\n"
+    )
+
+
+def _is_major_release_input(source_data: dict[str, Any]) -> bool:
+    metadata = source_data.get("metadata")
+    if isinstance(metadata, dict) and metadata.get("release_kind") == "major":
+        return True
+    if source_data.get("release_kind") == "major":
+        return True
+    return bool(source_data.get("major_release") is True)

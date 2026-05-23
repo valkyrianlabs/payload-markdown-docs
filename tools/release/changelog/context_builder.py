@@ -13,6 +13,7 @@ from tools.release.changelog.categorize import (
 )
 from tools.release.changelog.git_collect import (
     get_commits_since_tag,
+    get_first_release_tag_for_major,
     get_head_sha,
     get_latest_tag,
     get_previous_release_tag_before,
@@ -45,6 +46,8 @@ def build_release_context(
         parsed_version = Version.parse(version)
     except ValueError:
         parsed_version = None
+    release_kind = _release_kind(parsed_version)
+    release_focus = _release_focus(release_kind)
 
     if previous_tag is None:
         resolved_previous_tag = _resolve_default_previous_tag_result(repo_root, version)
@@ -100,6 +103,17 @@ def build_release_context(
             "Current release tag was skipped as the changelog checkpoint; "
             f"using previous tag `{resolved_label}` for release evidence."
         )
+    if parsed_version is not None and release_kind == "major" and not explicit_previous_tag:
+        if previous_tag:
+            cross_cutting_notes.append(
+                "Major release context uses the first tag from the previous major line "
+                f"(`{previous_tag}`) so evidence covers the full previous major cycle."
+            )
+        else:
+            cross_cutting_notes.append(
+                "Major release context found no previous major release tag; "
+                "using full project history for release evidence."
+            )
 
     return ReleaseContext(
         version=version,
@@ -113,6 +127,8 @@ def build_release_context(
         latest_tag=latest_tag,
         skipped_current_release_tag=skipped_current_release_tag,
         explicit_previous_tag=explicit_previous_tag,
+        release_kind=release_kind,
+        release_focus=release_focus,
     )
 
 
@@ -127,6 +143,14 @@ def _resolve_default_previous_tag_result(repo_root: Path, version: str) -> _Reso
     except ValueError:
         return _ResolvedPreviousTag(previous_tag=latest_tag, latest_tag=latest_tag)
     skipped_current_release_tag = _is_current_release_tag(latest_tag, parsed_version)
+    if _is_major_release(parsed_version):
+        previous_major = parsed_version.major - 1
+        previous_tag = get_first_release_tag_for_major(repo_root, previous_major) if previous_major > 0 else None
+        return _ResolvedPreviousTag(
+            previous_tag=previous_tag,
+            latest_tag=latest_tag,
+            skipped_current_release_tag=skipped_current_release_tag,
+        )
     if parsed_version.patch <= 0:
         previous_tag = get_previous_release_tag_before(repo_root, parsed_version)
         return _ResolvedPreviousTag(
@@ -153,6 +177,22 @@ def _is_current_release_tag(tag: str | None, version: Version) -> bool:
     if normalized.startswith("v"):
         normalized = normalized[1:]
     return normalized == str(version)
+
+
+def _is_major_release(version: Version) -> bool:
+    return version.major > 0 and version.minor == 0 and version.patch == 0
+
+
+def _release_kind(version: Version | None) -> str:
+    if version is not None and _is_major_release(version):
+        return "major"
+    return "standard"
+
+
+def _release_focus(release_kind: str) -> tuple[str, ...]:
+    if release_kind == "major":
+        return ("new features", "breaking changes if any", "general release notes")
+    return ()
 
 
 def get_file_commit_counts(commits: list[CommitInfo]) -> dict[str, int]:

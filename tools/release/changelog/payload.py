@@ -245,15 +245,25 @@ def build_ai_payload(
         )
     if not categories_payload:
         notes.append("No categories selected for payload after filters/limits.")
+    if context.release_kind == "major":
+        notes.append(
+            "Major release framing requested: prioritize new features, breaking changes if any, "
+            "and general release notes."
+        )
+
+    metadata: dict[str, Any] = {
+        "version": context.version,
+        "previous_tag": context.previous_tag,
+        "head_sha": context.head_sha,
+        "commit_count": context.commit_count,
+    }
+    if context.release_kind == "major":
+        metadata["release_kind"] = context.release_kind
+        metadata["release_focus"] = list(context.release_focus)
 
     return {
         "schema_version": AI_PAYLOAD_SCHEMA_VERSION,
-        "metadata": {
-            "version": context.version,
-            "previous_tag": context.previous_tag,
-            "head_sha": context.head_sha,
-            "commit_count": context.commit_count,
-        },
+        "metadata": metadata,
         "generation": {
             "category_order_used": category_order_used,
             "selected_category_order": [item["name"] for item in categories_payload],
@@ -311,8 +321,14 @@ def build_semantic_ai_payload(
         categories=tuple(selected),
         all_commits=all_commits,
         notes=notes,
+        release_kind=context.release_kind,
+        release_focus=context.release_focus,
     )
-    return asdict(semantic)
+    payload = asdict(semantic)
+    if context.release_kind != "major":
+        payload.pop("release_kind", None)
+        payload.pop("release_focus", None)
+    return payload
 
 
 def render_semantic_ai_payload_json(payload: dict[str, Any]) -> str:

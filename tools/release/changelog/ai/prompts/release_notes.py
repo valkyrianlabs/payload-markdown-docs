@@ -22,8 +22,9 @@ def build_release_notes_system_prompt() -> str:
     )
 
 
-def build_release_notes_user_prompt(changelog_markdown: str) -> str:
+def build_release_notes_user_prompt(changelog_markdown: str, *, major_release: bool = False) -> str:
     payload_json = json.dumps({"changelog_markdown": changelog_markdown}, indent=2, sort_keys=False)
+    major_release_requirements = _major_release_requirements() if major_release else ""
 
     return (
         "Transform the final changelog markdown into cleaner public-facing release notes markdown.\n\n"
@@ -41,6 +42,7 @@ def build_release_notes_user_prompt(changelog_markdown: str) -> str:
         "- do not add any new changes not present in source\n"
         "- do not remove explicit cautions\n"
         "- do not introduce unsupported impact statements\n\n"
+        f"{major_release_requirements}"
 
         f"- Set `schema_version` exactly to `{AI_RELEASE_NOTES_SCHEMA_VERSION}`.\n"
         "- Return markdown in `markdown`.\n"
@@ -48,4 +50,13 @@ def build_release_notes_user_prompt(changelog_markdown: str) -> str:
 
         "Final changelog input:\n"
         f"{payload_json}"
+    )
+
+
+def _major_release_requirements() -> str:
+    return (
+        "Major release framing:\n"
+        "- treat the source as a major feature release\n"
+        "- organize the public notes around new features, breaking changes if any, and other release notes\n"
+        "- breaking-change claims require explicit source support; if none are present, say no breaking changes are identified\n\n"
     )

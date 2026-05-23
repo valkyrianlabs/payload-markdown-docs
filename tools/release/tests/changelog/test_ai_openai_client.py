@@ -132,11 +132,11 @@ class OpenAIProviderTests(unittest.TestCase):
             system_prompt="sys",
             user_prompt="usr",
             json_schema={"type": "object"},
-            reasoning_effort="high",
+            reasoning_effort="xhigh",
         )
 
         call = sdk.responses.calls[0]
-        self.assertEqual(call["reasoning"]["effort"], "high")
+        self.assertEqual(call["reasoning"]["effort"], "xhigh")
 
     def test_temperature_and_max_tokens_are_forwarded_when_requested(self) -> None:
         sdk = _FakeSDKWithResponses(self._VALID_JSON)

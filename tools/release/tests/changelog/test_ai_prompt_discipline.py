@@ -77,6 +77,29 @@ class AIPromptDisciplineTests(unittest.TestCase):
             ),
         )
 
+    def test_major_release_draft_prompt_requests_feature_release_framing(self) -> None:
+        user = build_draft_user_prompt(
+            {
+                "schema_version": "x",
+                "metadata": {
+                    "release_kind": "major",
+                    "release_focus": ["new features", "breaking changes if any", "general release notes"],
+                },
+                "categories": [],
+            }
+        ).lower()
+        assert_contains_all(
+            self,
+            user,
+            (
+                "major feature release",
+                "new features",
+                "breaking changes if any",
+                "general release notes",
+                "explicit evidence",
+            ),
+        )
+
     def test_polish_prompt_constrains_semantic_changes(self) -> None:
         system = build_polish_system_prompt().lower()
         user = build_polish_user_prompt({"title": "t", "summary": "s", "sections": []}).lower()
@@ -112,6 +135,21 @@ class AIPromptDisciplineTests(unittest.TestCase):
             ("do not invent", "engineering-focused", "do not contradict", "do not write marketing copy", "preserve cautions"),
         )
         assert_contains_all(self, user, ("remove classifier residue", "schema_version", "return markdown in `markdown`"))
+
+    def test_major_release_notes_prompt_requests_feature_release_framing(self) -> None:
+        user = build_release_notes_user_prompt("# Changelog\n- feature\n", major_release=True).lower()
+        assert_contains_all(
+            self,
+            user,
+            (
+                "major release framing",
+                "major feature release",
+                "new features",
+                "breaking changes if any",
+                "other release notes",
+                "explicit source support",
+            ),
+        )
 
     def test_emergency_triage_prompt_requires_version_and_non_empty_items(self) -> None:
         user = build_emergency_triage_user_prompt({"schema_version": "x", "version": "1.2.3", "items": []}).lower()

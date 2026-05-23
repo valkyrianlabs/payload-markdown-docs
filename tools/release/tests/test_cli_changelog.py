@@ -723,6 +723,40 @@ class CliChangelogAIDraftTests(unittest.TestCase):
             h.assert_stdout_contains("Wrote AI draft JSON to")
             h.assert_no_polish()
 
+    def test_ai_draft_preserves_major_release_framing_after_triage(self) -> None:
+        args = self._args(use_triage=True)
+
+        with AIDraftHarness(self) as h:
+            h.mock_payload(
+                {
+                    "schema_version": "x",
+                    "metadata": {
+                        "release_kind": "major",
+                        "release_focus": [
+                            "new features",
+                            "breaking changes if any",
+                            "general release notes",
+                        ],
+                    },
+                }
+            )
+
+            result = cmd_changelog_ai_draft(args)
+
+        self.assertEqual(result, 0)
+        h.assert_draft_generated(
+            {
+                "schema_version": "triage-x",
+                "release_kind": "major",
+                "release_focus": [
+                    "new features",
+                    "breaking changes if any",
+                    "general release notes",
+                ],
+            },
+            source_kind="triage",
+        )
+
     def test_ai_draft_emergency_triage_routes_triage_to_synthesized_mode_and_writes_artifact(self) -> None:
         with TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir)
@@ -826,6 +860,51 @@ class CliChangelogAIDraftTests(unittest.TestCase):
             h.assert_release_notes_ran("# Draft Output\n- d\n")
             h.assert_file_contains(output_target, "# Polished Output")
             h.assert_file_equals(notes_target, "# Public Notes\n- from draft\n")
+
+    def test_ai_draft_marks_release_notes_stage_for_major_release_payloads(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            notes_target = repo_root / ".changelog_scratch" / "release_notes.md"
+
+            (repo_root / "VERSION").write_text("2.0.0\n", encoding="utf-8")
+            (repo_root / "ai.yml").write_text(
+                build_openai_profile(
+                    draft="gpt-5-mini",
+                    release_notes="gpt-5.4",
+                ),
+                encoding="utf-8",
+            )
+
+            args = self._args(
+                repo_root=str(repo_root),
+                ai_profile="openai-balanced",
+                provider=None,
+                model=None,
+                release_notes_output=str(notes_target),
+            )
+
+            with AIDraftHarness(self) as h:
+                h.mock_payload(
+                    {
+                        "schema_version": "x",
+                        "metadata": {
+                            "release_kind": "major",
+                            "release_focus": [
+                                "new features",
+                                "breaking changes if any",
+                                "general release notes",
+                            ],
+                        },
+                    }
+                )
+                h.mock_draft_markdown("# Draft Output\n- d\n")
+                h.mock_release_notes_result("# Public Notes\n- from draft\n")
+
+                result = cmd_changelog_ai_draft(args)
+
+            self.assertEqual(result, 0)
+            h.mocks.run_release_notes_stage.assert_called_once()
+            self.assertTrue(h.mocks.run_release_notes_stage.call_args.kwargs["major_release"])
 
     def test_main_formats_stage_failures_cleanly(self) -> None:
         cases = (

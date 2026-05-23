@@ -121,7 +121,42 @@ def build_release_context_fingerprint(context: ReleaseContext) -> dict[str, Any]
         "previous_tag": getattr(context, "previous_tag", None),
         "head_sha": getattr(context, "head_sha", None),
         "commit_count": getattr(context, "commit_count", None),
+        "release_kind": getattr(context, "release_kind", "standard"),
     }
+
+
+def _payload_release_kind(payload: dict[str, Any] | None) -> str:
+    if not isinstance(payload, dict):
+        return "standard"
+    metadata = payload.get("metadata")
+    if isinstance(metadata, dict) and isinstance(metadata.get("release_kind"), str):
+        return metadata["release_kind"].strip() or "standard"
+    if isinstance(payload.get("release_kind"), str):
+        return payload["release_kind"].strip() or "standard"
+    return "standard"
+
+
+def _payload_release_focus(payload: dict[str, Any] | None) -> list[str]:
+    if not isinstance(payload, dict):
+        return []
+    metadata = payload.get("metadata")
+    raw = metadata.get("release_focus") if isinstance(metadata, dict) else payload.get("release_focus")
+    if not isinstance(raw, (list, tuple)):
+        return []
+    return [item.strip() for item in raw if isinstance(item, str) and item.strip()]
+
+
+def _is_major_release_payload(payload: dict[str, Any] | None) -> bool:
+    return _payload_release_kind(payload) == "major"
+
+
+def _copy_release_framing(source: dict[str, Any], target: dict[str, Any]) -> None:
+    release_kind = _payload_release_kind(source)
+    if release_kind != "standard":
+        target["release_kind"] = release_kind
+    release_focus = _payload_release_focus(source)
+    if release_focus:
+        target["release_focus"] = release_focus
 
 
 def build_release_context_metadata(
@@ -166,6 +201,8 @@ def build_release_context_metadata(
         "previous_tag": getattr(context, "previous_tag", None),
         "head_sha": getattr(context, "head_sha", None),
         "commit_count": getattr(context, "commit_count", None),
+        "release_kind": getattr(context, "release_kind", "standard"),
+        "release_focus": list(getattr(context, "release_focus", ()) or ()),
         "latest_tag": getattr(context, "latest_tag", None),
         "skipped_current_release_tag": bool(getattr(context, "skipped_current_release_tag", False)),
         "explicit_previous_tag": bool(getattr(context, "explicit_previous_tag", False)),
@@ -657,6 +694,7 @@ def _run_release_ai_pipeline(
 
     draft_input: dict = payload
     source_kind = "payload"
+    major_release = _is_major_release_payload(payload)
     triage_input_mode = "raw_semantic"
     triage_input_payload = semantic_payload if isinstance(semantic_payload, dict) else payload
     semantic_categories = semantic_payload.get("categories") if isinstance(semantic_payload, dict) else None
@@ -749,6 +787,7 @@ def _run_release_ai_pipeline(
                 )
                 raise ValueError(f"Triage stage failed: {exc}") from exc
             draft_input = build_triage_ir_payload(triage_result)
+            _copy_release_framing(payload, draft_input)
             source_kind = "triage"
 
     try:
@@ -783,6 +822,9 @@ def _run_release_ai_pipeline(
     release_notes_markdown: str | None = None
     if run_release_notes:
         try:
+            release_notes_kwargs = {}
+            if major_release:
+                release_notes_kwargs["major_release"] = True
             release_notes_result = run_release_notes_stage(
                 draft_markdown,
                 provider=providers["release_notes"],
@@ -791,6 +833,7 @@ def _run_release_ai_pipeline(
                 structured_mode=release_notes_cfg.structured_mode,
                 temperature=release_notes_cfg.temperature,
                 max_output_tokens_policy=release_notes_cfg.max_output_tokens,
+                **release_notes_kwargs,
             )
             release_notes_markdown = release_notes_result.markdown
         except Exception as exc:
