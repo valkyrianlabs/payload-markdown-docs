@@ -254,6 +254,7 @@ export type DocsProductHeroProps = {
   description?: ReactNode
   docsAction?: DocsCTAButtonInput | null
   docsLabel?: null | string
+  docsSet?: DocsRelationship<DocsSetReference> | null
   docsUrl?: null | string
   eyebrow?: null | string
   heading?: null | string

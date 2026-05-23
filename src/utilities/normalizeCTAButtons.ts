@@ -6,7 +6,7 @@ import type {
   NormalizedDocsCTAButton,
 } from '../marketing/types.js'
 
-import { getBoolean, getDocsPageHref, getDocsSetPublicHref, getString } from './normalizeShared.js'
+import { getBoolean, getDocsPageHref, getDocsSetDocsHref, getString } from './normalizeShared.js'
 
 const variants: DocsActionVariant[] = ['primary', 'secondary', 'outline', 'ghost', 'link']
 
@@ -35,7 +35,7 @@ const normalizeCTAButton = (
   const docsSet = input.docsSet ?? options.docsSet
   const href =
     target === 'set'
-      ? getDocsSetPublicHref(docsSet)
+      ? getDocsSetDocsHref(docsSet)
       : target === 'setPage'
         ? getDocsPageHref(input.page)
         : target === 'custom'
@@ -43,7 +43,7 @@ const normalizeCTAButton = (
           : (getString(input.href) ??
             getString(input.url) ??
             getDocsPageHref(input.page) ??
-            getDocsSetPublicHref(docsSet))
+            getDocsSetDocsHref(docsSet))
   const label = getString(input.label)
 
   if (!href || !label) {

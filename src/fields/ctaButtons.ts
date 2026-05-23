@@ -60,7 +60,7 @@ const createLinkFields = ({
         defaultValue: 'set',
         options: [
           {
-            label: 'Selected docs set',
+            label: 'Selected docs set docs route',
             value: 'set',
           },
           {

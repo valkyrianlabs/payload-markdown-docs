@@ -2552,7 +2552,7 @@ describe('Payload Markdown Docs marketing components', () => {
     expect(fullWidthMarkup).toContain('data-payload-markdown-docs-hero="docsSetFullWidth"')
     expect(fullWidthMarkup).toContain('Payload Markdown')
     expect(fullWidthMarkup).toContain('Docs set hero description.')
-    expect(fullWidthMarkup).toContain('href="/plugins/payload-markdown"')
+    expect(fullWidthMarkup).toContain('href="/plugins/payload-markdown/docs"')
     expect(fullWidthMarkup).toContain('Codex skill')
     expect(sideImageMarkup).toContain('data-payload-markdown-docs-hero="docsSetSideImage"')
     expect(sideImageMarkup).toContain('src="/media/payload-markdown.png"')
@@ -2561,6 +2561,52 @@ describe('Payload Markdown Docs marketing components', () => {
     expect(sideInfoMarkup).not.toContain('Group')
     expect(sideInfoMarkup).not.toContain('Route')
     expect(mappedFullWidthMarkup).toContain('data-payload-markdown-docs-hero="docsSetFullWidth"')
+  })
+
+  it('uses docs-root and product-nested docs hrefs in hero read-docs actions', () => {
+    const docsRootProductHero = renderToStaticMarkup(
+      DocsProductHero({
+        description: 'Docs-root product docs.',
+        docsSet: {
+          id: 'set-1',
+          productRoute: '/payload-markdown',
+          routeBase: '/payload-markdown',
+          routeMode: 'docs-root',
+          title: 'Payload Markdown',
+        },
+        heading: 'Payload Markdown',
+      }),
+    )
+    const productNestedProductHero = renderToStaticMarkup(
+      DocsProductHero({
+        description: 'Product-nested product docs.',
+        docsSet: {
+          id: 'set-2',
+          productRoute: '/payload-markdown',
+          routeBase: '/payload-markdown/docs',
+          routeMode: 'product-nested',
+          title: 'Payload Markdown',
+        },
+        heading: 'Payload Markdown',
+      }),
+    )
+    const productNestedDocsSetHero = renderToStaticMarkup(
+      DocsSetHero({
+        type: 'docsSetSideImage',
+        docsSet: {
+          id: 'set-3',
+          productRoute: '/payload-markdown',
+          routeBase: '/payload-markdown/docs',
+          routeMode: 'product-nested',
+          title: 'Payload Markdown',
+        },
+      }),
+    )
+
+    expect(docsRootProductHero).toContain('href="/payload-markdown"')
+    expect(productNestedProductHero).toContain('href="/payload-markdown/docs"')
+    expect(productNestedProductHero).not.toContain('href="/payload-markdown"')
+    expect(productNestedDocsSetHero).toContain('href="/payload-markdown/docs"')
   })
 
   it('exports renderable heroes and skill CTAs from /next', () => {

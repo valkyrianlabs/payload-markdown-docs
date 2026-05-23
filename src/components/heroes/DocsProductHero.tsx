@@ -22,6 +22,7 @@ export const DocsProductHero = ({
   description,
   docsAction,
   docsLabel,
+  docsSet,
   docsUrl,
   eyebrow,
   heading,
@@ -30,15 +31,22 @@ export const DocsProductHero = ({
   secondaryAction,
   skills,
 }: DocsProductHeroProps) => {
-  const actions = normalizeCTAButtons([
-    primaryAction,
-    secondaryAction,
-    docsAction ??
-      getFallbackAction({
-        docsLabel,
-        docsUrl,
-      }),
-  ])
+  const actions = normalizeCTAButtons(
+    [
+      primaryAction,
+      secondaryAction,
+      docsAction ??
+        getFallbackAction({
+          docsLabel,
+          docsSet,
+          docsUrl,
+        }),
+    ],
+    undefined,
+    {
+      docsSet,
+    },
+  )
   const badges = normalizeBadges(inputBadges)
   const previewItems = normalizeDocsPreviewItems(preview?.items, {
     maxItems: 3,
