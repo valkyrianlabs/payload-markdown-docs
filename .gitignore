@@ -6,6 +6,10 @@
 .pnp.js
 .yarn/install-state.gz
 
+# python
+/.venv/
+*__pycache__*
+
 /.idea/*
 !/.idea/runConfigurations
 

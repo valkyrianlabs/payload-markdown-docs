@@ -1,0 +1,12 @@
+option(
+  'install_skill_data',
+  type: 'boolean',
+  value: true,
+  description: 'Install bundled pmdocs skill data under the system share directory.',
+)
+option(
+  'native_cli_parity_tests',
+  type: 'boolean',
+  value: false,
+  description: 'Run optional npm CLI parity tests for native validate/manifest/plan behavior.',
+)

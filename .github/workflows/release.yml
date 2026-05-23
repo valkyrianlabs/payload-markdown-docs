@@ -3,25 +3,177 @@ name: Release
 on:
   release:
     types: [published]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Optional branch, tag, or SHA to release-check.
+        required: false
+        type: string
+      publish:
+        description: Run protected publication steps.
+        required: true
+        default: dry-run
+        type: choice
+        options:
+          - dry-run
+          - publish
 
 permissions:
-  contents: read
+  contents: write
   id-token: write
 
 concurrency:
-  group: npm-production
+  group: release-${{ github.ref }}
   cancel-in-progress: false
 
+env:
+  RELEASE_PUBLISH_MODE: ${{ vars.RELEASE_PUBLISH_MODE || 'disabled' }}
+  RELEASE_PUBLISH_REQUIRED: ${{ vars.RELEASE_PUBLISH_REQUIRED || 'auto' }}
+  RELEASE_DEBIAN_DISTRIBUTION: ${{ vars.RELEASE_DEBIAN_DISTRIBUTION || '' }}
+  RELEASE_DEBIAN_URGENCY: ${{ vars.RELEASE_DEBIAN_URGENCY || '' }}
+  HOMEBREW_TAP_PUBLISH_MODE: ${{ vars.HOMEBREW_TAP_PUBLISH_MODE || 'disabled' }}
+  HOMEBREW_TAP_REPOSITORY: ${{ vars.HOMEBREW_TAP_REPOSITORY || '' }}
+  HOMEBREW_TAP_BRANCH: ${{ vars.HOMEBREW_TAP_BRANCH || 'main' }}
+  NPM_PACKAGE_NAME: ${{ vars.NPM_PACKAGE_NAME || '' }}
+  DOCS_SYNC_ENDPOINT: ${{ vars.DOCS_SYNC_ENDPOINT || 'https://valkyrianlabs.com/api/documentation/sync' }}
+
 jobs:
-  publish-to-npm:
-    name: Publish to npm
-    runs-on: ubuntu-latest
-    environment:
-      name: Production
-      url: https://www.npmjs.com/package/${{ vars.NPM_PACKAGE_NAME }}
+  validate-release-state:
+    name: Validate release state
+    runs-on: [self-hosted, Linux, X64, ubuntu-latest-lts]
+    outputs:
+      version: ${{ steps.state.outputs.version }}
+      release_tag: ${{ steps.state.outputs.release_tag }}
+      publish_required: ${{ steps.state.outputs.publish_required }}
+      package_name: ${{ steps.state.outputs.package_name }}
+      package_private: ${{ steps.state.outputs.package_private }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref || github.ref }}
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate versions and publication policy
+        id: state
+        shell: bash
+        env:
+          DISPATCH_REF: ${{ github.event.inputs.ref || '' }}
+          DISPATCH_PUBLISH: ${{ github.event.inputs.publish || 'dry-run' }}
+          EVENT_RELEASE_TAG: ${{ github.event.release.tag_name || '' }}
+        run: |
+          set -euo pipefail
+
+          python3 -m tools.release check
+
+          version="$(tr -d '[:space:]' < VERSION)"
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::VERSION must be a plain semantic version, got '${version}'."
+            exit 1
+          fi
+
+          release_tag=""
+          if [ -n "$EVENT_RELEASE_TAG" ]; then
+            release_tag="$EVENT_RELEASE_TAG"
+          elif [[ "${GITHUB_REF:-}" == refs/tags/* ]]; then
+            release_tag="${GITHUB_REF_NAME}"
+          elif [[ "$DISPATCH_REF" == refs/tags/* ]]; then
+            release_tag="${DISPATCH_REF#refs/tags/}"
+          elif [[ "$DISPATCH_REF" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            release_tag="$DISPATCH_REF"
+          fi
+
+          raw_required="${RELEASE_PUBLISH_REQUIRED:-auto}"
+          case "$raw_required" in
+            auto)
+              if [ "${GITHUB_EVENT_NAME}" = "release" ] || [ "$DISPATCH_PUBLISH" = "publish" ]; then
+                publish_required="true"
+              else
+                publish_required="false"
+              fi
+              ;;
+            true|false)
+              publish_required="$raw_required"
+              ;;
+            *)
+              echo "::error::Invalid RELEASE_PUBLISH_REQUIRED value: ${raw_required}. Expected auto|true|false."
+              exit 1
+              ;;
+          esac
+
+          if [ "$DISPATCH_PUBLISH" = "publish" ]; then
+            publish_required="true"
+          fi
+
+          if [ -n "$release_tag" ]; then
+            if [ "$release_tag" != "v${version}" ] && [ "$release_tag" != "$version" ]; then
+              echo "::error::Release tag '${release_tag}' does not match VERSION '${version}'."
+              echo "::error::Expected 'v${version}' or '${version}'."
+              exit 1
+            fi
+          fi
+
+          if [ "$publish_required" = "true" ]; then
+            if [ -z "$release_tag" ]; then
+              echo "::error::Publication requires a release tag."
+              exit 1
+            fi
+            if [ "$release_tag" != "v${version}" ]; then
+              echo "::error::Multi-package publication requires the canonical tag 'v${version}'."
+              exit 1
+            fi
+          fi
+
+          package_name="$(python3 - <<'PY'
+          import json
+          from pathlib import Path
+          print(json.loads(Path("package.json").read_text(encoding="utf-8"))["name"])
+          PY
+          )"
+          expected_package_name="${NPM_PACKAGE_NAME:-$package_name}"
+          if [ "$package_name" != "$expected_package_name" ]; then
+            echo "::error::package.json name '${package_name}' does not match NPM_PACKAGE_NAME '${expected_package_name}'."
+            exit 1
+          fi
+          package_private="$(python3 - <<'PY'
+          import json
+          from pathlib import Path
+          print(str(bool(json.loads(Path("package.json").read_text(encoding="utf-8")).get("private", False))).lower())
+          PY
+          )"
+
+          {
+            echo "version=${version}"
+            echo "release_tag=${release_tag}"
+            echo "publish_required=${publish_required}"
+            echo "package_name=${package_name}"
+            echo "package_private=${package_private}"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "VERSION=${version}"
+          echo "release_tag=${release_tag:-<none>}"
+          echo "publish_required=${publish_required}"
+          echo "package_name=${package_name}"
+          echo "expected_package_name=${expected_package_name}"
+          echo "package_private=${package_private}"
+
+  npm-package:
+    name: npm package
+    runs-on: ubuntu-latest
+    needs:
+      - validate-release-state
+      - native-debian
+      - homebrew-formula
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref || github.ref }}
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -31,9 +183,8 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v6
         with:
-          node-version-file: '.nvmrc'
-          cache: 'pnpm'
-          registry-url: 'https://registry.npmjs.org'
+          node-version-file: ".nvmrc"
+          registry-url: "https://registry.npmjs.org"
 
       - name: Install dependencies
         run: |
@@ -41,144 +192,11 @@ jobs:
           corepack enable
           pnpm install --frozen-lockfile --prefer-offline
 
-      - name: Read package metadata
-        id: pkg
-        shell: bash
-        run: |
-          set -euo pipefail
-          NAME="$(node -p "require('./package.json').name")"
-          VERSION="$(node -p "require('./package.json').version")"
-          PRIVATE="$(node -p "Boolean(require('./package.json').private)")"
-
-          echo "name=$NAME" >> "$GITHUB_OUTPUT"
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "private=$PRIVATE" >> "$GITHUB_OUTPUT"
-
-          echo "Package: $NAME"
-          echo "Version: $VERSION"
-          echo "Private: $PRIVATE"
-
       - name: Ensure package is publishable
-        shell: bash
+        if: needs.validate-release-state.outputs.package_private == 'true'
         run: |
-          set -euo pipefail
-          if [ "${{ steps.pkg.outputs.private }}" = "true" ]; then
-            echo "package.json has private=true; refusing to publish."
-            exit 1
-          fi
-
-      - name: Ensure release tag matches package.json version
-        shell: bash
-        env:
-          RELEASE_TAG: ${{ github.event.release.tag_name }}
-          PKG_VERSION: ${{ steps.pkg.outputs.version }}
-        run: |
-          set -euo pipefail
-
-          EXPECTED_ONE="v${PKG_VERSION}"
-          EXPECTED_TWO="${PKG_VERSION}"
-
-          if [ "$RELEASE_TAG" != "$EXPECTED_ONE" ] && [ "$RELEASE_TAG" != "$EXPECTED_TWO" ]; then
-            echo "Release tag '$RELEASE_TAG' does not match package.json version '$PKG_VERSION'."
-            echo "Expected '$EXPECTED_ONE' or '$EXPECTED_TWO'."
-            exit 1
-          fi
-
-      - name: Ensure version is newer than npm
-        shell: bash
-        env:
-          PKG_NAME: ${{ steps.pkg.outputs.name }}
-          PKG_VERSION: ${{ steps.pkg.outputs.version }}
-        run: |
-          set -euo pipefail
-
-          PUBLISHED_VERSION="$(npm view "$PKG_NAME" version 2>/dev/null || true)"
-
-          if [ -z "$PUBLISHED_VERSION" ]; then
-            echo "Package not found on npm yet. First publish allowed."
-            exit 0
-          fi
-
-          echo "npm version: $PUBLISHED_VERSION"
-          echo "local version: $PKG_VERSION"
-
-          PUBLISHED_VERSION="$PUBLISHED_VERSION" PKG_VERSION="$PKG_VERSION" node - <<'NODE'
-          const published = process.env.PUBLISHED_VERSION;
-          const local = process.env.PKG_VERSION;
-
-          const parse = (v) => {
-            const match = v.match(
-              /^([0-9]+)\.([0-9]+)\.([0-9]+)(?:-([0-9A-Za-z.-]+))?(?:\+([0-9A-Za-z.-]+))?$/
-            );
-            if (!match) return null;
-            return {
-              major: Number(match[1]),
-              minor: Number(match[2]),
-              patch: Number(match[3]),
-              prerelease: match[4] ?? null,
-            };
-          };
-
-          const compareIdentifiers = (a, b) => {
-            const aNum = /^[0-9]+$/.test(a);
-            const bNum = /^[0-9]+$/.test(b);
-            if (aNum && bNum) return Number(a) - Number(b);
-            if (aNum) return -1;
-            if (bNum) return 1;
-            return a.localeCompare(b);
-          };
-
-          const comparePrerelease = (a, b) => {
-            if (a === null && b === null) return 0;
-            if (a === null) return 1;
-            if (b === null) return -1;
-
-            const aParts = a.split('.');
-            const bParts = b.split('.');
-            const len = Math.max(aParts.length, bParts.length);
-
-            for (let i = 0; i < len; i++) {
-              const aPart = aParts[i];
-              const bPart = bParts[i];
-              if (aPart === undefined) return -1;
-              if (bPart === undefined) return 1;
-
-              const cmp = compareIdentifiers(aPart, bPart);
-              if (cmp !== 0) return cmp;
-            }
-
-            return 0;
-          };
-
-          const compare = (a, b) => {
-            if (a.major !== b.major) return a.major - b.major;
-            if (a.minor !== b.minor) return a.minor - b.minor;
-            if (a.patch !== b.patch) return a.patch - b.patch;
-            return comparePrerelease(a.prerelease, b.prerelease);
-          };
-
-          const parsedPublished = parse(published);
-          const parsedLocal = parse(local);
-
-          if (!parsedPublished) {
-            console.error(`Published version is not valid semver: ${published}`);
-            process.exit(1);
-          }
-
-          if (!parsedLocal) {
-            console.error(`Local version is not valid semver: ${local}`);
-            process.exit(1);
-          }
-
-          if (compare(parsedLocal, parsedPublished) <= 0) {
-            console.error(
-              `Refusing publish: local version ${local} is not greater than npm version ${published}`
-            );
-            process.exit(1);
-          }
-
-          console.log(`Version check passed: ${local} > ${published}`);
-          NODE
+          echo "::error::package.json has private=true; refusing to publish."
+          exit 1
 
       - name: Build package
         run: |
@@ -186,50 +204,508 @@ jobs:
           export NEXT_CPU_COUNT="$(nproc)"
           pnpm build
 
-      - name: Run tests
+      - name: Run npm CLI and plugin tests
         run: |
           set -euo pipefail
           pnpm test:int
 
-      - name: Validate package contents
+      - name: Verify npm version is unpublished
+        if: needs.validate-release-state.outputs.publish_required == 'true'
         shell: bash
+        env:
+          PKG_NAME: ${{ needs.validate-release-state.outputs.package_name }}
+          PKG_VERSION: ${{ needs.validate-release-state.outputs.version }}
         run: |
           set -euo pipefail
-
-          npm pack --dry-run
-
-          TMP_DIR="$(mktemp -d)"
-          TARBALL="$(npm pack --pack-destination "$TMP_DIR" | tail -n 1)"
-          echo "Created tarball: $TMP_DIR/$TARBALL"
-
-          tar -tf "$TMP_DIR/$TARBALL" > "$TMP_DIR/files.txt"
-          echo "Packed files:"
-          cat "$TMP_DIR/files.txt"
-
-          if ! grep -q '^package/package.json$' "$TMP_DIR/files.txt"; then
-            echo "Packed tarball does not contain package.json"
+          published="$(npm view "$PKG_NAME@$PKG_VERSION" version 2>/dev/null || true)"
+          if [ -n "$published" ]; then
+            echo "::error::npm already has ${PKG_NAME}@${PKG_VERSION}; refusing to publish."
             exit 1
           fi
 
-      - name: Publish dry-run
+      - name: Validate package contents
+        env:
+          EXPECTED_PACKAGE_NAME: ${{ needs.validate-release-state.outputs.package_name }}
+        run: |
+          set -euo pipefail
+          npm pack --dry-run
+          mkdir -p release/npm
+          npm pack --pack-destination release/npm
+          tarball_count="$(find release/npm -maxdepth 1 -type f -name '*.tgz' | wc -l | tr -d ' ')"
+          if [ "$tarball_count" -ne 1 ]; then
+            echo "::error::Expected exactly one npm tarball, found ${tarball_count}."
+            find release/npm -maxdepth 1 -type f | sort
+            exit 1
+          fi
+          tarball="$(find release/npm -maxdepth 1 -type f -name '*.tgz' | sort | head -n 1)"
+          actual_name="$(tar -xOf "$tarball" package/package.json | node -e 'let d = ""; process.stdin.on("data", c => d += c); process.stdin.on("end", () => console.log(JSON.parse(d).name));')"
+          if [ "$actual_name" != "$EXPECTED_PACKAGE_NAME" ]; then
+            echo "::error::npm tarball package name '${actual_name}' does not match expected '${EXPECTED_PACKAGE_NAME}'."
+            exit 1
+          fi
+
+      - name: npm publish dry-run
         run: |
           set -euo pipefail
           npm publish --dry-run --access public
 
-      - name: Publish to npm
+      - name: Upload npm package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pmdocs-npm-${{ needs.validate-release-state.outputs.version }}
+          path: release/npm/*.tgz
+          if-no-files-found: error
+
+  native-debian:
+    name: Native CLI and Debian package
+    runs-on: [self-hosted, Linux, X64, ubuntu-latest-lts]
+    needs: validate-release-state
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref || github.ref }}
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: ".nvmrc"
+
+      - name: Install native and release-tooling dependencies
+        shell: bash
         run: |
           set -euo pipefail
-          npm publish --access public
+          bash .github/scripts/install-apt-deps.sh \
+            build-essential \
+            cmake \
+            debhelper \
+            devscripts \
+            doctest-dev \
+            dpkg-dev \
+            libcli11-dev \
+            libcurl4-openssl-dev \
+            libssl-dev \
+            meson \
+            ninja-build \
+            nlohmann-json3-dev \
+            pkgconf
+          python3 -m pip install --upgrade pip
+          python3 -m pip install -r requirements.txt
+          corepack enable
+          pnpm install --frozen-lockfile --prefer-offline
 
-      - name: Publish docs to valkyrianlabs.com
+      - name: Run release-tooling tests
         run: |
           set -euo pipefail
+          python3 -m unittest discover -s tools/release/tests -p 'test_*.py'
 
+      - name: Build and test native CLI with npm parity
+        run: |
+          set -euo pipefail
+          meson setup build-native -Dnative_cli_parity_tests=true
+          meson compile -C build-native
+          meson test -C build-native
+
+      - name: Build Debian package
+        run: |
+          set -euo pipefail
+          python3 -m tools.release build-deb --output-dir release
+
+      - name: Validate Debian package artifact
+        run: |
+          set -euo pipefail
+          python3 -m tools.release validate-release-artifacts --output-dir release --skip-changelog
+
+      - name: Smoke install Debian package
+        run: |
+          set -euo pipefail
+          sudo -n apt install -y ./release/*.deb
+          pmdocs --version
+          pmdocs doctor
+          pmdocs validate ./dev/docs-fixtures/basic --source payload-markdown-docs
+          pmdocs skill install --dry-run
+
+      - name: Upload Debian artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: pmdocs-debian-${{ needs.validate-release-state.outputs.version }}
+          path: |
+            release/*.deb
+            release/*.changes
+            release/*.buildinfo
+            release/build-deb.log
+          if-no-files-found: error
+
+  homebrew-formula:
+    name: Homebrew formula
+    runs-on: [self-hosted, Linux, X64, ubuntu-latest-lts]
+    needs: validate-release-state
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref || github.ref }}
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install native and formula validation dependencies
+        run: |
+          set -euo pipefail
+          bash .github/scripts/install-apt-deps.sh \
+            build-essential \
+            cmake \
+            curl \
+            doctest-dev \
+            libcli11-dev \
+            libcurl4-openssl-dev \
+            libssl-dev \
+            meson \
+            ninja-build \
+            nlohmann-json3-dev \
+            pkgconf \
+            ruby
+
+      - name: Validate release state and formula syntax
+        run: |
+          set -euo pipefail
+          python3 -m tools.release check
+          ruby -c homebrew/Formula/pmdocs.rb
+          python3 -m tools.release prepare-homebrew-formula --output-dir release --dry-run
+
+      - name: Build and test native CLI for formula source build parity
+        run: |
+          set -euo pipefail
+          meson setup build-homebrew
+          meson compile -C build-homebrew
+          meson test -C build-homebrew
+
+      - name: Stage release Homebrew formula
+        if: needs.validate-release-state.outputs.publish_required == 'true'
+        shell: bash
+        env:
+          VERSION: ${{ needs.validate-release-state.outputs.version }}
+        run: |
+          set -euo pipefail
+          archive_url="https://github.com/${GITHUB_REPOSITORY}/archive/refs/tags/v${VERSION}.tar.gz"
+          sha256="$(curl -fsSL "$archive_url" | shasum -a 256 | awk '{print $1}')"
+          python3 -m tools.release prepare-homebrew-formula \
+            --output-dir release \
+            --archive-url "$archive_url" \
+            --sha256 "$sha256"
+          ruby -c release/homebrew/Formula/pmdocs.rb
+
+      - name: Upload Homebrew formula artifact
+        if: needs.validate-release-state.outputs.publish_required == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: pmdocs-homebrew-${{ needs.validate-release-state.outputs.version }}
+          path: release/homebrew/Formula/pmdocs.rb
+          if-no-files-found: error
+
+  assemble-release-artifacts:
+    name: Assemble release artifacts
+    runs-on: [self-hosted, Linux, X64, ubuntu-latest-lts]
+    needs:
+      - validate-release-state
+      - npm-package
+      - native-debian
+      - homebrew-formula
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref || github.ref }}
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Download npm package artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: pmdocs-npm-${{ needs.validate-release-state.outputs.version }}
+          path: release/npm
+
+      - name: Download Debian package artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: pmdocs-debian-${{ needs.validate-release-state.outputs.version }}
+          path: release
+
+      - name: Download Homebrew formula artifact
+        if: needs.validate-release-state.outputs.publish_required == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: pmdocs-homebrew-${{ needs.validate-release-state.outputs.version }}
+          path: release/homebrew/Formula
+
+      - name: Validate assembled release artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          args=(--output-dir release --skip-changelog)
+          if [ "${{ needs.validate-release-state.outputs.publish_required }}" = "true" ]; then
+            args+=(--require-homebrew)
+          fi
+          python3 -m tools.release validate-release-artifacts "${args[@]}"
+
+      - name: Prepare GitHub release asset list (deduped)
+        if: needs.validate-release-state.outputs.release_tag != ''
+        id: gh_release_assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          artifact_dir="release"
+          mapfile -t release_assets < <(find "$artifact_dir" -type f | LC_ALL=C sort -u)
+          if [ "${#release_assets[@]}" -eq 0 ]; then
+            echo "::error::No files found for GitHub release asset attachment under ${artifact_dir}."
+            exit 1
+          fi
+
+          echo "[gh-release] deduped asset count: ${#release_assets[@]}"
+          printf '%s\n' "${release_assets[@]}"
+
+          {
+            echo "assets<<EOF"
+            printf '%s\n' "${release_assets[@]}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Upload GitHub Release assets
+        if: needs.validate-release-state.outputs.release_tag != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.validate-release-state.outputs.release_tag }}
+          files: ${{ steps.gh_release_assets.outputs.assets }}
+          overwrite_files: true
+          fail_on_unmatched_files: true
+
+      - name: Upload combined release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pmdocs-release-${{ needs.validate-release-state.outputs.version }}
+          path: release
+          if-no-files-found: error
+
+  publish-debian:
+    name: Publish Debian artifacts to Nexus
+    runs-on: [self-hosted, Linux, X64, ubuntu-latest-lts]
+    needs:
+      - validate-release-state
+      - assemble-release-artifacts
+    environment: Production
+    env:
+      NEXUS_REPO_URL: ${{ vars.NEXUS_REPO_URL || '' }}
+      NEXUS_USER: ${{ secrets.NEXUS_USER || '' }}
+      NEXUS_PASS: ${{ secrets.NEXUS_PASS || '' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref || github.ref }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Download combined release artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: pmdocs-release-${{ needs.validate-release-state.outputs.version }}
+          path: release
+
+      - name: Publish or dry-run Debian upload
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ needs.validate-release-state.outputs.publish_required }}" = "true" ]; then
+            python3 -m tools.release publish-deb --output-dir release --require-enabled
+          else
+            python3 -m tools.release publish-deb --output-dir release --mode disabled --dry-run
+          fi
+
+  publish-homebrew-tap:
+    name: Publish Homebrew tap formula
+    runs-on: [self-hosted, Linux, X64, ubuntu-latest-lts]
+    needs:
+      - validate-release-state
+      - assemble-release-artifacts
+    if: needs.validate-release-state.outputs.publish_required == 'true'
+    environment: Production
+    env:
+      HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN || '' }}
+    steps:
+      - name: Download combined release artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: pmdocs-release-${{ needs.validate-release-state.outputs.version }}
+          path: release
+
+      - name: Validate Homebrew tap publication settings
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${HOMEBREW_TAP_PUBLISH_MODE}" != "tap" ]; then
+            echo "::error::Homebrew tap publication is required, but HOMEBREW_TAP_PUBLISH_MODE is '${HOMEBREW_TAP_PUBLISH_MODE}'."
+            exit 1
+          fi
+          if [ -z "${HOMEBREW_TAP_REPOSITORY}" ]; then
+            echo "::error::HOMEBREW_TAP_REPOSITORY is required for tap publication."
+            exit 1
+          fi
+          if [ -z "${HOMEBREW_TAP_TOKEN}" ]; then
+            echo "::error::HOMEBREW_TAP_TOKEN is required for tap publication."
+            exit 1
+          fi
+          test -f release/homebrew/Formula/pmdocs.rb
+
+      - name: Checkout Homebrew tap
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.HOMEBREW_TAP_REPOSITORY }}
+          ref: ${{ env.HOMEBREW_TAP_BRANCH }}
+          path: homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+
+      - name: Commit formula update
+        shell: bash
+        env:
+          VERSION: ${{ needs.validate-release-state.outputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir -p homebrew-tap/Formula
+          cp release/homebrew/Formula/pmdocs.rb homebrew-tap/Formula/pmdocs.rb
+          git -C homebrew-tap config user.name "github-actions[bot]"
+          git -C homebrew-tap config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C homebrew-tap add Formula/pmdocs.rb
+          if git -C homebrew-tap diff --cached --quiet; then
+            echo "Homebrew formula already up to date."
+            exit 0
+          fi
+          git -C homebrew-tap commit -m "Update pmdocs ${VERSION}"
+          git -C homebrew-tap push origin "HEAD:${HOMEBREW_TAP_BRANCH}"
+
+  publish-npm:
+    name: Publish npm package
+    runs-on: ubuntu-latest
+    needs:
+      - validate-release-state
+      - npm-package
+      - publish-debian
+      - publish-homebrew-tap
+    if: >
+      needs.validate-release-state.outputs.publish_required == 'true' &&
+      needs.npm-package.result == 'success' &&
+      needs.publish-debian.result == 'success' &&
+      needs.publish-homebrew-tap.result == 'success'
+    environment: Production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref || github.ref }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: ".nvmrc"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Download npm package artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: pmdocs-npm-${{ needs.validate-release-state.outputs.version }}
+          path: release/npm
+
+      - name: Publish to npm through trusted publishing
+        shell: bash
+        env:
+          EXPECTED_PACKAGE_NAME: ${{ needs.validate-release-state.outputs.package_name }}
+        run: |
+          set -euo pipefail
+          mapfile -t tarballs < <(find release/npm -maxdepth 1 -type f -name '*.tgz' | sort)
+          if [ "${#tarballs[@]}" -ne 1 ]; then
+            echo "::error::Expected exactly one npm tarball, found ${#tarballs[@]}."
+            printf '%s\n' "${tarballs[@]}"
+            exit 1
+          fi
+          actual_name="$(tar -xOf "${tarballs[0]}" package/package.json | node -e 'let d = ""; process.stdin.on("data", c => d += c); process.stdin.on("end", () => console.log(JSON.parse(d).name));')"
+          if [ "$actual_name" != "$EXPECTED_PACKAGE_NAME" ]; then
+            echo "::error::npm tarball package name '${actual_name}' does not match expected '${EXPECTED_PACKAGE_NAME}'."
+            exit 1
+          fi
+          npm publish "${tarballs[0]}" --access public
+
+  publish-docs:
+    name: Publish docs
+    runs-on: [self-hosted, Linux, X64, ubuntu-latest-lts]
+    needs:
+      - validate-release-state
+      - publish-debian
+      - publish-homebrew-tap
+      - publish-npm
+    if: >
+      needs.validate-release-state.outputs.publish_required == 'true' &&
+      needs.publish-debian.result == 'success' &&
+      needs.publish-homebrew-tap.result == 'success' &&
+      needs.publish-npm.result == 'success'
+    environment:
+      name: Production
+      url: ${{ env.DOCS_SYNC_ENDPOINT }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref || github.ref }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: ".nvmrc"
+
+      - name: Install dependencies
+        run: |
+          set -euo pipefail
+          corepack enable
+          pnpm install --frozen-lockfile --prefer-offline
+
+      - name: Build docs publisher
+        run: |
+          set -euo pipefail
+          export NEXT_CPU_COUNT="$(nproc)"
+          pnpm build
+
+      - name: Validate and push docs
+        run: |
+          set -euo pipefail
           node ./dist/cli/index.js validate ./docs \
             --source payload-markdown-docs
 
           node ./dist/cli/index.js push \
-            --endpoint "https://valkyrianlabs.com/api/documentation/sync" \
+            --endpoint "${DOCS_SYNC_ENDPOINT}" \
             --source payload-markdown-docs \
             --repository "$GITHUB_REPOSITORY" \
             --branch "$GITHUB_REF_NAME" \

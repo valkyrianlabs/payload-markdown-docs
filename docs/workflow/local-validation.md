@@ -33,6 +33,7 @@ Run `payload-markdown-docs plan --source main-docs`.
 
 ```bash
 pnpm exec payload-markdown-docs validate --source main-docs
+pmdocs validate ./docs --source main-docs
 ```
 
 Validation checks source paths, frontmatter, asset paths, hashes, file limits,
@@ -42,6 +43,7 @@ docs set slug, and manifest shape.
 
 ```bash
 pnpm exec payload-markdown-docs manifest --source main-docs --pretty
+pmdocs manifest ./docs --source main-docs --pretty
 ```
 
 The manifest is JSON. Human docs are emitted as `files`; skills and optional
@@ -55,8 +57,14 @@ collection or field names.
 
 ```bash
 pnpm exec payload-markdown-docs plan --source main-docs
+pmdocs plan ./docs --source main-docs
 ```
 
 Without `--existing`, local planning assumes an empty target and reports creates. Server-side dry-runs can plan against current Payload records.
+
+The native `pmdocs` binary is intended for non-npm repositories that want local
+validation without installing this package into the project. In the current
+native phase, `pmdocs` covers local validation, manifest, and plan only; use the
+npm CLI for signed push and key generation.
 
 See [CLI reference](/reference/cli).

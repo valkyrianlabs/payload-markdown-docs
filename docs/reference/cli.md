@@ -13,6 +13,12 @@ tags:
 
 The package exposes the `payload-markdown-docs` binary.
 
+A native system-level binary named `pmdocs` is also being introduced for
+non-npm repositories. In the current native phase, `pmdocs` supports the local
+offline workflow: `doctor`, `skill install`, `validate`, `manifest`, and
+`plan`. Continue using the npm CLI for `keygen`, `push`, GitHub OIDC, and signed
+sync until those commands are ported.
+
 :::toc {title="On this page" depth="3" theme="compact"}
 :::
 
@@ -20,6 +26,7 @@ The package exposes the `payload-markdown-docs` binary.
 
 ```bash
 payload-markdown-docs validate --source main-docs
+pmdocs validate ./docs --source main-docs
 ```
 
 Validates the conventional docs package by building and validating an in-memory
@@ -33,6 +40,7 @@ from `./skills/<source>` when that directory exists, and optional custom
 
 ```bash
 payload-markdown-docs manifest --source main-docs --pretty
+pmdocs manifest ./docs --source main-docs --pretty
 ```
 
 Prints manifest JSON. Docs records remain under `files`; skill artifacts and
@@ -42,6 +50,7 @@ optional custom static fallback files are emitted under `assets`.
 
 ```bash
 payload-markdown-docs plan --source main-docs
+pmdocs plan ./docs --source main-docs
 ```
 
 Plans against an optional local existing-records JSON file. Without
@@ -140,6 +149,7 @@ When `--source` is omitted in GitHub Actions, the CLI derives it from
 ```bash
 payload-markdown-docs install skill --agent codex
 payload-markdown-docs install skill --agent claude
+pmdocs skill install
 ```
 
 Installs native AI-agent guidance from the package `skills/` tree and installs
@@ -148,6 +158,9 @@ defaults to `.agents/skills/payload-markdown-docs/` plus
 `.agents/skills/payload-markdown/` and creates or updates `AGENTS.md`. Claude
 defaults to `.claude/skills/payload-markdown-docs/` plus
 `.claude/skills/payload-markdown/` and does not update `AGENTS.md` by default.
+
+The native `pmdocs skill install` command installs bundled Codex guidance into
+`.codex/skills/payload-markdown-docs/` for non-npm repositories.
 
 Useful flags:
 

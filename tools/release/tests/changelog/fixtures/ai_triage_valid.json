@@ -1,0 +1,40 @@
+{
+  "schema_version": "payload_markdown_docs.release.ai_triage.v2",
+  "version": "2.4.0",
+  "summary_points": [
+    "Core protocol and fuse reliability changes are the highest-impact updates.",
+    "Release tooling changes improve draft determinism and evidence curation."
+  ],
+  "categories": [
+    {
+      "name": "core",
+      "signal_strength": "strong",
+      "priority_rank": 1,
+      "theme": "Core reliability and lifecycle hardening",
+      "grounded_claims": [
+        "WebSocket handshake validation was tightened for invalid client nonce flows.",
+        "Fuse mount cleanup now guards against teardown on inactive mounts."
+      ],
+      "evidence_refs": [
+        "core/protocols/websocket/server.cpp#error-handling",
+        "core/fuse/mount_service.cpp#filesystem-lifecycle"
+      ],
+      "operator_note": "No migration or API compatibility claims should be inferred from this evidence."
+    },
+    {
+      "name": "tools",
+      "signal_strength": "moderate",
+      "priority_rank": 2,
+      "theme": "Release tooling contract and workflow updates",
+      "grounded_claims": [
+        "Deterministic payload output and truncation metadata were expanded.",
+        "CLI changelog workflow coverage increased."
+      ],
+      "evidence_refs": [
+        "tools/release/changelog/payload.py#schema-change",
+        "tools/release/tests/test_cli_changelog.py#tests-contract"
+      ]
+    }
+  ],
+  "operator_note": "Packaging updates are low-volume in this range and should not be overstated."
+}

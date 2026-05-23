@@ -1,0 +1,5 @@
+pmdocs (0.17.0-1) unstable; urgency=medium
+
+  * Initial native CLI package skeleton.
+
+ -- Valkyrian Labs <maintainers@valkyrianlabs.com>  Wed, 13 May 2026 00:00:00 -0600

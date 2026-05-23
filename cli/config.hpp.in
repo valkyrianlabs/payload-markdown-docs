@@ -1,0 +1,4 @@
+#pragma once
+
+#define PMDOCS_VERSION @PMDOCS_VERSION@
+#define PMDOCS_DATA_DIR @PMDOCS_DATA_DIR@
