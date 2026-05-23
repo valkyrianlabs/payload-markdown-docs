@@ -288,8 +288,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install -y \
+          bash .github/scripts/install-apt-deps.sh \
             build-essential \
             cmake \
             debhelper \
@@ -333,7 +332,11 @@ jobs:
       - name: Smoke install Debian package
         run: |
           set -euo pipefail
-          sudo apt-get install -y ./release/*.deb
+          if ! sudo -n true >/dev/null 2>&1; then
+            echo "::error::Passwordless sudo is required to smoke install the Debian package on this self-hosted runner."
+            exit 1
+          fi
+          sudo -n apt-get install -y ./release/*.deb
           pmdocs --version
           pmdocs doctor
           pmdocs validate ./dev/docs-fixtures/basic --source payload-markdown-docs
@@ -369,8 +372,7 @@ jobs:
       - name: Install native and formula validation dependencies
         run: |
           set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install -y \
+          bash .github/scripts/install-apt-deps.sh \
             build-essential \
             cmake \
             curl \

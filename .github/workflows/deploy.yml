@@ -52,8 +52,7 @@ jobs:
       - name: Install native build dependencies
         run: |
           set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install -y \
+          bash .github/scripts/install-apt-deps.sh \
             build-essential \
             cmake \
             doctest-dev \
