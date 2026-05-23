@@ -20,7 +20,7 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
         self.assertIn("VERSION", workflow)
         self.assertIn("Multi-package publication requires the canonical tag 'v${version}'", workflow)
         self.assertIn("publish_required", workflow)
-        self.assertIn("fetch-depth: 1", workflow)
+        self.assertIn("fetch-depth: 0", workflow)
 
     def test_release_workflow_builds_all_shipping_package_surfaces(self) -> None:
         workflow = self._workflow()
