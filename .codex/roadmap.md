@@ -22,24 +22,27 @@ proven end to end.
   the sync manifest, supports Ed25519 signing, base64/PEM/OpenSSH private keys,
   GitHub OIDC bearer auth, dry-run, publish requests, delete behavior, strict
   route checks, JSON output, and libcurl transport.
-- Verified local checks after the remote-command port: `git diff --check`,
-  `meson compile -C build`, `meson test -C build`, direct phase-2 parity,
-  `meson test -C build-parity`, safe direct `keygen` / `push --help` checks,
-  and `pnpm test:int`.
-- Remaining native CLI gap: add safe mock/local endpoint tests and protected
-  smoke tests for Ed25519 dry-run, GitHub OIDC dry-run, and publish requests.
+- Verified local checks after the remote-command port include `meson compile -C
+  build`, `meson test -C build`, direct phase-2 parity, `meson test -C
+  build-parity`, safe direct `keygen` / `push --help` checks, and `pnpm
+  test:int`. The native doctest suite now includes local HTTP endpoint tests
+  for OIDC bearer push, `--publish`, JSON output, JSON server errors, and
+  non-JSON server errors.
+- Remaining native CLI gap: run protected smoke tests for Ed25519 dry-run,
+  GitHub OIDC dry-run, and publish requests against the real endpoint path.
 - Release packaging: Debian build/validation is adapted to the native `pmdocs`
   Meson package. Nexus publication is wired through `tools.release publish-deb`.
   Homebrew formula staging is wired through
   `tools.release prepare-homebrew-formula`. Native Debian/Nexus/Homebrew work
   runs on the self-hosted Linux release runner, and npm trusted publishing runs
-  last on GitHub-hosted `ubuntu-latest`. Protected workflow publication still
-  needs the Production environment variables/secrets configured before live use.
+  last on GitHub-hosted `ubuntu-latest`. npm publication reads the scoped
+  package name from `package.json`, optionally verifies it against
+  `NPM_PACKAGE_NAME`, and checks the tarball package identity before publish.
 - Version state: Option B is active. Root `VERSION` is canonical and
   `python -m tools.release check`, `sync`, `set-version`, `set-release`, and
   `bump` enforce/sync root `package.json`, root `meson.build`,
   `debian/changelog`, and `homebrew/Formula/pmdocs.rb`. The current synced
-  version is `0.16.1`.
+  version is `0.17.0`.
 
 ## Safety Rules
 
@@ -56,13 +59,13 @@ proven end to end.
 
 ### 1. Finish Native Push Qualification
 
-Status: initial native implementation is complete; remaining work is endpoint
-coverage and release qualification.
+Status: local endpoint coverage is complete; remaining work is protected release
+qualification against the real endpoint path.
 
 Scope:
 
-- Add mock/local HTTP response tests for native `push` success, server errors,
-  non-JSON errors, JSON output, and route warnings.
+- Added mock/local HTTP response tests for native `push` success, server errors,
+  non-JSON errors, JSON output, and publish requests.
 - Add protected smoke coverage against a local/test Payload endpoint for:
   Ed25519 dry-run, GitHub OIDC dry-run, signed sync, and `push --publish`.
 - Confirm native `keygen` output is accepted by the existing Payload key config
@@ -78,11 +81,13 @@ Done when:
 
 ### 2. Adapt `tools.release` To This Plugin
 
-Goal: make release tooling understand this repository instead of Vaulthalla.
+Goal: make release tooling understand this repository instead of the imported
+project it came from.
 
-Status: versioning integration is active for Option B. Root `VERSION` is now
-canonical, version checks include npm/Meson/Debian/Homebrew, and the current
-repo state passes `python -m tools.release check`.
+Status: versioning integration and repository retargeting are active for Option
+B. Root `VERSION` is canonical, version checks include npm/Meson/Debian/Homebrew,
+schema/prompt/request identifiers are renamed, categories are retargeted, and
+the release tests pass offline.
 
 Scope:
 
@@ -94,11 +99,14 @@ Scope:
 - Keep the Homebrew formula URL synced to the release tag and reset the formula
   `sha256` to `TODO_REPLACE_WITH_RELEASE_ARCHIVE_SHA256` when the version
   changes.
-- Rename CLI descriptions, schema identifiers, prompt roles, and request IDs to
+- Renamed CLI descriptions, schema identifiers, prompt roles, and request IDs to
   `payload-markdown-docs` / `pmdocs`.
-- Retarget changelog categories to plugin, npm CLI, native CLI, sync, frontend,
-  admin, docs assets, docs, Debian, Homebrew, release tooling, and tests.
-- Convert Debian tooling from Vaulthalla web/service packaging to Meson-driven
+- Retargeted changelog path inference to plugin, npm CLI, native CLI, sync,
+  frontend, admin, docs assets, docs, Debian, Homebrew, release tooling, and
+  tests. Legacy cached context category names are only retained as ordering
+  aliases for old artifacts/tests and are not emitted by the current path
+  categorizer.
+- Convert Debian tooling from the imported web/service packaging model to Meson-driven
   `pmdocs` packaging. Current status: done for build, artifact validation,
   local install smoke checks, and Nexus publication command wiring.
 - Add Homebrew tooling for formula version/URL/checksum updates, syntax
@@ -109,12 +117,11 @@ Scope:
 Done when:
 
 - `python -m tools.release check` succeeds for this repo shape. Current status:
-  done for versioning.
+  done.
 - Version sync dry-runs show root npm, Meson, Debian, and Homebrew changes
   without writing files. Current status: done for versioning.
 - Release tooling unit tests pass with real provider and publication calls
-  blocked. Current status: packaging tests are retargeted to `pmdocs`; changelog
-  schema/prompt naming still needs a separate cleanup pass.
+  blocked. Current status: done.
 
 ### 3. Finish Debian/Nexus And Homebrew Publication
 
@@ -146,10 +153,9 @@ Current status:
   and has protected Nexus/tap publication jobs. npm publish is ordered after
   Debian/Nexus and Homebrew tap success and uses trusted publishing, not
   `NPM_TOKEN`.
-- Remaining: configure Production secrets/vars, run one protected dry-run on a
-  tag, add Homebrew install smoke coverage on a runner with Homebrew available,
-  then add live APT repository validation after Nexus metadata/signing details
-  are confirmed.
+- Remaining: run one protected dry-run on a tag, add Homebrew install smoke
+  coverage on a runner with Homebrew available, then add live APT repository
+  validation after Nexus metadata/signing details are confirmed.
 
 Done when:
 
@@ -165,16 +171,18 @@ Goal: make a tagged v1 release reproducible and low-touch.
 Scope:
 
 - Keep npm publication checks from the existing release workflow. Current
-  status: done, including tarball artifact upload and protected trusted npm
+  status: done, including tarball artifact upload, package-name verification
+  from `package.json` / optional `NPM_PACKAGE_NAME`, and protected trusted npm
   publish after native package publication succeeds.
 - Add native build/test jobs for Linux and macOS. Current status: done.
 - Add release-tooling checks with live providers and publication disabled.
   Current status: done for offline release-tooling unit tests.
 - Build and validate Debian artifacts. Current status: done.
 - Publish Debian artifacts to Nexus in a protected environment. Current status:
-  workflow job added; Production variables/secrets required.
+  workflow job added; Production environment has been configured by the repo
+  owner.
 - Update or publish the Homebrew tap formula in a dry-run-first flow. Current
-  status: workflow job added; tap variables/token required.
+  status: workflow job added; tap publication still needs first protected run.
 - Publish docs only after package publication succeeds. Current status: done.
 
 Done when:
@@ -194,7 +202,7 @@ Scope:
 - Add native install docs covering apt and Homebrew.
 - Document when to use npm CLI vs native `pmdocs`; after command parity, mark
   shared commands as equivalent.
-- Remove stale Vaulthalla language from imported release tooling docs and tests.
+- Remove stale imported-project language from release tooling docs and tests.
 - Treat failing native parity, Debian package smoke checks, Homebrew formula
   smoke checks, or release-tooling offline tests as release blockers.
 

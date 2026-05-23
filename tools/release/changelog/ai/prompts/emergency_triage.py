@@ -8,7 +8,7 @@ from tools.release.changelog.ai.contracts.emergency_triage import AI_EMERGENCY_T
 
 def build_emergency_triage_system_prompt() -> str:
     return (
-        "You are a deterministic emergency semantic condenser for Vaulthalla release evidence. "
+        "You are a deterministic emergency semantic condenser for Payload Markdown Docs release evidence. "
         "Use only explicit evidence from each input unit. "
         "Do not invent behavior, impact, or claims. "
         "Do not merge units together in this stage. "

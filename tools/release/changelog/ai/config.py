@@ -14,7 +14,7 @@ DEFAULT_AI_POLISH_MODEL = DEFAULT_AI_DRAFT_MODEL
 DEFAULT_AI_RELEASE_NOTES_MODEL = DEFAULT_AI_DRAFT_MODEL
 DEFAULT_OPENAI_COMPATIBLE_BASE_URL = "http://localhost:8888/v1"
 DEFAULT_AI_PROVIDER_KIND = "openai"
-AI_PROFILE_SCHEMA_VERSION = "vaulthalla.release.ai_profile.v1"
+AI_PROFILE_SCHEMA_VERSION = "payload_markdown_docs.release.ai_profile.v1"
 STAGE_EXECUTION_ORDER: tuple["AIStageName", ...] = (
     "emergency_triage",
     "triage",

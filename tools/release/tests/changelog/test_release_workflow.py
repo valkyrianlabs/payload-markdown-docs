@@ -29,7 +29,7 @@ def _make_debian_changelog(path: Path, full_version: str) -> None:
     _write(
         path,
         (
-            f"vaulthalla ({full_version}) unstable; urgency=medium\n\n"
+            f"pmdocs ({full_version}) unstable; urgency=medium\n\n"
             "  * test entry\n\n"
             " -- Test User <test@example.com>  Sun, 19 Apr 2026 00:00:00 +0000\n"
         ),
@@ -125,7 +125,7 @@ class ReleaseWorkflowSelectionTests(unittest.TestCase):
                 )
 
             self.assertEqual(result.path, "manual")
-            self.assertIn("vaulthalla (1.2.3-1)", result.content)
+            self.assertIn("pmdocs (1.2.3-1)", result.content)
             openai_path.assert_not_called()
             local_path.assert_not_called()
 
@@ -316,10 +316,10 @@ profiles:
             _write(
                 changelog_path,
                 (
-                    "vaulthalla (1.2.3-2) unstable; urgency=medium\n\n"
+                    "pmdocs (1.2.3-2) unstable; urgency=medium\n\n"
                     "  - previous line\n\n"
                     " -- Test User <test@example.com>  Sun, 19 Apr 2026 00:00:00 +0000\n\n"
-                    "vaulthalla (1.2.2-1) unstable; urgency=medium\n\n"
+                    "pmdocs (1.2.2-1) unstable; urgency=medium\n\n"
                     "  - older entry\n\n"
                     " -- Test User <test@example.com>  Sat, 18 Apr 2026 00:00:00 +0000\n"
                 ),
@@ -332,15 +332,15 @@ profiles:
             )
 
             rendered = changelog_path.read_text(encoding="utf-8")
-            self.assertEqual(result.package, "vaulthalla")
+            self.assertEqual(result.package, "pmdocs")
             self.assertEqual(result.full_version, "1.2.3-2")
             self.assertEqual(result.distribution, "unstable")
             self.assertEqual(result.urgency, "medium")
-            self.assertIn("vaulthalla (1.2.3-2) unstable; urgency=medium", rendered)
+            self.assertIn("pmdocs (1.2.3-2) unstable; urgency=medium", rendered)
             self.assertIn("  - alpha change", rendered)
             self.assertIn("  - beta change", rendered)
             self.assertIn(" -- Test User <test@example.com>  Tue, 21 Apr 2026 18:30:00 +0000", rendered)
-            self.assertIn("vaulthalla (1.2.2-1) unstable; urgency=medium", rendered)
+            self.assertIn("pmdocs (1.2.2-1) unstable; urgency=medium", rendered)
 
     def test_refresh_debian_changelog_entry_honors_distribution_urgency_override(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -359,7 +359,7 @@ profiles:
             rendered = changelog_path.read_text(encoding="utf-8")
             self.assertEqual(result.distribution, "stable")
             self.assertEqual(result.urgency, "high")
-            self.assertIn("vaulthalla (2.1.0-1) stable; urgency=high", rendered)
+            self.assertIn("pmdocs (2.1.0-1) stable; urgency=high", rendered)
 
     def test_refresh_debian_changelog_entry_honors_env_distribution_urgency_and_maintainer(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -383,7 +383,7 @@ profiles:
             self.assertEqual(result.distribution, "stable")
             self.assertEqual(result.urgency, "low")
             self.assertEqual(result.maintainer, "Release Bot <release@example.com>")
-            self.assertIn("vaulthalla (2.1.0-1) stable; urgency=low", rendered)
+            self.assertIn("pmdocs (2.1.0-1) stable; urgency=low", rendered)
             self.assertIn(" -- Release Bot <release@example.com>  Tue, 21 Apr 2026 19:30:00 +0000", rendered)
 
     def test_refresh_debian_changelog_entry_rejects_invalid_distribution(self) -> None:

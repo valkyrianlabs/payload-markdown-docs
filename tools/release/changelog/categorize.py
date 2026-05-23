@@ -5,7 +5,20 @@ from pathlib import PurePosixPath
 
 
 CATEGORY_ORDER: tuple[str, ...] = (
+    "plugin",
+    "npm-cli",
+    "native-cli",
+    "sync",
+    "frontend",
+    "admin",
+    "docs-assets",
+    "docs",
     "debian",
+    "homebrew",
+    "release-tooling",
+    "tests",
+    # Legacy category names can still appear in cached/manual release context
+    # tests; the path categorizer below no longer emits them for this repo.
     "tools",
     "deploy",
     "web",
@@ -14,46 +27,90 @@ CATEGORY_ORDER: tuple[str, ...] = (
 )
 
 META_FILES: set[str] = {
+    "AGENTS.md",
+    "CHANGELOG.md",
+    "DISTRIBUTION.md",
     "VERSION",
     "README.md",
-    "DISTRIBUTION.md",
     "LICENSE",
     "NOTICE",
     "TRADEMARKS.md",
     "Makefile",
+    "pnpm-workspace.yaml",
+}
+
+NPM_CLI_FILES: set[str] = {
+    ".swcrc",
+    "eslint.config.js",
+    "package.json",
+    "playwright.config.js",
+    "pnpm-lock.yaml",
+    "tsconfig.json",
+    "tsconfig.build.json",
+    "vitest.config.js",
+}
+
+RELEASE_TOOLING_FILES: set[str] = {
+    "ai.yml",
     "requirements.txt",
+}
+
+PLUGIN_ROOT_FILES: set[str] = {
+    "src/constants.ts",
+    "src/index.ts",
+    "src/plugin.ts",
+    "src/types.ts",
 }
 
 
 def categorize_path(path: str) -> str:
     normalized = normalize_path(path)
+    lower = normalized.lower()
 
-    if normalized.startswith("debian/") or normalized.startswith("web/debian/"):
+    if is_test_path(lower):
+        return "tests"
+
+    if lower.startswith("debian/"):
         return "debian"
 
-    if normalized.startswith("tools/"):
-        return "tools"
+    if lower.startswith("homebrew/"):
+        return "homebrew"
+
+    if lower.startswith("tools/release/") or lower.startswith(".github/workflows/") or normalized in RELEASE_TOOLING_FILES:
+        return "release-tooling"
+
+    if lower.startswith("cli/") or lower in {"meson.build", "meson.options"}:
+        return "native-cli"
+
+    if lower.startswith("src/cli/") or normalized in NPM_CLI_FILES:
+        return "npm-cli"
+
+    if lower.startswith(("src/sync/", "src/security/", "src/endpoints/", "src/payload/")):
+        return "sync"
+
+    if lower.startswith("src/admin/"):
+        return "admin"
+
+    if lower.startswith(("src/next/", "dev/app/")):
+        return "frontend"
 
     if (
-        normalized.startswith("deploy/")
-        or normalized.startswith("core/deploy/")
-        or normalized.startswith("web/deploy/")
-        or normalized in {
-            "bin/doctor.sh",
-            "bin/install.sh",
-            "bin/install_deb.sh",
-            "bin/setup",
-            "bin/teardown",
-            "bin/uninstall.sh",
-        }
+        lower.startswith(("skills/", "src/skillbundles", "examples/docs/", "examples/github-actions/"))
+        or "assets" in lower and lower.startswith("src/cli/")
     ):
-        return "deploy"
+        return "docs-assets"
 
-    if normalized.startswith("web/"):
-        return "web"
+    if lower.startswith("docs/"):
+        return "docs"
 
-    if normalized.startswith("core/"):
-        return "core"
+    if normalized in PLUGIN_ROOT_FILES or lower.startswith((
+        "src/blocks/",
+        "src/collections/",
+        "src/fields/",
+        "src/install/",
+        "src/routing/",
+    )):
+        return "plugin"
 
     if normalized in META_FILES:
         return "meta"
@@ -62,7 +119,11 @@ def categorize_path(path: str) -> str:
 
 
 _DEBIAN_HINT_RE = re.compile(r"\b(debian|packaging|package|apt|dpkg|nexus)\b", re.IGNORECASE)
-_TOOLS_HINT_RE = re.compile(r"\b(changelog|release(?:\s+tooling)?|tooling|ci|github actions)\b", re.IGNORECASE)
+_HOMEBREW_HINT_RE = re.compile(r"\b(homebrew|brew|tap|formula)\b", re.IGNORECASE)
+_RELEASE_TOOLING_HINT_RE = re.compile(r"\b(changelog|release(?:\s+tooling)?|tooling|ci|github actions)\b", re.IGNORECASE)
+_NATIVE_CLI_HINT_RE = re.compile(r"\b(native|cpp|c\+\+|meson|debian cli|apt cli)\b", re.IGNORECASE)
+_NPM_CLI_HINT_RE = re.compile(r"\b(npm|typescript cli|node cli|pnpm)\b", re.IGNORECASE)
+_SYNC_HINT_RE = re.compile(r"\b(sync|oidc|ed25519|docs push|payload endpoint|protected endpoint)\b", re.IGNORECASE)
 
 
 def infer_categories_from_text(subject: str, body: str = "") -> tuple[str, ...]:
@@ -72,8 +133,16 @@ def infer_categories_from_text(subject: str, body: str = "") -> tuple[str, ...]:
 
     if _DEBIAN_HINT_RE.search(text):
         categories.add("debian")
-    if _TOOLS_HINT_RE.search(text):
-        categories.add("tools")
+    if _HOMEBREW_HINT_RE.search(text):
+        categories.add("homebrew")
+    if _RELEASE_TOOLING_HINT_RE.search(text):
+        categories.add("release-tooling")
+    if _NATIVE_CLI_HINT_RE.search(text):
+        categories.add("native-cli")
+    if _NPM_CLI_HINT_RE.search(text):
+        categories.add("npm-cli")
+    if _SYNC_HINT_RE.search(text):
+        categories.add("sync")
 
     return tuple(sorted(categories))
 
@@ -85,23 +154,7 @@ def extract_subscopes(path: str, category: str) -> tuple[str, ...]:
     if not parts:
         return ()
 
-    if category == "core":
-        return tuple(parts[1:3])
-
-    if category == "web":
-        return tuple(parts[1:4])
-
-    if category == "tools":
-        return tuple(parts[1:3])
-
-    if category == "debian":
-        if parts[0] == "web" and len(parts) >= 3 and parts[1] == "debian":
-            return tuple(parts[1:3])
-        return tuple(parts[1:3])
-
-    if category == "deploy":
-        if parts[0] == "bin":
-            return ("bin",)
+    if category in {"plugin", "npm-cli", "native-cli", "sync", "frontend", "admin", "docs-assets", "docs", "debian", "homebrew", "release-tooling", "tests"}:
         return tuple(parts[1:3])
 
     return tuple(parts[:2])
@@ -122,42 +175,48 @@ def detect_flags(path: str) -> tuple[str, ...]:
     if "systemd" in lower:
         flags.add("systemd")
 
-    if lower.startswith("debian/") or lower.startswith("web/debian/"):
+    if lower.startswith("debian/") or lower.startswith("homebrew/"):
         flags.add("packaging")
 
-    if lower.startswith("tools/release/"):
+    if lower.startswith("tools/release/") or lower.startswith(".github/workflows/"):
         flags.add("release-tooling")
 
-    if lower.startswith("bin/") and lower.endswith(".sh"):
+    if lower.startswith("debian/") or lower.startswith("homebrew/"):
         flags.add("install-script")
 
-    if lower.startswith("web/src/app/"):
+    if lower.startswith("dev/app/") or lower.startswith("src/next/"):
         flags.add("frontend-routing")
 
-    if lower.startswith("web/src/components/"):
+    if lower.startswith("src/admin/") or lower.startswith("src/components/"):
         flags.add("ui-surface")
 
-    if lower.startswith("web/src") or lower.endswith((".ts", ".tsx", ".js", ".jsx")):
+    if lower.startswith(("src/next/", "dev/app/")) or lower.endswith((".tsx", ".jsx")):
         flags.add("frontend")
 
-    if lower.startswith("core/include/"):
+    if lower.startswith(("src/endpoints/", "src/types")):
         flags.add("api-surface")
 
-    if lower.startswith("core/src/"):
+    if lower.startswith("src/") or lower.startswith("cli/src/"):
         flags.add("implementation")
 
-    if "fuse" in lower:
-        flags.add("filesystem")
+    if lower.startswith("cli/") or lower.endswith(("meson.build", "meson.options")):
+        flags.add("native-cli")
 
-    if "auth" in lower:
+    if lower.startswith("src/cli/") or lower in {item.lower() for item in NPM_CLI_FILES}:
+        flags.add("npm-cli")
+
+    if lower.startswith(("src/sync/", "src/security/", "src/endpoints/", "src/payload/")):
+        flags.add("docs-sync")
+
+    if "auth" in lower or "oidc" in lower or "security" in lower:
         flags.add("auth")
 
-    if "schema" in lower or "migration" in lower:
+    if "schema" in lower or "migration" in lower or "collection" in lower or "field" in lower:
         flags.add("schema")
 
     if lower.endswith(("meson.build", "meson.options")) or lower in {
         "package.json",
-        "web/package.json",
+        "pnpm-lock.yaml",
     }:
         flags.add("build-system")
 
@@ -179,20 +238,66 @@ def detect_themes_for_paths(paths: list[str]) -> list[str]:
         if "systemd" in normalized:
             themes.add("service-management")
 
-        if normalized.startswith("debian/") or normalized.startswith("web/debian/"):
+        if normalized.startswith("debian/"):
             themes.add("packaging")
 
-        if normalized.startswith("tools/release/"):
+        if normalized.startswith("homebrew/"):
+            themes.add("homebrew-packaging")
+
+        if normalized.startswith("tools/release/") or normalized.startswith(".github/workflows/"):
             themes.add("release-automation")
 
-        if normalized.startswith("web/"):
-            themes.add("web")
+        if normalized.startswith("cli/") or normalized.endswith(("meson.build", "meson.options")):
+            themes.add("native-cli")
 
-        if normalized.startswith("core/"):
-            themes.add("core")
+        if normalized.startswith("src/cli/") or normalized in {item.lower() for item in NPM_CLI_FILES}:
+            themes.add("npm-cli")
+
+        if normalized.startswith(("src/sync/", "src/security/", "src/endpoints/", "src/payload/")):
+            themes.add("docs-sync")
+
+        if normalized.startswith(("src/next/", "dev/app/")):
+            themes.add("frontend")
+
+        if normalized.startswith("src/admin/"):
+            themes.add("admin")
+
+        if normalized.startswith(("skills/", "examples/docs/", "examples/github-actions/")):
+            themes.add("docs-assets")
+
+        if normalized.startswith("docs/"):
+            themes.add("documentation")
+
+        if normalized.startswith(("src/blocks/", "src/collections/", "src/fields/", "src/routing/")) or normalized in {
+            "src/index.ts",
+            "src/plugin.ts",
+            "src/types.ts",
+            "src/constants.ts",
+        }:
+            themes.add("plugin")
 
     return sorted(themes)
 
 
 def normalize_path(path: str) -> str:
     return path.strip().replace("\\", "/")
+
+
+def is_test_path(lower_path: str) -> bool:
+    test_suffixes = (
+        ".spec.ts",
+        ".spec.tsx",
+        ".test.ts",
+        ".test.tsx",
+        ".spec.js",
+        ".test.js",
+        ".spec.cpp",
+        ".test.cpp",
+    )
+    return (
+        "/tests/" in f"/{lower_path}"
+        or lower_path.startswith("tools/release/tests/")
+        or lower_path.startswith("cli/tests/")
+        or lower_path.startswith("dev/") and lower_path.endswith(test_suffixes)
+        or lower_path.endswith(test_suffixes)
+    )

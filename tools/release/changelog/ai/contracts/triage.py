@@ -5,7 +5,7 @@ from typing import Any
 
 from tools.release.changelog.ai.config import AIProviderKind
 
-AI_TRIAGE_SCHEMA_VERSION = "vaulthalla.release.ai_triage.v2"
+AI_TRIAGE_SCHEMA_VERSION = "payload_markdown_docs.release.ai_triage.v2"
 _OPTIONAL_CATEGORY_STRING_ARRAY_FIELDS = ("evidence_refs",)
 _OPTIONAL_CATEGORY_STRING_FIELDS = ("operator_note",)
 _OPTIONAL_TOP_LEVEL_STRING_FIELDS = ("operator_note",)

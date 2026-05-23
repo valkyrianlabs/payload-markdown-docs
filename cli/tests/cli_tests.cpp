@@ -6,6 +6,12 @@
 
 #include <nlohmann/json.hpp>
 
+#include <arpa/inet.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+
+#include <array>
+#include <cctype>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -14,6 +20,7 @@
 #include <string>
 #include <string_view>
 #include <system_error>
+#include <thread>
 #include <utility>
 #include <unistd.h>
 #include <vector>
@@ -112,6 +119,167 @@ public:
 
 private:
   std::filesystem::path previous_;
+};
+
+class SingleRequestServer {
+public:
+  explicit SingleRequestServer(int status, std::string body, std::string content_type = "application/json; charset=utf-8")
+    : status_{status}
+    , body_{std::move(body)}
+    , content_type_{std::move(content_type)}
+  {
+    listen_fd_ = ::socket(AF_INET, SOCK_STREAM, 0);
+    if (listen_fd_ < 0) {
+      throw std::runtime_error{"Could not create local test socket."};
+    }
+
+    int reuse = 1;
+    if (::setsockopt(listen_fd_, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) != 0) {
+      close_listen_socket();
+      throw std::runtime_error{"Could not configure local test socket."};
+    }
+
+    sockaddr_in address{};
+    address.sin_family = AF_INET;
+    address.sin_port = htons(0);
+    if (::inet_pton(AF_INET, "127.0.0.1", &address.sin_addr) != 1) {
+      close_listen_socket();
+      throw std::runtime_error{"Could not configure local test address."};
+    }
+
+    if (::bind(listen_fd_, reinterpret_cast<sockaddr*>(&address), sizeof(address)) != 0) {
+      close_listen_socket();
+      throw std::runtime_error{"Could not bind local test server."};
+    }
+
+    if (::listen(listen_fd_, 1) != 0) {
+      close_listen_socket();
+      throw std::runtime_error{"Could not listen on local test server."};
+    }
+
+    sockaddr_in bound{};
+    socklen_t length = sizeof(bound);
+    if (::getsockname(listen_fd_, reinterpret_cast<sockaddr*>(&bound), &length) != 0) {
+      close_listen_socket();
+      throw std::runtime_error{"Could not read local test server port."};
+    }
+    port_ = ntohs(bound.sin_port);
+
+    worker_ = std::thread{[this]() { handle_request(); }};
+  }
+
+  SingleRequestServer(const SingleRequestServer&) = delete;
+  SingleRequestServer& operator=(const SingleRequestServer&) = delete;
+
+  ~SingleRequestServer() {
+    close_listen_socket();
+    if (worker_.joinable()) {
+      worker_.join();
+    }
+  }
+
+  [[nodiscard]] std::string url() const {
+    return "http://127.0.0.1:" + std::to_string(port_) + "/api/documentation/sync";
+  }
+
+  [[nodiscard]] std::string captured_request() {
+    if (worker_.joinable()) {
+      worker_.join();
+    }
+    return request_;
+  }
+
+private:
+  static std::string reason_phrase(int status) {
+    if (status >= 200 && status < 300) {
+      return "OK";
+    }
+    if (status == 422) {
+      return "Unprocessable Content";
+    }
+    if (status >= 500) {
+      return "Internal Server Error";
+    }
+    return "Error";
+  }
+
+  static std::size_t parse_content_length(std::string_view headers) {
+    std::string lower{headers};
+    for (auto& ch : lower) {
+      ch = static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
+    }
+
+    const auto marker = std::string{"content-length:"};
+    const auto offset = lower.find(marker);
+    if (offset == std::string::npos) {
+      return 0;
+    }
+
+    const auto value_start = offset + marker.size();
+    const auto value_end = lower.find("\r\n", value_start);
+    const auto value = lower.substr(value_start, value_end == std::string::npos ? std::string::npos : value_end - value_start);
+    return static_cast<std::size_t>(std::stoul(std::string{value}));
+  }
+
+  void handle_request() {
+    const int client = ::accept(listen_fd_, nullptr, nullptr);
+    if (client < 0) {
+      return;
+    }
+
+    close_listen_socket();
+
+    std::string request;
+    std::array<char, 4096> buffer{};
+    std::size_t expected_size = 0;
+
+    while (true) {
+      const auto read_count = ::recv(client, buffer.data(), buffer.size(), 0);
+      if (read_count <= 0) {
+        break;
+      }
+
+      request.append(buffer.data(), static_cast<std::size_t>(read_count));
+      const auto header_end = request.find("\r\n\r\n");
+      if (header_end != std::string::npos) {
+        const auto body_start = header_end + 4;
+        expected_size = body_start + parse_content_length(std::string_view{request}.substr(0, header_end));
+        if (request.size() >= expected_size) {
+          break;
+        }
+      }
+    }
+
+    request_ = std::move(request);
+
+    const auto response = std::string{"HTTP/1.1 "}
+      + std::to_string(status_)
+      + " "
+      + reason_phrase(status_)
+      + "\r\nContent-Type: "
+      + content_type_
+      + "\r\nContent-Length: "
+      + std::to_string(body_.size())
+      + "\r\nConnection: close\r\n\r\n"
+      + body_;
+    (void)::send(client, response.data(), response.size(), 0);
+    ::close(client);
+  }
+
+  void close_listen_socket() {
+    if (listen_fd_ >= 0) {
+      ::close(listen_fd_);
+      listen_fd_ = -1;
+    }
+  }
+
+  int listen_fd_ = -1;
+  int port_ = 0;
+  int status_;
+  std::string body_;
+  std::string content_type_;
+  std::string request_;
+  std::thread worker_;
 };
 
 void write_text(const std::filesystem::path& path, std::string_view content) {
@@ -467,6 +635,135 @@ TEST_CASE("push command parses help and rejects invalid auth combinations before
   }));
   CHECK(strict_routes.exit_code == 1);
   CHECK(strict_routes.stderr_text.find("public asset route files were not found") != std::string::npos);
+}
+
+TEST_CASE("push posts docs to a local HTTP endpoint with GitHub OIDC and publish intent") {
+  TempDir temp{"pmdocs-test-push-http"};
+  const auto root = temp.path() / "docs";
+  const auto root_string = root.string();
+  write_text(root / "index.md", "# Home\n");
+  EnvGuard oidc{"PMDOCS_TEST_OIDC_TOKEN", "oidc-token"};
+  SingleRequestServer server{
+    200,
+    R"({"ok":true,"summary":{"create":1,"warnings":0},"syncRunId":"sync_1","deleteBehavior":"archive","publishRequested":true})",
+  };
+  const auto endpoint = server.url();
+
+  const auto result = pmdocs::run(args({
+    "push",
+    root_string,
+    "--endpoint",
+    endpoint,
+    "--source",
+    "payload-markdown-docs",
+    "--github-oidc",
+    "--oidc-token-env",
+    "PMDOCS_TEST_OIDC_TOKEN",
+    "--dry-run",
+    "--publish",
+  }));
+
+  CHECK(result.exit_code == 0);
+  CHECK(result.stdout_text.find("Status: accepted") != std::string::npos);
+  CHECK(result.stdout_text.find("Publish requested: yes") != std::string::npos);
+  CHECK(result.stdout_text.find("Sync run: sync_1") != std::string::npos);
+
+  const auto request = server.captured_request();
+  CHECK(request.find("POST /api/documentation/sync HTTP/1.1") != std::string::npos);
+  CHECK(request.find("Authorization: Bearer oidc-token") != std::string::npos);
+  CHECK(request.find("\"source\":{\"id\":\"payload-markdown-docs\"}") != std::string::npos);
+  CHECK(request.find("\"mode\":\"dry-run\"") != std::string::npos);
+  CHECK(request.find("\"publish\":true") != std::string::npos);
+}
+
+TEST_CASE("push JSON output returns server response metadata") {
+  TempDir temp{"pmdocs-test-push-json"};
+  const auto root = temp.path() / "docs";
+  const auto root_string = root.string();
+  write_text(root / "index.md", "# Home\n");
+  EnvGuard oidc{"PMDOCS_TEST_OIDC_TOKEN", "oidc-token"};
+  SingleRequestServer server{
+    200,
+    R"({"ok":true,"summary":{"create":1},"syncRunId":"sync_json","publishRequested":false})",
+  };
+  const auto endpoint = server.url();
+
+  const auto result = pmdocs::run(args({
+    "push",
+    root_string,
+    "--endpoint",
+    endpoint,
+    "--source",
+    "payload-markdown-docs",
+    "--github-oidc",
+    "--oidc-token-env",
+    "PMDOCS_TEST_OIDC_TOKEN",
+    "--dry-run",
+    "--json",
+  }));
+
+  REQUIRE(result.exit_code == 0);
+  const auto output = nlohmann::json::parse(result.stdout_text);
+  CHECK(output["status"] == 200);
+  CHECK(output["sourceId"] == "payload-markdown-docs");
+  CHECK(output["response"]["ok"] == true);
+  CHECK(output["response"]["syncRunId"] == "sync_json");
+  CHECK(output["package"]["docs"] == 1);
+  (void)server.captured_request();
+}
+
+TEST_CASE("push reports JSON and non-JSON server failures") {
+  TempDir temp{"pmdocs-test-push-failures"};
+  const auto root = temp.path() / "docs";
+  const auto root_string = root.string();
+  write_text(root / "index.md", "# Home\n");
+  EnvGuard oidc{"PMDOCS_TEST_OIDC_TOKEN", "oidc-token"};
+
+  {
+    SingleRequestServer server{
+      422,
+      R"({"error":{"message":"No writes allowed"}})",
+    };
+    const auto endpoint = server.url();
+    const auto result = pmdocs::run(args({
+      "push",
+      root_string,
+      "--endpoint",
+      endpoint,
+      "--source",
+      "payload-markdown-docs",
+      "--github-oidc",
+      "--oidc-token-env",
+      "PMDOCS_TEST_OIDC_TOKEN",
+      "--dry-run",
+    }));
+
+    CHECK(result.exit_code == 1);
+    CHECK(result.stderr_text.find("No writes allowed") != std::string::npos);
+    (void)server.captured_request();
+  }
+
+  {
+    SingleRequestServer server{500, "server exploded", "text/plain; charset=utf-8"};
+    const auto endpoint = server.url();
+    const auto result = pmdocs::run(args({
+      "push",
+      root_string,
+      "--endpoint",
+      endpoint,
+      "--source",
+      "payload-markdown-docs",
+      "--github-oidc",
+      "--oidc-token-env",
+      "PMDOCS_TEST_OIDC_TOKEN",
+      "--dry-run",
+    }));
+
+    CHECK(result.exit_code == 1);
+    CHECK(result.stderr_text.find("HTTP status 500") != std::string::npos);
+    CHECK(result.stderr_text.find("server exploded") != std::string::npos);
+    (void)server.captured_request();
+  }
 }
 
 TEST_CASE("validate succeeds for valid docs and reports invalid frontmatter") {

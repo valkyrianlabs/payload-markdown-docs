@@ -64,6 +64,16 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
         self.assertIn("publish-npm:\n    name: Publish npm package\n    runs-on: ubuntu-latest", workflow)
         self.assertNotIn("NPM_TOKEN", workflow)
 
+    def test_npm_package_name_is_guarded_from_package_json_or_env_var(self) -> None:
+        workflow = self._workflow()
+
+        self.assertIn("NPM_PACKAGE_NAME: ${{ vars.NPM_PACKAGE_NAME || '' }}", workflow)
+        self.assertIn('expected_package_name="${NPM_PACKAGE_NAME:-$package_name}"', workflow)
+        self.assertIn("does not match NPM_PACKAGE_NAME", workflow)
+        self.assertIn("EXPECTED_PACKAGE_NAME: ${{ needs.validate-release-state.outputs.package_name }}", workflow)
+        self.assertIn("tar -xOf \"$tarball\" package/package.json", workflow)
+        self.assertIn("npm tarball package name", workflow)
+
     def test_npm_publish_runs_after_native_publication(self) -> None:
         workflow = self._workflow()
 

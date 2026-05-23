@@ -1,5 +1,5 @@
 {
-  "schema_version": "vaulthalla.release.ai_triage.v2",
+  "schema_version": "payload_markdown_docs.release.ai_triage.v2",
   "version": "2.4.0",
   "summary_points": [
     "Core protocol and fuse reliability changes are the highest-impact updates.",

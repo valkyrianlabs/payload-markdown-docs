@@ -156,7 +156,7 @@ class AITriageContractsTests(unittest.TestCase):
 class AITriageStageTests(unittest.TestCase):
     def test_run_triage_stage_uses_schema_and_payload_in_prompt(self) -> None:
         payload = {
-            "schema_version": "vaulthalla.release.semantic_payload.v1",
+            "schema_version": "payload_markdown_docs.release.semantic_payload.v1",
             "version": "2.4.0",
             "categories": [],
         }
@@ -170,7 +170,7 @@ class AITriageStageTests(unittest.TestCase):
         self.assertEqual(call["stage"], "triage")
         self.assertIn("json_schema", call)
         self.assertIn("Semantic payload (compact projection)", call["user_prompt"])
-        self.assertIn("vaulthalla.release.semantic_payload.v1", call["user_prompt"])
+        self.assertIn("payload_markdown_docs.release.semantic_payload.v1", call["user_prompt"])
 
     def test_run_triage_stage_rejects_invalid_response(self) -> None:
         invalid = load_json_fixture(__file__, "ai_triage_valid.json")
@@ -184,7 +184,7 @@ class AITriageStageTests(unittest.TestCase):
 
     def test_run_triage_stage_passes_reasoning_and_structured_mode(self) -> None:
         payload = {
-            "schema_version": "vaulthalla.release.semantic_payload.v1",
+            "schema_version": "payload_markdown_docs.release.semantic_payload.v1",
             "version": "2.4.0",
             "categories": [],
         }
@@ -207,7 +207,7 @@ class AITriageStageTests(unittest.TestCase):
 
     def test_run_triage_stage_hosted_gpt5_uses_compact_schema_and_prompt(self) -> None:
         payload = {
-            "schema_version": "vaulthalla.release.semantic_payload.v1",
+            "schema_version": "payload_markdown_docs.release.semantic_payload.v1",
             "version": "2.4.0",
             "categories": [],
         }
@@ -225,7 +225,7 @@ class AITriageStageTests(unittest.TestCase):
 
     def test_run_triage_stage_local_provider_keeps_default_schema_limits(self) -> None:
         payload = {
-            "schema_version": "vaulthalla.release.semantic_payload.v1",
+            "schema_version": "payload_markdown_docs.release.semantic_payload.v1",
             "version": "2.4.0",
             "categories": [],
         }
@@ -249,11 +249,11 @@ class AITriageStageTests(unittest.TestCase):
         first = render_triage_result_json(triage)
         second = render_triage_result_json(triage)
         self.assertEqual(first, second)
-        self.assertIn('"schema_version": "vaulthalla.release.ai_triage.v2"', first)
+        self.assertIn('"schema_version": "payload_markdown_docs.release.ai_triage.v2"', first)
 
     def test_run_triage_stage_normalizes_qwen_like_optional_array_noise(self) -> None:
         payload = {
-            "schema_version": "vaulthalla.release.semantic_payload.v1",
+            "schema_version": "payload_markdown_docs.release.semantic_payload.v1",
             "version": "2.4.0",
             "categories": [],
         }
@@ -282,7 +282,7 @@ class AITriageStageTests(unittest.TestCase):
 
     def test_run_triage_stage_allows_missing_summary_points(self) -> None:
         payload = {
-            "schema_version": "vaulthalla.release.semantic_payload.v1",
+            "schema_version": "payload_markdown_docs.release.semantic_payload.v1",
             "version": "2.4.0",
             "categories": [],
         }
@@ -294,7 +294,7 @@ class AITriageStageTests(unittest.TestCase):
 
     def test_run_triage_stage_compact_projection_accepts_tuple_payload_arrays(self) -> None:
         payload = {
-            "schema_version": "vaulthalla.release.semantic_payload.v1",
+            "schema_version": "payload_markdown_docs.release.semantic_payload.v1",
             "version": "2.4.0",
             "categories": (
                 {
@@ -333,7 +333,7 @@ class AITriageStageTests(unittest.TestCase):
 
     def test_run_triage_stage_supports_synthesized_input_mode(self) -> None:
         payload = {
-            "schema_version": "vaulthalla.release.triage_input.synthesized.v1",
+            "schema_version": "payload_markdown_docs.release.triage_input.synthesized.v1",
             "version": "2.4.0",
             "categories": [
                 {

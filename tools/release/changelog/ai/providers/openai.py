@@ -701,7 +701,7 @@ class OpenAIProvider:
             request["response_format"] = {
                 "type": "json_schema",
                 "json_schema": {
-                    "name": "vaulthalla_release_changelog_draft",
+                    "name": "payload_markdown_docs_release_changelog_draft",
                     "schema": json_schema,
                     "strict": True,
                 },
@@ -756,7 +756,7 @@ class OpenAIProvider:
             request["text"] = {
                 "format": {
                     "type": "json_schema",
-                    "name": "vaulthalla_release_changelog_draft",
+                    "name": "payload_markdown_docs_release_changelog_draft",
                     "schema": json_schema,
                     "strict": True,
                 }
@@ -1354,7 +1354,7 @@ def _resolve_chat_instruction_role(*, model: str) -> str:
 
 
 def _new_client_request_id() -> str:
-    return f"vaulthalla-{uuid4()}"
+    return f"pmdocs-{uuid4()}"
 
 
 def _resolve_endpoint_url(*, base_url: str | None, endpoint_path: str) -> str:

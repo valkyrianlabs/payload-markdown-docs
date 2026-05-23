@@ -7,7 +7,7 @@ from tools.release.changelog.ai.contracts.release_notes import AI_RELEASE_NOTES_
 
 def build_release_notes_system_prompt() -> str:
     return (
-        "You are a deterministic release notes editor for Vaulthalla. "
+        "You are a deterministic release notes editor for Payload Markdown Docs. "
         "Rewrite the input changelog into a polished, public-facing markdown release notes document. "
         "Improve readability, structure, grouping, and presentation while preserving factual meaning. "
         "Keep tone restrained and engineering-focused. "

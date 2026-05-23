@@ -39,7 +39,6 @@ class DebianInstallFlowContractTests(unittest.TestCase):
             "nginx",
             "systemctl",
             "debconf",
-            "vaulthalla",
         )
         for fragment in forbidden:
             self.assertNotIn(fragment, readme.lower())

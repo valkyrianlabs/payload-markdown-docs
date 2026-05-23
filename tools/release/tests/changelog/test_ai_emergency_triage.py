@@ -205,7 +205,7 @@ class _MonotonicFeeder:
 
 def _sample_semantic_payload() -> dict:
     return {
-        "schema_version": "vaulthalla.release.semantic_payload.v1",
+        "schema_version": "payload_markdown_docs.release.semantic_payload.v1",
         "version": "0.34.1",
         "previous_tag": "v0.34.0",
         "head_sha": "abc123",

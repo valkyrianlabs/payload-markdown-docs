@@ -32,7 +32,7 @@ from tools.release.changelog.ai.prompts.emergency_triage import (
 from tools.release.changelog.ai.providers.base import StructuredJSONProvider
 from tools.release.changelog.ai.providers.openai import OpenAIProvider
 
-AI_TRIAGE_SYNTHESIZED_INPUT_SCHEMA_VERSION = "vaulthalla.release.triage_input.synthesized.v1"
+AI_TRIAGE_SYNTHESIZED_INPUT_SCHEMA_VERSION = "payload_markdown_docs.release.triage_input.synthesized.v1"
 _ID_SLUG_RE = re.compile(r"[^a-z0-9]+")
 # Keep emergency triage bounded while avoiding oversized single-call payloads.
 _EMERGENCY_TRIAGE_BATCH_SIZE = 6

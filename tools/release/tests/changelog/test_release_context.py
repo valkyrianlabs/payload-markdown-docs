@@ -200,7 +200,7 @@ class GitCollectTests(unittest.TestCase):
         self.assertEqual(len(commits), 1)
         self.assertIn("meta", commits[0].categories)
         self.assertIn("debian", commits[0].categories)
-        self.assertIn("tools", commits[0].categories)
+        self.assertIn("release-tooling", commits[0].categories)
 
     def test_previous_release_tag_before_base_prefers_nearest_lower_tag(self) -> None:
         tags = "\n".join(["v0.33.0", "v0.32.1", "v0.34.1", "v0.35.0"])

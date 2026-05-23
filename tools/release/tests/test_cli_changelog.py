@@ -409,7 +409,7 @@ class CliChangelogReleaseTests(unittest.TestCase):
                         (),
                         {
                             "path": Path(temp_dir) / "debian" / "changelog",
-                            "package": "vaulthalla",
+                            "package": "pmdocs",
                             "full_version": "1.2.3-1",
                             "distribution": "unstable",
                             "urgency": "medium",
@@ -429,10 +429,10 @@ class CliChangelogReleaseTests(unittest.TestCase):
                 '{"schema_version":"semantic-x"}\n',
             )
             context_metadata = json.loads(context_target.read_text(encoding="utf-8"))
-            self.assertEqual(context_metadata["schema_version"], "vaulthalla.release.changelog_context.v1")
+            self.assertEqual(context_metadata["schema_version"], "payload_markdown_docs.release.changelog_context.v1")
             self.assertEqual(release_notes_target.read_text(encoding="utf-8"), "# Public Notes\n")
             metadata = json.loads(selection_target.read_text(encoding="utf-8"))
-            self.assertEqual(metadata["schema_version"], "vaulthalla.release.changelog_selection.v2")
+            self.assertEqual(metadata["schema_version"], "payload_markdown_docs.release.changelog_selection.v2")
             self.assertEqual(metadata["selected_path"], "openai")
             self.assertIn("context", metadata)
             self.assertTrue(metadata["release_notes_generated"])
@@ -497,7 +497,7 @@ class CliChangelogReleaseTests(unittest.TestCase):
                         (),
                         {
                             "path": Path(temp_dir) / "debian" / "changelog",
-                            "package": "vaulthalla",
+                            "package": "pmdocs",
                             "full_version": "1.2.3-1",
                             "distribution": "stable",
                             "urgency": "high",
@@ -706,7 +706,7 @@ class CliChangelogAIDraftTests(unittest.TestCase):
 
             self.assertEqual(result, 0)
 
-            h.assert_file_contains(markdown_target, "<!-- vaulthalla-release-version:")
+            h.assert_file_contains(markdown_target, "<!-- payload-markdown-docs-release-version:")
             h.assert_file_contains(markdown_target, "# AI Draft")
             h.assert_file_equals(json_target, '{"title":"x"}\n')
 
@@ -727,16 +727,16 @@ class CliChangelogAIDraftTests(unittest.TestCase):
         with TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir)
             semantic_payload = {
-                "schema_version": "vaulthalla.release.semantic_payload.v1",
+                "schema_version": "payload_markdown_docs.release.semantic_payload.v1",
                 "version": "1.2.3",
                 "categories": [{"name": "tools"}],
             }
             synthesized_payload = {
-                "schema_version": "vaulthalla.release.triage_input.synthesized.v1",
+                "schema_version": "payload_markdown_docs.release.triage_input.synthesized.v1",
                 "categories": [],
             }
             emergency_json = (
-                '{"schema_version":"vaulthalla.release.ai_emergency_triage.v1",'
+                '{"schema_version":"payload_markdown_docs.release.ai_emergency_triage.v1",'
                 '"version":"1.2.3","items":[]}\n'
             )
             emergency_obj = SimpleNamespace(items=(SimpleNamespace(id="tools:1"),))
@@ -781,7 +781,7 @@ class CliChangelogAIDraftTests(unittest.TestCase):
             emergency_artifact = repo_root / ".changelog_scratch" / "emergency_triage.json"
             h.assert_file_contains(
                 emergency_artifact,
-                "vaulthalla.release.ai_emergency_triage.v1",
+                "payload_markdown_docs.release.ai_emergency_triage.v1",
             )
 
     def test_ai_draft_release_notes_uses_draft_input_even_when_polish_enabled(self) -> None:
@@ -986,7 +986,7 @@ class CliChangelogAICompareTests(unittest.TestCase):
     @staticmethod
     def _write_repo_basics(repo_root: Path) -> str:
         original_debian = (
-            "vaulthalla (0.34.0-1) unstable; urgency=medium\n\n"
+            "pmdocs (0.34.0-1) unstable; urgency=medium\n\n"
             "  - existing line\n\n"
             " -- Test User <test@example.com>  Sun, 19 Apr 2026 00:00:00 +0000\n"
         )

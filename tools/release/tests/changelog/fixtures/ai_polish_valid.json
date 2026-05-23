@@ -1,5 +1,5 @@
 {
-  "schema_version": "vaulthalla.release.ai_polish.v1",
+  "schema_version": "payload_markdown_docs.release.ai_polish.v1",
   "title": "Release 2.4.0 Draft",
   "summary": "This release tightens core protocol reliability and improves release-tooling determinism, with limited low-volume packaging impact.",
   "sections": [

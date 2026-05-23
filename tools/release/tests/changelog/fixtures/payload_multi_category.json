@@ -1,5 +1,5 @@
 {
-  "schema_version": "vaulthalla.release.ai_payload.v1",
+  "schema_version": "payload_markdown_docs.release.ai_payload.v1",
   "metadata": {
     "version": "2.4.0",
     "previous_tag": "v2.3.1",

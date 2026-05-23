@@ -6,7 +6,7 @@ from typing import Any
 
 def build_draft_system_prompt() -> str:
     return (
-        "You are a deterministic release drafter for Vaulthalla. "
+        "You are a deterministic release drafter for Payload Markdown Docs. "
         "Use only explicit evidence from the input. "
         "Never invent fixes, features, impacts, or category meaning. "
         "Do not use speculative wording: likely, suggests, appears to, may indicate, could be interpreted as. "

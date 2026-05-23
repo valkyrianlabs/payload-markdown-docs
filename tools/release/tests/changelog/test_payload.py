@@ -562,7 +562,7 @@ def _derived_artifact_contamination_context() -> ReleaseContext:
                 subscopes=("debian",),
                 score=12.0,
                 reason="Generated artifact hunk that should be excluded",
-                patch="@@ -1,2 +1,4 @@\n+vaulthalla (0.34.0) unstable; urgency=medium",
+                patch="@@ -1,2 +1,4 @@\n+pmdocs (0.34.0) unstable; urgency=medium",
                 flags=("packaging",),
             ),
             DiffSnippet(

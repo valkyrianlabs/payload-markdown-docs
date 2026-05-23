@@ -32,7 +32,6 @@ class DebianRulesContractTests(unittest.TestCase):
 
         self.assertIn("usr/bin/pmdocs", install_manifest)
         self.assertIn("usr/share/pmdocs/skills/payload-markdown-docs", install_manifest)
-        self.assertNotIn("usr/share/vaulthalla", install_manifest)
         self.assertNotIn("lib/systemd/system", install_manifest)
         self.assertNotIn("usr/share/pmdocs-web", install_manifest)
 

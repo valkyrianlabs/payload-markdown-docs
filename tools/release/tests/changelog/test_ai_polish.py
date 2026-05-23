@@ -91,7 +91,7 @@ class AIPolishStageTests(unittest.TestCase):
 
         polish = run_polish_stage(draft, provider=fake)
 
-        self.assertEqual(polish.schema_version, "vaulthalla.release.ai_polish.v1")
+        self.assertEqual(polish.schema_version, "payload_markdown_docs.release.ai_polish.v1")
         self.assertEqual(len(fake.calls), 1)
         call = fake.calls[0]
         self.assertEqual(call["stage"], "polish")
@@ -145,7 +145,7 @@ class AIPolishStageTests(unittest.TestCase):
         first = render_polish_result_json(polish)
         second = render_polish_result_json(polish)
         self.assertEqual(first, second)
-        self.assertIn('"schema_version": "vaulthalla.release.ai_polish.v1"', first)
+        self.assertIn('"schema_version": "payload_markdown_docs.release.ai_polish.v1"', first)
 
 
 

@@ -34,6 +34,7 @@ env:
   HOMEBREW_TAP_PUBLISH_MODE: ${{ vars.HOMEBREW_TAP_PUBLISH_MODE || 'disabled' }}
   HOMEBREW_TAP_REPOSITORY: ${{ vars.HOMEBREW_TAP_REPOSITORY || '' }}
   HOMEBREW_TAP_BRANCH: ${{ vars.HOMEBREW_TAP_BRANCH || 'main' }}
+  NPM_PACKAGE_NAME: ${{ vars.NPM_PACKAGE_NAME || '' }}
   DOCS_SYNC_ENDPOINT: ${{ vars.DOCS_SYNC_ENDPOINT || 'https://valkyrianlabs.com/api/documentation/sync' }}
 
 jobs:
@@ -134,6 +135,11 @@ jobs:
           print(json.loads(Path("package.json").read_text(encoding="utf-8"))["name"])
           PY
           )"
+          expected_package_name="${NPM_PACKAGE_NAME:-$package_name}"
+          if [ "$package_name" != "$expected_package_name" ]; then
+            echo "::error::package.json name '${package_name}' does not match NPM_PACKAGE_NAME '${expected_package_name}'."
+            exit 1
+          fi
           package_private="$(python3 - <<'PY'
           import json
           from pathlib import Path
@@ -153,6 +159,7 @@ jobs:
           echo "release_tag=${release_tag:-<none>}"
           echo "publish_required=${publish_required}"
           echo "package_name=${package_name}"
+          echo "expected_package_name=${expected_package_name}"
           echo "package_private=${package_private}"
 
   npm-package:
@@ -218,6 +225,8 @@ jobs:
           fi
 
       - name: Validate package contents
+        env:
+          EXPECTED_PACKAGE_NAME: ${{ needs.validate-release-state.outputs.package_name }}
         run: |
           set -euo pipefail
           npm pack --dry-run
@@ -227,6 +236,12 @@ jobs:
           if [ "$tarball_count" -ne 1 ]; then
             echo "::error::Expected exactly one npm tarball, found ${tarball_count}."
             find release/npm -maxdepth 1 -type f | sort
+            exit 1
+          fi
+          tarball="$(find release/npm -maxdepth 1 -type f -name '*.tgz' | sort | head -n 1)"
+          actual_name="$(tar -xOf "$tarball" package/package.json | node -e 'let d = ""; process.stdin.on("data", c => d += c); process.stdin.on("end", () => console.log(JSON.parse(d).name));')"
+          if [ "$actual_name" != "$EXPECTED_PACKAGE_NAME" ]; then
+            echo "::error::npm tarball package name '${actual_name}' does not match expected '${EXPECTED_PACKAGE_NAME}'."
             exit 1
           fi
 
@@ -626,12 +641,19 @@ jobs:
 
       - name: Publish to npm through trusted publishing
         shell: bash
+        env:
+          EXPECTED_PACKAGE_NAME: ${{ needs.validate-release-state.outputs.package_name }}
         run: |
           set -euo pipefail
           mapfile -t tarballs < <(find release/npm -maxdepth 1 -type f -name '*.tgz' | sort)
           if [ "${#tarballs[@]}" -ne 1 ]; then
             echo "::error::Expected exactly one npm tarball, found ${#tarballs[@]}."
             printf '%s\n' "${tarballs[@]}"
+            exit 1
+          fi
+          actual_name="$(tar -xOf "${tarballs[0]}" package/package.json | node -e 'let d = ""; process.stdin.on("data", c => d += c); process.stdin.on("end", () => console.log(JSON.parse(d).name));')"
+          if [ "$actual_name" != "$EXPECTED_PACKAGE_NAME" ]; then
+            echo "::error::npm tarball package name '${actual_name}' does not match expected '${EXPECTED_PACKAGE_NAME}'."
             exit 1
           fi
           npm publish "${tarballs[0]}" --access public

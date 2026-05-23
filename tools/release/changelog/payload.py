@@ -20,8 +20,8 @@ from tools.release.changelog.models import (
 )
 from tools.release.changelog.scoring import is_semantic_noise_path
 
-AI_PAYLOAD_SCHEMA_VERSION = "vaulthalla.release.ai_payload.v1"
-AI_SEMANTIC_PAYLOAD_SCHEMA_VERSION = "vaulthalla.release.semantic_payload.v1"
+AI_PAYLOAD_SCHEMA_VERSION = "payload_markdown_docs.release.ai_payload.v1"
+AI_SEMANTIC_PAYLOAD_SCHEMA_VERSION = "payload_markdown_docs.release.semantic_payload.v1"
 
 _SEMANTIC_COMMIT_SUBJECT_MAX_CHARS = 220
 _SEMANTIC_COMMIT_BODY_MAX_CHARS = 900
@@ -70,19 +70,35 @@ _SEMANTIC_KIND_TOPICS: dict[str, str] = {
 }
 
 _SEMANTIC_THEME_TOPICS: dict[str, str] = {
+    "admin": "admin UI behavior",
     "configuration": "configuration keys and defaults",
     "database": "database integration behavior",
+    "docs-assets": "generated docs and agent assets",
+    "docs-sync": "documentation sync behavior",
+    "documentation": "documentation content",
+    "frontend": "frontend rendering behavior",
+    "homebrew-packaging": "Homebrew formula packaging",
+    "native-cli": "native CLI behavior",
+    "npm-cli": "npm CLI behavior",
     "packaging": "packaging/install script behavior",
+    "plugin": "Payload plugin behavior",
     "release-automation": "release artifact generation paths",
     "service-management": "service lifecycle handling",
 }
 
 _CATEGORY_SUMMARY_PREFIX: dict[str, str] = {
+    "admin": "Admin UI updates",
     "debian": "Packaging and Debian updates",
-    "tools": "Release tooling updates",
-    "deploy": "Deployment updates",
-    "web": "Web application updates",
-    "core": "Core runtime updates",
+    "docs": "Documentation updates",
+    "docs-assets": "Generated docs and agent asset updates",
+    "frontend": "Frontend updates",
+    "homebrew": "Homebrew formula updates",
+    "native-cli": "Native CLI updates",
+    "npm-cli": "npm CLI updates",
+    "plugin": "Payload plugin updates",
+    "release-tooling": "Release tooling updates",
+    "sync": "Documentation sync updates",
+    "tests": "Test coverage updates",
     "meta": "Project metadata updates",
 }
 
@@ -96,10 +112,19 @@ _SEMANTIC_TOPIC_PRIORITY: dict[str, int] = {
     "release artifact generation paths": 7,
     "lifecycle and teardown behavior": 8,
     "packaging/install script behavior": 9,
-    "database integration behavior": 10,
-    "service lifecycle handling": 11,
-    "behavioral contract tests": 12,
-    "core implementation flow": 13,
+    "Homebrew formula packaging": 10,
+    "native CLI behavior": 11,
+    "npm CLI behavior": 12,
+    "documentation sync behavior": 13,
+    "Payload plugin behavior": 14,
+    "admin UI behavior": 15,
+    "frontend rendering behavior": 16,
+    "generated docs and agent assets": 17,
+    "documentation content": 18,
+    "database integration behavior": 19,
+    "service lifecycle handling": 20,
+    "behavioral contract tests": 21,
+    "core implementation flow": 22,
 }
 
 _SEMANTIC_SIGNATURE_RE = re.compile(
@@ -589,11 +614,13 @@ def _semantic_primary_category(commit: CommitInfo) -> str:
             counts.items(),
             key=lambda item: (-item[1], _CATEGORY_ORDER_INDEX.get(item[0], 999), item[0]),
         )
-        return ordered[0][0]
+        path_primary = ordered[0][0]
+        if path_primary in commit.categories:
+            return path_primary
 
     categories = [category for category in commit.categories if category]
     if not categories:
-        return "meta"
+        return ordered[0][0] if counts else "meta"
     categories.sort(key=lambda category: (_CATEGORY_ORDER_INDEX.get(category, 999), category))
     return categories[0]
 

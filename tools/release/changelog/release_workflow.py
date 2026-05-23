@@ -46,10 +46,10 @@ DEFAULT_RELEASE_AI_MODE: ReleaseAIMode = "auto"
 DEFAULT_RELEASE_OPENAI_PROFILE = "openai-balanced"
 DEFAULT_CHANGELOG_SCRATCH_DIR = Path(".changelog_scratch")
 DEFAULT_CACHED_DRAFT_PATH = DEFAULT_CHANGELOG_SCRATCH_DIR / "changelog.draft.md"
-RELEASE_CONTEXT_METADATA_SCHEMA_VERSION = "vaulthalla.release.changelog_context.v1"
-RELEASE_CONTEXT_FINGERPRINT_SCHEMA_VERSION = "vaulthalla.release.context_fingerprint.v1"
-RELEASE_NOTES_CONTEXT_SCHEMA_VERSION = "vaulthalla.release.release_notes_context.v1"
-CHANGELOG_SELECTION_SCHEMA_VERSION = "vaulthalla.release.changelog_selection.v2"
+RELEASE_CONTEXT_METADATA_SCHEMA_VERSION = "payload_markdown_docs.release.changelog_context.v1"
+RELEASE_CONTEXT_FINGERPRINT_SCHEMA_VERSION = "payload_markdown_docs.release.context_fingerprint.v1"
+RELEASE_NOTES_CONTEXT_SCHEMA_VERSION = "payload_markdown_docs.release.release_notes_context.v1"
+CHANGELOG_SELECTION_SCHEMA_VERSION = "payload_markdown_docs.release.changelog_selection.v2"
 DEBIAN_CHANGELOG_SIGNATURE_PATTERN = re.compile(r"^ -- (?P<maintainer>.+?)  (?P<timestamp>.+)$")
 DEBIAN_CHANGELOG_TOKEN_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9+.-]*$")
 _DEBIAN_REPO_PATH_RE = re.compile(r"\b(?:core|tools|web|debian|deploy|bin)/[a-z0-9_./-]+\b", re.IGNORECASE)
@@ -1068,10 +1068,10 @@ def render_cached_draft_markdown(
     fingerprint = dict(context_fingerprint) if context_fingerprint is not None else None
     if fingerprint is None and context is not None:
         fingerprint = build_release_context_fingerprint(context)
-    metadata = f"<!-- vaulthalla-release-version: {version} -->\n"
+    metadata = f"<!-- payload-markdown-docs-release-version: {version} -->\n"
     if fingerprint is not None:
         metadata += (
-            "<!-- vaulthalla-release-context: "
+            "<!-- payload-markdown-docs-release-context: "
             f"{json.dumps(fingerprint, sort_keys=True, separators=(',', ':'))} -->\n"
         )
     return f"{metadata}{cleaned}\n"
@@ -1082,7 +1082,7 @@ def _detect_cached_draft_version(content: str) -> str | None:
         stripped = line.strip()
         if not stripped:
             continue
-        match = re.fullmatch(r"<!--\s*vaulthalla-release-version:\s*([0-9]+\.[0-9]+\.[0-9]+)\s*-->", stripped)
+        match = re.fullmatch(r"<!--\s*payload-markdown-docs-release-version:\s*([0-9]+\.[0-9]+\.[0-9]+)\s*-->", stripped)
         if match:
             return match.group(1)
         return None
@@ -1094,7 +1094,7 @@ def _detect_cached_draft_context(content: str) -> dict[str, Any] | None:
         stripped = line.strip()
         if not stripped:
             continue
-        match = re.fullmatch(r"<!--\s*vaulthalla-release-context:\s*(\{.*\})\s*-->", stripped)
+        match = re.fullmatch(r"<!--\s*payload-markdown-docs-release-context:\s*(\{.*\})\s*-->", stripped)
         if not match:
             continue
         try:
@@ -1113,10 +1113,10 @@ def _strip_cached_draft_metadata(content: str) -> str:
     while start_index < len(lines):
         line = lines[start_index]
         is_version = re.fullmatch(
-            r"\s*<!--\s*vaulthalla-release-version:\s*[0-9]+\.[0-9]+\.[0-9]+\s*-->\s*",
+            r"\s*<!--\s*payload-markdown-docs-release-version:\s*[0-9]+\.[0-9]+\.[0-9]+\s*-->\s*",
             line,
         )
-        is_context = re.fullmatch(r"\s*<!--\s*vaulthalla-release-context:\s*\{.*\}\s*-->\s*", line)
+        is_context = re.fullmatch(r"\s*<!--\s*payload-markdown-docs-release-context:\s*\{.*\}\s*-->\s*", line)
         if not is_version and not is_context:
             break
         start_index += 1

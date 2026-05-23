@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Any
 
 
-AI_RELEASE_NOTES_SCHEMA_VERSION = "vaulthalla.release.ai_release_notes.v1"
+AI_RELEASE_NOTES_SCHEMA_VERSION = "payload_markdown_docs.release.ai_release_notes.v1"
 
 AI_RELEASE_NOTES_RESPONSE_JSON_SCHEMA: dict[str, Any] = {
     "type": "object",

@@ -41,7 +41,7 @@ class AIPromptDisciplineTests(unittest.TestCase):
                 build_triage_system_prompt(input_mode="synthesized_semantic").lower(),
                 build_triage_user_prompt(
                     {
-                        "schema_version": "vaulthalla.release.triage_input.synthesized.v1",
+                        "schema_version": "payload_markdown_docs.release.triage_input.synthesized.v1",
                         "categories": [],
                     },
                     input_mode="synthesized_semantic",

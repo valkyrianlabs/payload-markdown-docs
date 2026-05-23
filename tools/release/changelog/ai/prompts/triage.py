@@ -14,7 +14,7 @@ def build_triage_system_prompt(
     input_mode: TriageInputMode = "raw_semantic",
 ) -> str:
     base = (
-        "You are a deterministic release triage classifier for Vaulthalla. "
+        "You are a deterministic release triage classifier for Payload Markdown Docs. "
         "Use only explicit input evidence. "
         "Never invent features, fixes, behavior, impact, or categories. "
         "Do not use speculative wording: likely, suggests, appears to, may indicate, could be interpreted as. "

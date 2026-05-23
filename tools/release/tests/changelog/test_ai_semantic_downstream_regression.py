@@ -41,7 +41,7 @@ class AISemanticDownstreamRegressionTests(unittest.TestCase):
                 "draft-triage-handoff",
                 build_draft_user_prompt(
                     {
-                        "schema_version": "vaulthalla.release.ai_triage.v2",
+                        "schema_version": "payload_markdown_docs.release.ai_triage.v2",
                         "version": "2.5.0",
                         "summary_points": ["Release tooling and core reliability updates dominate this cycle."],
                         "categories": [
@@ -64,7 +64,7 @@ class AISemanticDownstreamRegressionTests(unittest.TestCase):
                 "polish-cleanup",
                 build_polish_user_prompt(
                     {
-                        "schema_version": "vaulthalla.release.ai_draft.v1",
+                        "schema_version": "payload_markdown_docs.release.ai_draft.v1",
                         "title": "Release 2.5.0",
                         "summary": "Priority rank 1 category and evidence refs dominate.",
                         "sections": [

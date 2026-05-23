@@ -191,6 +191,6 @@ def _strip_cached_draft_marker(content: str) -> str:
     lines = content.splitlines()
     if not lines:
         return ""
-    if re.fullmatch(r"\s*<!--\s*vaulthalla-release-version:\s*[0-9]+\.[0-9]+\.[0-9]+\s*-->\s*", lines[0]):
+    if re.fullmatch(r"\s*<!--\s*payload-markdown-docs-release-version:\s*[0-9]+\.[0-9]+\.[0-9]+\s*-->\s*", lines[0]):
         return ("\n".join(lines[1:])).lstrip("\n")
     return content

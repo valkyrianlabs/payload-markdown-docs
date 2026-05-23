@@ -6,7 +6,7 @@ from typing import Any
 from tools.release.changelog.ai.contracts.draft import AIDraftResult, ai_draft_result_to_dict
 
 
-AI_POLISH_SCHEMA_VERSION = "vaulthalla.release.ai_polish.v1"
+AI_POLISH_SCHEMA_VERSION = "payload_markdown_docs.release.ai_polish.v1"
 
 AI_POLISH_RESPONSE_JSON_SCHEMA: dict[str, Any] = {
     "type": "object",

@@ -92,7 +92,7 @@ profiles:
             (
                 "explicit",
                 """
-schema_version: vaulthalla.release.ai_profile.v1
+schema_version: payload_markdown_docs.release.ai_profile.v1
 profiles:
   local-gemma:
     provider: openai-compatible
@@ -127,7 +127,7 @@ profiles:
             (
                 "unsupported",
                 """
-schema_version: vaulthalla.release.ai_profile.v99
+schema_version: payload_markdown_docs.release.ai_profile.v99
 profiles:
   local-gemma:
     provider: openai-compatible

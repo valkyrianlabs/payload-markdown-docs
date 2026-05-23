@@ -1,5 +1,5 @@
 {
-  "schema_version": "vaulthalla.release.semantic_payload.v1",
+  "schema_version": "payload_markdown_docs.release.semantic_payload.v1",
   "version": "2.5.0",
   "previous_tag": "v2.4.9",
   "head_sha": "feedfacecafebeef",
