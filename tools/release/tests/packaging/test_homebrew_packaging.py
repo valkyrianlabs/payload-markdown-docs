@@ -29,6 +29,31 @@ def _make_repo_layout(repo_root: Path) -> None:
 
 
 class HomebrewPackagingTests(unittest.TestCase):
+    def test_source_formula_uses_homebrew_dependency_order(self) -> None:
+        repo_root = Path(__file__).resolve().parents[4]
+        formula = (repo_root / "homebrew" / "Formula" / "pmdocs.rb").read_text(encoding="utf-8")
+
+        depends_lines = [
+            line.strip()
+            for line in formula.splitlines()
+            if line.strip().startswith("depends_on ")
+        ]
+
+        self.assertEqual(
+            depends_lines,
+            [
+                'depends_on "cli11" => :build',
+                'depends_on "cmake" => :build',
+                'depends_on "doctest" => :build',
+                'depends_on "meson" => :build',
+                'depends_on "ninja" => :build',
+                'depends_on "nlohmann-json" => :build',
+                'depends_on "pkgconf" => :build',
+                'depends_on "curl"',
+                'depends_on "openssl@3"',
+            ],
+        )
+
     def test_prepare_formula_writes_sha_and_stages_formula(self) -> None:
         with TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir) / "repo"
