@@ -97,10 +97,25 @@ before v1 if macOS install validation is required in CI.
 ## Docs sync
 
 The docs publication step runs only after npm, Debian, and Homebrew publication
-steps succeed. It uses GitHub OIDC and the configured `DOCS_SYNC_ENDPOINT`:
+steps succeed. It installs the published native `pmdocs` package from the
+Valkyrian Labs APT repository, validates the installed binary, then uses GitHub
+OIDC and the configured `DOCS_SYNC_ENDPOINT`:
 
 ```bash
-node ./dist/cli/index.js push \
+sudo install -d -m 0755 /etc/apt/keyrings
+curl -fsSL https://apt.valkyrianlabs.com/pubkey.asc \
+  | gpg --dearmor \
+  | sudo tee /etc/apt/keyrings/valkyrianlabs.gpg > /dev/null
+sudo chmod 0644 /etc/apt/keyrings/valkyrianlabs.gpg
+echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/valkyrianlabs.gpg] https://apt.valkyrianlabs.com stable main" \
+  | sudo tee /etc/apt/sources.list.d/valkyrianlabs.list > /dev/null
+sudo apt-get update
+sudo apt-get install -y pmdocs
+
+pmdocs --version
+pmdocs --help
+
+pmdocs push ./docs \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
   --source payload-markdown-docs \
   --github-oidc \

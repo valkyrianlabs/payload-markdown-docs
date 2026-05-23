@@ -149,7 +149,7 @@ Only after signing/key tests pass should real HTTP push be wired.
 ## OIDC
 
 For GitHub OIDC, read the standard GitHub Actions environment variables used by
-the existing npm CLI. Do not invent a new OIDC flow.
+the v1 sync workflow. Do not invent a new OIDC flow.
 
 Keep OIDC retrieval isolated behind a small function so it can be tested with
 mocked environment variables and fixture HTTP responses.

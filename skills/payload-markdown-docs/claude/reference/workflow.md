@@ -14,13 +14,13 @@ Use this workflow when editing docs source files.
 Validation:
 
 ```bash
-{{packageManager}} exec payload-markdown-docs validate --source main-docs
+pmdocs validate --source main-docs
 ```
 
 Plan:
 
 ```bash
-{{packageManager}} exec payload-markdown-docs plan --source main-docs
+pmdocs plan --source main-docs
 ```
 
 Use `--docs {{docsRoot}}` only when the docs source is not the conventional
@@ -29,7 +29,7 @@ Use `--docs {{docsRoot}}` only when the docs source is not the conventional
 Sync with GitHub OIDC:
 
 ```bash
-{{packageManager}} exec payload-markdown-docs push \
+pmdocs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
   --source main-docs \
   --github-oidc
@@ -38,7 +38,7 @@ Sync with GitHub OIDC:
 Explicit dry-run:
 
 ```bash
-{{packageManager}} exec payload-markdown-docs push \
+pmdocs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
   --source main-docs \
   --github-oidc \
@@ -48,7 +48,7 @@ Explicit dry-run:
 Use Ed25519 key flags only when the project is not using GitHub OIDC:
 
 ```bash
-{{packageManager}} exec payload-markdown-docs push \
+pmdocs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
   --source main-docs \
   --key-id github-actions-main \

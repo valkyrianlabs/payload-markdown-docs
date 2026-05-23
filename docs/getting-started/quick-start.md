@@ -58,15 +58,13 @@ Claude has project-specific guidance for package structure, supported
 frontmatter, validation, sync safety rules, and Payload Markdown authoring.
 
 ```bash
-pnpm exec payload-markdown-docs install skill --agent codex
-pnpm exec payload-markdown-docs install skill --agent claude
+pmdocs install skill --agent codex
+pmdocs install skill --agent claude
 ```
 
-The Codex installer writes `.agents/skills/payload-markdown-docs/`,
-`.agents/skills/payload-markdown/`, and creates or updates `AGENTS.md`. The
-Claude installer writes `.claude/skills/payload-markdown-docs/` plus
-`.claude/skills/payload-markdown/` and does not modify `AGENTS.md` by default.
-Neither install syncs docs, calls Payload, or publishes content.
+The Codex installer writes `.agents/skills/payload-markdown-docs/`. The Claude
+installer writes `.claude/skills/payload-markdown-docs/`. Neither install syncs
+docs, calls Payload, or publishes content.
 
 ## Install Public Asset Routes
 
@@ -75,7 +73,7 @@ docs-set `llms` files, or skill URLs outside `/api`, commit the generated route
 files:
 
 ```bash
-pnpm exec payload-markdown-docs install routes --payload-app "src/app/(payload)"
+pmdocs install routes --payload-app "src/app/(payload)"
 ```
 
 Those route files delegate to the plugin-owned asset handlers. Without them, a
@@ -85,25 +83,25 @@ work.
 ## Validate Local Docs
 
 ```bash
-pnpm exec payload-markdown-docs validate --source main-docs
+pmdocs validate --source main-docs
 ```
 
 ## Generate A Manifest
 
 ```bash
-pnpm exec payload-markdown-docs manifest --source main-docs --pretty
+pmdocs manifest --source main-docs --pretty
 ```
 
 ## Preview A Plan
 
 ```bash
-pnpm exec payload-markdown-docs plan --source main-docs
+pmdocs plan --source main-docs
 ```
 
 ## Push From GitHub Actions
 
 ```bash
-pnpm exec payload-markdown-docs push \
+pmdocs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
   --source main-docs \
   --github-oidc

@@ -17,25 +17,6 @@ meson test -C build
 The native test suite covers command parsing, `doctor`, `skill install`, local
 `validate` / `manifest` / `plan`, `keygen`, and pre-network `push` behavior.
 
-## npm parity tests
-
-The npm CLI remains the reference implementation until each native command has
-reached parity. The optional parity harness runs native `pmdocs` and
-`pnpm --silent cli` against the same local fixtures and compares structured JSON
-outputs.
-
-Run parity checks in a separate build directory when Node dependencies are
-installed:
-
-```bash
-meson setup build-parity -Dnative_cli_parity_tests=true
-meson compile -C build-parity
-meson test -C build-parity
-```
-
-The parity harness is intentionally opt-in so normal native builds stay usable
-in non-npm repositories and packaging environments.
-
 ## Install smoke check
 
 Use `--destdir` to verify Meson install rules without writing to system paths:
@@ -57,6 +38,7 @@ The native CLI currently supports:
 - `pmdocs doctor`
 - `pmdocs install skill`
 - `pmdocs skill install` compatibility alias
+- `pmdocs install routes`
 - `pmdocs validate`
 - `pmdocs manifest`
 - `pmdocs plan`

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 import unittest
 
@@ -11,6 +12,14 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
     def _workflow(self) -> str:
         workflow_path = self._repo_root() / ".github" / "workflows" / "release.yml"
         return workflow_path.read_text(encoding="utf-8")
+
+    def test_npm_package_is_plugin_runtime_only(self) -> None:
+        package = json.loads((self._repo_root() / "package.json").read_text(encoding="utf-8"))
+        scripts = package.get("scripts", {})
+
+        self.assertNotIn("bin", package)
+        self.assertNotIn("cli", scripts)
+        self.assertNotIn("cli:dist", scripts)
 
     def test_release_workflow_checks_canonical_version_state(self) -> None:
         workflow = self._workflow()
@@ -28,7 +37,8 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
         self.assertIn("npm pack --pack-destination release/npm", workflow)
         self.assertIn("python -m tools.release build-deb --output-dir release", workflow)
         self.assertIn("python -m tools.release prepare-homebrew-formula", workflow)
-        self.assertIn("meson setup build-native -Dnative_cli_parity_tests=true", workflow)
+        self.assertIn("meson setup build-native", workflow)
+        self.assertNotIn("native_cli_parity_tests=true", workflow)
         self.assertIn("meson setup build-homebrew", workflow)
 
     def test_release_workflow_validates_and_smoke_tests_native_artifacts(self) -> None:
@@ -103,6 +113,14 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
         self.assertIn("needs.publish-debian.result == 'success'", workflow)
         self.assertIn("needs.publish-homebrew-tap.result == 'success'", workflow)
         self.assertIn("needs.publish-npm.result == 'success'", workflow)
+        self.assertIn("Install native pmdocs from Valkyrian Labs APT", workflow)
+        self.assertIn("https://apt.valkyrianlabs.com/pubkey.asc", workflow)
+        self.assertIn("sudo apt-get install -y pmdocs", workflow)
+        self.assertIn("pmdocs --version", workflow)
+        self.assertIn("pmdocs --help", workflow)
+        self.assertIn("pmdocs push ./docs", workflow)
+        self.assertNotIn("node ./dist/cli/index.js push", workflow)
+        self.assertNotIn("pnpm exec payload-markdown-docs", workflow)
         self.assertIn("--github-oidc", workflow)
         self.assertIn("--publish", workflow)
         self.assertIn("DOCS_SYNC_ENDPOINT", workflow)

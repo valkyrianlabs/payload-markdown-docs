@@ -49,7 +49,7 @@ constexpr std::size_t kDefaultMaxTotalBytes = 5'000'000;
 constexpr std::string_view kMissingAssetRoutesWarning =
   "Assets were included in the manifest, but public asset route files were not found.\n"
   "Run:\n"
-  "payload-markdown-docs install routes --payload-app \"src/app/(payload)\"\n"
+  "pmdocs install routes --payload-app \"src/app/(payload)\"\n"
   "Without these route files, public /llms.txt and /skills routes will 404 outside /api.\n";
 
 struct BioDeleter {

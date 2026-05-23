@@ -17,22 +17,22 @@ Local validation is the fastest feedback loop for docs authors and agents.
 
 ### Validate
 
-Run `payload-markdown-docs validate --source main-docs`.
+Run `pmdocs validate --source main-docs`.
 
 ### Inspect a manifest
 
-Run `payload-markdown-docs manifest --source main-docs --pretty`.
+Run `pmdocs manifest --source main-docs --pretty`.
 
 ### Preview a plan
 
-Run `payload-markdown-docs plan --source main-docs`.
+Run `pmdocs plan --source main-docs`.
 
 :::
 
 ## Validate
 
 ```bash
-pnpm exec payload-markdown-docs validate --source main-docs
+pmdocs validate --source main-docs
 pmdocs validate ./docs --source main-docs
 ```
 
@@ -42,7 +42,7 @@ docs set slug, and manifest shape.
 ## Manifest
 
 ```bash
-pnpm exec payload-markdown-docs manifest --source main-docs --pretty
+pmdocs manifest --source main-docs --pretty
 pmdocs manifest ./docs --source main-docs --pretty
 ```
 
@@ -56,15 +56,14 @@ collection or field names.
 ## Plan
 
 ```bash
-pnpm exec payload-markdown-docs plan --source main-docs
+pmdocs plan --source main-docs
 pmdocs plan ./docs --source main-docs
 ```
 
 Without `--existing`, local planning assumes an empty target and reports creates. Server-side dry-runs can plan against current Payload records.
 
-The native `pmdocs` binary is intended for non-npm repositories that want local
-validation without installing this package into the project. In the current
-native phase, `pmdocs` covers local validation, manifest, and plan only; use the
-npm CLI for signed push and key generation.
+The native `pmdocs` binary is the supported CLI for docs validation, planning,
+key generation, and publishing. The npm package installs the Payload plugin and
+runtime helpers only.
 
 See [CLI reference](/reference/cli).

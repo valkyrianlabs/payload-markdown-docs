@@ -102,28 +102,13 @@ test('pmdocs version', pmdocs_exe, args: ['--version'])
 test('pmdocs doctor', pmdocs_exe, args: ['doctor'], env: pmdocs_test_env)
 test('pmdocs install skill help', pmdocs_exe, args: ['install', 'skill', '--help'], env: pmdocs_test_env)
 test('pmdocs install skill dry-run', pmdocs_exe, args: ['install', 'skill', '--agent', 'codex', '--dry-run'], env: pmdocs_test_env)
+test('pmdocs install routes help', pmdocs_exe, args: ['install', 'routes', '--help'], env: pmdocs_test_env)
 test('pmdocs skill install help', pmdocs_exe, args: ['skill', 'install', '--help'], env: pmdocs_test_env)
 test('pmdocs skill install dry-run', pmdocs_exe, args: ['skill', 'install', '--dry-run'], env: pmdocs_test_env)
 test('pmdocs validate fixture', pmdocs_exe, args: ['validate', '../dev/docs-fixtures/basic', '--source', 'payload-markdown-docs'])
 test('pmdocs manifest fixture', pmdocs_exe, args: ['manifest', '../dev/docs-fixtures/basic', '--source', 'payload-markdown-docs'])
 test('pmdocs plan fixture', pmdocs_exe, args: ['plan', '../dev/docs-fixtures/basic', '--source', 'payload-markdown-docs'])
 test('pmdocs unit tests', pmdocs_test_exe)
-
-if get_option('native_cli_parity_tests')
-  node_program = find_program('node', required: true)
-  find_program('pnpm', required: true)
-
-  test(
-    'pmdocs phase2 npm parity',
-    node_program,
-    args: [
-      files('tests/parity/phase2_parity.mjs'),
-      pmdocs_exe.full_path(),
-    ],
-    depends: pmdocs_exe,
-    timeout: 120,
-  )
-endif
 
 summary(
   {
@@ -132,7 +117,6 @@ summary(
     'nlohmann_json': nlohmann_json_dep.found(),
     'OpenSSL': openssl_dep.version(),
     'doctest': doctest_dep.found(),
-    'native_cli_parity_tests': get_option('native_cli_parity_tests'),
   },
   section: 'Native CLI dependencies',
 )

@@ -91,8 +91,8 @@ See [frontmatter](/reference/frontmatter).
 
 The sync manifest is not the AI workflow artifact. AI-first support is delivered
 through native skill directories under `skills/payload-markdown-docs/<agent>/`.
-Those files can be installed by the CLI, packaged with the npm build, or served
-by a docs website for direct download.
+Those files can be installed by `pmdocs`, included in the plugin package, or
+served by a docs website for direct download.
 
 Keep `/docs` focused on human documentation and `/skills` focused on
 agent-native workflow instructions.

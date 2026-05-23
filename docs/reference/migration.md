@@ -45,10 +45,23 @@ Remove these from docs set records, plugin config, scripts, and docs:
 
 ## CLI Changes
 
+The npm package no longer provides the supported CLI surface. Replace the old
+npm binary invocation:
+
+```bash
+pnpm exec payload-markdown-docs push ...
+```
+
+with the native binary:
+
+```bash
+pmdocs push ...
+```
+
 Use:
 
 ```bash
-payload-markdown-docs push \
+pmdocs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
   --source main-docs \
   --github-oidc

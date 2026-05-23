@@ -81,7 +81,7 @@ Use the root, `/next`, `/admin`, and `/blocks` package surfaces intentionally.
 - dedicated docs, docs groups, docs sets, sync runs, and nonce collections
 - signed Ed25519 sync endpoint with nonce replay protection
 - GitHub Actions OIDC auth mode with Access owner/repository checks
-- CLI commands for `validate`, `manifest`, `plan`, `keygen`, and signed `push`
+- native `pmdocs` commands for `validate`, `manifest`, `plan`, `keygen`, and signed `push`
 - server-gated sync writes, publishing, draft behavior, archive behavior, and hard delete
 - route reservations and opt-in Pages collision checks
 - read-only `/next` route adapter, metadata, sitemap, sidebar data, and navbar helpers
@@ -106,7 +106,8 @@ Use the root, `/next`, `/admin`, and `/blocks` package surfaces intentionally.
 
 ### Install
 
-Add `@valkyrianlabs/payload-markdown-docs` and `@valkyrianlabs/payload-markdown`.
+Add `@valkyrianlabs/payload-markdown-docs` and
+`@valkyrianlabs/payload-markdown`, then install the native `pmdocs` binary.
 
 ### Configure Payload
 
@@ -115,7 +116,7 @@ set in Payload Admin with a title, slug, branch, and optional group.
 
 ### Validate locally
 
-Run `payload-markdown-docs validate ./docs --source main-docs`.
+Run `pmdocs validate ./docs --source main-docs`.
 
 ### Push safely
 

@@ -11,7 +11,7 @@ tags:
 
 # Signed Push
 
-`payload-markdown-docs push` builds a manifest, validates it locally, authenticates the upload, and posts it to the configured endpoint.
+`pmdocs push` builds a manifest, validates it locally, authenticates the upload, and posts it to the configured endpoint.
 
 Two auth modes are supported:
 
@@ -21,7 +21,7 @@ Two auth modes are supported:
 ## Dry Run
 
 ```bash
-pnpm exec payload-markdown-docs push \
+pmdocs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
   --source main-docs \
   --key-id github-actions-main \
@@ -35,7 +35,7 @@ defaults to sync mode.
 ## Sync
 
 ```bash
-pnpm exec payload-markdown-docs push \
+pmdocs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
   --source main-docs \
   --key-id github-actions-main \
@@ -68,7 +68,7 @@ PKCS#8/SPKI public keys from `keygen` or `ssh-ed25519 ...` OpenSSH public keys.
 ## GitHub OIDC
 
 ```bash
-pnpm exec payload-markdown-docs push \
+pmdocs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
   --source main-docs \
   --github-oidc

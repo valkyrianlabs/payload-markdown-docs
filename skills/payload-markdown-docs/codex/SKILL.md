@@ -11,10 +11,8 @@ that uses `@valkyrianlabs/payload-markdown-docs`.
 Edit repo-local source files first. Treat generated Payload docs records and
 synced raw assets as server-owned output, not as source of truth.
 
-This skill may be installed at `.agents/skills/payload-markdown-docs` by the CLI
-or served from the package `skills/payload-markdown-docs/codex` directory. The
-installer also installs the sibling `payload-markdown` skill at
-`.agents/skills/payload-markdown`.
+This skill may be installed at `.agents/skills/payload-markdown-docs` by the native `pmdocs` CLI
+or served from the package `skills/payload-markdown-docs/codex` directory.
 
 This skill owns the docs package structure, plugin sync workflow, routing,
 frontmatter, and plugin-specific safety rules. It intentionally does not define
@@ -50,7 +48,7 @@ instead of guessing directive names, props, themes, or formatting rules.
 - Server config owns writes, publishing, drafts, hard delete, auth, and route
   collision behavior.
 - Public raw asset URLs require committed Next route files from
-  `payload-markdown-docs install routes`.
+  `pmdocs install routes`.
 - `/api/...` asset URLs are implementation/internal fallback URLs, not public
   canonical docs URLs.
 
@@ -89,8 +87,8 @@ instead of guessing directive names, props, themes, or formatting rules.
 ## Default Workflow
 
 ```bash
-{{packageManager}} exec payload-markdown-docs validate --source main-docs
-{{packageManager}} exec payload-markdown-docs plan --source main-docs
+pmdocs validate --source main-docs
+pmdocs plan --source main-docs
 ```
 
 If the project does not use the conventional `./docs` location, add
@@ -100,7 +98,7 @@ Only push when the user asks for an upload and provides endpoint/auth context.
 GitHub OIDC sync:
 
 ```bash
-{{packageManager}} exec payload-markdown-docs push \
+pmdocs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
   --source main-docs \
   --github-oidc
@@ -109,7 +107,7 @@ GitHub OIDC sync:
 Explicit dry-run:
 
 ```bash
-{{packageManager}} exec payload-markdown-docs push \
+pmdocs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
   --source main-docs \
   --github-oidc \
@@ -119,7 +117,7 @@ Explicit dry-run:
 Ed25519 sync:
 
 ```bash
-{{packageManager}} exec payload-markdown-docs push \
+pmdocs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
   --source main-docs \
   --key-id github-actions-main \
@@ -129,7 +127,7 @@ Ed25519 sync:
 Publishing request, only when the user explicitly wants published output:
 
 ```bash
-{{packageManager}} exec payload-markdown-docs push \
+pmdocs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
   --source main-docs \
   --github-oidc \
@@ -144,7 +142,7 @@ Install public raw asset route files in a Next app when the user needs generated
 outside `/api`:
 
 ```bash
-{{packageManager}} exec payload-markdown-docs install routes --payload-app "src/app/(payload)"
+pmdocs install routes --payload-app "src/app/(payload)"
 ```
 
 ## References

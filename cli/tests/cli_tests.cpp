@@ -310,7 +310,7 @@ std::filesystem::path create_skill_fixture(const std::filesystem::path& root) {
   write_text(
     codex_skill_root / "SKILL.md",
     "Docs root: {{docsRoot}}\nPackage manager: {{packageManager}}\n"
-    "{{packageManager}} exec payload-markdown-docs validate {{docsRoot}}\n"
+    "pmdocs validate {{docsRoot}}\n"
   );
   write_text(codex_skill_root / "reference" / "workflow.md", "Workflow for {{docsRoot}}\n");
   write_text(claude_skill_root / "SKILL.md", "Claude docs root: {{docsRoot}}\n");
@@ -389,7 +389,7 @@ TEST_CASE("install skill copies bundled files to the default Codex project path"
   CHECK(read_text(target / "SKILL.md").find("Package manager: npm") != std::string::npos);
 }
 
-TEST_CASE("install skill supports Claude target and validates npm-style agent flags") {
+TEST_CASE("install skill supports Claude target and validates agent flags") {
   TempDir temp{"pmdocs-test-install-agent"};
   const auto data_root = create_skill_fixture(temp.path());
   const auto project_root = temp.path() / "project";
@@ -458,7 +458,7 @@ TEST_CASE("skill install renders placeholders from flags") {
   const auto skill = read_text(out / "SKILL.md");
   CHECK(skill.find("Docs root: content/docs") != std::string::npos);
   CHECK(skill.find("Package manager: pnpm") != std::string::npos);
-  CHECK(skill.find("pnpm exec payload-markdown-docs validate content/docs") != std::string::npos);
+  CHECK(skill.find("pmdocs validate content/docs") != std::string::npos);
 }
 
 TEST_CASE("skill install reports conflicts without force and overwrites with force") {
@@ -505,6 +505,50 @@ TEST_CASE("skill install skips bundled symlinks") {
 
   CHECK(result.exit_code == 0);
   CHECK_FALSE(std::filesystem::exists(out / "linked.md"));
+}
+
+TEST_CASE("install routes writes public Next asset route files") {
+  TempDir temp{"pmdocs-test-install-routes"};
+  const auto project_root = temp.path() / "project";
+  const auto payload_app = project_root / "src" / "app" / "(payload)";
+  const auto payload_app_string = payload_app.string();
+  std::filesystem::create_directories(payload_app);
+  CwdGuard cwd{project_root};
+
+  const auto dry_run = pmdocs::run(args({"install", "routes", "--payload-app", payload_app_string, "--dry-run"}));
+  CHECK(dry_run.exit_code == 0);
+  CHECK(dry_run.stdout_text.find("pmdocs install routes dry-run") != std::string::npos);
+  CHECK(dry_run.stdout_text.find("/llms.txt") != std::string::npos);
+  CHECK_FALSE(std::filesystem::exists(payload_app / "llms.txt" / "route.ts"));
+
+  const auto installed = pmdocs::run(args({"install", "routes", "--payload-app", payload_app_string}));
+  CHECK(installed.exit_code == 0);
+  CHECK(std::filesystem::exists(payload_app / "payloadMarkdownDocsAssetRoute.ts"));
+  CHECK(std::filesystem::exists(payload_app / "llms.txt" / "route.ts"));
+  CHECK(std::filesystem::exists(payload_app / "plugins" / "[docsSetSlug]" / "skills" / "[agent]" / "[[...assetPath]]" / "route.ts"));
+  CHECK(read_text(payload_app / "payloadMarkdownDocsAssetRoute.ts").find("@valkyrianlabs/payload-markdown-docs/next") != std::string::npos);
+
+  write_text(payload_app / "llms.txt" / "route.ts", "stale\n");
+  const auto conflict = pmdocs::run(args({"install", "routes", "--payload-app", payload_app_string}));
+  CHECK(conflict.exit_code == 1);
+  CHECK(conflict.stderr_text.find("Use --force") != std::string::npos);
+
+  const auto forced = pmdocs::run(args({"install", "routes", "--payload-app", payload_app_string, "--force"}));
+  CHECK(forced.exit_code == 0);
+  CHECK(read_text(payload_app / "llms.txt" / "route.ts").find("force-dynamic") != std::string::npos);
+}
+
+TEST_CASE("install routes detects default Payload app route group") {
+  TempDir temp{"pmdocs-test-install-routes-detect"};
+  const auto project_root = temp.path() / "project";
+  const auto payload_app = project_root / "src" / "app" / "(payload)";
+  std::filesystem::create_directories(payload_app);
+  CwdGuard cwd{project_root};
+
+  const auto result = pmdocs::run(args({"install", "routes"}));
+
+  CHECK(result.exit_code == 0);
+  CHECK(std::filesystem::exists(payload_app / "llms-full.txt" / "route.ts"));
 }
 
 TEST_CASE("sha256 matches known test vector") {

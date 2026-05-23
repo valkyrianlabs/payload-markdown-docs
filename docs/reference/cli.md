@@ -11,21 +11,46 @@ tags:
 
 # CLI Reference
 
-The package exposes the `payload-markdown-docs` binary.
+The supported operator CLI is the native system-level `pmdocs` binary. Install
+it through Homebrew or the Valkyrian Labs Debian repository.
 
-A native system-level binary named `pmdocs` is also being introduced for
-non-npm repositories. In the current native phase, `pmdocs` supports the local
-offline workflow: `doctor`, `skill install`, `validate`, `manifest`, and
-`plan`. Continue using the npm CLI for `keygen`, `push`, GitHub OIDC, and signed
-sync until those commands are ported.
+The npm package `@valkyrianlabs/payload-markdown-docs` installs the Payload
+plugin and runtime helpers only. It does not provide the supported CLI surface.
 
 :::toc {title="On this page" depth="3" theme="compact"}
 :::
 
+## install
+
+Debian/Ubuntu:
+
+```bash
+sudo install -d -m 0755 /etc/apt/keyrings
+
+curl -fsSL https://apt.valkyrianlabs.com/pubkey.asc \
+  | gpg --dearmor \
+  | sudo tee /etc/apt/keyrings/valkyrianlabs.gpg > /dev/null
+
+sudo chmod 0644 /etc/apt/keyrings/valkyrianlabs.gpg
+
+echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/valkyrianlabs.gpg] https://apt.valkyrianlabs.com stable main" | \
+  sudo tee /etc/apt/sources.list.d/valkyrianlabs.list > /dev/null
+
+sudo apt-get update
+sudo apt-get install -y pmdocs
+```
+
+Homebrew:
+
+```bash
+brew tap valkyrianlabs/tap
+brew install pmdocs
+```
+
 ## validate
 
 ```bash
-payload-markdown-docs validate --source main-docs
+pmdocs validate --source main-docs
 pmdocs validate ./docs --source main-docs
 ```
 
@@ -39,7 +64,7 @@ from `./skills/<source>` when that directory exists, and optional custom
 ## manifest
 
 ```bash
-payload-markdown-docs manifest --source main-docs --pretty
+pmdocs manifest --source main-docs --pretty
 pmdocs manifest ./docs --source main-docs --pretty
 ```
 
@@ -49,7 +74,7 @@ optional custom static fallback files are emitted under `assets`.
 ## plan
 
 ```bash
-payload-markdown-docs plan --source main-docs
+pmdocs plan --source main-docs
 pmdocs plan ./docs --source main-docs
 ```
 
@@ -59,7 +84,7 @@ Plans against an optional local existing-records JSON file. Without
 ## keygen
 
 ```bash
-payload-markdown-docs keygen --out .docs-sync
+pmdocs keygen --out .docs-sync
 ```
 
 Generates Ed25519 PEM keys for signed sync. Add the public key to an Ed25519
@@ -84,7 +109,7 @@ directory is skipped during `push`; pass `--no-skills` to opt out explicitly or
 Ed25519:
 
 ```bash
-payload-markdown-docs push \
+pmdocs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
   --source main-docs \
   --key-id local-docs \
@@ -94,7 +119,7 @@ payload-markdown-docs push \
 Explicit dry-run:
 
 ```bash
-payload-markdown-docs push \
+pmdocs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
   --source main-docs \
   --key-id local-docs \
@@ -105,7 +130,7 @@ payload-markdown-docs push \
 GitHub OIDC:
 
 ```bash
-payload-markdown-docs push \
+pmdocs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
   --source main-docs \
   --github-oidc
@@ -147,18 +172,12 @@ When `--source` is omitted in GitHub Actions, the CLI derives it from
 ## install skill
 
 ```bash
-payload-markdown-docs install skill --agent codex
-payload-markdown-docs install skill --agent claude
 pmdocs install skill --agent codex
 pmdocs install skill --agent claude
 ```
 
-Installs AI-agent guidance from the package `skills/` tree. The npm CLI also
-installs the companion `@valkyrianlabs/payload-markdown` authoring skill beside
-it and creates or updates `AGENTS.md` for default Codex installs.
-
-The native `pmdocs install skill` command installs the bundled
-`payload-markdown-docs` skill for Codex or Claude. Codex defaults to
+Installs the bundled `payload-markdown-docs` AI-agent guidance for Codex or
+Claude. Codex defaults to
 `.agents/skills/payload-markdown-docs/`; Claude defaults to
 `.claude/skills/payload-markdown-docs/`. `pmdocs skill install` remains as a
 Codex compatibility alias.
@@ -180,7 +199,7 @@ package manager commands.
 ## install routes
 
 ```bash
-payload-markdown-docs install routes --payload-app "src/app/(payload)"
+pmdocs install routes --payload-app "src/app/(payload)"
 ```
 
 Installs public Next App Router files that delegate raw AI asset requests to the
