@@ -35,5 +35,5 @@ if ! sudo -n true >/dev/null 2>&1; then
   exit 1
 fi
 
-sudo -n apt-get update
-sudo -n apt-get install -y "${missing[@]}"
+sudo -n apt update
+sudo -n apt install -y "${missing[@]}"
