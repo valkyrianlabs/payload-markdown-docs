@@ -108,22 +108,43 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
 
     def test_release_workflow_publishes_docs_after_package_publication(self) -> None:
         workflow = self._workflow()
+        docs_job = workflow.split("  publish-docs:", 1)[1]
 
         self.assertIn("publish-docs:", workflow)
+        self.assertIn("needs.native-debian.result == 'success'", workflow)
         self.assertIn("needs.publish-debian.result == 'success'", workflow)
         self.assertIn("needs.publish-homebrew-tap.result == 'success'", workflow)
         self.assertIn("needs.publish-npm.result == 'success'", workflow)
-        self.assertIn("Install native pmdocs from Valkyrian Labs APT", workflow)
-        self.assertIn("https://apt.valkyrianlabs.com/pubkey.gpg", workflow)
-        self.assertIn("sudo apt-get install -y pmdocs", workflow)
+        self.assertIn("Download workflow-built pmdocs", docs_job)
+        self.assertIn("pmdocs-linux-amd64", docs_job)
+        self.assertIn(".artifacts/pmdocs-linux-amd64", docs_job)
+        self.assertIn("Using workflow-built pmdocs artifact: ${PMDOCS_BIN}", docs_job)
+        self.assertIn("Publishing docs with workflow-built pmdocs: ${PMDOCS_BIN}", docs_job)
         self.assertIn("pmdocs --version", workflow)
-        self.assertIn("pmdocs --help", workflow)
-        self.assertIn("pmdocs push ./docs", workflow)
+        self.assertIn('echo "$PWD/.tools" >> "$GITHUB_PATH"', docs_job)
+        self.assertIn("PMDOCS_BIN=\"$(command -v pmdocs)\"", docs_job)
+        self.assertIn("pmdocs --version", docs_job)
+        self.assertIn("pmdocs --help", docs_job)
+        self.assertIn("pmdocs push ./docs", docs_job)
+        self.assertNotIn("Install native pmdocs from Valkyrian Labs APT", docs_job)
+        self.assertNotIn("apt-get install -y pmdocs", docs_job)
+        self.assertNotIn("apt install -y pmdocs", docs_job)
         self.assertNotIn("node ./dist/cli/index.js push", workflow)
         self.assertNotIn("pnpm exec payload-markdown-docs", workflow)
         self.assertIn("--github-oidc", workflow)
         self.assertIn("--publish", workflow)
         self.assertIn("DOCS_SYNC_ENDPOINT", workflow)
+
+    def test_release_workflow_smoke_installs_published_apt_package_separately(self) -> None:
+        workflow = self._workflow()
+        publish_debian_job = workflow.split("  publish-debian:", 1)[1].split("  publish-homebrew-tap:", 1)[0]
+
+        self.assertIn("Smoke install published APT package", publish_debian_job)
+        self.assertIn("python -m tools.release publish-deb --output-dir release --require-enabled", publish_debian_job)
+        self.assertIn("https://apt.valkyrianlabs.com/pubkey.gpg", publish_debian_job)
+        self.assertIn("sudo -n apt update", publish_debian_job)
+        self.assertIn("sudo -n apt install -y pmdocs", publish_debian_job)
+        self.assertIn("pmdocs --version", publish_debian_job)
 
 
 if __name__ == "__main__":

@@ -312,6 +312,14 @@ jobs:
           meson setup build-native
           meson compile -C build-native
           meson test -C build-native
+          ./build-native/cli/pmdocs --version
+
+      - name: Upload native pmdocs Linux artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pmdocs-linux-amd64
+          path: build-native/cli/pmdocs
+          if-no-files-found: error
 
       - name: Build Debian package
         run: |
@@ -553,6 +561,21 @@ jobs:
             python -m tools.release publish-deb --output-dir release --mode disabled --dry-run
           fi
 
+      - name: Smoke install published APT package
+        if: needs.validate-release-state.outputs.publish_required == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo -n install -d -m 0755 /etc/apt/keyrings
+          curl -fsSL https://apt.valkyrianlabs.com/pubkey.gpg -o valkyrianlabs.gpg
+          sudo -n install -m 0644 valkyrianlabs.gpg /etc/apt/keyrings/valkyrianlabs.gpg
+          echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/valkyrianlabs.gpg] https://apt.valkyrianlabs.com stable main" \
+            | sudo -n tee /etc/apt/sources.list.d/valkyrianlabs.list > /dev/null
+          sudo -n apt update
+          sudo -n apt purge -y pmdocs || true
+          sudo -n apt install -y pmdocs
+          pmdocs --version
+
   publish-homebrew-tap:
     name: Publish Homebrew tap formula
     runs-on: [self-hosted, Linux, X64, ubuntu-latest-lts]
@@ -670,11 +693,13 @@ jobs:
     runs-on: [self-hosted, Linux, X64, ubuntu-latest-lts]
     needs:
       - validate-release-state
+      - native-debian
       - publish-debian
       - publish-homebrew-tap
       - publish-npm
     if: >
       needs.validate-release-state.outputs.publish_required == 'true' &&
+      needs.native-debian.result == 'success' &&
       needs.publish-debian.result == 'success' &&
       needs.publish-homebrew-tap.result == 'success' &&
       needs.publish-npm.result == 'success'
@@ -687,27 +712,34 @@ jobs:
         with:
           ref: ${{ github.event.inputs.ref || github.ref }}
 
-      - name: Install native pmdocs from Valkyrian Labs APT
-        run: |
-          set -euo pipefail
-          sudo install -d -m 0755 /etc/apt/keyrings
-          sudo curl -fsSL https://apt.valkyrianlabs.com/pubkey.gpg \
-            -o /etc/apt/keyrings/valkyrianlabs.gpg
-          sudo chmod 0644 /etc/apt/keyrings/valkyrianlabs.gpg
-          echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/valkyrianlabs.gpg] https://apt.valkyrianlabs.com stable main" \
-            | sudo tee /etc/apt/sources.list.d/valkyrianlabs.list > /dev/null
-          sudo apt-get update
-          sudo apt-get install -y pmdocs
+      - name: Download workflow-built pmdocs
+        uses: actions/download-artifact@v4
+        with:
+          name: pmdocs-linux-amd64
+          path: .artifacts/pmdocs-linux-amd64
 
-      - name: Validate installed pmdocs
+      - name: Prepare workflow-built pmdocs
         run: |
           set -euo pipefail
+          mkdir -p .tools
+          cp .artifacts/pmdocs-linux-amd64/pmdocs .tools/pmdocs
+          chmod +x .tools/pmdocs
+          echo "$PWD/.tools" >> "$GITHUB_PATH"
+          export PATH="$PWD/.tools:$PATH"
+          PMDOCS_BIN="$(command -v pmdocs)"
+          echo "Using workflow-built pmdocs artifact: ${PMDOCS_BIN}"
           pmdocs --version
           pmdocs --help
 
       - name: Validate and push docs
         run: |
           set -euo pipefail
+          export PATH="$PWD/.tools:$PATH"
+          PMDOCS_BIN="$(command -v pmdocs)"
+          echo "Publishing docs with workflow-built pmdocs: ${PMDOCS_BIN}"
+
+          pmdocs --version
+
           pmdocs validate ./docs \
             --source payload-markdown-docs
 
