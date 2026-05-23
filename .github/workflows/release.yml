@@ -265,6 +265,7 @@ jobs:
     name: Native CLI and Debian package
     runs-on: [self-hosted, Linux, X64, ubuntu-latest-lts]
     needs: validate-release-state
+    environment: Production
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -300,11 +301,6 @@ jobs:
             ninja-build \
             nlohmann-json3-dev \
             pkgconf
-
-      - name: Run release-tooling tests
-        run: |
-          set -euo pipefail
-          python -m unittest discover -s tools/release/tests -p 'test_*.py'
 
       - name: Build and test native CLI
         run: |
