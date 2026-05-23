@@ -1,4 +1,4 @@
-pmdocs (0.18.3-1) unstable; urgency=medium
+pmdocs (1.0.0-1) unstable; urgency=medium
 
   * Initial native CLI package skeleton.
 
