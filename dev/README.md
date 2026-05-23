@@ -71,9 +71,9 @@ If the server was already running when keys were generated, rerun
 
 ## Local Commands
 
-This package checkout does not self-link its published binary into
-`node_modules/.bin`, so `pnpm exec payload-markdown-docs` is for consuming
-projects that install the package. Use `pnpm cli` here to run the source CLI.
+The npm package no longer ships the supported CLI. Install the native `pmdocs`
+binary locally and use the package scripts or `pmdocs` directly for dev docs
+commands.
 
 Validate the happy-path fixture:
 
@@ -96,7 +96,7 @@ pnpm dev:docs:plan
 Dry-run against the local endpoint:
 
 ```bash
-pnpm cli push ./dev/docs-fixtures/basic \
+pmdocs push ./dev/docs-fixtures/basic \
   --endpoint "http://localhost:3000/api/documentation/sync" \
   --source payload-markdown-docs \
   --key-id dev-local \
@@ -107,7 +107,7 @@ pnpm cli push ./dev/docs-fixtures/basic \
 Apply as draft records:
 
 ```bash
-pnpm cli push ./dev/docs-fixtures/basic \
+pmdocs push ./dev/docs-fixtures/basic \
   --endpoint "http://localhost:3000/api/documentation/sync" \
   --source payload-markdown-docs \
   --key-id dev-local \
@@ -117,7 +117,7 @@ pnpm cli push ./dev/docs-fixtures/basic \
 Apply and publish:
 
 ```bash
-pnpm cli push ./dev/docs-fixtures/publishing \
+pmdocs push ./dev/docs-fixtures/publishing \
   --endpoint "http://localhost:3000/api/documentation/sync" \
   --source payload-markdown-docs \
   --key-id dev-local \

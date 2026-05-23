@@ -11,28 +11,26 @@ tags:
 
 # Agent Skill Installer
 
-The installer copies this plugin's native agent workflow pack plus the companion
-`@valkyrianlabs/payload-markdown` authoring skill into a consuming project.
+The installer copies this plugin's native agent workflow pack into a consuming
+project.
 
 Codex:
 
 ```bash
-pnpm exec payload-markdown-docs install skill --agent codex
-pnpm exec payload-markdown-docs install skill --codex
+pmdocs install skill --agent codex
+pmdocs install skill --codex
 ```
 
 Claude:
 
 ```bash
-pnpm exec payload-markdown-docs install skill --agent claude
-pnpm exec payload-markdown-docs install skill --claude
+pmdocs install skill --agent claude
+pmdocs install skill --claude
 ```
 
 :::callout {variant="info" title="Local guidance only"}
-The installer writes Markdown guidance files. Codex installs create or update
-`AGENTS.md` by default so Codex can discover both skills. Claude installs do not
-touch `AGENTS.md` by default. The installer does not sync docs, call Payload,
-fetch remote docs, or run package manager commands.
+The installer writes Markdown guidance files. It does not sync docs, call
+Payload, fetch remote docs, or run package manager commands.
 :::
 
 ## Output Trees
@@ -54,22 +52,6 @@ Codex default output:
         troubleshooting.md
       examples/
         github-actions.md
-    payload-markdown/
-      SKILL.md
-      agents/
-        openai.yaml
-      reference/
-        payload-markdown-directives.md
-        formatting.md
-        automated-docs-workflow.md
-        quality.md
-      examples/
-        docs-page.md
-        reference-page.md
-        release-notes.md
-      scripts/
-        check_payload_markdown_doc.py
-AGENTS.md
 ```
 
 Claude default output:
@@ -89,19 +71,6 @@ Claude default output:
         troubleshooting.md
       examples/
         github-actions.md
-    payload-markdown/
-      SKILL.md
-      reference/
-        payload-markdown-directives.md
-        formatting.md
-        automated-docs-workflow.md
-        quality.md
-      examples/
-        docs-page.md
-        reference-page.md
-        release-notes.md
-      scripts/
-        check_payload_markdown_doc.py
 ```
 
 The canonical source artifacts live in the package repository:
@@ -111,7 +80,8 @@ skills/payload-markdown-docs/codex/
 skills/payload-markdown-docs/claude/
 ```
 
-The companion skill source comes from:
+For Payload Markdown directive authoring guidance, install or inspect the
+companion skill source from:
 
 ```text
 node_modules/@valkyrianlabs/payload-markdown/skills/payload-markdown/codex/
@@ -124,7 +94,7 @@ sync docs, install public routes, or call Payload.
 ## Publishing Skill Assets
 
 Those directories are safe to publish through the docs site. After
-`payload-markdown-docs push` syncs them as assets, the plugin serves standard
+`pmdocs push` syncs them as assets, the plugin serves standard
 skill routes and generated docs-set AI discovery routes:
 
 ```text
@@ -140,7 +110,7 @@ skill routes and generated docs-set AI discovery routes:
 /plugins/payload-markdown-docs/skills/codex/reference/workflow.md
 ```
 
-`payload-markdown-docs push` syncs these skill artifacts by convention when they
+`pmdocs push` syncs these skill artifacts by convention when they
 live under `./skills/<source>/`. They are sent as manifest `assets`, not as docs
 records, so skill files do not need docs frontmatter.
 
@@ -182,7 +152,7 @@ For Next apps where the frontend catch-all owns those root URLs, install the
 public asset route files once:
 
 ```bash
-pnpm exec payload-markdown-docs install routes --payload-app "src/app/(payload)"
+pmdocs install routes --payload-app "src/app/(payload)"
 ```
 
 Commit and deploy the generated files. If they are missing, `/api/...` asset
@@ -205,15 +175,14 @@ skills are native workflow artifacts.
 ## Options
 
 ```bash
-pnpm exec payload-markdown-docs install skill --agent codex \
+pmdocs install skill --agent codex \
   --out .agents/skills/payload-markdown-docs \
   --docs-root ./docs \
   --package-manager pnpm
 ```
 
 Use `--dry-run` to preview files and `--force` to overwrite changed existing
-skill files. Unchanged existing files are accepted. When `--out` is customized,
-the companion `payload-markdown` skill is installed as a sibling directory.
+skill files. Unchanged existing files are accepted.
 
 ## What The Skills Teach
 

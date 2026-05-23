@@ -14,7 +14,7 @@ tags:
 The signed sync endpoint uses Ed25519 request signatures. Generate a key pair with the CLI:
 
 ```bash
-pnpm exec payload-markdown-docs keygen --out .docs-sync
+pmdocs keygen --out .docs-sync
 ```
 
 This writes:

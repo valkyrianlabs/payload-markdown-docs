@@ -1,7 +1,7 @@
 ---
-title: V1 Cleanup Notes
-navTitle: V1 Cleanup
-description: Current v1 cleanup checklist for package consumers.
+title: V1 Migration Notes
+navTitle: V1 Migration
+description: Migration notes for package consumers moving to the v1 surface.
 order: 640
 status: published
 tags:
@@ -9,7 +9,7 @@ tags:
   - migration
 ---
 
-# V1 Cleanup Notes
+# V1 Migration Notes
 
 The v1 package surface uses docs sets, slug-derived routes, server-owned sync
 authority, native agent skill assets, and a narrow public package API.
@@ -45,10 +45,23 @@ Remove these from docs set records, plugin config, scripts, and docs:
 
 ## CLI Changes
 
+The npm package no longer provides the supported CLI surface. Replace the old
+npm binary invocation:
+
+```bash
+pnpm exec payload-markdown-docs push ...
+```
+
+with the native binary:
+
+```bash
+pmdocs push ...
+```
+
 Use:
 
 ```bash
-payload-markdown-docs push \
+pmdocs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
   --source main-docs \
   --github-oidc

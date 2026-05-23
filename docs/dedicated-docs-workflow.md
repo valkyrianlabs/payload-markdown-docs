@@ -98,7 +98,7 @@ traversal, and must remain inside the docs root passed to the CLI.
 
 Agent workflow packs are separate from human docs. Keep native skill artifacts
 under `skills/<source>/<agent>/` or install them into the target project with
-`payload-markdown-docs install skill --agent codex|claude`. During manifest
+`pmdocs install skill --agent codex|claude`. During manifest
 generation, human docs become `files` and skills become `assets`. AI discovery
 files are generated at request time from synced docs, docs set metadata,
 dependencies, and skills.
@@ -108,7 +108,7 @@ dependencies, and skills.
 Generate an Ed25519 key pair:
 
 ```bash
-pnpm exec payload-markdown-docs keygen --out .docs-sync
+pmdocs keygen --out .docs-sync
 ```
 
 Use the generated keys this way:
@@ -122,9 +122,9 @@ Use the generated keys this way:
 Validate the docs tree before any upload:
 
 ```bash
-pnpm exec payload-markdown-docs validate --source main-docs
-pnpm exec payload-markdown-docs manifest --source main-docs --pretty
-pnpm exec payload-markdown-docs plan --source main-docs
+pmdocs validate --source main-docs
+pmdocs manifest --source main-docs --pretty
+pmdocs plan --source main-docs
 ```
 
 `validate` catches path, frontmatter, hash, and manifest issues. `manifest` prints the JSON payload that will be signed. `plan` shows what would be created, updated, archived, drafted, deleted, or left unchanged against an optional existing-record input.
@@ -134,7 +134,7 @@ pnpm exec payload-markdown-docs plan --source main-docs
 Use dry-run before applying changes:
 
 ```bash
-pnpm exec payload-markdown-docs push \
+pmdocs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
   --source main-docs \
   --key-id github-actions-main \
@@ -151,7 +151,7 @@ without changing docs records.
 Apply docs changes only after server config enables writes:
 
 ```bash
-pnpm exec payload-markdown-docs push \
+pmdocs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
   --source main-docs \
   --key-id github-actions-main \
@@ -174,7 +174,7 @@ Docs records render through the route adapter. Raw AI-facing assets use asset
 route handlers and committed Next route files.
 
 ```bash
-pnpm exec payload-markdown-docs install routes --payload-app "src/app/(payload)"
+pmdocs install routes --payload-app "src/app/(payload)"
 ```
 
 The generated files must be committed and deployed. They expose public canonical
@@ -198,7 +198,7 @@ the public URLs return rendered HTML 404 responses from the frontend catch-all.
 Publishing is a request from the client and a server-owned decision.
 
 ```bash
-pnpm exec payload-markdown-docs push \
+pmdocs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
   --source main-docs \
   --key-id github-actions-main \

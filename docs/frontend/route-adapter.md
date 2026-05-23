@@ -77,7 +77,7 @@ The route adapter is for rendered human docs pages. It does not serve raw
 `.txt` or `.md` AI assets.
 
 Native agent skill artifacts live outside generated docs records under
-`skills/<source>/<agent>/`. When `payload-markdown-docs push` syncs those files,
+`skills/<source>/<agent>/`. When `pmdocs push` syncs those files,
 the plugin stores them as raw asset records and serves them through asset handlers
 such as
 `/plugins/payload-markdown-docs/skills/codex`,
@@ -90,7 +90,7 @@ In a Next App Router app, public raw asset URLs need filesystem route files that
 delegate to the asset handlers:
 
 ```bash
-pnpm exec payload-markdown-docs install routes --payload-app "src/app/(payload)"
+pmdocs install routes --payload-app "src/app/(payload)"
 ```
 
 If public asset route files are missing, the frontend catch-all may return

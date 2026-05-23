@@ -185,7 +185,7 @@ supporting file paths after the assets are synced. Consuming apps should install
 the public Next route files that delegate to the package asset route handler:
 
 ```bash
-pnpm exec payload-markdown-docs install routes --payload-app "src/app/(payload)"
+pmdocs install routes --payload-app "src/app/(payload)"
 ```
 
 Use `--payload-app "app/(payload)"` for apps without `src/`. If the public

@@ -18,18 +18,75 @@ Next/Payload site with [@valkyrianlabs/payload-markdown](https://github.com/valk
 It is the documentation delivery pipeline for teams who want docs to move as
 fast as the code they describe.
 
-> ⚠️ **Early release notice:** `@valkyrianlabs/payload-markdown-docs` is still
-> in active pre-v1 development as of v0.16.0. The project is currently in a
-> particularly volatile stabilization phase ahead of the planned v1.0.0 release.
-> APIs, collections, configuration shape, CLI behavior, and documentation
-> structure may change quickly in the interim. Use thoughtfully, pin versions,
-> review changelogs, and expect sharper compatibility guarantees after v1.0.0.
-
 ---
 
 ## [📖 Explore the Docs](https://valkyrianlabs.com/plugins/payload-markdown-docs/docs)
 
 ---
+
+## Getting Started
+
+Install the Payload plugin package in the Payload app:
+
+```bash
+pnpm add @valkyrianlabs/payload-markdown-docs @valkyrianlabs/payload-markdown
+```
+
+The npm package is the Payload plugin/runtime integration only. It does not
+install a supported CLI. Install the native `pmdocs` binary separately for docs
+validation, planning, route installation, key generation, and publishing.
+
+### Debian/Ubuntu
+
+```bash
+sudo install -d -m 0755 /etc/apt/keyrings
+sudo curl -fsSL https://apt.valkyrianlabs.com/pubkey.gpg \
+  -o /etc/apt/keyrings/valkyrianlabs.gpg
+sudo chmod 0644 /etc/apt/keyrings/valkyrianlabs.gpg
+
+echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/valkyrianlabs.gpg] https://apt.valkyrianlabs.com stable main" | \
+  sudo tee /etc/apt/sources.list.d/valkyrianlabs.list > /dev/null
+
+sudo apt-get update
+sudo apt-get install -y pmdocs
+
+pmdocs --version
+pmdocs --help
+```
+
+### Homebrew
+
+```bash
+brew tap valkyrianlabs/tap
+brew install pmdocs
+
+pmdocs --version
+pmdocs --help
+```
+
+### Why no native Windows CLI?
+
+Alright, I won’t beat around the bush: it’s because I don’t respect Windows as an operating system.
+
+For v1, `pmdocs` targets macOS developer machines and Debian/Ubuntu Linux CI/server environments. Windows users should use WSL2 or a Linux CI runner.
+
+## Native CLI Philosophy
+
+The split is intentional: npm installs the Payload plugin/runtime package, and
+the operating system installs the `pmdocs` operator CLI. That keeps Payload app
+dependencies focused on runtime code while CI jobs, docs-only repos, local
+machines, and release runners can validate and publish docs without a Node
+dependency install.
+
+The practical result is simpler operations. Install the plugin where Payload
+runs. Install `pmdocs` where docs are authored, checked, signed, and pushed.
+Homebrew and Debian packages give the CLI a predictable system path, native
+dependencies, and the same workflow in CI as on a developer machine.
+
+### Windows
+
+Native Windows packages are not a v1 target. Use WSL2 with the Debian install
+flow, or publish docs from Linux/macOS developer machines and CI runners.
 
 ## The Pitch
 
@@ -50,8 +107,9 @@ analyze codebase
   -> render inside your Payload/Next site
 ```
 
-The docs stay as plain Markdown files. The plugin handles validation, route-aware
-metadata, syncing, publishing, and rendering.
+The docs stay as plain Markdown files. The native CLI handles local validation,
+planning, signing, and upload. The Payload plugin owns server authority,
+route-aware metadata, syncing, publishing, and rendering.
 
 AI gets the speed. Humans keep the control. Payload owns the output.
 
@@ -62,8 +120,8 @@ This plugin is designed around AI-assisted documentation from the ground up.
 Install a native agent skill:
 
 ```bash
-pnpm exec payload-markdown-docs install skill --agent codex
-pnpm exec payload-markdown-docs install skill --agent claude
+pmdocs install skill --agent codex
+pmdocs install skill --agent claude
 ```
 
 Then ask Codex or Claude to inspect your codebase and generate or maintain your
@@ -86,8 +144,9 @@ pass, maintain large sections, and keep documentation moving with the codebase.
 
 Codex and Claude skill packs are included today. The canonical
 `payload-markdown-docs` skill artifacts live in this package under
-`skills/payload-markdown-docs/<agent>/`; the companion Payload Markdown skill is
-copied from `@valkyrianlabs/payload-markdown`.
+`skills/payload-markdown-docs/<agent>/`. For renderer directive details,
+install or inspect the companion Payload Markdown skill from
+`@valkyrianlabs/payload-markdown`.
 
 ## Why This Exists
 
@@ -109,8 +168,9 @@ agent workflow packs in /skills
 server-generated AI discovery in /llms.txt and /llms-full.txt
 ```
 
-Your docs live in the repo. The CLI validates them. GitHub Actions or Ed25519
-pushes them. Payload stores and renders them. Your site owns the final output.
+Your docs live in the repo. The native `pmdocs` CLI validates and publishes
+them. GitHub Actions or Ed25519 signs the request. Payload stores and renders
+the output. Your site owns the final output.
 
 ## What You Get
 
@@ -125,7 +185,8 @@ pushes them. Payload stores and renders them. Your site owns the final output.
 - Next.js helpers for resolving and rendering docs routes.
 - Next.js sitemap helpers for canonical docs pages, with opt-in raw asset entries.
 - Drop-in docs navbar and headless navigation helpers.
-- Local CLI commands for validation, manifest generation, and sync planning.
+- Native `pmdocs` commands for validation, manifest generation, sync planning,
+  route installation, key generation, and publishing.
 - Rendering powered by `@valkyrianlabs/payload-markdown`.
 
 ## Install
@@ -134,12 +195,9 @@ pushes them. Payload stores and renders them. Your site owns the final output.
 pnpm add @valkyrianlabs/payload-markdown-docs @valkyrianlabs/payload-markdown
 ```
 
-Install the same package in any repository that runs the
-`payload-markdown-docs` CLI.
-
-```bash
-pnpm add -D @valkyrianlabs/payload-markdown-docs
-```
+The npm package installs the Payload plugin and runtime helpers. It does not
+ship the supported operator CLI. Use the Debian/Ubuntu or Homebrew install
+above for the native `pmdocs` binary.
 
 ## Configure Payload
 
@@ -194,7 +252,7 @@ The sync endpoint is:
 
 The sync endpoint is an implementation endpoint. Public raw AI asset URLs such
 as `/llms.txt` and `/plugins/<docs-set>/skills/<agent>` require committed Next
-route files; install those once with `payload-markdown-docs install routes`.
+route files; install those once with `pmdocs install routes`.
 
 ## Create Admin Records
 
@@ -262,30 +320,28 @@ other Markdown project.
 In the repository that owns the docs tree:
 
 ```bash
-pnpm exec payload-markdown-docs install skill --agent codex
-pnpm exec payload-markdown-docs install skill --agent claude
+pmdocs install skill --agent codex
+pmdocs install skill --agent claude
 ```
 
 The Codex installer writes:
 
 ```txt
 .agents/skills/payload-markdown-docs/
-.agents/skills/payload-markdown/
-AGENTS.md
 ```
 
 The Claude installer writes:
 
 ```txt
 .claude/skills/payload-markdown-docs/
-.claude/skills/payload-markdown/
 ```
 
 The installer does not sync docs, call Payload, or publish content. It only
 installs agent-facing guidance so AI agents can understand the documentation
 rules inside your repo. The `payload-markdown-docs` skill covers package
-structure and sync behavior; the `payload-markdown` skill covers renderer
-directives and Markdown authoring.
+structure and sync behavior. For renderer directives and Markdown authoring,
+install or inspect the companion `payload-markdown` skill from
+`@valkyrianlabs/payload-markdown`.
 
 A typical prompt after installing the skill:
 
@@ -294,7 +350,7 @@ Use the installed payload-markdown-docs skill.
 
 Analyze this repository and generate a complete documentation tree under /docs.
 Use route-aware frontmatter and payload-markdown-compatible Markdown. Validate
-the tree with the payload-markdown-docs CLI when finished.
+the tree with pmdocs when finished.
 ```
 
 That is the magic trick: the AI does not just write random docs. It writes docs
@@ -306,13 +362,13 @@ pipeline.
 Before syncing, validate the docs tree:
 
 ```bash
-pnpm exec payload-markdown-docs validate --source payload-markdown-docs
+pmdocs validate --source payload-markdown-docs
 ```
 
 Generate a manifest:
 
 ```bash
-pnpm exec payload-markdown-docs manifest \
+pmdocs manifest \
   --source payload-markdown-docs \
   --pretty
 ```
@@ -320,13 +376,7 @@ pnpm exec payload-markdown-docs manifest \
 Preview the sync plan:
 
 ```bash
-pnpm exec payload-markdown-docs plan --source payload-markdown-docs
-```
-
-From this package source checkout, use the local source CLI instead:
-
-```bash
-pnpm cli validate --source payload-markdown-docs
+pmdocs plan --source payload-markdown-docs
 ```
 
 In GitHub Actions, `--source` can be omitted when the docs set slug matches the
@@ -347,19 +397,23 @@ permissions:
 steps:
   - uses: actions/checkout@v4
 
-  - uses: pnpm/action-setup@v4
+  - name: Install pmdocs
+    run: |
+      sudo install -d -m 0755 /etc/apt/keyrings
+      sudo curl -fsSL https://apt.valkyrianlabs.com/pubkey.gpg \
+        -o /etc/apt/keyrings/valkyrianlabs.gpg
+      sudo chmod 0644 /etc/apt/keyrings/valkyrianlabs.gpg
+      echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/valkyrianlabs.gpg] https://apt.valkyrianlabs.com stable main" | \
+        sudo tee /etc/apt/sources.list.d/valkyrianlabs.list > /dev/null
+      sudo apt-get update
+      sudo apt-get install -y pmdocs
 
-  - uses: actions/setup-node@v4
-    with:
-      node-version: 22
-      cache: pnpm
+  - run: pmdocs --version
 
-  - run: pnpm install --frozen-lockfile
-
-  - run: pnpm exec payload-markdown-docs validate --source payload-markdown-docs
+  - run: pmdocs validate --source payload-markdown-docs
 
   - run: |
-      pnpm exec payload-markdown-docs push \
+      pmdocs push \
         --endpoint "$DOCS_SYNC_ENDPOINT" \
         --repository "$GITHUB_REPOSITORY" \
         --branch "$GITHUB_REF_NAME" \
@@ -408,7 +462,7 @@ workflow.
 Generate a keypair:
 
 ```bash
-pnpm exec payload-markdown-docs keygen --out .docs-sync
+pmdocs keygen --out .docs-sync
 ```
 
 Add the public key in Payload Admin:
@@ -420,7 +474,7 @@ Docs Globals > Access
 Then push with the private key:
 
 ```bash
-pnpm exec payload-markdown-docs push \
+pmdocs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
   --source payload-markdown-docs \
   --key-id local-docs \
@@ -430,7 +484,7 @@ pnpm exec payload-markdown-docs push \
 For immediate publishing:
 
 ```bash
-pnpm exec payload-markdown-docs push \
+pmdocs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
   --source payload-markdown-docs \
   --key-id local-docs \
@@ -440,6 +494,24 @@ pnpm exec payload-markdown-docs push \
 
 That is the operator workflow: edit locally, validate locally, push directly,
 and review the rendered docs on your Payload site.
+
+## CLI Migration
+
+Before v1, docs publishing used the npm package binary:
+
+```bash
+pnpm exec payload-markdown-docs push ...
+```
+
+Use the native binary instead:
+
+```bash
+pmdocs push ...
+```
+
+Keep `@valkyrianlabs/payload-markdown-docs` installed in the Payload app for the
+plugin/runtime integration. Install `pmdocs` from Homebrew or the Valkyrian
+Labs Debian repository anywhere you run operator commands.
 
 ## Render In Next
 
@@ -540,7 +612,7 @@ needs filesystem route files so public root URLs reach those handlers instead
 of the frontend catch-all. Install the exact public Next route files once:
 
 ```bash
-pnpm exec payload-markdown-docs install routes --payload-app "src/app/(payload)"
+pmdocs install routes --payload-app "src/app/(payload)"
 ```
 
 Use `--payload-app "app/(payload)"` for apps without `src/`. The route files

@@ -13,7 +13,7 @@ tags:
 Publishing is server-owned. The CLI can request publishing with `--publish`, but the server decides whether publishing is allowed.
 
 ```bash
-pnpm exec payload-markdown-docs push \
+pmdocs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
   --source main-docs \
   --key-id github-actions-main \

@@ -116,7 +116,7 @@ const parseOpenSshPrivateKey = (privateKey: string) => {
 
   if (cipherName !== 'none' || kdfName !== 'none') {
     throw new DocsSyncKeyError(
-      'Encrypted OpenSSH private keys are not supported. Use `payload-markdown-docs keygen --out .docs-sync` or provide an unencrypted PKCS#8 PEM Ed25519 private key.',
+      'Encrypted OpenSSH private keys are not supported. Use `pmdocs keygen --out .docs-sync` or provide an unencrypted PKCS#8 PEM Ed25519 private key.',
     )
   }
 

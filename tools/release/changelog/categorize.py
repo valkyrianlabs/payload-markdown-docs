@@ -6,7 +6,6 @@ from pathlib import PurePosixPath
 
 CATEGORY_ORDER: tuple[str, ...] = (
     "plugin",
-    "npm-cli",
     "native-cli",
     "sync",
     "frontend",
@@ -39,7 +38,7 @@ META_FILES: set[str] = {
     "pnpm-workspace.yaml",
 }
 
-NPM_CLI_FILES: set[str] = {
+PACKAGE_RUNTIME_FILES: set[str] = {
     ".swcrc",
     "eslint.config.js",
     "package.json",
@@ -82,8 +81,8 @@ def categorize_path(path: str) -> str:
     if lower.startswith("cli/") or lower in {"meson.build", "meson.options"}:
         return "native-cli"
 
-    if lower.startswith("src/cli/") or normalized in NPM_CLI_FILES:
-        return "npm-cli"
+    if lower.startswith("src/cli/") or normalized in PACKAGE_RUNTIME_FILES:
+        return "plugin"
 
     if lower.startswith(("src/sync/", "src/security/", "src/endpoints/", "src/payload/")):
         return "sync"
@@ -94,10 +93,7 @@ def categorize_path(path: str) -> str:
     if lower.startswith(("src/next/", "dev/app/")):
         return "frontend"
 
-    if (
-        lower.startswith(("skills/", "src/skillbundles", "examples/docs/", "examples/github-actions/"))
-        or "assets" in lower and lower.startswith("src/cli/")
-    ):
+    if lower.startswith(("skills/", "src/skillbundles", "examples/docs/", "examples/github-actions/")):
         return "docs-assets"
 
     if lower.startswith("docs/"):
@@ -122,7 +118,6 @@ _DEBIAN_HINT_RE = re.compile(r"\b(debian|packaging|package|apt|dpkg|nexus)\b", r
 _HOMEBREW_HINT_RE = re.compile(r"\b(homebrew|brew|tap|formula)\b", re.IGNORECASE)
 _RELEASE_TOOLING_HINT_RE = re.compile(r"\b(changelog|release(?:\s+tooling)?|tooling|ci|github actions)\b", re.IGNORECASE)
 _NATIVE_CLI_HINT_RE = re.compile(r"\b(native|cpp|c\+\+|meson|debian cli|apt cli)\b", re.IGNORECASE)
-_NPM_CLI_HINT_RE = re.compile(r"\b(npm|typescript cli|node cli|pnpm)\b", re.IGNORECASE)
 _SYNC_HINT_RE = re.compile(r"\b(sync|oidc|ed25519|docs push|payload endpoint|protected endpoint)\b", re.IGNORECASE)
 
 
@@ -139,8 +134,6 @@ def infer_categories_from_text(subject: str, body: str = "") -> tuple[str, ...]:
         categories.add("release-tooling")
     if _NATIVE_CLI_HINT_RE.search(text):
         categories.add("native-cli")
-    if _NPM_CLI_HINT_RE.search(text):
-        categories.add("npm-cli")
     if _SYNC_HINT_RE.search(text):
         categories.add("sync")
 
@@ -154,7 +147,7 @@ def extract_subscopes(path: str, category: str) -> tuple[str, ...]:
     if not parts:
         return ()
 
-    if category in {"plugin", "npm-cli", "native-cli", "sync", "frontend", "admin", "docs-assets", "docs", "debian", "homebrew", "release-tooling", "tests"}:
+    if category in {"plugin", "native-cli", "sync", "frontend", "admin", "docs-assets", "docs", "debian", "homebrew", "release-tooling", "tests"}:
         return tuple(parts[1:3])
 
     return tuple(parts[:2])
@@ -202,8 +195,8 @@ def detect_flags(path: str) -> tuple[str, ...]:
     if lower.startswith("cli/") or lower.endswith(("meson.build", "meson.options")):
         flags.add("native-cli")
 
-    if lower.startswith("src/cli/") or lower in {item.lower() for item in NPM_CLI_FILES}:
-        flags.add("npm-cli")
+    if lower.startswith("src/cli/") or lower in {item.lower() for item in PACKAGE_RUNTIME_FILES}:
+        flags.add("plugin-package")
 
     if lower.startswith(("src/sync/", "src/security/", "src/endpoints/", "src/payload/")):
         flags.add("docs-sync")
@@ -250,8 +243,8 @@ def detect_themes_for_paths(paths: list[str]) -> list[str]:
         if normalized.startswith("cli/") or normalized.endswith(("meson.build", "meson.options")):
             themes.add("native-cli")
 
-        if normalized.startswith("src/cli/") or normalized in {item.lower() for item in NPM_CLI_FILES}:
-            themes.add("npm-cli")
+        if normalized.startswith("src/cli/") or normalized in {item.lower() for item in PACKAGE_RUNTIME_FILES}:
+            themes.add("plugin")
 
         if normalized.startswith(("src/sync/", "src/security/", "src/endpoints/", "src/payload/")):
             themes.add("docs-sync")

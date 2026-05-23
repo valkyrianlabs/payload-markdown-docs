@@ -2,20 +2,21 @@
 
 This is the working roadmap for shipping `payload-markdown-docs` v1 with a
 native `pmdocs` CLI and release automation for npm, Debian/APT, and Homebrew.
-The npm CLI remains the reference implementation until native command parity is
-proven end to end.
+The npm package is now the Payload plugin/runtime package only; the native
+`pmdocs` binary is the authoritative CLI.
 
 ## Current State
 
-- Package state: the Payload plugin, npm CLI, docs sync endpoint, docs assets,
-  Next route helpers, and skill bundles are in v1 stabilization.
+- Package state: the Payload plugin/runtime, docs sync endpoint, docs assets,
+  Next route helpers, and skill bundles are in v1 stabilization. The Node/npm
+  CLI surface has been removed before v1.
 - Branch state: `cpp-cli` has merged `main` and contains the native CLI work
   plus imported Python release tooling under `tools/release`.
 - Native CLI state: `pmdocs doctor`, `pmdocs skill install`, `pmdocs validate`,
   `pmdocs manifest`, `pmdocs plan`, `pmdocs keygen`, and `pmdocs push` are
   implemented.
-- Local-command parity: native `validate` / `manifest` / `plan` match the npm
-  CLI docs-plus-assets package shape for docs, skill assets, `llms.txt`,
+- Local-command behavior: native `validate` / `manifest` / `plan` implement the
+  docs-plus-assets package shape for docs, skill assets, `llms.txt`,
   `llms-full.txt`, package summaries, manifests, and plans.
 - Remote-command port: native `keygen` generates Ed25519 PEM/base64 keys and
   writes the npm-compatible key file names. Native `push` builds and validates
@@ -23,9 +24,8 @@ proven end to end.
   GitHub OIDC bearer auth, dry-run, publish requests, delete behavior, strict
   route checks, JSON output, and libcurl transport.
 - Verified local checks after the remote-command port include `meson compile -C
-  build`, `meson test -C build`, direct phase-2 parity, `meson test -C
-  build-parity`, safe direct `keygen` / `push --help` checks, and `pnpm
-  test:int`. The native doctest suite now includes local HTTP endpoint tests
+  build`, `meson test -C build`, safe direct `keygen` / `push --help` checks,
+  and `pnpm test:int`. The native doctest suite now includes local HTTP endpoint tests
   for OIDC bearer push, `--publish`, JSON output, JSON server errors, and
   non-JSON server errors.
 - Remaining native CLI gap: run protected smoke tests for Ed25519 dry-run,
@@ -34,8 +34,8 @@ proven end to end.
   Meson package. Nexus publication is wired through `tools.release publish-deb`.
   Homebrew formula staging is wired through
   `tools.release prepare-homebrew-formula`. Native Debian/Nexus/Homebrew work
-  runs on the self-hosted Linux release runner, and npm trusted publishing runs
-  last on GitHub-hosted `ubuntu-latest`. npm publication reads the scoped
+  runs on the self-hosted Linux release runner, and npm trusted publishing for
+  the plugin package runs last on GitHub-hosted `ubuntu-latest`. npm publication reads the scoped
   package name from `package.json`, optionally verifies it against
   `NPM_PACKAGE_NAME`, and checks the tarball package identity before publish.
 - Version state: Option B is active. Root `VERSION` is canonical and
@@ -75,7 +75,7 @@ Scope:
 Done when:
 
 - Native `push --dry-run`, signed push, GitHub OIDC push, and `push --publish`
-  match npm CLI behavior against local/test endpoints.
+  match the v1 sync contract against local/test endpoints.
 - Parity coverage includes representative remote workflow cases without
   production credentials.
 
@@ -101,7 +101,7 @@ Scope:
   changes.
 - Renamed CLI descriptions, schema identifiers, prompt roles, and request IDs to
   `payload-markdown-docs` / `pmdocs`.
-- Retargeted changelog path inference to plugin, npm CLI, native CLI, sync,
+- Retargeted changelog path inference to plugin, native CLI, sync,
   frontend, admin, docs assets, docs, Debian, Homebrew, release tooling, and
   tests. Legacy cached context category names are only retained as ordering
   aliases for old artifacts/tests and are not emitted by the current path
@@ -200,8 +200,8 @@ Scope:
 - Update `docs/reference/cli.md`, `cli/README.md`, `debian/README.md`,
   `homebrew/README.md`, and release docs once native behavior is final.
 - Add native install docs covering apt and Homebrew.
-- Document when to use npm CLI vs native `pmdocs`; after command parity, mark
-  shared commands as equivalent.
+- Document that the npm package installs the Payload plugin/runtime and native
+  `pmdocs` is the supported CLI.
 - Remove stale imported-project language from release tooling docs and tests.
 - Treat failing native parity, Debian package smoke checks, Homebrew formula
   smoke checks, or release-tooling offline tests as release blockers.
@@ -209,5 +209,5 @@ Scope:
 Done when:
 
 - v1 docs describe exactly what ships.
-- CI blocks regressions in npm CLI, native CLI, packaging, release tooling, and
-  public API drift.
+- CI blocks regressions in native CLI, plugin package, packaging, release
+  tooling, and public API drift.

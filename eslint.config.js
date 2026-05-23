@@ -41,7 +41,7 @@ export default [
           maximumDefaultProjectFileMatchCount_THIS_WILL_SLOW_DOWN_LINTING: 40,
           allowDefaultProject: [
             'scripts/*.ts',
-            'cli/tests/parity/*.mjs',
+            'tools/dev/*.mjs',
             '*.js',
             '*.mjs',
             '*.spec.ts',

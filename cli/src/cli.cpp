@@ -28,7 +28,7 @@ constexpr std::string_view kVersion = PMDOCS_VERSION;
 
 enum class InstallCommandShape {
   LegacySkillInstall,
-  NpmInstallSkill,
+  InstallSkillSubcommand,
 };
 
 struct PlannedFile {
@@ -36,6 +36,17 @@ struct PlannedFile {
   std::filesystem::path destination_path;
   std::filesystem::path relative_path;
   std::string content;
+};
+
+struct InstallRoutesOptions {
+  std::filesystem::path payload_app_dir;
+  bool force = false;
+  bool dry_run = false;
+};
+
+struct AssetRouteTemplate {
+  std::filesystem::path relative_path;
+  std::string_view content;
 };
 
 std::string read_file(const std::filesystem::path& path) {
@@ -109,6 +120,68 @@ std::filesystem::path absolute_normalized(const std::filesystem::path& path) {
 
 bool is_supported_agent(std::string_view agent) {
   return agent == "codex" || agent == "claude";
+}
+
+std::vector<AssetRouteTemplate> asset_route_templates() {
+  return {
+    {
+      .relative_path = "payloadMarkdownDocsAssetRoute.ts",
+      .content = "import config from '@payload-config'\n"
+                 "import { createPayloadMarkdownDocsAssetRouteHandler } from '@valkyrianlabs/payload-markdown-docs/next'\n"
+                 "\n"
+                 "export const GET = createPayloadMarkdownDocsAssetRouteHandler({\n"
+                 "  config,\n"
+                 "})\n",
+    },
+    {
+      .relative_path = "llms.txt/route.ts",
+      .content = "export { GET } from '../payloadMarkdownDocsAssetRoute'\n"
+                 "\n"
+                 "export const dynamic = 'force-dynamic'\n",
+    },
+    {
+      .relative_path = "llms-full.txt/route.ts",
+      .content = "export { GET } from '../payloadMarkdownDocsAssetRoute'\n"
+                 "\n"
+                 "export const dynamic = 'force-dynamic'\n",
+    },
+    {
+      .relative_path = "plugins/[docsSetSlug]/llms.txt/route.ts",
+      .content = "export { GET } from '../../../payloadMarkdownDocsAssetRoute'\n"
+                 "\n"
+                 "export const dynamic = 'force-dynamic'\n",
+    },
+    {
+      .relative_path = "plugins/[docsSetSlug]/llms-full.txt/route.ts",
+      .content = "export { GET } from '../../../payloadMarkdownDocsAssetRoute'\n"
+                 "\n"
+                 "export const dynamic = 'force-dynamic'\n",
+    },
+    {
+      .relative_path = "plugins/[docsSetSlug]/skills/[agent]/[[...assetPath]]/route.ts",
+      .content = "export { GET } from '../../../../../payloadMarkdownDocsAssetRoute'\n"
+                 "\n"
+                 "export const dynamic = 'force-dynamic'\n",
+    },
+    {
+      .relative_path = "[docsSetSlug]/llms.txt/route.ts",
+      .content = "export { GET } from '../../payloadMarkdownDocsAssetRoute'\n"
+                 "\n"
+                 "export const dynamic = 'force-dynamic'\n",
+    },
+    {
+      .relative_path = "[docsSetSlug]/llms-full.txt/route.ts",
+      .content = "export { GET } from '../../payloadMarkdownDocsAssetRoute'\n"
+                 "\n"
+                 "export const dynamic = 'force-dynamic'\n",
+    },
+    {
+      .relative_path = "[docsSetSlug]/skills/[agent]/[[...assetPath]]/route.ts",
+      .content = "export { GET } from '../../../../payloadMarkdownDocsAssetRoute'\n"
+                 "\n"
+                 "export const dynamic = 'force-dynamic'\n",
+    },
+  };
 }
 
 std::filesystem::path default_project_skill_dir_for_agent(std::string_view agent) {
@@ -258,6 +331,52 @@ std::vector<PlannedFile> collect_planned_files(const InstallSkillOptions& option
   return files;
 }
 
+std::optional<std::filesystem::path> detect_payload_app_dir() {
+  static const std::vector<std::filesystem::path> candidates = {
+    "src/app/(payload)",
+    "app/(payload)",
+    "dev/app/(payload)",
+  };
+
+  std::error_code error;
+  for (const auto& candidate : candidates) {
+    if (std::filesystem::is_directory(candidate, error)) {
+      return candidate;
+    }
+
+    error.clear();
+  }
+
+  return std::nullopt;
+}
+
+std::vector<PlannedFile> collect_asset_route_files(const InstallRoutesOptions& options) {
+  const auto target_root = absolute_normalized(options.payload_app_dir);
+  std::vector<PlannedFile> files;
+
+  for (const auto& route : asset_route_templates()) {
+    auto relative_path = route.relative_path.lexically_normal();
+
+    if (!is_safe_relative_path(relative_path)) {
+      throw std::runtime_error{"Unsafe asset route path: " + relative_path.generic_string()};
+    }
+
+    const auto destination_path = absolute_normalized(target_root / relative_path);
+
+    if (!is_below_or_equal(destination_path, target_root)) {
+      throw std::runtime_error{"Refusing to write outside payload app directory: " + relative_path.generic_string()};
+    }
+
+    files.push_back({
+      .destination_path = destination_path,
+      .relative_path = relative_path,
+      .content = std::string{route.content},
+    });
+  }
+
+  return files;
+}
+
 std::vector<std::string> find_conflicts(const std::vector<PlannedFile>& files) {
   std::vector<std::string> conflicts;
   std::error_code error;
@@ -319,6 +438,45 @@ std::string format_conflicts(const std::vector<std::string>& conflicts) {
   return out.str();
 }
 
+std::string format_route_conflicts(const std::vector<std::string>& conflicts) {
+  std::ostringstream out;
+  out << "Asset route files already exist with different content. Use --force to overwrite:\n";
+
+  for (const auto& conflict : conflicts) {
+    out << "- " << conflict << "\n";
+  }
+
+  return out.str();
+}
+
+std::optional<std::string> write_planned_files(const std::vector<PlannedFile>& files, bool force) {
+  for (const auto& file : files) {
+    if (const auto error = ensure_directory_path(file.destination_path.parent_path())) {
+      return *error;
+    }
+
+    std::error_code status_error;
+    const auto status = std::filesystem::symlink_status(file.destination_path, status_error);
+    const auto destination_exists = !status_error && std::filesystem::exists(status);
+
+    if (status_error && status_error != std::errc::no_such_file_or_directory) {
+      return "Could not inspect destination: " + file.destination_path.string() + ": " + status_error.message();
+    }
+
+    if (destination_exists && !std::filesystem::is_regular_file(status)) {
+      return "Refusing to overwrite non-regular file: " + file.destination_path.string();
+    }
+
+    if (!force && destination_exists && read_file(file.destination_path) == file.content) {
+      continue;
+    }
+
+    write_file(file.destination_path, file.content);
+  }
+
+  return std::nullopt;
+}
+
 std::string root_help_text() {
   return R"(pmdocs
 
@@ -327,6 +485,7 @@ Usage:
   pmdocs --version
   pmdocs doctor
   pmdocs install skill --agent codex [options]
+  pmdocs install routes [options]
   pmdocs skill install [options]
   pmdocs validate [docs-root] [options]
   pmdocs manifest [docs-root] [options]
@@ -337,6 +496,7 @@ Usage:
 Commands:
   doctor          Show native CLI diagnostics.
   install skill   Install bundled AI-agent skill guidance into the current project.
+  install routes  Install public Next asset route files.
   skill install   Alias for install skill. Defaults to Codex for compatibility.
   skill update    Update an installed Codex skill. (planned)
   validate        Validate a local docs package.
@@ -473,6 +633,52 @@ Bundled Codex skill source:
   return out.str();
 }
 
+std::string install_routes_help_text() {
+  return R"(pmdocs install routes
+
+Usage:
+  pmdocs install routes [options]
+
+Options:
+  --payload-app <path>  Payload app route group. Defaults to src/app/(payload), app/(payload), or dev/app/(payload) when found.
+  --app <path>          Alias for --payload-app.
+  --force               Overwrite existing route files.
+  --dry-run             Print planned writes without changing files.
+  --help                Show this help.
+
+Installs public Next App Router files for /llms.txt, /llms-full.txt, and
+docs-set skill asset URLs so those routes can reach plugin-owned Payload asset
+handlers instead of a frontend catch-all.
+)";
+}
+
+std::string format_routes_plan(const InstallRoutesOptions& options, const std::vector<PlannedFile>& files) {
+  std::ostringstream out;
+  out << (options.dry_run ? "pmdocs install routes dry-run" : "pmdocs install routes") << "\n\n";
+  out << "Payload app route group: " << absolute_normalized(options.payload_app_dir).string() << "\n";
+  out << "Files:\n";
+
+  for (const auto& file : files) {
+    out << "- " << file.relative_path.generic_string() << "\n";
+  }
+
+  out << "\n";
+  out << "Routes:\n";
+  out << "- /llms.txt\n";
+  out << "- /llms-full.txt\n";
+  out << "- /plugins/<docs-set-slug>/llms.txt\n";
+  out << "- /plugins/<docs-set-slug>/llms-full.txt\n";
+  out << "- /plugins/<docs-set-slug>/skills/<agent>\n";
+  out << "- /plugins/<docs-set-slug>/skills/<agent>/SKILL.md\n";
+  out << "\n";
+  out << "IMPORTANT:\n";
+  out << "These files must be committed to your Next app repository.\n";
+  out << "Payload config endpoints alone cannot create public Next filesystem routes.\n";
+  out << "If you deploy without these files, /llms.txt and /skills routes will 404.\n";
+
+  return out.str();
+}
+
 CommandResult make_stdout(std::string output) {
   return {
     .exit_code = 0,
@@ -483,8 +689,7 @@ CommandResult make_stdout(std::string output) {
 CommandResult planned_command_result(std::string_view command) {
   return {
     .exit_code = 2,
-    .stderr_text = "pmdocs " + std::string{command}
-      + " is not implemented in the native CLI yet. Use the npm CLI for this command until it is ported.\n",
+    .stderr_text = "pmdocs " + std::string{command} + " is not supported.\n",
   };
 }
 
@@ -563,6 +768,10 @@ struct InstallOptionsRefs {
   CLI::Option* claude = nullptr;
   CLI::Option* codex = nullptr;
   CLI::Option* out = nullptr;
+};
+
+struct InstallRoutesOptionsRefs {
+  CLI::Option* payload_app = nullptr;
 };
 
 ArgvBuffer to_argv_buffer(const std::vector<std::string_view>& args) {
@@ -667,6 +876,41 @@ CommandResult run_skill_install(const InstallSkillOptions& options) {
   }
 }
 
+CommandResult run_routes_install(const InstallRoutesOptions& options) {
+  try {
+    const auto planned_files = collect_asset_route_files(options);
+
+    if (!options.force) {
+      const auto conflicts = find_conflicts(planned_files);
+
+      if (!conflicts.empty()) {
+        return {
+          .exit_code = 1,
+          .stderr_text = format_route_conflicts(conflicts),
+        };
+      }
+    }
+
+    if (options.dry_run) {
+      return make_stdout(format_routes_plan(options, planned_files));
+    }
+
+    if (const auto error = write_planned_files(planned_files, options.force)) {
+      return {
+        .exit_code = 1,
+        .stderr_text = *error + "\n",
+      };
+    }
+
+    return make_stdout(format_routes_plan(options, planned_files));
+  } catch (const std::exception& error) {
+    return {
+      .exit_code = 1,
+      .stderr_text = std::string{error.what()} + "\n",
+    };
+  }
+}
+
 CommandResult run(std::vector<std::string_view> args) {
   if (args.empty()) {
     return make_stdout(root_help_text());
@@ -684,6 +928,8 @@ CommandResult run(std::vector<std::string_view> args) {
   DocsOptionsRefs push_options_refs;
   InstallOptionsRefs install_skill_options_refs;
   InstallOptionsRefs legacy_skill_install_options_refs;
+  InstallRoutesOptions install_routes_options;
+  InstallRoutesOptionsRefs install_routes_options_refs;
   bool doctor_requested = false;
   bool install_routes_requested = false;
   bool keygen_requested = false;
@@ -696,7 +942,7 @@ CommandResult run(std::vector<std::string_view> args) {
   CLI::App app{"Native CLI for Payload Markdown Docs.", "pmdocs"};
   app.set_help_flag("-h,--help", "Show this help.");
   app.set_version_flag("-V,--version", std::string{"pmdocs "} + std::string{kVersion});
-  app.footer("The npm binary remains the reference implementation for docs sync behavior until each command is ported.");
+  app.footer("The native pmdocs binary is the supported Payload Markdown Docs operator CLI.");
 
   auto* doctor = app.add_subcommand("doctor", "Show native CLI diagnostics.");
   doctor->callback([&doctor_requested]() {
@@ -722,8 +968,10 @@ CommandResult run(std::vector<std::string_view> args) {
   auto* install = app.add_subcommand("install", "Install local AI-agent guidance or Next route files for docs assets.");
   auto* install_skill = install->add_subcommand("skill", "Install bundled AI-agent skill guidance into the current project.");
   install_skill_options_refs = add_install_skill_options(install_skill, install_options);
-  auto* install_routes = install->add_subcommand("routes", "Install public Next asset route files. (planned)");
-  install_routes->allow_extras();
+  auto* install_routes = install->add_subcommand("routes", "Install public Next asset route files.");
+  install_routes_options_refs.payload_app = install_routes->add_option("--payload-app,--app", install_routes_options.payload_app_dir, "Payload app route group.");
+  install_routes->add_flag("--force", install_routes_options.force, "Overwrite existing route files.");
+  install_routes->add_flag("--dry-run", install_routes_options.dry_run, "Print planned writes without changing files.");
   install_routes->callback([&install_routes_requested]() {
     install_routes_requested = true;
   });
@@ -818,6 +1066,10 @@ CommandResult run(std::vector<std::string_view> args) {
       return make_stdout(skill_install_help_text());
     }
 
+    if (args.size() >= 3 && args[0] == "install" && args[1] == "routes") {
+      return make_stdout(install_routes_help_text());
+    }
+
     if (args.size() >= 3 && args[0] == "skill" && args[1] == "install") {
       return make_stdout(skill_install_help_text());
     }
@@ -831,7 +1083,7 @@ CommandResult run(std::vector<std::string_view> args) {
       out << "  pmdocs install routes [options]\n\n";
       out << "Commands:\n";
       out << "  skill    Install bundled AI-agent skill guidance into the current project.\n";
-      out << "  routes   Install public Next asset route files. (planned)\n";
+      out << "  routes   Install public Next asset route files.\n";
 
       return make_stdout(out.str());
     }
@@ -917,7 +1169,7 @@ CommandResult run(std::vector<std::string_view> args) {
     requested_agents.erase(std::unique(requested_agents.begin(), requested_agents.end()), requested_agents.end());
 
     if (requested_agents.empty()) {
-      if (shape == InstallCommandShape::NpmInstallSkill) {
+      if (shape == InstallCommandShape::InstallSkillSubcommand) {
         return CommandResult{
           .exit_code = 1,
           .stderr_text = "Install skill requires --codex, --claude, or --agent codex|claude.\n",
@@ -958,6 +1210,33 @@ CommandResult run(std::vector<std::string_view> args) {
     return std::nullopt;
   };
 
+  const auto normalize_install_routes_options = [](
+    InstallRoutesOptions& options,
+    const InstallRoutesOptionsRefs& refs
+  ) -> std::optional<CommandResult> {
+    std::error_code error;
+
+    if (refs.payload_app == nullptr || refs.payload_app->count() == 0) {
+      if (const auto detected = detect_payload_app_dir()) {
+        options.payload_app_dir = *detected;
+      } else {
+        return CommandResult{
+          .exit_code = 1,
+          .stderr_text = "Could not find a Payload app route group. Pass --payload-app \"src/app/(payload)\" or --payload-app \"app/(payload)\".\n",
+        };
+      }
+    }
+
+    if (!std::filesystem::is_directory(options.payload_app_dir, error)) {
+      return CommandResult{
+        .exit_code = 1,
+        .stderr_text = "Payload app route group does not exist: " + options.payload_app_dir.string() + "\n",
+      };
+    }
+
+    return std::nullopt;
+  };
+
   const auto finalize_docs_options = [](DocsCommandOptions& options, const DocsOptionsRefs& refs) {
     options.docs_root_explicit = refs.docs_root != nullptr && refs.docs_root->count() > 0;
     options.include_docs = !options.no_docs;
@@ -987,11 +1266,15 @@ CommandResult run(std::vector<std::string_view> args) {
   }
 
   if (install_routes_requested) {
-    return planned_command_result("install routes");
+    if (auto error = normalize_install_routes_options(install_routes_options, install_routes_options_refs)) {
+      return *error;
+    }
+
+    return run_routes_install(install_routes_options);
   }
 
   if (install_skill->parsed()) {
-    if (auto error = normalize_install_options(install_options, install_skill_options_refs, InstallCommandShape::NpmInstallSkill)) {
+    if (auto error = normalize_install_options(install_options, install_skill_options_refs, InstallCommandShape::InstallSkillSubcommand)) {
       return *error;
     }
 

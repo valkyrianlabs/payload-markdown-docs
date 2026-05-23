@@ -48,16 +48,20 @@ public key configured under the same key id in `Docs Globals > Access`.
 
 See `examples/github-actions/publish-docs.yml` in this repository.
 
+That workflow installs `pmdocs` from the Valkyrian Labs Debian repository before
+validation or publishing, then logs `pmdocs --version` and `pmdocs --help` so
+the CI output proves the native CLI path is being used.
+
 Important commands:
 
 ```bash
-pnpm exec payload-markdown-docs validate --source main-docs
+pmdocs validate --source main-docs
 ```
 
 Main-branch sync defaults to sync mode:
 
 ```bash
-pnpm exec payload-markdown-docs push \
+pmdocs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
   --source main-docs \
   --github-oidc
@@ -66,7 +70,7 @@ pnpm exec payload-markdown-docs push \
 Pull request dry-run is explicit:
 
 ```bash
-pnpm exec payload-markdown-docs push \
+pmdocs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
   --source main-docs \
   --github-oidc \
@@ -74,7 +78,7 @@ pnpm exec payload-markdown-docs push \
 ```
 
 ```bash
-pnpm exec payload-markdown-docs push \
+pmdocs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
   --source main-docs \
   --github-oidc \

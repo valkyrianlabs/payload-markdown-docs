@@ -63,7 +63,7 @@ permissions:
 Sync is the default mode:
 
 ```bash
-pnpm exec payload-markdown-docs push \
+pmdocs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
   --source main-docs \
   --github-oidc
@@ -73,7 +73,7 @@ Use `--dry-run` for an explicit validation-only request, such as pull request
 checks:
 
 ```bash
-pnpm exec payload-markdown-docs push \
+pmdocs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
   --source main-docs \
   --github-oidc \
@@ -83,7 +83,7 @@ pnpm exec payload-markdown-docs push \
 Request published output separately:
 
 ```bash
-pnpm exec payload-markdown-docs push \
+pmdocs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
   --source main-docs \
   --github-oidc \

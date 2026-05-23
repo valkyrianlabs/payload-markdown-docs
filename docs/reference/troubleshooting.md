@@ -1,7 +1,7 @@
 ---
 title: Troubleshooting
 description: Common validation, signing, sync, route, and environment issues.
-order: 630
+order: 635
 status: published
 tags:
   - reference
@@ -81,7 +81,7 @@ outside `/api` returns HTML 404, the consuming Next app is missing the public
 asset route files. Run:
 
 ```bash
-pnpm exec payload-markdown-docs install routes --payload-app "src/app/(payload)"
+pmdocs install routes --payload-app "src/app/(payload)"
 ```
 
 Commit and deploy the generated files, then purge any cached 404 responses.

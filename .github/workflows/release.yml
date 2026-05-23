@@ -209,7 +209,7 @@ jobs:
           export NEXT_CPU_COUNT="$(nproc)"
           pnpm build
 
-      - name: Run npm CLI and plugin tests
+      - name: Run plugin tests
         run: |
           set -euo pipefail
           pnpm test:int
@@ -282,16 +282,6 @@ jobs:
           set -euo pipefail
           bash .github/scripts/setup-release-python.sh
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          run_install: false
-
-      - name: Setup Node
-        uses: actions/setup-node@v6
-        with:
-          node-version-file: ".nvmrc"
-
       - name: Install native and release-tooling dependencies
         shell: bash
         run: |
@@ -310,18 +300,16 @@ jobs:
             ninja-build \
             nlohmann-json3-dev \
             pkgconf
-          corepack enable
-          pnpm install --frozen-lockfile --prefer-offline
 
       - name: Run release-tooling tests
         run: |
           set -euo pipefail
           python -m unittest discover -s tools/release/tests -p 'test_*.py'
 
-      - name: Build and test native CLI with npm parity
+      - name: Build and test native CLI
         run: |
           set -euo pipefail
-          meson setup build-native -Dnative_cli_parity_tests=true
+          meson setup build-native
           meson compile -C build-native
           meson test -C build-native
 
@@ -699,35 +687,31 @@ jobs:
         with:
           ref: ${{ github.event.inputs.ref || github.ref }}
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          run_install: false
-
-      - name: Setup Node
-        uses: actions/setup-node@v6
-        with:
-          node-version-file: ".nvmrc"
-
-      - name: Install dependencies
+      - name: Install native pmdocs from Valkyrian Labs APT
         run: |
           set -euo pipefail
-          corepack enable
-          pnpm install --frozen-lockfile --prefer-offline
+          sudo install -d -m 0755 /etc/apt/keyrings
+          sudo curl -fsSL https://apt.valkyrianlabs.com/pubkey.gpg \
+            -o /etc/apt/keyrings/valkyrianlabs.gpg
+          sudo chmod 0644 /etc/apt/keyrings/valkyrianlabs.gpg
+          echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/valkyrianlabs.gpg] https://apt.valkyrianlabs.com stable main" \
+            | sudo tee /etc/apt/sources.list.d/valkyrianlabs.list > /dev/null
+          sudo apt-get update
+          sudo apt-get install -y pmdocs
 
-      - name: Build docs publisher
+      - name: Validate installed pmdocs
         run: |
           set -euo pipefail
-          export NEXT_CPU_COUNT="$(nproc)"
-          pnpm build
+          pmdocs --version
+          pmdocs --help
 
       - name: Validate and push docs
         run: |
           set -euo pipefail
-          node ./dist/cli/index.js validate ./docs \
+          pmdocs validate ./docs \
             --source payload-markdown-docs
 
-          node ./dist/cli/index.js push \
+          pmdocs push ./docs \
             --endpoint "${DOCS_SYNC_ENDPOINT}" \
             --source payload-markdown-docs \
             --repository "$GITHUB_REPOSITORY" \

@@ -37,10 +37,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version-file: '.nvmrc'
-
       - name: Install native build dependencies
         run: |
           set -euo pipefail
@@ -56,16 +52,10 @@ jobs:
             nlohmann-json3-dev \
             pkgconf
 
-      - name: Install npm dependencies for parity tests
-        run: |
-          set -euo pipefail
-          corepack enable
-          pnpm install --frozen-lockfile --prefer-offline --unsafe-perm
-
       - name: Build and test native CLI
         run: |
           set -euo pipefail
-          meson setup build-native -Dnative_cli_parity_tests=true
+          meson setup build-native
           meson compile -C build-native
           meson test -C build-native
 

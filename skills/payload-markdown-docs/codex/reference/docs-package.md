@@ -43,5 +43,7 @@ skills/payload-markdown-docs/codex/
 skills/payload-markdown-docs/claude/
 ```
 
-The companion Payload Markdown authoring skill is installed beside this skill
-as `payload-markdown`.
+Payload Markdown directive guidance comes from the companion Payload Markdown
+authoring skill. If it is not installed beside this skill as
+`payload-markdown`, inspect the packaged skill source from
+`node_modules/@valkyrianlabs/payload-markdown/skills/payload-markdown/codex/`.
