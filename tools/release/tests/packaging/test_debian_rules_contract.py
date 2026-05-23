@@ -47,6 +47,17 @@ class DebianRulesContractTests(unittest.TestCase):
         self.assertNotIn("nginx", control)
         self.assertNotIn("swtpm", control)
 
+    def test_debian_control_has_valid_field_and_continuation_lines(self) -> None:
+        control_path = self._repo_root() / "debian" / "control"
+        lines = control_path.read_text(encoding="utf-8").splitlines()
+
+        for index, line in enumerate(lines, start=1):
+            if not line:
+                continue
+            if line.startswith((" ", "\t")):
+                continue
+            self.assertIn(":", line, f"{control_path}:{index} must be a field or continuation line")
+
 
 if __name__ == "__main__":
     unittest.main()

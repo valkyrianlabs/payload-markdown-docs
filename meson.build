@@ -1,7 +1,7 @@
 project(
   'payload-markdown-docs',
   'cpp',
-  version: '0.17.1',
+  version: '0.17.2',
   license: 'MIT',
   meson_version: '>=1.2.0',
   default_options: [
@@ -10,6 +10,12 @@ project(
     'warning_level=2',
     'werror=false',
   ],
+)
+
+cpp = meson.get_compiler('cpp')
+add_project_arguments(
+  cpp.get_supported_arguments(['-Wno-missing-field-initializers']),
+  language: 'cpp',
 )
 
 pmdocs_data_dir = get_option('datadir') / 'pmdocs'
