@@ -50,8 +50,15 @@ Debian publication is driven by:
 The workflow builds and validates artifacts with:
 
 ```bash
+python3 -m tools.release changelog release \
+  --output release/changelog.release.md \
+  --raw-output release/changelog.raw.md \
+  --payload-output release/changelog.payload.json \
+  --semantic-payload-output release/changelog.semantic_payload.json \
+  --context-output release/changelog.context.json \
+  --selection-output release/changelog.selection.json
 python3 -m tools.release build-deb --output-dir release
-python3 -m tools.release validate-release-artifacts --output-dir release --skip-changelog
+python3 -m tools.release validate-release-artifacts --output-dir release
 ```
 
 Publication runs only in the protected path:

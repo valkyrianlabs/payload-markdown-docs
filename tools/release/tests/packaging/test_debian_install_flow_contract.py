@@ -19,8 +19,11 @@ class DebianInstallFlowContractTests(unittest.TestCase):
 
         required = (
             "dpkg-buildpackage -us -uc -b",
+            "python3 -m tools.release changelog release",
+            "--output release/changelog.release.md",
+            "--selection-output release/changelog.selection.json",
             "python3 -m tools.release build-deb --output-dir release",
-            "python3 -m tools.release validate-release-artifacts --output-dir release --skip-changelog",
+            "python3 -m tools.release validate-release-artifacts --output-dir release",
             "sudo apt install ./release/pmdocs_",
             "pmdocs --version",
             "pmdocs doctor",

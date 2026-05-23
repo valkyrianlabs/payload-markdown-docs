@@ -43,14 +43,41 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
 
     def test_release_workflow_validates_and_smoke_tests_native_artifacts(self) -> None:
         workflow = self._workflow()
+        native_job = workflow.split("  native-debian:", 1)[1].split("  homebrew-formula:", 1)[0]
+        assemble_job = workflow.split("  assemble-release-artifacts:", 1)[1].split("  publish-debian:", 1)[0]
 
         self.assertIn("python -m tools.release validate-release-artifacts", workflow)
         self.assertIn("--require-homebrew", workflow)
+        self.assertIn("python -m tools.release validate-release-artifacts --output-dir release", native_job)
+        self.assertNotIn("--skip-changelog", native_job)
+        self.assertNotIn("--skip-changelog", assemble_job)
         self.assertIn("sudo -n apt install -y ./release/*.deb", workflow)
         self.assertIn("pmdocs doctor", workflow)
         self.assertIn("pmdocs validate ./dev/docs-fixtures/basic --source payload-markdown-docs", workflow)
         self.assertIn("ruby -c release/homebrew/Formula/pmdocs.rb", workflow)
         self.assertIn("Build and test native CLI for formula source build parity", workflow)
+
+    def test_release_workflow_generates_changelog_before_debian_build(self) -> None:
+        workflow = self._workflow()
+        native_job = workflow.split("  native-debian:", 1)[1].split("  homebrew-formula:", 1)[0]
+
+        self.assertLess(native_job.index("Generate release changelog"), native_job.index("Build Debian package"))
+        self.assertIn("python -m tools.release changelog release", native_job)
+        self.assertIn("RELEASE_AI_MODE: ${{ vars.RELEASE_AI_MODE || 'auto' }}", native_job)
+        self.assertIn("RELEASE_AI_PROFILE_OPENAI: ${{ vars.RELEASE_AI_PROFILE_OPENAI || 'openai-balanced' }}", native_job)
+        self.assertIn("OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY || '' }}", native_job)
+        self.assertIn("RELEASE_LOCAL_LLM_API_KEY: ${{ secrets.RELEASE_LOCAL_LLM_API_KEY || '' }}", native_job)
+        self.assertIn("--output release/changelog.release.md", native_job)
+        self.assertIn("--raw-output release/changelog.raw.md", native_job)
+        self.assertIn("--payload-output release/changelog.payload.json", native_job)
+        self.assertIn("--semantic-payload-output release/changelog.semantic_payload.json", native_job)
+        self.assertIn("--context-output release/changelog.context.json", native_job)
+        self.assertIn("--selection-output release/changelog.selection.json", native_job)
+        self.assertIn("release/changelog.release.md", native_job)
+        self.assertIn("release/changelog.raw.md", native_job)
+        self.assertIn("release/changelog.payload.json", native_job)
+        self.assertIn("release/changelog.semantic_payload.json", native_job)
+        self.assertIn("release/changelog.context.json", native_job)
 
     def test_release_workflow_publishes_with_protected_gates(self) -> None:
         workflow = self._workflow()

@@ -15,8 +15,15 @@ The release helper wraps the same package build and copies artifacts into
 `release/`:
 
 ```bash
+python3 -m tools.release changelog release \
+  --output release/changelog.release.md \
+  --raw-output release/changelog.raw.md \
+  --payload-output release/changelog.payload.json \
+  --semantic-payload-output release/changelog.semantic_payload.json \
+  --context-output release/changelog.context.json \
+  --selection-output release/changelog.selection.json
 python3 -m tools.release build-deb --output-dir release
-python3 -m tools.release validate-release-artifacts --output-dir release --skip-changelog
+python3 -m tools.release validate-release-artifacts --output-dir release
 ```
 
 Smoke-check the resulting package before publishing to the internal apt

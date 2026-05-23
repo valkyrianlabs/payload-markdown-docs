@@ -321,6 +321,28 @@ jobs:
           path: build-native/cli/pmdocs
           if-no-files-found: error
 
+      - name: Generate release changelog
+        shell: bash
+        env:
+          RELEASE_AI_MODE: ${{ vars.RELEASE_AI_MODE || 'auto' }}
+          RELEASE_AI_PROFILE_OPENAI: ${{ vars.RELEASE_AI_PROFILE_OPENAI || 'openai-balanced' }}
+          RELEASE_LOCAL_LLM_ENABLED: ${{ vars.RELEASE_LOCAL_LLM_ENABLED || 'false' }}
+          RELEASE_LOCAL_LLM_PROFILE: ${{ vars.RELEASE_LOCAL_LLM_PROFILE || '' }}
+          RELEASE_LOCAL_LLM_BASE_URL: ${{ vars.RELEASE_LOCAL_LLM_BASE_URL || '' }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY || '' }}
+          RELEASE_LOCAL_LLM_API_KEY: ${{ secrets.RELEASE_LOCAL_LLM_API_KEY || '' }}
+        run: |
+          set -euo pipefail
+          mkdir -p release
+          python -m tools.release changelog release \
+            --output release/changelog.release.md \
+            --raw-output release/changelog.raw.md \
+            --payload-output release/changelog.payload.json \
+            --semantic-payload-output release/changelog.semantic_payload.json \
+            --context-output release/changelog.context.json \
+            --release-notes-output release/release_notes.md \
+            --selection-output release/changelog.selection.json
+
       - name: Build Debian package
         run: |
           set -euo pipefail
@@ -329,16 +351,25 @@ jobs:
       - name: Validate Debian package artifact
         run: |
           set -euo pipefail
-          python -m tools.release validate-release-artifacts --output-dir release --skip-changelog
+          python -m tools.release validate-release-artifacts --output-dir release
 
-      - name: Smoke install Debian package
+      - name: Smoke install Debian package in container
         run: |
           set -euo pipefail
-          sudo -n apt install -y ./release/*.deb
-          pmdocs --version
-          pmdocs doctor
-          pmdocs validate ./dev/docs-fixtures/basic --source payload-markdown-docs
-          pmdocs skill install --dry-run
+          docker run --rm \
+            -v "$PWD/release:/release:ro" \
+            -v "$PWD/dev/docs-fixtures:/fixtures:ro" \
+            ubuntu:24.04 \
+            bash -lc '
+              set -euo pipefail
+              apt-get update
+              apt-get install -y ca-certificates
+              apt-get install -y /release/*.deb
+              pmdocs --version
+              pmdocs doctor
+              pmdocs validate /fixtures/basic --source payload-markdown-docs
+              pmdocs skill install --dry-run
+            '
 
       - name: Upload Debian artifacts
         uses: actions/upload-artifact@v4
@@ -349,6 +380,14 @@ jobs:
             release/*.changes
             release/*.buildinfo
             release/build-deb.log
+            release/changelog.release.md
+            release/changelog.raw.md
+            release/changelog.payload.json
+            release/changelog.semantic_payload.json
+            release/changelog.context.json
+            release/changelog.selection.json
+            release/release_notes.md
+            release/release_notes.md.context.json
           if-no-files-found: error
 
   homebrew-formula:
@@ -474,7 +513,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          args=(--output-dir release --skip-changelog)
+          args=(--output-dir release)
           if [ "${{ needs.validate-release-state.outputs.publish_required }}" = "true" ]; then
             args+=(--require-homebrew)
           fi
