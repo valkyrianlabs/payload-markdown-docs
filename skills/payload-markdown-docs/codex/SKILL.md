@@ -11,8 +11,9 @@ that uses `@valkyrianlabs/payload-markdown-docs`.
 Edit repo-local source files first. Treat generated Payload docs records and
 synced raw assets as server-owned output, not as source of truth.
 
-This skill may be installed at `.agents/skills/payload-markdown-docs` by the native `pmdocs` CLI
-or served from the package `skills/payload-markdown-docs/codex` directory.
+This skill may be installed at `.agents/skills/payload-markdown-docs` by the
+native `pmdocs` CLI or served from the package
+`skills/payload-markdown-docs/codex` directory.
 
 This skill owns the docs package structure, plugin sync workflow, routing,
 frontmatter, and plugin-specific safety rules. It intentionally does not define
@@ -51,6 +52,8 @@ instead of guessing directive names, props, themes, or formatting rules.
   `pmdocs install routes`.
 - `/api/...` asset URLs are implementation/internal fallback URLs, not public
   canonical docs URLs.
+- The npm package is the Payload plugin/runtime package only. Use native
+  `pmdocs`, not `pnpm exec payload-markdown-docs`, for operator CLI commands.
 
 ## Authoring Rules
 
@@ -83,6 +86,8 @@ instead of guessing directive names, props, themes, or formatting rules.
 - Do not invent unsupported Payload Markdown directives or props; use the
   sibling `payload-markdown` skill as the source of truth.
 - Do not treat generated Payload records as source of truth.
+- Do not tell users to run `pnpm exec payload-markdown-docs`; the supported CLI
+  is the native `pmdocs` binary.
 
 ## Default Workflow
 

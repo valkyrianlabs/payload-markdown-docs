@@ -29,15 +29,10 @@ dependencies:
 
 `@valkyrianlabs/payload-markdown-docs` publishes Git-backed Markdown documentation into Payload CMS. Developers and agents edit files in a repo-local `docs/` folder, CI validates and authenticates a manifest, and the Payload plugin decides what can be synced.
 
-:::callout[Early release notice]{variant="warning"}
-`@valkyrianlabs/payload-markdown-docs` is still in active pre-v1 development as
-of v0.16.0. The project is currently in a particularly volatile stabilization
-phase ahead of the planned v1.0.0 release. APIs, collections, configuration
-shape, CLI behavior, and documentation structure may change quickly in the
-interim.
-
-Use thoughtfully, pin versions, review changelogs, and expect sharper
-compatibility guarantees after v1.0.0.
+:::callout {variant="info" title="Native CLI split"}
+Install the npm package in the Payload app. Install the native `pmdocs` binary
+from Homebrew or the Valkyrian Labs Debian repository wherever docs are
+validated, planned, signed, and published.
 :::
 
 :::callout {variant="info" title="CMS-owned authority"}
@@ -81,7 +76,9 @@ Use the root, `/next`, `/admin`, and `/blocks` package surfaces intentionally.
 - dedicated docs, docs groups, docs sets, sync runs, and nonce collections
 - signed Ed25519 sync endpoint with nonce replay protection
 - GitHub Actions OIDC auth mode with Access owner/repository checks
-- native `pmdocs` commands for `validate`, `manifest`, `plan`, `keygen`, and signed `push`
+- native `pmdocs` commands for `validate`, `manifest`, `plan`, `keygen`,
+  `install routes`, `install skill`, and signed `push`
+- Homebrew and Debian installation for the native `pmdocs` operator CLI
 - server-gated sync writes, publishing, draft behavior, archive behavior, and hard delete
 - route reservations and opt-in Pages collision checks
 - read-only `/next` route adapter, metadata, sitemap, sidebar data, and navbar helpers
@@ -93,7 +90,7 @@ Use the root, `/next`, `/admin`, and `/blocks` package surfaces intentionally.
 - local Codex and Claude skill installer
 - canonical agent skill artifacts under `/skills`
 
-## What Is Not Implemented
+## V1 Boundaries
 
 - existing collection targets
 - block targets

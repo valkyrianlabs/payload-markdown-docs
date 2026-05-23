@@ -1083,7 +1083,7 @@ CommandResult run(std::vector<std::string_view> args) {
       out << "  pmdocs install routes [options]\n\n";
       out << "Commands:\n";
       out << "  skill    Install bundled AI-agent skill guidance into the current project.\n";
-      out << "  routes   Install public Next asset route files. (planned)\n";
+      out << "  routes   Install public Next asset route files.\n";
 
       return make_stdout(out.str());
     }

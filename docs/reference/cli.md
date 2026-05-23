@@ -1,7 +1,7 @@
 ---
 title: CLI Reference
 navTitle: CLI
-description: Commands and flags for payload-markdown-docs.
+description: Commands and flags for the native pmdocs CLI.
 order: 600
 status: published
 tags:
@@ -26,11 +26,8 @@ Debian/Ubuntu:
 
 ```bash
 sudo install -d -m 0755 /etc/apt/keyrings
-
-curl -fsSL https://apt.valkyrianlabs.com/pubkey.asc \
-  | gpg --dearmor \
-  | sudo tee /etc/apt/keyrings/valkyrianlabs.gpg > /dev/null
-
+sudo curl -fsSL https://apt.valkyrianlabs.com/pubkey.gpg \
+  -o /etc/apt/keyrings/valkyrianlabs.gpg
 sudo chmod 0644 /etc/apt/keyrings/valkyrianlabs.gpg
 
 echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/valkyrianlabs.gpg] https://apt.valkyrianlabs.com stable main" | \
@@ -38,6 +35,9 @@ echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/valkyrianlabs.gpg] https://apt
 
 sudo apt-get update
 sudo apt-get install -y pmdocs
+
+pmdocs --version
+pmdocs --help
 ```
 
 Homebrew:
@@ -45,7 +45,19 @@ Homebrew:
 ```bash
 brew tap valkyrianlabs/tap
 brew install pmdocs
+
+pmdocs --version
+pmdocs --help
 ```
+
+## doctor
+
+```bash
+pmdocs doctor
+```
+
+Prints local native CLI diagnostics. It does not check networking, Payload
+server configuration, auth, OIDC, or signing.
 
 ## validate
 

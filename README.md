@@ -18,13 +18,6 @@ Next/Payload site with [@valkyrianlabs/payload-markdown](https://github.com/valk
 It is the documentation delivery pipeline for teams who want docs to move as
 fast as the code they describe.
 
-> ⚠️ **Early release notice:** `@valkyrianlabs/payload-markdown-docs` is still
-> in active pre-v1 development as of v0.16.0. The project is currently in a
-> particularly volatile stabilization phase ahead of the planned v1.0.0 release.
-> APIs, collections, configuration shape, CLI behavior, and documentation
-> structure may change quickly in the interim. Use thoughtfully, pin versions,
-> review changelogs, and expect sharper compatibility guarantees after v1.0.0.
-
 ---
 
 ## [📖 Explore the Docs](https://valkyrianlabs.com/plugins/payload-markdown-docs/docs)
@@ -47,11 +40,8 @@ validation, planning, route installation, key generation, and publishing.
 
 ```bash
 sudo install -d -m 0755 /etc/apt/keyrings
-
-curl -fsSL https://apt.valkyrianlabs.com/pubkey.asc \
-  | gpg --dearmor \
-  | sudo tee /etc/apt/keyrings/valkyrianlabs.gpg > /dev/null
-
+sudo curl -fsSL https://apt.valkyrianlabs.com/pubkey.gpg \
+  -o /etc/apt/keyrings/valkyrianlabs.gpg
 sudo chmod 0644 /etc/apt/keyrings/valkyrianlabs.gpg
 
 echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/valkyrianlabs.gpg] https://apt.valkyrianlabs.com stable main" | \
@@ -59,6 +49,9 @@ echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/valkyrianlabs.gpg] https://apt
 
 sudo apt-get update
 sudo apt-get install -y pmdocs
+
+pmdocs --version
+pmdocs --help
 ```
 
 ### Homebrew
@@ -66,11 +59,34 @@ sudo apt-get install -y pmdocs
 ```bash
 brew tap valkyrianlabs/tap
 brew install pmdocs
+
+pmdocs --version
+pmdocs --help
 ```
 
 ### Why no native Windows CLI?
 
 Alright, I won’t beat around the bush: it’s because I don’t respect Windows as an operating system.
+
+For v1, `pmdocs` targets macOS developer machines and Debian/Ubuntu Linux CI/server environments. Windows users should use WSL2 or a Linux CI runner.
+
+## Native CLI Philosophy
+
+The split is intentional: npm installs the Payload plugin/runtime package, and
+the operating system installs the `pmdocs` operator CLI. That keeps Payload app
+dependencies focused on runtime code while CI jobs, docs-only repos, local
+machines, and release runners can validate and publish docs without a Node
+dependency install.
+
+The practical result is simpler operations. Install the plugin where Payload
+runs. Install `pmdocs` where docs are authored, checked, signed, and pushed.
+Homebrew and Debian packages give the CLI a predictable system path, native
+dependencies, and the same workflow in CI as on a developer machine.
+
+### Windows
+
+Native Windows packages are not a v1 target. Use WSL2 with the Debian install
+flow, or publish docs from Linux/macOS developer machines and CI runners.
 
 ## The Pitch
 
@@ -91,8 +107,9 @@ analyze codebase
   -> render inside your Payload/Next site
 ```
 
-The docs stay as plain Markdown files. The plugin handles validation, route-aware
-metadata, syncing, publishing, and rendering.
+The docs stay as plain Markdown files. The native CLI handles local validation,
+planning, signing, and upload. The Payload plugin owns server authority,
+route-aware metadata, syncing, publishing, and rendering.
 
 AI gets the speed. Humans keep the control. Payload owns the output.
 
@@ -127,8 +144,9 @@ pass, maintain large sections, and keep documentation moving with the codebase.
 
 Codex and Claude skill packs are included today. The canonical
 `payload-markdown-docs` skill artifacts live in this package under
-`skills/payload-markdown-docs/<agent>/`; the companion Payload Markdown skill is
-copied from `@valkyrianlabs/payload-markdown`.
+`skills/payload-markdown-docs/<agent>/`. For renderer directive details,
+install or inspect the companion Payload Markdown skill from
+`@valkyrianlabs/payload-markdown`.
 
 ## Why This Exists
 
@@ -382,9 +400,8 @@ steps:
   - name: Install pmdocs
     run: |
       sudo install -d -m 0755 /etc/apt/keyrings
-      curl -fsSL https://apt.valkyrianlabs.com/pubkey.asc \
-        | gpg --dearmor \
-        | sudo tee /etc/apt/keyrings/valkyrianlabs.gpg > /dev/null
+      sudo curl -fsSL https://apt.valkyrianlabs.com/pubkey.gpg \
+        -o /etc/apt/keyrings/valkyrianlabs.gpg
       sudo chmod 0644 /etc/apt/keyrings/valkyrianlabs.gpg
       echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/valkyrianlabs.gpg] https://apt.valkyrianlabs.com stable main" | \
         sudo tee /etc/apt/sources.list.d/valkyrianlabs.list > /dev/null

@@ -114,7 +114,7 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
         self.assertIn("needs.publish-homebrew-tap.result == 'success'", workflow)
         self.assertIn("needs.publish-npm.result == 'success'", workflow)
         self.assertIn("Install native pmdocs from Valkyrian Labs APT", workflow)
-        self.assertIn("https://apt.valkyrianlabs.com/pubkey.asc", workflow)
+        self.assertIn("https://apt.valkyrianlabs.com/pubkey.gpg", workflow)
         self.assertIn("sudo apt-get install -y pmdocs", workflow)
         self.assertIn("pmdocs --version", workflow)
         self.assertIn("pmdocs --help", workflow)

@@ -48,6 +48,10 @@ public key configured under the same key id in `Docs Globals > Access`.
 
 See `examples/github-actions/publish-docs.yml` in this repository.
 
+That workflow installs `pmdocs` from the Valkyrian Labs Debian repository before
+validation or publishing, then logs `pmdocs --version` and `pmdocs --help` so
+the CI output proves the native CLI path is being used.
+
 Important commands:
 
 ```bash

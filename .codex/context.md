@@ -5,9 +5,9 @@
 - Package/repository name: `@valkyrianlabs/payload-markdown-docs`
 - Package metadata now uses the scoped package name and real description.
 - Purpose: Git-backed Markdown documentation sync into Payload CMS.
-- Current package state: v1 stabilization. The root package export is Payload plugin/config API only: `payloadMarkdownDocs()` plus public plugin config and block-install selection types. Frontend and route helpers live under `/next`; admin import-map support lives under `/admin`; optional block schemas and field helpers live under `/blocks` and `/fields`. Constants, routing internals, sync planning, hashing, frontmatter parsing, security helpers, manifest builders, and admin data loaders are internal implementation details. Enabled plugin mode injects docs groups, docs sets, generated docs, docs assets, sync-run, nonce, key, and trusted-owner collections and registers authenticated sync and asset endpoints. Disabled mode remains an exact no-op. Payload Admin shows docs sets and docs groups under `Docs`; generated docs, assets, sync runs, and nonces are internal/system collections by default. The npm package is the Payload plugin/runtime package only and no longer exposes a supported CLI. Sync writes require `sync.allowWrites: true`. Publishing requires `sync.allowPublish: true` and a draft-enabled dedicated docs collection. Hard delete requires `sync.allowHardDelete: true`. Docs group routes derive from group slugs and `pageMode`; docs set routes derive from group nesting, docs set slug, and `routeMode`. Docs set `openGraph` metadata feeds the `/next` metadata helpers only and does not render a hero/banner. Raw AI-facing routes and static assets are served publicly when route files are installed, but sitemap inclusion is opt-in through `includeLlms`, `includeSkills`, or `includeAssets`.
-- Current native CLI state: `cpp-cli` contains the authoritative Meson-built C++ `pmdocs` binary using CLI11, nlohmann-json, doctest, libcurl, and OpenSSL 3. Native tests pass for `doctor`, `install skill`, `install routes`, local `validate` / `manifest` / `plan`, `keygen`, pre-network `push` validation, and local HTTP `push` transport. The local docs commands implement the v1 package-collection contract for docs, bundled skill assets, `llms.txt`, `llms-full.txt`, package summaries, manifests, and local plans; legacy AI export manifests are ignored rather than treated as v1 input. Native `keygen` generates Ed25519 PEM or base64 keys. Native `push` builds/validates the sync manifest, supports Ed25519 signing, base64/PEM/OpenSSH private-key input, GitHub OIDC bearer auth, dry-run mode, publish requests, delete behavior, strict route checks, JSON output, and libcurl transport. Offline local HTTP tests cover OIDC bearer push, `--publish`, JSON output, JSON server errors, and non-JSON server errors. Remaining release qualification is protected smoke coverage against the real Payload endpoint path for Ed25519, GitHub OIDC, and publish authorization.
-- Current release tooling state: root `VERSION` is the canonical release version. `python -m tools.release check`, `sync`, `set-version`, `set-release`, and `bump` enforce/sync `VERSION`, root `package.json`, root `meson.build`, `debian/changelog`, and `homebrew/Formula/pmdocs.rb`. The current synced version is `0.17.0`; Debian is `0.17.0-1`, and the Homebrew formula URL targets tag `v0.17.0` with a placeholder archive SHA until a protected tag release computes it. Debian build/validation is Meson-driven for the native `pmdocs` package, Nexus publication is routed through `tools.release publish-deb`, and Homebrew formula staging is available through `tools.release prepare-homebrew-formula`. The release workflow builds Debian/Homebrew package surfaces on the self-hosted Linux runner, gates Nexus/tap publication in the Production environment, validates the npm package name from `package.json` against optional `NPM_PACKAGE_NAME`, publishes npm last from GitHub-hosted `ubuntu-latest` through trusted publishing, attaches release artifacts, and pushes docs only after package publication succeeds. Changelog schema names, prompt role text, request IDs, and emitted categories are retargeted to `payload-markdown-docs` / `pmdocs` and this plugin's package surfaces. Do not run live AI/provider, Nexus, npm, GitHub, Homebrew, or docs sync publication from routine local tests; keep provider and publication behavior mocked or disabled unless explicitly validating a protected release path.
+- Current package state: v1 stabilization. The root package export is Payload plugin/config API only: `payloadMarkdownDocs()` plus public plugin config and block-install selection types. Frontend and route helpers live under `/next`; admin import-map support lives under `/admin`; optional block schemas and field helpers live under `/blocks` and `/fields`. Constants, routing internals, sync planning, hashing, frontmatter parsing, security helpers, manifest builders, and admin data loaders are internal implementation details. Enabled plugin mode injects docs groups, docs sets, generated docs, docs assets, sync-run, nonce, key, and trusted-owner collections and registers authenticated sync and asset endpoints. Disabled mode remains an exact no-op. Payload Admin shows docs sets and docs groups under `Docs`; generated docs, assets, sync runs, and nonces are internal/system collections by default. The npm package is the Payload plugin/runtime package only and no longer exposes a supported CLI. The native `pmdocs` binary is the authoritative operator CLI. Sync writes require `sync.allowWrites: true`. Publishing requires `sync.allowPublish: true` and a draft-enabled dedicated docs collection. Hard delete requires `sync.allowHardDelete: true`. Docs group routes derive from group slugs and `pageMode`; docs set routes derive from group nesting, docs set slug, and `routeMode`. Docs set `openGraph` metadata feeds the `/next` metadata helpers only and does not render a hero/banner. Raw AI-facing routes and static assets are served publicly when route files are installed, but sitemap inclusion is opt-in through `includeLlms`, `includeSkills`, or `includeAssets`.
+- Current native CLI state: `cpp-cli` contains the authoritative Meson-built C++ `pmdocs` binary using CLI11, nlohmann-json, doctest, libcurl, and OpenSSL 3. Native tests pass for `doctor`, `install skill`, `install routes`, local `validate` / `manifest` / `plan`, `keygen`, pre-network `push` validation, and local HTTP `push` transport. The local docs commands implement the v1 package-collection contract for docs, bundled skill assets, `llms.txt`, `llms-full.txt`, package summaries, manifests, and local plans; legacy AI export manifests are ignored rather than treated as v1 input. Native `keygen` generates Ed25519 PEM or base64 keys. Native `push` builds/validates the sync manifest, supports Ed25519 signing, base64/PEM/OpenSSH private-key input, GitHub OIDC bearer auth, dry-run mode, publish requests, delete behavior, strict route checks, JSON output, and libcurl transport. Homebrew and Debian install paths have been dogfooded for v0.17.4: system `pmdocs --version`, validation, route installation, skill installation, and push flows work from installed packages.
+- Current release tooling state: root `VERSION` is the canonical release version. `python -m tools.release check`, `sync`, `set-version`, `set-release`, and `bump` enforce/sync `VERSION`, root `package.json`, root `meson.build`, `debian/changelog`, and `homebrew/Formula/pmdocs.rb`. The current synced version is `0.17.4`; Debian is `0.17.4-1`, and the Homebrew formula URL targets tag `v0.17.4` with a placeholder archive SHA until a protected tag release computes it. Debian build/validation is Meson-driven for the native `pmdocs` package, Nexus publication is routed through `tools.release publish-deb`, and Homebrew formula staging is available through `tools.release prepare-homebrew-formula`. The release workflow builds Debian/Homebrew package surfaces on the self-hosted Linux runner, gates Nexus/tap publication in the Production environment, validates the npm package name from `package.json` against optional `NPM_PACKAGE_NAME`, publishes npm last from GitHub-hosted `ubuntu-latest` through trusted publishing, attaches release artifacts, and pushes docs only after package publication succeeds. Docs publish installs native `pmdocs` from the Valkyrian Labs Debian repository and uses the direct binary `pubkey.gpg` keyring flow under `/etc/apt/keyrings`, not `pubkey.asc | gpg --dearmor`. Changelog schema names, prompt role text, request IDs, and emitted categories are retargeted to `payload-markdown-docs` / `pmdocs` and this plugin's package surfaces. Do not run live AI/provider, Nexus, npm, GitHub, Homebrew, or docs sync publication from routine local tests; keep provider and publication behavior mocked or disabled unless explicitly validating a protected release path.
 
 ## Product Direction
 
@@ -165,8 +165,9 @@ Done when:
 
 ### 2. Port Keygen And Push Protocol Cleanly
 
-Status: implementation landed for the native CLI command surface; remaining
-work is safe endpoint parity/smoke coverage and any fixes found there.
+Status: implemented for the native CLI command surface and covered by local
+HTTP/push tests. Installed package dogfood has verified the operator flow from
+native binaries; keep any protected production endpoint smoke tests deliberate.
 
 Scope:
 
@@ -187,51 +188,43 @@ Scope:
   keygen output/write behavior, endpoint validation, auth flag conflicts,
   malformed keys, strict route checks, and invalid GitHub OIDC request URL
   handling.
-- Still needed: local/mock HTTP response tests for push success/failure output,
-  plus protected endpoint smoke tests for Ed25519 dry-run, GitHub OIDC dry-run,
-  and publish requests.
-
 Done when:
 
-- Native `keygen` output is verified against the existing Payload sync endpoint
-  or an equivalent local test endpoint.
-- Native `push --dry-run`, Ed25519 `push`, GitHub OIDC `push`, and
-  `push --publish` match v1 sync behavior against a local/test endpoint.
-- Parity coverage includes representative `keygen` and dry-run/push cases that
-  do not require real production credentials.
+- Native `keygen` output, Ed25519 signing, GitHub OIDC auth, dry-run requests,
+  publish requests, and response handling are covered without requiring routine
+  production credentials.
 
 ### 3. Make Debian And Homebrew Installation Release-Grade
 
-Finish native packaging after command parity is real.
+Status: implemented and dogfooded for v0.17.4 Debian/Homebrew package install
+paths.
 
 Scope:
 
-- Sync Meson project version, Debian changelog version, Homebrew formula URL,
-  and package release tags with `package.json` / v1 release strategy.
-- Confirm Meson install paths for binary and skill data:
+- Keep Meson project version, Debian changelog version, Homebrew formula URL,
+  and package release tags synced with `VERSION`.
+- Meson install paths for binary and skill data are:
   `/usr/bin/pmdocs` plus `/usr/share/pmdocs/skills/...` for Debian, and the
   equivalent Homebrew prefix/share layout.
-- Add CI jobs that build and smoke-test `.deb` artifacts with
-  `dpkg-buildpackage`, inspect package contents, install into a clean container
-  or runner, and run `pmdocs doctor`, local validation, and skill install.
-- Add release workflow steps to upload Debian artifacts to the configured Nexus
-  apt repository. Keep Nexus URL, repository name, credentials, and optional GPG
+- CI builds and smoke-tests `.deb` artifacts, inspects package contents, installs
+  the package, and runs `pmdocs doctor`, local validation, and skill install.
+- Release workflow uploads Debian artifacts to the configured Nexus apt
+  repository. Keep Nexus URL, repository name, credentials, and optional GPG
   material in GitHub secrets/vars.
-- Finalize the Homebrew formula and either publish to `valkyrianlabs/homebrew-tap`
-  or document the first manual tap release. Formula builds should run native
-  Meson tests only, not npm parity tests.
+- Homebrew formula publication targets `valkyrianlabs/homebrew-tap`. Formula
+  builds run native Meson tests only, not npm parity tests.
 
 Done when:
 
 - A tagged release publishes npm, Debian artifacts to Nexus apt, and a usable
-  Homebrew formula/tap update from one release workflow or a documented two-step
-  release process.
+  Homebrew formula/tap update from the release workflow.
 - Fresh Debian and macOS machines can install `pmdocs`, run `pmdocs doctor`, and
   execute validate/manifest/plan/push without Node.
 
 ### 4. Tighten Docs And Release Gates
 
-Make the native CLI a supported v1 surface, not a side project.
+Status: in final v1 documentation cleanup. Make the native CLI the documented
+operator surface, not a side project.
 
 Scope:
 
