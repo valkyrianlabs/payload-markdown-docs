@@ -37,8 +37,8 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
         self.assertIn("sudo apt-get install -y ./release/*.deb", workflow)
         self.assertIn("pmdocs doctor", workflow)
         self.assertIn("pmdocs validate ./dev/docs-fixtures/basic --source payload-markdown-docs", workflow)
-        self.assertIn("brew install --build-from-source ./release/homebrew/Formula/pmdocs.rb", workflow)
-        self.assertIn("brew test pmdocs", workflow)
+        self.assertIn("ruby -c release/homebrew/Formula/pmdocs.rb", workflow)
+        self.assertIn("Build and test native CLI for formula source build parity", workflow)
 
     def test_release_workflow_publishes_with_protected_gates(self) -> None:
         workflow = self._workflow()
@@ -53,6 +53,25 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
         self.assertIn("HOMEBREW_TAP_REPOSITORY", workflow)
         self.assertIn("HOMEBREW_TAP_TOKEN", workflow)
         self.assertIn("environment: Production", workflow)
+
+    def test_release_workflow_uses_self_hosted_for_native_and_github_hosted_for_npm_publish(self) -> None:
+        workflow = self._workflow()
+
+        self.assertIn("native-debian:\n    name: Native CLI and Debian package\n    runs-on: [self-hosted, Linux, X64, ubuntu-latest-lts]", workflow)
+        self.assertIn("homebrew-formula:\n    name: Homebrew formula\n    runs-on: [self-hosted, Linux, X64, ubuntu-latest-lts]", workflow)
+        self.assertIn("publish-debian:\n    name: Publish Debian artifacts to Nexus\n    runs-on: [self-hosted, Linux, X64, ubuntu-latest-lts]", workflow)
+        self.assertIn("publish-homebrew-tap:\n    name: Publish Homebrew tap formula\n    runs-on: [self-hosted, Linux, X64, ubuntu-latest-lts]", workflow)
+        self.assertIn("publish-npm:\n    name: Publish npm package\n    runs-on: ubuntu-latest", workflow)
+        self.assertNotIn("NPM_TOKEN", workflow)
+
+    def test_npm_publish_runs_after_native_publication(self) -> None:
+        workflow = self._workflow()
+
+        self.assertIn("publish-npm:", workflow)
+        self.assertIn("needs.publish-debian.result == 'success'", workflow)
+        self.assertIn("needs.publish-homebrew-tap.result == 'success'", workflow)
+        self.assertIn("npm publish \"${tarballs[0]}\" --access public", workflow)
+        self.assertIn("Publish to npm through trusted publishing", workflow)
 
     def test_release_workflow_attaches_deduped_github_release_assets(self) -> None:
         workflow = self._workflow()
@@ -71,6 +90,7 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
         self.assertIn("publish-docs:", workflow)
         self.assertIn("needs.publish-debian.result == 'success'", workflow)
         self.assertIn("needs.publish-homebrew-tap.result == 'success'", workflow)
+        self.assertIn("needs.publish-npm.result == 'success'", workflow)
         self.assertIn("--github-oidc", workflow)
         self.assertIn("--publish", workflow)
         self.assertIn("DOCS_SYNC_ENDPOINT", workflow)

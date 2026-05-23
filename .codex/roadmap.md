@@ -31,7 +31,9 @@ proven end to end.
 - Release packaging: Debian build/validation is adapted to the native `pmdocs`
   Meson package. Nexus publication is wired through `tools.release publish-deb`.
   Homebrew formula staging is wired through
-  `tools.release prepare-homebrew-formula`. Protected workflow publication still
+  `tools.release prepare-homebrew-formula`. Native Debian/Nexus/Homebrew work
+  runs on the self-hosted Linux release runner, and npm trusted publishing runs
+  last on GitHub-hosted `ubuntu-latest`. Protected workflow publication still
   needs the Production environment variables/secrets configured before live use.
 - Version state: Option B is active. Root `VERSION` is canonical and
   `python -m tools.release check`, `sync`, `set-version`, `set-release`, and
@@ -141,10 +143,13 @@ Current status:
 
 - Done: release tooling builds native `.deb` artifacts, validates package
   contents, performs local install smoke checks in CI, stages Homebrew formulas,
-  and has protected Nexus/tap publication jobs.
+  and has protected Nexus/tap publication jobs. npm publish is ordered after
+  Debian/Nexus and Homebrew tap success and uses trusted publishing, not
+  `NPM_TOKEN`.
 - Remaining: configure Production secrets/vars, run one protected dry-run on a
-  tag, then add live APT repository validation after Nexus metadata/signing
-  details are confirmed.
+  tag, add Homebrew install smoke coverage on a runner with Homebrew available,
+  then add live APT repository validation after Nexus metadata/signing details
+  are confirmed.
 
 Done when:
 
@@ -160,7 +165,8 @@ Goal: make a tagged v1 release reproducible and low-touch.
 Scope:
 
 - Keep npm publication checks from the existing release workflow. Current
-  status: done, including tarball artifact upload and protected npm publish.
+  status: done, including tarball artifact upload and protected trusted npm
+  publish after native package publication succeeds.
 - Add native build/test jobs for Linux and macOS. Current status: done.
 - Add release-tooling checks with live providers and publication disabled.
   Current status: done for offline release-tooling unit tests.

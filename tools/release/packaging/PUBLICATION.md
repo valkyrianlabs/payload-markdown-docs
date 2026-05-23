@@ -17,6 +17,26 @@ python3 -m tools.release check
 Protected publication requires a tag named `v<VERSION>`. Dry-run workflow
 dispatches can run against a branch or SHA without publishing.
 
+Native Debian, Nexus, Homebrew formula staging, Homebrew tap publication, and
+docs sync run on the self-hosted Linux release runner. npm publication runs
+after Debian/Nexus and Homebrew tap publication succeed, using npm trusted
+publishing from a GitHub-hosted runner. No `NPM_TOKEN` secret is required.
+
+## npm trusted publishing
+
+npm publication is driven by npm's trusted publisher configuration for this
+repository/workflow, not a long-lived automation token. The `publish-npm` job
+runs on `ubuntu-latest` with `id-token: write` available at workflow scope and
+publishes the tarball produced by the earlier npm package job:
+
+```bash
+npm publish ./release/npm/<package>.tgz --access public
+```
+
+The publish job is intentionally ordered after the native package publication
+jobs, so a Nexus or Homebrew tap failure cannot leave npm as the only published
+package surface for the release.
+
 ## Debian and Nexus
 
 Debian publication is driven by:
@@ -66,8 +86,13 @@ python3 -m tools.release prepare-homebrew-formula \
   --sha256 "<sha256>"
 ```
 
-The workflow then runs a local formula install/test on macOS before copying
-`release/homebrew/Formula/pmdocs.rb` into the configured tap repository.
+The workflow validates formula syntax and native source-build parity before
+copying `release/homebrew/Formula/pmdocs.rb` into the configured tap repository.
+The tap update itself is a Git repository update and does not require a
+GitHub-hosted runner. The current workflow stages and publishes the tap update
+from the self-hosted Linux release runner. A Homebrew install smoke test should
+run on a machine with Homebrew available, preferably a protected macOS runner,
+before v1 if macOS install validation is required in CI.
 
 ## Docs sync
 

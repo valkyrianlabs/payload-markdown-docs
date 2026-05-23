@@ -59,10 +59,12 @@ Release checklist:
 
 9. Commit and push the formula to the tap.
 
-The release workflow can perform steps 4 through 9 when
+The release workflow performs formula staging, syntax validation, and tap commit
+publication when
 `HOMEBREW_TAP_PUBLISH_MODE=tap`, `HOMEBREW_TAP_REPOSITORY`,
 `HOMEBREW_TAP_BRANCH`, and `HOMEBREW_TAP_TOKEN` are configured in the protected
-Production environment.
+Production environment. Formula install smoke tests still need a runner with
+Homebrew available, preferably protected macOS CI before v1.
 
 The Homebrew formula should run native Meson tests only. The npm parity harness
 requires repository dev dependencies and should stay in repository CI, not in
