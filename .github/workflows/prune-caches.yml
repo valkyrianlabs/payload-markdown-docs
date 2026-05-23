@@ -1,0 +1,38 @@
+name: Prune GitHub Actions caches
+
+on:
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  prune:
+    name: Delete repository caches
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete all Actions caches for this repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          deleted=0
+          while true; do
+            ids="$(gh cache list --repo "$GH_REPO" --limit 100 --json id --jq '.[].id')"
+            if [ -z "$ids" ]; then
+              break
+            fi
+
+            while IFS= read -r id; do
+              if [ -z "$id" ]; then
+                continue
+              fi
+              gh cache delete "$id" --repo "$GH_REPO"
+              deleted=$((deleted + 1))
+            done <<< "$ids"
+          done
+
+          echo "Deleted ${deleted} cache entries."

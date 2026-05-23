@@ -29,13 +29,13 @@ if ! command -v sudo >/dev/null 2>&1; then
   exit 1
 fi
 
-if ! sudo -n apt-get update; then
+if ! sudo -n apt update; then
   echo "::error::Missing apt packages: ${missing[*]}"
-  echo "::error::The runner could not run 'apt-get update' through non-interactive sudo."
+  echo "::error::The runner could not run 'apt update' through non-interactive sudo."
   exit 1
 fi
 
-if ! sudo -n apt-get install -y "${missing[@]}"; then
+if ! sudo -n apt install -y "${missing[@]}"; then
   echo "::error::The runner could not install missing apt packages through non-interactive sudo: ${missing[*]}"
   exit 1
 fi

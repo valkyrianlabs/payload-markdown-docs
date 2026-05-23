@@ -184,7 +184,6 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version-file: ".nvmrc"
-          cache: "pnpm"
           registry-url: "https://registry.npmjs.org"
 
       - name: Install dependencies
@@ -282,7 +281,6 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version-file: ".nvmrc"
-          cache: "pnpm"
 
       - name: Install native and release-tooling dependencies
         shell: bash
@@ -332,11 +330,7 @@ jobs:
       - name: Smoke install Debian package
         run: |
           set -euo pipefail
-          if ! sudo -n true >/dev/null 2>&1; then
-            echo "::error::Passwordless sudo is required to smoke install the Debian package on this self-hosted runner."
-            exit 1
-          fi
-          sudo -n apt-get install -y ./release/*.deb
+          sudo -n apt install -y ./release/*.deb
           pmdocs --version
           pmdocs doctor
           pmdocs validate ./dev/docs-fixtures/basic --source payload-markdown-docs
@@ -691,7 +685,6 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version-file: ".nvmrc"
-          cache: "pnpm"
 
       - name: Install dependencies
         run: |
