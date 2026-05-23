@@ -6,9 +6,12 @@ from unittest.mock import patch
 
 from tools.release.changelog.context_builder import build_release_context
 from tools.release.changelog.git_collect import (
+    EMPTY_TREE_SHA,
     get_commits_since_tag,
+    get_file_patch,
     get_first_release_tag_for_major,
     get_previous_release_tag_before,
+    get_release_file_stats,
 )
 from tools.release.changelog.models import CommitInfo
 from tools.release.version.models import Version
@@ -250,6 +253,44 @@ class GitCollectTests(unittest.TestCase):
         with patch("tools.release.changelog.git_collect._run_git", return_value=tags):
             resolved = get_first_release_tag_for_major(".", 1)
         self.assertEqual(resolved, "v1.0.0")
+
+    def test_release_file_stats_use_empty_tree_diff_for_full_history(self) -> None:
+        with patch("tools.release.changelog.git_collect._run_git", return_value="2\t0\tREADME.md\n") as run_git:
+            stats = get_release_file_stats(".", None)
+
+        self.assertEqual(stats, {"README.md": (2, 0)})
+        run_git.assert_called_once_with(
+            ["diff", "--numstat", EMPTY_TREE_SHA, "HEAD"],
+            Path(".").resolve(),
+        )
+
+    def test_file_patch_uses_empty_tree_diff_for_full_history(self) -> None:
+        with patch("tools.release.changelog.git_collect._run_git", return_value="patch") as run_git:
+            patch_text = get_file_patch(".", "src/index.ts", None)
+
+        self.assertEqual(patch_text, "patch")
+        run_git.assert_called_once_with(
+            [
+                "diff",
+                "--function-context",
+                "--unified=120",
+                EMPTY_TREE_SHA,
+                "HEAD",
+                "--",
+                "src/index.ts",
+            ],
+            Path(".").resolve(),
+        )
+
+    def test_release_diffs_keep_tag_to_head_range_when_checkpoint_exists(self) -> None:
+        with patch("tools.release.changelog.git_collect._run_git", return_value="1\t1\tsrc/index.ts\n") as run_git:
+            stats = get_release_file_stats(".", "v0.9.0")
+
+        self.assertEqual(stats, {"src/index.ts": (1, 1)})
+        run_git.assert_called_once_with(
+            ["diff", "--numstat", "v0.9.0..HEAD"],
+            Path(".").resolve(),
+        )
 
 
 

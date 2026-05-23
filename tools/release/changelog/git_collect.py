@@ -9,6 +9,7 @@ from tools.release.version.models import Version
 
 FIELD_SEP = "\x1f"
 RECORD_SEP = "\x1e"
+EMPTY_TREE_SHA = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
 
 
 def get_head_sha(repo_root: Path | str = ".") -> str:
@@ -167,9 +168,9 @@ def get_release_file_stats(
     previous_tag: str | None = None,
 ) -> dict[str, tuple[int, int]]:
     repo_root = Path(repo_root).resolve()
-    commit_range = _build_commit_range(previous_tag)
+    diff_range = _build_diff_range_args(previous_tag)
 
-    output = _run_git(["diff", "--numstat", commit_range], repo_root)
+    output = _run_git(["diff", "--numstat", *diff_range], repo_root)
     stats: dict[str, tuple[int, int]] = {}
 
     for line in output.splitlines():
@@ -194,16 +195,22 @@ def get_file_patch(
     previous_tag: str | None = None,
 ) -> str:
     repo_root = Path(repo_root).resolve()
-    commit_range = _build_commit_range(previous_tag)
+    diff_range = _build_diff_range_args(previous_tag)
     normalized_path = normalize_path(path)
     return _run_git(
-        ["diff", "--function-context", "--unified=120", commit_range, "--", normalized_path],
+        ["diff", "--function-context", "--unified=120", *diff_range, "--", normalized_path],
         repo_root,
     )
 
 
 def _build_commit_range(previous_tag: str | None) -> str:
     return f"{previous_tag}..HEAD" if previous_tag else "HEAD"
+
+
+def _build_diff_range_args(previous_tag: str | None) -> list[str]:
+    if previous_tag:
+        return [f"{previous_tag}..HEAD"]
+    return [EMPTY_TREE_SHA, "HEAD"]
 
 
 def _run_git(args: list[str], repo_root: Path | str = ".") -> str:

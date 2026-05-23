@@ -537,11 +537,40 @@ jobs:
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
 
+      - name: Prepare GitHub Release body append
+        if: needs.validate-release-state.outputs.release_tag != ''
+        id: gh_release_body
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          body_path="release/github-release-body.md"
+          source_path=""
+          if [ -s release/release_notes.md ]; then
+            source_path="release/release_notes.md"
+          elif [ -s release/changelog.release.md ]; then
+            source_path="release/changelog.release.md"
+          else
+            echo "::error::No release notes or release changelog artifact found for GitHub release body."
+            exit 1
+          fi
+
+          {
+            printf "%s\n\n" "## What's changed"
+            cat "$source_path"
+            printf "\n"
+          } > "$body_path"
+
+          echo "[gh-release] prepared append body from ${source_path}: ${body_path}"
+          echo "body_path=${body_path}" >> "$GITHUB_OUTPUT"
+
       - name: Upload GitHub Release assets
         if: needs.validate-release-state.outputs.release_tag != ''
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.validate-release-state.outputs.release_tag }}
+          body_path: ${{ steps.gh_release_body.outputs.body_path }}
+          append_body: true
           files: ${{ steps.gh_release_assets.outputs.assets }}
           overwrite_files: true
           fail_on_unmatched_files: true
