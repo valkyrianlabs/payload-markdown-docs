@@ -29,7 +29,7 @@ fast as the code they describe.
 Install the Payload plugin package in the Payload app:
 
 ```bash
-pnpm add @valkyrianlabs/payload-markdown-docs @valkyrianlabs/payload-markdown
+pnpm add @valkyrianlabs/payload-markdown-docs
 ```
 
 The npm package is the Payload plugin/runtime integration only. It does not
