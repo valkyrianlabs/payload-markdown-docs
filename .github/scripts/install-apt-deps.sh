@@ -29,11 +29,13 @@ if ! command -v sudo >/dev/null 2>&1; then
   exit 1
 fi
 
-if ! sudo -n true >/dev/null 2>&1; then
+if ! sudo -n apt-get update; then
   echo "::error::Missing apt packages: ${missing[*]}"
-  echo "::error::Passwordless sudo is unavailable to the runner process. Verify the runner service user and sudoers configuration directly on the VM."
+  echo "::error::The runner could not run 'apt-get update' through non-interactive sudo."
   exit 1
 fi
 
-sudo -n apt update
-sudo -n apt install -y "${missing[@]}"
+if ! sudo -n apt-get install -y "${missing[@]}"; then
+  echo "::error::The runner could not install missing apt packages through non-interactive sudo: ${missing[*]}"
+  exit 1
+fi
