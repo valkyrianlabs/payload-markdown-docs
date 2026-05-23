@@ -304,14 +304,16 @@ std::vector<std::string_view> args(std::initializer_list<std::string_view> value
 
 std::filesystem::path create_skill_fixture(const std::filesystem::path& root) {
   const auto data_root = root / "data";
-  const auto skill_root = data_root / "skills" / "payload-markdown-docs" / "codex";
+  const auto codex_skill_root = data_root / "skills" / "payload-markdown-docs" / "codex";
+  const auto claude_skill_root = data_root / "skills" / "payload-markdown-docs" / "claude";
 
   write_text(
-    skill_root / "SKILL.md",
+    codex_skill_root / "SKILL.md",
     "Docs root: {{docsRoot}}\nPackage manager: {{packageManager}}\n"
     "{{packageManager}} exec payload-markdown-docs validate {{docsRoot}}\n"
   );
-  write_text(skill_root / "reference" / "workflow.md", "Workflow for {{docsRoot}}\n");
+  write_text(codex_skill_root / "reference" / "workflow.md", "Workflow for {{docsRoot}}\n");
+  write_text(claude_skill_root / "SKILL.md", "Claude docs root: {{docsRoot}}\n");
 
   return data_root;
 }
@@ -325,6 +327,7 @@ TEST_CASE("help, version, and doctor are available") {
 
   const auto help = pmdocs::run(args({"--help"}));
   CHECK(help.exit_code == 0);
+  CHECK(help.stdout_text.find("pmdocs install skill") != std::string::npos);
   CHECK(help.stdout_text.find("pmdocs skill install") != std::string::npos);
 
   const auto version = pmdocs::run(args({"--version"}));
@@ -346,8 +349,9 @@ TEST_CASE("skill install help is available") {
 
   CHECK(result.exit_code == 0);
   CHECK(result.stdout_text.find("--docs-root") != std::string::npos);
+  CHECK(result.stdout_text.find("--agent <codex|claude>") != std::string::npos);
   CHECK(result.stdout_text.find("--package-manager") != std::string::npos);
-  CHECK(result.stdout_text.find("Bundled skill source:") != std::string::npos);
+  CHECK(result.stdout_text.find("Bundled Codex skill source:") != std::string::npos);
 }
 
 TEST_CASE("skill install dry-run prints planned files without writing") {
@@ -363,10 +367,10 @@ TEST_CASE("skill install dry-run prints planned files without writing") {
   CHECK(result.exit_code == 0);
   CHECK(result.stdout_text.find("dry-run") != std::string::npos);
   CHECK(result.stdout_text.find("SKILL.md") != std::string::npos);
-  CHECK_FALSE(std::filesystem::exists(project_root / ".codex"));
+  CHECK_FALSE(std::filesystem::exists(project_root / ".agents"));
 }
 
-TEST_CASE("skill install copies bundled files to the default project path") {
+TEST_CASE("install skill copies bundled files to the default Codex project path") {
   TempDir temp{"pmdocs-test-install"};
   const auto data_root = create_skill_fixture(temp.path());
   const auto project_root = temp.path() / "project";
@@ -374,14 +378,59 @@ TEST_CASE("skill install copies bundled files to the default project path") {
   EnvGuard env{"PMDOCS_DATA_DIR", data_root.string()};
   CwdGuard cwd{project_root};
 
+  const auto result = pmdocs::run(args({"install", "skill", "--agent", "codex"}));
+  const auto target = project_root / ".agents" / "skills" / "payload-markdown-docs";
+
+  CHECK(result.exit_code == 0);
+  CHECK(result.stdout_text.find("Agent: codex") != std::string::npos);
+  CHECK(std::filesystem::exists(target / "SKILL.md"));
+  CHECK(std::filesystem::exists(target / "reference" / "workflow.md"));
+  CHECK(read_text(target / "SKILL.md").find("Docs root: ./docs") != std::string::npos);
+  CHECK(read_text(target / "SKILL.md").find("Package manager: npm") != std::string::npos);
+}
+
+TEST_CASE("install skill supports Claude target and validates npm-style agent flags") {
+  TempDir temp{"pmdocs-test-install-agent"};
+  const auto data_root = create_skill_fixture(temp.path());
+  const auto project_root = temp.path() / "project";
+  std::filesystem::create_directory(project_root);
+  EnvGuard env{"PMDOCS_DATA_DIR", data_root.string()};
+  CwdGuard cwd{project_root};
+
+  const auto missing_agent = pmdocs::run(args({"install", "skill"}));
+  CHECK(missing_agent.exit_code == 1);
+  CHECK(missing_agent.stderr_text.find("--agent codex|claude") != std::string::npos);
+
+  const auto bad_agent = pmdocs::run(args({"install", "skill", "--agent", "cursor"}));
+  CHECK(bad_agent.exit_code == 1);
+  CHECK(bad_agent.stderr_text.find("codex or claude") != std::string::npos);
+
+  const auto multiple_agents = pmdocs::run(args({"install", "skill", "--codex", "--claude"}));
+  CHECK(multiple_agents.exit_code == 1);
+  CHECK(multiple_agents.stderr_text.find("one agent target") != std::string::npos);
+
+  const auto result = pmdocs::run(args({"install", "skill", "--claude"}));
+  const auto target = project_root / ".claude" / "skills" / "payload-markdown-docs";
+
+  CHECK(result.exit_code == 0);
+  CHECK(result.stdout_text.find("Agent: claude") != std::string::npos);
+  CHECK(std::filesystem::exists(target / "SKILL.md"));
+  CHECK(read_text(target / "SKILL.md").find("Claude docs root: ./docs") != std::string::npos);
+}
+
+TEST_CASE("legacy skill install remains a Codex alias") {
+  TempDir temp{"pmdocs-test-legacy-install"};
+  const auto data_root = create_skill_fixture(temp.path());
+  const auto project_root = temp.path() / "project";
+  std::filesystem::create_directory(project_root);
+  EnvGuard env{"PMDOCS_DATA_DIR", data_root.string()};
+  CwdGuard cwd{project_root};
+
   const auto result = pmdocs::run(args({"skill", "install"}));
-  const auto target = project_root / ".codex" / "skills" / "payload-markdown-docs";
+  const auto target = project_root / ".agents" / "skills" / "payload-markdown-docs";
 
   CHECK(result.exit_code == 0);
   CHECK(std::filesystem::exists(target / "SKILL.md"));
-  CHECK(std::filesystem::exists(target / "reference" / "workflow.md"));
-  CHECK(read_text(target / "SKILL.md").find("Docs root: docs") != std::string::npos);
-  CHECK(read_text(target / "SKILL.md").find("Package manager: npm") != std::string::npos);
 }
 
 TEST_CASE("skill install renders placeholders from flags") {
@@ -527,7 +576,7 @@ TEST_CASE("push command parses help and rejects invalid auth combinations before
   const auto keys = pmdocs::generate_ed25519_key_pair("pem");
   const auto key_path = temp.path() / "docs-sync-private.pem";
   const auto key_path_string = key_path.string();
-  write_text(root / "index.md", "# Home\n");
+  write_text(root / "index.md", "---\ndependencies:\n  - '@valkyrianlabs/payload-markdown'\ntags:\n  - overview\n---\n# Home\n");
   write_text(key_path, keys.private_key);
 
   const auto help = pmdocs::run(args({"push", "--help"}));
@@ -641,7 +690,7 @@ TEST_CASE("push posts docs to a local HTTP endpoint with GitHub OIDC and publish
   TempDir temp{"pmdocs-test-push-http"};
   const auto root = temp.path() / "docs";
   const auto root_string = root.string();
-  write_text(root / "index.md", "# Home\n");
+  write_text(root / "index.md", "---\ndependencies:\n  - '@valkyrianlabs/payload-markdown'\ntags:\n  - overview\n---\n# Home\n");
   EnvGuard oidc{"PMDOCS_TEST_OIDC_TOKEN", "oidc-token"};
   SingleRequestServer server{
     200,
@@ -799,6 +848,21 @@ TEST_CASE("validate JSON output includes warnings") {
   CHECK(output["validation"]["ok"] == true);
   CHECK(output["validation"]["warnings"].size() == 1);
   CHECK(output["validation"]["warnings"][0]["message"].get<std::string>().find("Unknown frontmatter field") != std::string::npos);
+}
+
+TEST_CASE("validate JSON output includes dependencies frontmatter") {
+  TempDir temp{"pmdocs-test-validate-dependencies"};
+  const auto root = temp.path() / "docs";
+  const auto root_string = root.string();
+  write_text(root / "index.md", "---\ndependencies:\n  - '@valkyrianlabs/payload-markdown'\ntags:\n  - overview\n---\n# Home\n");
+
+  const auto result = pmdocs::run(args({"validate", root_string, "--source", "main-docs", "--json"}));
+  REQUIRE(result.exit_code == 0);
+
+  const auto output = nlohmann::json::parse(result.stdout_text);
+  const auto& frontmatter = output["validation"]["data"]["files"][0]["frontmatter"];
+  CHECK(frontmatter["dependencies"][0] == "@valkyrianlabs/payload-markdown");
+  CHECK(frontmatter["tags"][0] == "overview");
 }
 
 TEST_CASE("manifest includes skill and llms assets") {

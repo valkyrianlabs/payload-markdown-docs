@@ -11,6 +11,8 @@ order: 10
 status: published
 tags:
   - getting-started
+dependencies:
+  - "@valkyrianlabs/payload-markdown"
 redirectFrom:
   - /docs/install
 ---
@@ -25,6 +27,7 @@ Supported fields:
 - `status`
 - `slug`
 - `tags`
+- `dependencies`
 - `redirectFrom`
 - `draft`
 
@@ -32,7 +35,7 @@ Rules:
 
 - `status` must be `draft` or `published`.
 - `order` must be a number.
-- `tags` and `redirectFrom` must use list item syntax.
+- `tags`, `dependencies`, and `redirectFrom` must use list item syntax.
 - `slug` may contain letters, numbers, and hyphens.
 - Avoid arbitrary nested YAML objects.
 - Avoid inline arrays such as `tags: [getting-started]`.

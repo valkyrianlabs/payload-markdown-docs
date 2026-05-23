@@ -149,18 +149,19 @@ When `--source` is omitted in GitHub Actions, the CLI derives it from
 ```bash
 payload-markdown-docs install skill --agent codex
 payload-markdown-docs install skill --agent claude
-pmdocs skill install
+pmdocs install skill --agent codex
+pmdocs install skill --agent claude
 ```
 
-Installs native AI-agent guidance from the package `skills/` tree and installs
-the companion `@valkyrianlabs/payload-markdown` authoring skill beside it. Codex
-defaults to `.agents/skills/payload-markdown-docs/` plus
-`.agents/skills/payload-markdown/` and creates or updates `AGENTS.md`. Claude
-defaults to `.claude/skills/payload-markdown-docs/` plus
-`.claude/skills/payload-markdown/` and does not update `AGENTS.md` by default.
+Installs AI-agent guidance from the package `skills/` tree. The npm CLI also
+installs the companion `@valkyrianlabs/payload-markdown` authoring skill beside
+it and creates or updates `AGENTS.md` for default Codex installs.
 
-The native `pmdocs skill install` command installs bundled Codex guidance into
-`.codex/skills/payload-markdown-docs/` for non-npm repositories.
+The native `pmdocs install skill` command installs the bundled
+`payload-markdown-docs` skill for Codex or Claude. Codex defaults to
+`.agents/skills/payload-markdown-docs/`; Claude defaults to
+`.claude/skills/payload-markdown-docs/`. `pmdocs skill install` remains as a
+Codex compatibility alias.
 
 Useful flags:
 

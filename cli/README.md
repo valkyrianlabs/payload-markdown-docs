@@ -55,7 +55,8 @@ binary uses the Meson-compiled data directory, such as
 The native CLI currently supports:
 
 - `pmdocs doctor`
-- `pmdocs skill install`
+- `pmdocs install skill`
+- `pmdocs skill install` compatibility alias
 - `pmdocs validate`
 - `pmdocs manifest`
 - `pmdocs plan`

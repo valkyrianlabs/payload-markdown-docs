@@ -14,9 +14,12 @@ struct CommandResult {
 };
 
 struct InstallSkillOptions {
-  std::filesystem::path out_dir = ".codex/skills/payload-markdown-docs";
-  std::string docs_root = "docs";
+  std::filesystem::path out_dir;
+  std::string agent = "codex";
+  std::string docs_root = "./docs";
   std::string package_manager = "npm";
+  bool codex = false;
+  bool claude = false;
   bool force = false;
   bool dry_run = false;
 };

@@ -26,6 +26,11 @@ namespace {
 constexpr std::string_view kSkillName = "payload-markdown-docs";
 constexpr std::string_view kVersion = PMDOCS_VERSION;
 
+enum class InstallCommandShape {
+  LegacySkillInstall,
+  NpmInstallSkill,
+};
+
 struct PlannedFile {
   std::filesystem::path source_path;
   std::filesystem::path destination_path;
@@ -102,6 +107,22 @@ std::filesystem::path absolute_normalized(const std::filesystem::path& path) {
   return std::filesystem::absolute(path).lexically_normal();
 }
 
+bool is_supported_agent(std::string_view agent) {
+  return agent == "codex" || agent == "claude";
+}
+
+std::filesystem::path default_project_skill_dir_for_agent(std::string_view agent) {
+  if (agent == "claude") {
+    return std::filesystem::path{".claude"} / "skills" / std::string{kSkillName};
+  }
+
+  return std::filesystem::path{".agents"} / "skills" / std::string{kSkillName};
+}
+
+std::filesystem::path bundled_skill_dir_for_agent(std::string_view agent) {
+  return data_dir() / "skills" / std::string{kSkillName} / std::string{agent};
+}
+
 bool is_below_or_equal(const std::filesystem::path& child, const std::filesystem::path& parent) {
   const auto normalized_child = absolute_normalized(child);
   const auto normalized_parent = absolute_normalized(parent);
@@ -157,7 +178,7 @@ std::optional<std::string> ensure_directory_path(const std::filesystem::path& di
 }
 
 std::vector<PlannedFile> collect_planned_files(const InstallSkillOptions& options) {
-  const auto source_root = bundled_skill_dir();
+  const auto source_root = bundled_skill_dir_for_agent(options.agent);
   const auto target_root = absolute_normalized(options.out_dir);
   std::error_code error;
 
@@ -274,8 +295,9 @@ std::vector<std::string> find_conflicts(const std::vector<PlannedFile>& files) {
 
 std::string format_install_plan(const InstallSkillOptions& options, const std::vector<PlannedFile>& files) {
   std::ostringstream out;
-  out << (options.dry_run ? "pmdocs skill install dry-run" : "pmdocs skill install") << "\n\n";
-  out << "Source: " << bundled_skill_dir().string() << "\n";
+  out << (options.dry_run ? "pmdocs install skill dry-run" : "pmdocs install skill") << "\n\n";
+  out << "Agent: " << options.agent << "\n";
+  out << "Source: " << bundled_skill_dir_for_agent(options.agent).string() << "\n";
   out << "Target: " << absolute_normalized(options.out_dir).string() << "\n";
   out << "Files:\n";
 
@@ -304,6 +326,7 @@ Usage:
   pmdocs --help
   pmdocs --version
   pmdocs doctor
+  pmdocs install skill --agent codex [options]
   pmdocs skill install [options]
   pmdocs validate [docs-root] [options]
   pmdocs manifest [docs-root] [options]
@@ -313,7 +336,8 @@ Usage:
 
 Commands:
   doctor          Show native CLI diagnostics.
-  skill install   Install bundled Codex skill guidance into the current project.
+  install skill   Install bundled AI-agent skill guidance into the current project.
+  skill install   Alias for install skill. Defaults to Codex for compatibility.
   skill update    Update an installed Codex skill. (planned)
   validate        Validate a local docs package.
   manifest        Print a JSON docs package manifest.
@@ -417,14 +441,21 @@ Payload server configuration, auth, OIDC, or signing.
 
 std::string skill_install_help_text() {
   std::ostringstream out;
-  out << R"(pmdocs skill install
+  out << R"(pmdocs install skill
 
 Usage:
+  pmdocs install skill --agent codex [options]
+  pmdocs install skill --agent claude [options]
+  pmdocs install skill --codex [options]
+  pmdocs install skill --claude [options]
   pmdocs skill install [options]
 
 Options:
-  --out <path>              Output directory. Defaults to .codex/skills/payload-markdown-docs.
-  --docs-root <path>        Docs root to render into installed guidance. Defaults to docs.
+  --agent <codex|claude>    Agent target.
+  --codex                   Install the Codex skill pack.
+  --claude                  Install the Claude skill pack.
+  --out <path>              Output directory. Defaults to .agents/skills/payload-markdown-docs for Codex and .claude/skills/payload-markdown-docs for Claude.
+  --docs-root <path>        Docs root to render into installed guidance. Defaults to ./docs.
   --package-manager <name>  Package manager to render into installed guidance. Defaults to npm.
   --force                   Overwrite existing skill files.
   --dry-run                 Print planned writes without changing files.
@@ -434,9 +465,10 @@ Copies bundled skill guidance from the installed pmdocs data directory into the
 current project. The installer renders {{docsRoot}} and {{packageManager}}
 placeholders while copying files.
 
-Bundled skill source:
+Bundled Codex skill source:
   )";
-  out << bundled_skill_dir().string() << "\n";
+  out << bundled_skill_dir_for_agent("codex").string() << "\n";
+  out << "Bundled Claude skill source:\n  " << bundled_skill_dir_for_agent("claude").string() << "\n";
 
   return out.str();
 }
@@ -526,6 +558,13 @@ struct DocsOptionsRefs {
   CLI::Option* skills = nullptr;
 };
 
+struct InstallOptionsRefs {
+  CLI::Option* agent = nullptr;
+  CLI::Option* claude = nullptr;
+  CLI::Option* codex = nullptr;
+  CLI::Option* out = nullptr;
+};
+
 ArgvBuffer to_argv_buffer(const std::vector<std::string_view>& args) {
   ArgvBuffer buffer;
   buffer.storage.reserve(args.size() + 1);
@@ -560,11 +599,11 @@ std::filesystem::path data_dir() {
 }
 
 std::filesystem::path bundled_skill_dir() {
-  return data_dir() / "skills" / std::string{kSkillName} / "codex";
+  return bundled_skill_dir_for_agent("codex");
 }
 
 std::filesystem::path default_project_skill_dir() {
-  return std::filesystem::path{".codex"} / "skills" / std::string{kSkillName};
+  return default_project_skill_dir_for_agent("codex");
 }
 
 CommandResult run_skill_install(const InstallSkillOptions& options) {
@@ -643,7 +682,10 @@ CommandResult run(std::vector<std::string_view> args) {
   DocsOptionsRefs manifest_options_refs;
   DocsOptionsRefs plan_options_refs;
   DocsOptionsRefs push_options_refs;
+  InstallOptionsRefs install_skill_options_refs;
+  InstallOptionsRefs legacy_skill_install_options_refs;
   bool doctor_requested = false;
+  bool install_routes_requested = false;
   bool keygen_requested = false;
   bool manifest_requested = false;
   bool plan_requested = false;
@@ -661,16 +703,34 @@ CommandResult run(std::vector<std::string_view> args) {
     doctor_requested = true;
   });
 
+  const auto add_install_skill_options = [](CLI::App* command, InstallSkillOptions& options) {
+    InstallOptionsRefs refs;
+    refs.agent = command->add_option("--agent", options.agent, "Agent target: codex or claude.");
+    refs.codex = command->add_flag("--codex", options.codex, "Install the Codex skill pack.");
+    refs.claude = command->add_flag("--claude", options.claude, "Install the Claude skill pack.");
+    refs.out = command->add_option("--out", options.out_dir, "Output directory.");
+    command->add_option("--docs-root", options.docs_root, "Docs root to render into installed guidance.")
+      ->default_val(options.docs_root);
+    command->add_option("--package-manager", options.package_manager, "Package manager to render into installed guidance.")
+      ->default_val(options.package_manager);
+    command->add_flag("--force", options.force, "Overwrite existing skill files.");
+    command->add_flag("--dry-run", options.dry_run, "Print planned writes without changing files.");
+
+    return refs;
+  };
+
+  auto* install = app.add_subcommand("install", "Install local AI-agent guidance or Next route files for docs assets.");
+  auto* install_skill = install->add_subcommand("skill", "Install bundled AI-agent skill guidance into the current project.");
+  install_skill_options_refs = add_install_skill_options(install_skill, install_options);
+  auto* install_routes = install->add_subcommand("routes", "Install public Next asset route files. (planned)");
+  install_routes->allow_extras();
+  install_routes->callback([&install_routes_requested]() {
+    install_routes_requested = true;
+  });
+
   auto* skill = app.add_subcommand("skill", "Manage local AI-agent skill guidance.");
   auto* skill_install = skill->add_subcommand("install", "Install bundled Codex skill guidance into the current project.");
-  skill_install->add_option("--out", install_options.out_dir, "Output directory.")
-    ->default_val(install_options.out_dir.string());
-  skill_install->add_option("--docs-root", install_options.docs_root, "Docs root to render into installed guidance.")
-    ->default_val(install_options.docs_root);
-  skill_install->add_option("--package-manager", install_options.package_manager, "Package manager to render into installed guidance.")
-    ->default_val(install_options.package_manager);
-  skill_install->add_flag("--force", install_options.force, "Overwrite existing skill files.");
-  skill_install->add_flag("--dry-run", install_options.dry_run, "Print planned writes without changing files.");
+  legacy_skill_install_options_refs = add_install_skill_options(skill_install, install_options);
 
   auto* skill_update = skill->add_subcommand("update", "Update installed Codex skill guidance. (planned)");
   skill_update->allow_extras();
@@ -754,8 +814,26 @@ CommandResult run(std::vector<std::string_view> args) {
   try {
     app.parse(static_cast<int>(parse_args.argv.size()), parse_args.argv.data());
   } catch (const CLI::CallForHelp&) {
+    if (args.size() >= 3 && args[0] == "install" && args[1] == "skill") {
+      return make_stdout(skill_install_help_text());
+    }
+
     if (args.size() >= 3 && args[0] == "skill" && args[1] == "install") {
       return make_stdout(skill_install_help_text());
+    }
+
+    if (args.size() >= 2 && args[0] == "install") {
+      std::ostringstream out;
+      out << "pmdocs install\n\n";
+      out << "Usage:\n";
+      out << "  pmdocs install skill --agent codex [options]\n";
+      out << "  pmdocs install skill --agent claude [options]\n";
+      out << "  pmdocs install routes [options]\n\n";
+      out << "Commands:\n";
+      out << "  skill    Install bundled AI-agent skill guidance into the current project.\n";
+      out << "  routes   Install public Next asset route files. (planned)\n";
+
+      return make_stdout(out.str());
     }
 
     if (args.size() >= 2 && args[0] == "doctor") {
@@ -781,7 +859,7 @@ CommandResult run(std::vector<std::string_view> args) {
       out << "  pmdocs skill install [options]\n";
       out << "  pmdocs skill update [options]\n\n";
       out << "Commands:\n";
-      out << "  install   Install bundled Codex skill guidance into the current project.\n";
+      out << "  install   Alias for pmdocs install skill. Defaults to Codex for compatibility.\n";
       out << "  update    Update installed Codex skill guidance. (planned)\n";
 
       return make_stdout(out.str());
@@ -809,6 +887,76 @@ CommandResult run(std::vector<std::string_view> args) {
       .stderr_text = err.str(),
     };
   }
+
+  const auto normalize_install_options = [](
+    InstallSkillOptions& options,
+    const InstallOptionsRefs& refs,
+    InstallCommandShape shape
+  ) -> std::optional<CommandResult> {
+    std::vector<std::string> requested_agents;
+
+    if (refs.agent != nullptr && refs.agent->count() > 0) {
+      if (!is_supported_agent(options.agent)) {
+        return CommandResult{
+          .exit_code = 1,
+          .stderr_text = "--agent must be codex or claude.\n",
+        };
+      }
+
+      requested_agents.push_back(options.agent);
+    }
+
+    if (options.codex) {
+      requested_agents.push_back("codex");
+    }
+    if (options.claude) {
+      requested_agents.push_back("claude");
+    }
+
+    std::ranges::sort(requested_agents);
+    requested_agents.erase(std::unique(requested_agents.begin(), requested_agents.end()), requested_agents.end());
+
+    if (requested_agents.empty()) {
+      if (shape == InstallCommandShape::NpmInstallSkill) {
+        return CommandResult{
+          .exit_code = 1,
+          .stderr_text = "Install skill requires --codex, --claude, or --agent codex|claude.\n",
+        };
+      }
+
+      options.agent = "codex";
+    } else if (requested_agents.size() > 1) {
+      return CommandResult{
+        .exit_code = 1,
+        .stderr_text = "Install skill accepts one agent target at a time.\n",
+      };
+    } else {
+      options.agent = requested_agents.front();
+    }
+
+    if (!is_supported_agent(options.agent)) {
+      return CommandResult{
+        .exit_code = 1,
+        .stderr_text = "--agent must be codex or claude.\n",
+      };
+    }
+
+    if (options.package_manager != "bun"
+        && options.package_manager != "npm"
+        && options.package_manager != "pnpm"
+        && options.package_manager != "yarn") {
+      return CommandResult{
+        .exit_code = 1,
+        .stderr_text = "--package-manager must be pnpm, npm, yarn, or bun.\n",
+      };
+    }
+
+    if (refs.out == nullptr || refs.out->count() == 0) {
+      options.out_dir = default_project_skill_dir_for_agent(options.agent);
+    }
+
+    return std::nullopt;
+  };
 
   const auto finalize_docs_options = [](DocsCommandOptions& options, const DocsOptionsRefs& refs) {
     options.docs_root_explicit = refs.docs_root != nullptr && refs.docs_root->count() > 0;
@@ -838,7 +986,23 @@ CommandResult run(std::vector<std::string_view> args) {
     return doctor_result();
   }
 
+  if (install_routes_requested) {
+    return planned_command_result("install routes");
+  }
+
+  if (install_skill->parsed()) {
+    if (auto error = normalize_install_options(install_options, install_skill_options_refs, InstallCommandShape::NpmInstallSkill)) {
+      return *error;
+    }
+
+    return run_skill_install(install_options);
+  }
+
   if (skill_install->parsed()) {
+    if (auto error = normalize_install_options(install_options, legacy_skill_install_options_refs, InstallCommandShape::LegacySkillInstall)) {
+      return *error;
+    }
+
     return run_skill_install(install_options);
   }
 

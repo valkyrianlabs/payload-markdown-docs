@@ -138,6 +138,8 @@ struct NormalizedAssetPath {
 };
 
 struct Frontmatter {
+  std::vector<std::string> dependencies;
+  bool has_dependencies = false;
   std::optional<std::string> description;
   std::optional<bool> draft;
   std::optional<std::string> nav_title;
@@ -1608,6 +1610,7 @@ ParsedFrontmatter parse_frontmatter(const std::string& markdown, std::optional<s
 
   std::optional<std::string> current_array_key;
   static const std::set<std::string> known_fields = {
+    "dependencies",
     "description",
     "draft",
     "navTitle",
@@ -1618,7 +1621,7 @@ ParsedFrontmatter parse_frontmatter(const std::string& markdown, std::optional<s
     "tags",
     "title",
   };
-  static const std::set<std::string> array_fields = {"redirectFrom", "tags"};
+  static const std::set<std::string> array_fields = {"dependencies", "redirectFrom", "tags"};
 
   for (std::size_t index = 1; index < *closing_index; ++index) {
     const auto& line = lines[index];
@@ -1638,7 +1641,9 @@ ParsedFrontmatter parse_frontmatter(const std::string& markdown, std::optional<s
         continue;
       }
 
-      if (*current_array_key == "redirectFrom") {
+      if (*current_array_key == "dependencies") {
+        result.frontmatter.dependencies.push_back(strip_quotes(trimmed_start.substr(2)));
+      } else if (*current_array_key == "redirectFrom") {
         result.frontmatter.redirect_from.push_back(strip_quotes(trimmed_start.substr(2)));
       } else if (*current_array_key == "tags") {
         result.frontmatter.tags.push_back(strip_quotes(trimmed_start.substr(2)));
@@ -1672,7 +1677,10 @@ ParsedFrontmatter parse_frontmatter(const std::string& markdown, std::optional<s
 
       current_array_key = key;
 
-      if (key == "redirectFrom") {
+      if (key == "dependencies") {
+        result.frontmatter.has_dependencies = true;
+        result.frontmatter.dependencies.clear();
+      } else if (key == "redirectFrom") {
         result.frontmatter.has_redirect_from = true;
         result.frontmatter.redirect_from.clear();
       } else {
@@ -1780,6 +1788,9 @@ std::string resolve_title(const ParsedFrontmatter& parsed, const std::string& so
 json frontmatter_to_json(const Frontmatter& frontmatter) {
   json output = json::object();
 
+  if (frontmatter.has_dependencies) {
+    output["dependencies"] = frontmatter.dependencies;
+  }
   if (frontmatter.description) {
     output["description"] = *frontmatter.description;
   }
