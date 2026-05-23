@@ -15,26 +15,28 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
     def test_release_workflow_checks_canonical_version_state(self) -> None:
         workflow = self._workflow()
 
-        self.assertIn("python3 -m tools.release check", workflow)
+        self.assertIn("bash .github/scripts/setup-release-python.sh", workflow)
+        self.assertIn("python -m tools.release check", workflow)
         self.assertIn("VERSION", workflow)
         self.assertIn("Multi-package publication requires the canonical tag 'v${version}'", workflow)
         self.assertIn("publish_required", workflow)
+        self.assertIn("fetch-depth: 1", workflow)
 
     def test_release_workflow_builds_all_shipping_package_surfaces(self) -> None:
         workflow = self._workflow()
 
         self.assertIn("npm pack --pack-destination release/npm", workflow)
-        self.assertIn("python3 -m tools.release build-deb --output-dir release", workflow)
-        self.assertIn("python3 -m tools.release prepare-homebrew-formula", workflow)
+        self.assertIn("python -m tools.release build-deb --output-dir release", workflow)
+        self.assertIn("python -m tools.release prepare-homebrew-formula", workflow)
         self.assertIn("meson setup build-native -Dnative_cli_parity_tests=true", workflow)
         self.assertIn("meson setup build-homebrew", workflow)
 
     def test_release_workflow_validates_and_smoke_tests_native_artifacts(self) -> None:
         workflow = self._workflow()
 
-        self.assertIn("python3 -m tools.release validate-release-artifacts", workflow)
+        self.assertIn("python -m tools.release validate-release-artifacts", workflow)
         self.assertIn("--require-homebrew", workflow)
-        self.assertIn("sudo apt-get install -y ./release/*.deb", workflow)
+        self.assertIn("sudo -n apt install -y ./release/*.deb", workflow)
         self.assertIn("pmdocs doctor", workflow)
         self.assertIn("pmdocs validate ./dev/docs-fixtures/basic --source payload-markdown-docs", workflow)
         self.assertIn("ruby -c release/homebrew/Formula/pmdocs.rb", workflow)
@@ -48,7 +50,7 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
         self.assertIn("NEXUS_REPO_URL", workflow)
         self.assertIn("NEXUS_USER", workflow)
         self.assertIn("NEXUS_PASS", workflow)
-        self.assertIn("python3 -m tools.release publish-deb --output-dir release --require-enabled", workflow)
+        self.assertIn("python -m tools.release publish-deb --output-dir release --require-enabled", workflow)
         self.assertIn("HOMEBREW_TAP_PUBLISH_MODE", workflow)
         self.assertIn("HOMEBREW_TAP_REPOSITORY", workflow)
         self.assertIn("HOMEBREW_TAP_TOKEN", workflow)

@@ -52,12 +52,17 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.inputs.ref || github.ref }}
-          fetch-depth: 0
+          fetch-depth: 1
 
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
+      - name: Install release tooling Python dependencies
+        run: |
+          set -euo pipefail
+          bash .github/scripts/setup-release-python.sh
 
       - name: Validate versions and publication policy
         id: state
@@ -69,7 +74,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          python3 -m tools.release check
+          python -m tools.release check
 
           version="$(tr -d '[:space:]' < VERSION)"
           if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
@@ -265,12 +270,17 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.inputs.ref || github.ref }}
-          fetch-depth: 0
+          fetch-depth: 1
 
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
+      - name: Install release tooling Python dependencies
+        run: |
+          set -euo pipefail
+          bash .github/scripts/setup-release-python.sh
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
@@ -300,15 +310,13 @@ jobs:
             ninja-build \
             nlohmann-json3-dev \
             pkgconf
-          python3 -m pip install --upgrade pip
-          python3 -m pip install -r requirements.txt
           corepack enable
           pnpm install --frozen-lockfile --prefer-offline
 
       - name: Run release-tooling tests
         run: |
           set -euo pipefail
-          python3 -m unittest discover -s tools/release/tests -p 'test_*.py'
+          python -m unittest discover -s tools/release/tests -p 'test_*.py'
 
       - name: Build and test native CLI with npm parity
         run: |
@@ -320,12 +328,12 @@ jobs:
       - name: Build Debian package
         run: |
           set -euo pipefail
-          python3 -m tools.release build-deb --output-dir release
+          python -m tools.release build-deb --output-dir release
 
       - name: Validate Debian package artifact
         run: |
           set -euo pipefail
-          python3 -m tools.release validate-release-artifacts --output-dir release --skip-changelog
+          python -m tools.release validate-release-artifacts --output-dir release --skip-changelog
 
       - name: Smoke install Debian package
         run: |
@@ -356,12 +364,17 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.inputs.ref || github.ref }}
-          fetch-depth: 0
+          fetch-depth: 1
 
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
+      - name: Install release tooling Python dependencies
+        run: |
+          set -euo pipefail
+          bash .github/scripts/setup-release-python.sh
 
       - name: Install native and formula validation dependencies
         run: |
@@ -383,9 +396,9 @@ jobs:
       - name: Validate release state and formula syntax
         run: |
           set -euo pipefail
-          python3 -m tools.release check
+          python -m tools.release check
           ruby -c homebrew/Formula/pmdocs.rb
-          python3 -m tools.release prepare-homebrew-formula --output-dir release --dry-run
+          python -m tools.release prepare-homebrew-formula --output-dir release --dry-run
 
       - name: Build and test native CLI for formula source build parity
         run: |
@@ -403,7 +416,7 @@ jobs:
           set -euo pipefail
           archive_url="https://github.com/${GITHUB_REPOSITORY}/archive/refs/tags/v${VERSION}.tar.gz"
           sha256="$(curl -fsSL "$archive_url" | shasum -a 256 | awk '{print $1}')"
-          python3 -m tools.release prepare-homebrew-formula \
+          python -m tools.release prepare-homebrew-formula \
             --output-dir release \
             --archive-url "$archive_url" \
             --sha256 "$sha256"
@@ -430,12 +443,17 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.inputs.ref || github.ref }}
-          fetch-depth: 0
+          fetch-depth: 1
 
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
+      - name: Install release tooling Python dependencies
+        run: |
+          set -euo pipefail
+          bash .github/scripts/setup-release-python.sh
 
       - name: Download npm package artifact
         uses: actions/download-artifact@v4
@@ -464,7 +482,7 @@ jobs:
           if [ "${{ needs.validate-release-state.outputs.publish_required }}" = "true" ]; then
             args+=(--require-homebrew)
           fi
-          python3 -m tools.release validate-release-artifacts "${args[@]}"
+          python -m tools.release validate-release-artifacts "${args[@]}"
 
       - name: Prepare GitHub release asset list (deduped)
         if: needs.validate-release-state.outputs.release_tag != ''
@@ -526,6 +544,11 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Install release tooling Python dependencies
+        run: |
+          set -euo pipefail
+          bash .github/scripts/setup-release-python.sh
+
       - name: Download combined release artifact
         uses: actions/download-artifact@v4
         with:
@@ -537,9 +560,9 @@ jobs:
         run: |
           set -euo pipefail
           if [ "${{ needs.validate-release-state.outputs.publish_required }}" = "true" ]; then
-            python3 -m tools.release publish-deb --output-dir release --require-enabled
+            python -m tools.release publish-deb --output-dir release --require-enabled
           else
-            python3 -m tools.release publish-deb --output-dir release --mode disabled --dry-run
+            python -m tools.release publish-deb --output-dir release --mode disabled --dry-run
           fi
 
   publish-homebrew-tap:
