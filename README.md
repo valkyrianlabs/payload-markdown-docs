@@ -144,7 +144,7 @@ pass, maintain large sections, and keep documentation moving with the codebase.
 
 Codex and Claude skill packs are included today. The canonical
 `payload-markdown-docs` skill artifacts live in this package under
-`skills/payload-markdown-docs/<agent>/`. For renderer directive details,
+`<group...>/<doc-set>/skills/<agent>`. For renderer directive details,
 install or inspect the companion Payload Markdown skill from
 `@valkyrianlabs/payload-markdown`.
 
@@ -177,7 +177,7 @@ the output. Your site owns the final output.
 - AI-first documentation generation workflow.
 - Codex and Claude skill installer for repo-local agent guidance.
 - Plain Markdown source of truth in `/docs`.
-- Native skill artifacts in `/skills/payload-markdown-docs/<agent>/`.
+- Native skill artifacts in `<group...>/<doc-set>/skills/<agent>`.
 - Generated root and docs-set AI discovery files from synced docs and skills.
 - GitHub Actions publishing with OIDC.
 - Ed25519 signed local publishing for advanced on-demand workflows.
