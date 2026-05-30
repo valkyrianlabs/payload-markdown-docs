@@ -19,6 +19,7 @@ class DebianInstallFlowContractTests(unittest.TestCase):
 
         required = (
             "dpkg-buildpackage -us -uc -b",
+            "pnpm install --frozen-lockfile",
             "python3 -m tools.release changelog release",
             "--output release/changelog.release.md",
             "--selection-output release/changelog.selection.json",

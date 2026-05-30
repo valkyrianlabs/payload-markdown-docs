@@ -96,6 +96,7 @@ pmdocs_test_exe = executable(
 
 pmdocs_test_env = environment()
 pmdocs_test_env.set('PMDOCS_DATA_DIR', meson.project_source_root())
+pmdocs_docs_fixture = meson.project_source_root() / 'dev' / 'docs-fixtures' / 'basic'
 
 test('pmdocs help', pmdocs_exe, args: ['--help'])
 test('pmdocs version', pmdocs_exe, args: ['--version'])
@@ -105,9 +106,9 @@ test('pmdocs install skill dry-run', pmdocs_exe, args: ['install', 'skill', '--a
 test('pmdocs install routes help', pmdocs_exe, args: ['install', 'routes', '--help'], env: pmdocs_test_env)
 test('pmdocs skill install help', pmdocs_exe, args: ['skill', 'install', '--help'], env: pmdocs_test_env)
 test('pmdocs skill install dry-run', pmdocs_exe, args: ['skill', 'install', '--dry-run'], env: pmdocs_test_env)
-test('pmdocs validate fixture', pmdocs_exe, args: ['validate', '../dev/docs-fixtures/basic', '--source', 'payload-markdown-docs'])
-test('pmdocs manifest fixture', pmdocs_exe, args: ['manifest', '../dev/docs-fixtures/basic', '--source', 'payload-markdown-docs'])
-test('pmdocs plan fixture', pmdocs_exe, args: ['plan', '../dev/docs-fixtures/basic', '--source', 'payload-markdown-docs'])
+test('pmdocs validate fixture', pmdocs_exe, args: ['validate', pmdocs_docs_fixture, '--source', 'payload-markdown-docs'])
+test('pmdocs manifest fixture', pmdocs_exe, args: ['manifest', pmdocs_docs_fixture, '--source', 'payload-markdown-docs'])
+test('pmdocs plan fixture', pmdocs_exe, args: ['plan', pmdocs_docs_fixture, '--source', 'payload-markdown-docs'])
 test('pmdocs unit tests', pmdocs_test_exe)
 
 summary(

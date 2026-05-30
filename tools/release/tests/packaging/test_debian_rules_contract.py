@@ -12,6 +12,7 @@ class DebianRulesContractTests(unittest.TestCase):
         rules = (self._repo_root() / "debian" / "rules").read_text(encoding="utf-8")
 
         self.assertIn("dh $@ --buildsystem=meson", rules)
+        self.assertIn("dh_auto_configure -- -Dinstall_skill_data=true", rules)
         self.assertIn("dh_auto_install --destdir=debian/tmp", rules)
         self.assertNotIn("web/.next", rules)
         self.assertNotIn("systemctl", rules)
@@ -27,6 +28,10 @@ class DebianRulesContractTests(unittest.TestCase):
         self.assertIn("'node_modules' / '@valkyrianlabs' / 'payload-markdown'", meson)
         self.assertIn("install_dir: pmdocs_data_dir / 'skills'", meson)
         self.assertIn("if get_option('install_skill_data')", meson)
+
+        options = (self._repo_root() / "meson.options").read_text(encoding="utf-8")
+        self.assertIn("'install_skill_data'", options)
+        self.assertIn("value: false", options)
 
     def test_debian_install_manifest_tracks_only_native_payload(self) -> None:
         install_manifest = (self._repo_root() / "debian" / "pmdocs.install").read_text(encoding="utf-8")

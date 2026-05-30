@@ -1,6 +1,6 @@
 option(
   'install_skill_data',
   type: 'boolean',
-  value: true,
-  description: 'Install bundled pmdocs skill data under the system share directory.',
+  value: false,
+  description: 'Install bundled pmdocs skill data under the system share directory. Enable only when npm dependency skills are available.',
 )

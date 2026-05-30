@@ -55,7 +55,7 @@ jobs:
       - name: Build and test native CLI
         run: |
           set -euo pipefail
-          meson setup build-native
+          meson setup build-native -Dinstall_skill_data=false
           meson compile -C build-native
           meson test -C build-native
 

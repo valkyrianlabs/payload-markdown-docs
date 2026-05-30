@@ -3,5 +3,8 @@
 %:
 	dh $@ --buildsystem=meson
 
+override_dh_auto_configure:
+	dh_auto_configure -- -Dinstall_skill_data=true
+
 override_dh_auto_install:
 	dh_auto_install --destdir=debian/tmp

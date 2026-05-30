@@ -8,6 +8,8 @@ Build locally from the repository root on a Debian-like system with:
 
 ```bash
 sudo apt install build-essential cmake debhelper doctest-dev libcli11-dev libcurl4-openssl-dev libssl-dev meson ninja-build nlohmann-json3-dev pkgconf
+corepack enable
+pnpm install --frozen-lockfile
 dpkg-buildpackage -us -uc -b
 ```
 

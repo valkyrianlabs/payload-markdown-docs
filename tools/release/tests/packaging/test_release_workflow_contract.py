@@ -13,6 +13,13 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
         workflow_path = self._repo_root() / ".github" / "workflows" / "release.yml"
         return workflow_path.read_text(encoding="utf-8")
 
+    def test_build_and_test_native_cli_does_not_require_skill_data(self) -> None:
+        workflow = (self._repo_root() / ".github" / "workflows" / "deploy.yml").read_text(encoding="utf-8")
+        native_job = workflow.split("  native-cli:", 1)[1]
+
+        self.assertIn("meson setup build-native -Dinstall_skill_data=false", native_job)
+        self.assertIn("meson test -C build-native", native_job)
+
     def test_npm_package_is_plugin_runtime_only(self) -> None:
         package = json.loads((self._repo_root() / "package.json").read_text(encoding="utf-8"))
         scripts = package.get("scripts", {})
@@ -37,9 +44,9 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
         self.assertIn("npm pack --pack-destination release/npm", workflow)
         self.assertIn("python -m tools.release build-deb --output-dir release", workflow)
         self.assertIn("python -m tools.release prepare-homebrew-formula", workflow)
-        self.assertIn("meson setup build-native", workflow)
+        self.assertIn("meson setup build-native -Dinstall_skill_data=false", workflow)
         self.assertNotIn("native_cli_parity_tests=true", workflow)
-        self.assertIn("meson setup build-homebrew", workflow)
+        self.assertIn("meson setup build-homebrew -Dinstall_skill_data=false", workflow)
 
     def test_release_workflow_validates_and_smoke_tests_native_artifacts(self) -> None:
         workflow = self._workflow()
@@ -49,6 +56,11 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
         self.assertIn("python -m tools.release validate-release-artifacts", workflow)
         self.assertIn("--require-homebrew", workflow)
         self.assertIn("python -m tools.release validate-release-artifacts --output-dir release", native_job)
+        self.assertIn("Install npm dependencies for Debian package skill data", native_job)
+        self.assertLess(
+            native_job.index("Install npm dependencies for Debian package skill data"),
+            native_job.index("Build Debian package"),
+        )
         self.assertNotIn("--skip-changelog", native_job)
         self.assertNotIn("--skip-changelog", assemble_job)
         self.assertIn("Smoke install Debian package in container", workflow)
