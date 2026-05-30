@@ -62,9 +62,11 @@ pmdocs install skill --agent codex
 pmdocs install skill --agent claude
 ```
 
-The Codex installer writes `.agents/skills/payload-markdown-docs/`. The Claude
-installer writes `.claude/skills/payload-markdown-docs/`. Neither install syncs
-docs, calls Payload, or publishes content.
+The Codex installer writes `.agents/skills/payload-markdown-docs/` and
+`.agents/skills/payload-markdown/`. The Claude installer writes
+`.claude/skills/payload-markdown-docs/` and
+`.claude/skills/payload-markdown/`. These installs do not sync docs, call
+Payload, or publish content.
 
 ## Install Public Asset Routes
 

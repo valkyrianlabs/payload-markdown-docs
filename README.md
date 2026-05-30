@@ -143,10 +143,9 @@ important docs by hand. But the workflow is optimized for AI to build the first
 pass, maintain large sections, and keep documentation moving with the codebase.
 
 Codex and Claude skill packs are included today. The canonical
-`payload-markdown-docs` skill artifacts live in this package under
-`<group...>/<doc-set>/skills/<agent>`. For renderer directive details,
-install or inspect the companion Payload Markdown skill from
-`@valkyrianlabs/payload-markdown`.
+`payload-markdown-docs` skill artifacts live in this package. The companion
+`payload-markdown` skill is copied from the installed
+`@valkyrianlabs/payload-markdown` package during native CLI packaging.
 
 ## Why This Exists
 
@@ -324,24 +323,25 @@ pmdocs install skill --agent codex
 pmdocs install skill --agent claude
 ```
 
-The Codex installer writes:
+The Codex installer writes both skill packages:
 
 ```txt
 .agents/skills/payload-markdown-docs/
+.agents/skills/payload-markdown/
 ```
 
-The Claude installer writes:
+The Claude installer writes both skill packages:
 
 ```txt
 .claude/skills/payload-markdown-docs/
+.claude/skills/payload-markdown/
 ```
 
 The installer does not sync docs, call Payload, or publish content. It only
 installs agent-facing guidance so AI agents can understand the documentation
 rules inside your repo. The `payload-markdown-docs` skill covers package
-structure and sync behavior. For renderer directives and Markdown authoring,
-install or inspect the companion `payload-markdown` skill from
-`@valkyrianlabs/payload-markdown`.
+structure and sync behavior. The companion `payload-markdown` skill covers
+renderer directives and Markdown authoring.
 
 A typical prompt after installing the skill:
 

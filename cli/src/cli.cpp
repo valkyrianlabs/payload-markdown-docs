@@ -23,7 +23,7 @@
 namespace pmdocs {
 namespace {
 
-constexpr std::string_view kSkillName = "payload-markdown-docs";
+constexpr std::string_view kPrimarySkillName = "payload-markdown-docs";
 constexpr std::string_view kVersion = PMDOCS_VERSION;
 
 enum class InstallCommandShape {
@@ -35,6 +35,7 @@ struct PlannedFile {
   std::filesystem::path source_path;
   std::filesystem::path destination_path;
   std::filesystem::path relative_path;
+  std::filesystem::path display_path;
   std::string content;
 };
 
@@ -47,6 +48,12 @@ struct InstallRoutesOptions {
 struct AssetRouteTemplate {
   std::filesystem::path relative_path;
   std::string_view content;
+};
+
+struct SkillInstallTarget {
+  std::string package_slug;
+  std::filesystem::path source_root;
+  std::filesystem::path target_root;
 };
 
 std::string read_file(const std::filesystem::path& path) {
@@ -184,16 +191,113 @@ std::vector<AssetRouteTemplate> asset_route_templates() {
   };
 }
 
-std::filesystem::path default_project_skill_dir_for_agent(std::string_view agent) {
+std::filesystem::path default_project_skill_parent_dir_for_agent(std::string_view agent) {
   if (agent == "claude") {
-    return std::filesystem::path{".claude"} / "skills" / std::string{kSkillName};
+    return std::filesystem::path{".claude"} / "skills";
   }
 
-  return std::filesystem::path{".agents"} / "skills" / std::string{kSkillName};
+  return std::filesystem::path{".agents"} / "skills";
+}
+
+std::filesystem::path default_project_skill_dir_for_agent(std::string_view agent) {
+  return default_project_skill_parent_dir_for_agent(agent) / std::string{kPrimarySkillName};
+}
+
+std::filesystem::path bundled_skills_root() {
+  return data_dir() / "skills";
+}
+
+std::filesystem::path bundled_skill_dir_for_package_and_agent(
+  std::string_view package_slug,
+  std::string_view agent
+) {
+  return bundled_skills_root() / std::string{package_slug} / std::string{agent};
 }
 
 std::filesystem::path bundled_skill_dir_for_agent(std::string_view agent) {
-  return data_dir() / "skills" / std::string{kSkillName} / std::string{agent};
+  return bundled_skill_dir_for_package_and_agent(kPrimarySkillName, agent);
+}
+
+std::vector<std::string> bundled_skill_package_slugs_for_agent(std::string_view agent) {
+  std::vector<std::string> package_slugs;
+  const auto root = bundled_skills_root();
+  std::error_code error;
+
+  if (std::filesystem::is_directory(root, error)) {
+    std::filesystem::directory_iterator iterator{root, error};
+    const std::filesystem::directory_iterator end;
+
+    for (; iterator != end; iterator.increment(error)) {
+      if (error) {
+        break;
+      }
+
+      const auto& entry = *iterator;
+      const auto status = entry.symlink_status(error);
+
+      if (error) {
+        error.clear();
+        continue;
+      }
+
+      if (std::filesystem::is_symlink(status) || !std::filesystem::is_directory(status)) {
+        continue;
+      }
+
+      const auto package_slug = entry.path().filename().generic_string();
+      const auto agent_root = entry.path() / std::string{agent};
+
+      if (
+        package_slug.empty()
+        || !is_safe_relative_path(std::filesystem::path{package_slug})
+        || !std::filesystem::is_directory(agent_root, error)
+      ) {
+        error.clear();
+        continue;
+      }
+
+      package_slugs.push_back(package_slug);
+    }
+  }
+
+  if (std::ranges::find(package_slugs, std::string{kPrimarySkillName}) == package_slugs.end()) {
+    package_slugs.push_back(std::string{kPrimarySkillName});
+  }
+
+  std::ranges::sort(package_slugs);
+  package_slugs.erase(std::unique(package_slugs.begin(), package_slugs.end()), package_slugs.end());
+
+  const auto primary = std::ranges::find(package_slugs, std::string{kPrimarySkillName});
+  if (primary != package_slugs.end() && primary != package_slugs.begin()) {
+    std::rotate(package_slugs.begin(), primary, std::next(primary));
+  }
+
+  return package_slugs;
+}
+
+std::filesystem::path project_skill_dir_for_package(
+  const InstallSkillOptions& options,
+  std::string_view package_slug
+) {
+  if (package_slug == kPrimarySkillName) {
+    return options.out_dir;
+  }
+
+  return options.out_dir.parent_path() / std::string{package_slug};
+}
+
+std::vector<SkillInstallTarget> skill_install_targets(const InstallSkillOptions& options) {
+  std::vector<SkillInstallTarget> targets;
+
+  for (const auto& package_slug : bundled_skill_package_slugs_for_agent(options.agent)) {
+    targets.push_back({
+      .package_slug = package_slug,
+      .source_root = bundled_skill_dir_for_package_and_agent(package_slug, options.agent),
+      .target_root = project_skill_dir_for_package(options, package_slug),
+    });
+  }
+
+  return targets;
 }
 
 bool is_below_or_equal(const std::filesystem::path& child, const std::filesystem::path& parent) {
@@ -251,81 +355,88 @@ std::optional<std::string> ensure_directory_path(const std::filesystem::path& di
 }
 
 std::vector<PlannedFile> collect_planned_files(const InstallSkillOptions& options) {
-  const auto source_root = bundled_skill_dir_for_agent(options.agent);
-  const auto target_root = absolute_normalized(options.out_dir);
   std::error_code error;
-
-  if (!std::filesystem::is_directory(source_root, error)) {
-    throw std::runtime_error{
-      "Bundled skill data was not found at " + source_root.string()
-      + ". Install pmdocs or set PMDOCS_DATA_DIR for local testing."
-    };
-  }
-
   std::vector<PlannedFile> files;
-  std::filesystem::recursive_directory_iterator iterator{source_root, error};
-  const std::filesystem::recursive_directory_iterator end;
 
-  if (error) {
-    throw std::runtime_error{"Could not read bundled skill data: " + error.message()};
-  }
+  for (const auto& target : skill_install_targets(options)) {
+    const auto source_root = target.source_root;
+    const auto target_root = absolute_normalized(target.target_root);
 
-  for (; iterator != end; iterator.increment(error)) {
-    if (error) {
-      throw std::runtime_error{"Could not traverse bundled skill data: " + error.message()};
+    if (!std::filesystem::is_directory(source_root, error)) {
+      throw std::runtime_error{
+        "Bundled skill data was not found at " + source_root.string()
+        + ". Install pmdocs or set PMDOCS_DATA_DIR for local testing."
+      };
     }
 
-    const auto& entry = *iterator;
-    const auto status = entry.symlink_status(error);
+    error.clear();
+    std::filesystem::recursive_directory_iterator iterator{source_root, error};
+    const std::filesystem::recursive_directory_iterator end;
 
     if (error) {
-      throw std::runtime_error{"Could not inspect bundled skill file: " + error.message()};
+      throw std::runtime_error{"Could not read bundled skill data: " + error.message()};
     }
 
-    if (std::filesystem::is_symlink(status)) {
-      if (entry.is_directory(error)) {
-        iterator.disable_recursion_pending();
+    for (; iterator != end; iterator.increment(error)) {
+      if (error) {
+        throw std::runtime_error{"Could not traverse bundled skill data: " + error.message()};
       }
 
-      continue;
+      const auto& entry = *iterator;
+      const auto status = entry.symlink_status(error);
+
+      if (error) {
+        throw std::runtime_error{"Could not inspect bundled skill file: " + error.message()};
+      }
+
+      if (std::filesystem::is_symlink(status)) {
+        if (entry.is_directory(error)) {
+          iterator.disable_recursion_pending();
+        }
+
+        continue;
+      }
+
+      if (std::filesystem::is_directory(status)) {
+        continue;
+      }
+
+      if (!std::filesystem::is_regular_file(status)) {
+        continue;
+      }
+
+      auto relative_path = std::filesystem::relative(entry.path(), source_root, error);
+
+      if (error) {
+        throw std::runtime_error{"Could not compute bundled skill relative path: " + error.message()};
+      }
+
+      relative_path = relative_path.lexically_normal();
+
+      if (!is_safe_relative_path(relative_path)) {
+        throw std::runtime_error{"Unsafe bundled skill path: " + relative_path.generic_string()};
+      }
+
+      const auto destination_path = absolute_normalized(target_root / relative_path);
+
+      if (!is_below_or_equal(destination_path, target_root)) {
+        throw std::runtime_error{"Refusing to write outside target directory: " + relative_path.generic_string()};
+      }
+
+      files.push_back({
+        .source_path = entry.path(),
+        .destination_path = destination_path,
+        .relative_path = relative_path,
+        .display_path = std::filesystem::path{target.package_slug} / relative_path,
+        .content = render_template(read_file(entry.path()), options),
+      });
     }
-
-    if (std::filesystem::is_directory(status)) {
-      continue;
-    }
-
-    if (!std::filesystem::is_regular_file(status)) {
-      continue;
-    }
-
-    auto relative_path = std::filesystem::relative(entry.path(), source_root, error);
-
-    if (error) {
-      throw std::runtime_error{"Could not compute bundled skill relative path: " + error.message()};
-    }
-
-    relative_path = relative_path.lexically_normal();
-
-    if (!is_safe_relative_path(relative_path)) {
-      throw std::runtime_error{"Unsafe bundled skill path: " + relative_path.generic_string()};
-    }
-
-    const auto destination_path = absolute_normalized(target_root / relative_path);
-
-    if (!is_below_or_equal(destination_path, target_root)) {
-      throw std::runtime_error{"Refusing to write outside target directory: " + relative_path.generic_string()};
-    }
-
-    files.push_back({
-      .source_path = entry.path(),
-      .destination_path = destination_path,
-      .relative_path = relative_path,
-      .content = render_template(read_file(entry.path()), options),
-    });
   }
 
   std::ranges::sort(files, {}, [](const PlannedFile& file) {
-    return file.relative_path.generic_string();
+    return file.display_path.empty()
+      ? file.relative_path.generic_string()
+      : file.display_path.generic_string();
   });
 
   return files;
@@ -382,6 +493,7 @@ std::vector<std::string> find_conflicts(const std::vector<PlannedFile>& files) {
   std::error_code error;
 
   for (const auto& file : files) {
+    const auto label = file.display_path.empty() ? file.relative_path : file.display_path;
     const auto status = std::filesystem::symlink_status(file.destination_path, error);
 
     if (error) {
@@ -390,7 +502,7 @@ std::vector<std::string> find_conflicts(const std::vector<PlannedFile>& files) {
         continue;
       }
 
-      conflicts.push_back(file.relative_path.generic_string() + " (could not inspect destination)");
+      conflicts.push_back(label.generic_string() + " (could not inspect destination)");
       error.clear();
       continue;
     }
@@ -400,12 +512,12 @@ std::vector<std::string> find_conflicts(const std::vector<PlannedFile>& files) {
     }
 
     if (!std::filesystem::is_regular_file(status)) {
-      conflicts.push_back(file.relative_path.generic_string() + " (destination is not a regular file)");
+      conflicts.push_back(label.generic_string() + " (destination is not a regular file)");
       continue;
     }
 
     if (read_file(file.destination_path) != file.content) {
-      conflicts.push_back(file.relative_path.generic_string());
+      conflicts.push_back(label.generic_string());
     }
   }
 
@@ -416,12 +528,19 @@ std::string format_install_plan(const InstallSkillOptions& options, const std::v
   std::ostringstream out;
   out << (options.dry_run ? "pmdocs install skill dry-run" : "pmdocs install skill") << "\n\n";
   out << "Agent: " << options.agent << "\n";
-  out << "Source: " << bundled_skill_dir_for_agent(options.agent).string() << "\n";
-  out << "Target: " << absolute_normalized(options.out_dir).string() << "\n";
+  out << "Sources:\n";
+  for (const auto& target : skill_install_targets(options)) {
+    out << "- " << target.package_slug << ": " << target.source_root.string() << "\n";
+  }
+  out << "Targets:\n";
+  for (const auto& target : skill_install_targets(options)) {
+    out << "- " << target.package_slug << ": " << absolute_normalized(target.target_root).string() << "\n";
+  }
   out << "Files:\n";
 
   for (const auto& file : files) {
-    out << "- " << file.relative_path.generic_string() << "\n";
+    const auto label = file.display_path.empty() ? file.relative_path : file.display_path;
+    out << "- " << label.generic_string() << "\n";
   }
 
   return out.str();
@@ -614,21 +733,32 @@ Options:
   --agent <codex|claude>    Agent target.
   --codex                   Install the Codex skill pack.
   --claude                  Install the Claude skill pack.
-  --out <path>              Output directory. Defaults to .agents/skills/payload-markdown-docs for Codex and .claude/skills/payload-markdown-docs for Claude.
+  --out <path>              Output directory for payload-markdown-docs. Defaults to .agents/skills/payload-markdown-docs for Codex and .claude/skills/payload-markdown-docs for Claude. The payload-markdown companion skill is installed next to it.
   --docs-root <path>        Docs root to render into installed guidance. Defaults to ./docs.
   --package-manager <name>  Package manager to render into installed guidance. Defaults to npm.
   --force                   Overwrite existing skill files.
   --dry-run                 Print planned writes without changing files.
   --help                    Show this help.
 
-Copies bundled skill guidance from the installed pmdocs data directory into the
-current project. The installer renders {{docsRoot}} and {{packageManager}}
-placeholders while copying files.
+Copies every bundled skill package for the selected agent from the installed
+pmdocs data directory into the current project. The installer renders
+{{docsRoot}} and {{packageManager}} placeholders while copying files.
 
-Bundled Codex skill source:
-  )";
-  out << bundled_skill_dir_for_agent("codex").string() << "\n";
-  out << "Bundled Claude skill source:\n  " << bundled_skill_dir_for_agent("claude").string() << "\n";
+Bundled Codex skill sources:
+)";
+  InstallSkillOptions codex_options;
+  codex_options.agent = "codex";
+  codex_options.out_dir = default_project_skill_dir_for_agent("codex");
+  for (const auto& target : skill_install_targets(codex_options)) {
+    out << "  " << target.package_slug << ": " << target.source_root.string() << "\n";
+  }
+  out << "Bundled Claude skill sources:\n";
+  InstallSkillOptions claude_options;
+  claude_options.agent = "claude";
+  claude_options.out_dir = default_project_skill_dir_for_agent("claude");
+  for (const auto& target : skill_install_targets(claude_options)) {
+    out << "  " << target.package_slug << ": " << target.source_root.string() << "\n";
+  }
 
   return out.str();
 }
@@ -702,6 +832,18 @@ CommandResult doctor_result() {
   const auto skill_found = std::filesystem::is_regular_file(skill_source / "SKILL.md", skill_error);
   const auto project_skill_path = absolute_normalized(default_project_skill_dir());
   const auto override = std::getenv("PMDOCS_DATA_DIR");
+  InstallSkillOptions codex_options;
+  codex_options.agent = "codex";
+  codex_options.out_dir = default_project_skill_dir_for_agent("codex");
+  const auto skill_targets = skill_install_targets(codex_options);
+  std::vector<std::string> found_skill_packages;
+
+  for (const auto& target : skill_targets) {
+    skill_error.clear();
+    if (std::filesystem::is_regular_file(target.source_root / "SKILL.md", skill_error)) {
+      found_skill_packages.push_back(target.package_slug);
+    }
+  }
 
   nlohmann::json diagnostics = {
     {"version", std::string{kVersion}},
@@ -709,6 +851,7 @@ CommandResult doctor_result() {
     {"data_dir", actual_data_dir.string()},
     {"skill_source", skill_source.string()},
     {"skill_found", skill_found},
+    {"skill_packages", found_skill_packages},
     {"project_skill_path", project_skill_path.string()},
   };
 
@@ -739,11 +882,16 @@ CommandResult doctor_result() {
   out << "data_dir: " << diagnostics["data_dir"].get<std::string>() << "\n";
   out << "skill_source: " << diagnostics["skill_source"].get<std::string>() << "\n";
   out << "skill_status: " << (skill_found ? "found" : "not found") << "\n";
+  out << "skill_packages:";
+  for (const auto& package_slug : found_skill_packages) {
+    out << " " << package_slug;
+  }
+  out << "\n";
   out << "project_skill_path: " << diagnostics["project_skill_path"].get<std::string>() << "\n";
 
   if (!skill_found) {
     out << "diagnostics:\n";
-    out << "- Bundled skill data was not found. Run meson install or set PMDOCS_DATA_DIR for local tests.\n";
+    out << "- Bundled payload-markdown-docs skill data was not found. Run meson install or set PMDOCS_DATA_DIR for local tests.\n";
   }
 
   out << "status: ok\n";

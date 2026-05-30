@@ -30,7 +30,7 @@ Smoke-check the resulting package before publishing to the internal apt
 repository:
 
 ```bash
-dpkg -c ../pmdocs_*.deb | grep -E 'usr/bin/pmdocs|usr/share/pmdocs/skills/payload-markdown-docs'
+dpkg -c ../pmdocs_*.deb | grep -E 'usr/bin/pmdocs|usr/share/pmdocs/skills/payload-markdown(-docs)?'
 sudo apt install ./release/pmdocs_<version>-1_<arch>.deb
 pmdocs --version
 pmdocs doctor

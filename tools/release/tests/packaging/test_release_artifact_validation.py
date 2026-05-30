@@ -20,6 +20,8 @@ class ReleaseArtifactValidationTests(unittest.TestCase):
             "usr/share/doc/pmdocs/copyright",
             "usr/share/pmdocs/skills/payload-markdown-docs/codex/SKILL.md",
             "usr/share/pmdocs/skills/payload-markdown-docs/claude/SKILL.md",
+            "usr/share/pmdocs/skills/payload-markdown/codex/SKILL.md",
+            "usr/share/pmdocs/skills/payload-markdown/claude/SKILL.md",
         }
 
     def _write_homebrew_formula(self, path: Path, *, sha: str | None = None) -> None:

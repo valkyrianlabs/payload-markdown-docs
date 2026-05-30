@@ -188,11 +188,13 @@ pmdocs install skill --agent codex
 pmdocs install skill --agent claude
 ```
 
-Installs the bundled `payload-markdown-docs` AI-agent guidance for Codex or
-Claude. Codex defaults to
-`.agents/skills/payload-markdown-docs/`; Claude defaults to
-`.claude/skills/payload-markdown-docs/`. `pmdocs skill install` remains as a
-Codex compatibility alias.
+Installs the bundled `payload-markdown-docs` AI-agent guidance plus the
+companion `payload-markdown` authoring skill for Codex or Claude. Codex defaults
+to `.agents/skills/payload-markdown-docs/` and
+`.agents/skills/payload-markdown/`; Claude defaults to
+`.claude/skills/payload-markdown-docs/` and
+`.claude/skills/payload-markdown/`. `pmdocs skill install` remains as a Codex
+compatibility alias.
 
 Useful flags:
 

@@ -25,9 +25,9 @@ sibling `payload-markdown` skill for those:
 - `../payload-markdown/reference/formatting.md`
 - `../payload-markdown/reference/quality.md`
 
-If the sibling skill is not installed, inspect
-`node_modules/@valkyrianlabs/payload-markdown/skills/payload-markdown/codex/`
-instead of guessing directive names, props, themes, or formatting rules.
+The `pmdocs install skill --agent codex` installer writes this sibling skill.
+If it is missing, reinstall the skill bundle before guessing directive names,
+props, themes, or formatting rules.
 
 ## Current Model
 

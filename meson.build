@@ -12,6 +12,7 @@ project(
   ],
 )
 
+fs = import('fs')
 cpp = meson.get_compiler('cpp')
 add_project_arguments(
   cpp.get_supported_arguments(['-Wno-missing-field-initializers']),
@@ -29,8 +30,23 @@ endif
 subdir('cli')
 
 if get_option('install_skill_data')
+  payload_markdown_skill_dir = 'node_modules' / '@valkyrianlabs' / 'payload-markdown' / 'skills' / 'payload-markdown'
+
+  if not fs.exists(payload_markdown_skill_dir / 'codex' / 'SKILL.md')
+    error(
+      'payload-markdown companion skill data was not found at '
+      + payload_markdown_skill_dir
+      + '. Run pnpm install before building the native pmdocs package.'
+    )
+  endif
+
   install_subdir(
     'skills/payload-markdown-docs',
+    install_dir: pmdocs_data_dir / 'skills',
+  )
+
+  install_subdir(
+    payload_markdown_skill_dir,
     install_dir: pmdocs_data_dir / 'skills',
   )
 endif

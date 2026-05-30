@@ -306,6 +306,8 @@ std::filesystem::path create_skill_fixture(const std::filesystem::path& root) {
   const auto data_root = root / "data";
   const auto codex_skill_root = data_root / "skills" / "payload-markdown-docs" / "codex";
   const auto claude_skill_root = data_root / "skills" / "payload-markdown-docs" / "claude";
+  const auto codex_markdown_skill_root = data_root / "skills" / "payload-markdown" / "codex";
+  const auto claude_markdown_skill_root = data_root / "skills" / "payload-markdown" / "claude";
 
   write_text(
     codex_skill_root / "SKILL.md",
@@ -314,6 +316,9 @@ std::filesystem::path create_skill_fixture(const std::filesystem::path& root) {
   );
   write_text(codex_skill_root / "reference" / "workflow.md", "Workflow for {{docsRoot}}\n");
   write_text(claude_skill_root / "SKILL.md", "Claude docs root: {{docsRoot}}\n");
+  write_text(codex_markdown_skill_root / "SKILL.md", "Payload Markdown Codex skill\n");
+  write_text(codex_markdown_skill_root / "reference" / "formatting.md", "Payload Markdown formatting\n");
+  write_text(claude_markdown_skill_root / "SKILL.md", "Payload Markdown Claude skill\n");
 
   return data_root;
 }
@@ -337,6 +342,7 @@ TEST_CASE("help, version, and doctor are available") {
   const auto doctor = pmdocs::run(args({"doctor"}));
   CHECK(doctor.exit_code == 0);
   CHECK(doctor.stdout_text.find("skill_status: found") != std::string::npos);
+  CHECK(doctor.stdout_text.find("skill_packages: payload-markdown-docs payload-markdown") != std::string::npos);
   CHECK(doctor.stdout_text.find("project_skill_path:") != std::string::npos);
 }
 
@@ -351,7 +357,8 @@ TEST_CASE("skill install help is available") {
   CHECK(result.stdout_text.find("--docs-root") != std::string::npos);
   CHECK(result.stdout_text.find("--agent <codex|claude>") != std::string::npos);
   CHECK(result.stdout_text.find("--package-manager") != std::string::npos);
-  CHECK(result.stdout_text.find("Bundled Codex skill source:") != std::string::npos);
+  CHECK(result.stdout_text.find("Bundled Codex skill sources:") != std::string::npos);
+  CHECK(result.stdout_text.find("payload-markdown:") != std::string::npos);
 }
 
 TEST_CASE("skill install dry-run prints planned files without writing") {
@@ -366,7 +373,8 @@ TEST_CASE("skill install dry-run prints planned files without writing") {
 
   CHECK(result.exit_code == 0);
   CHECK(result.stdout_text.find("dry-run") != std::string::npos);
-  CHECK(result.stdout_text.find("SKILL.md") != std::string::npos);
+  CHECK(result.stdout_text.find("payload-markdown-docs/SKILL.md") != std::string::npos);
+  CHECK(result.stdout_text.find("payload-markdown/SKILL.md") != std::string::npos);
   CHECK_FALSE(std::filesystem::exists(project_root / ".agents"));
 }
 
@@ -380,11 +388,14 @@ TEST_CASE("install skill copies bundled files to the default Codex project path"
 
   const auto result = pmdocs::run(args({"install", "skill", "--agent", "codex"}));
   const auto target = project_root / ".agents" / "skills" / "payload-markdown-docs";
+  const auto markdown_target = project_root / ".agents" / "skills" / "payload-markdown";
 
   CHECK(result.exit_code == 0);
   CHECK(result.stdout_text.find("Agent: codex") != std::string::npos);
   CHECK(std::filesystem::exists(target / "SKILL.md"));
   CHECK(std::filesystem::exists(target / "reference" / "workflow.md"));
+  CHECK(std::filesystem::exists(markdown_target / "SKILL.md"));
+  CHECK(std::filesystem::exists(markdown_target / "reference" / "formatting.md"));
   CHECK(read_text(target / "SKILL.md").find("Docs root: ./docs") != std::string::npos);
   CHECK(read_text(target / "SKILL.md").find("Package manager: npm") != std::string::npos);
 }
@@ -411,10 +422,12 @@ TEST_CASE("install skill supports Claude target and validates agent flags") {
 
   const auto result = pmdocs::run(args({"install", "skill", "--claude"}));
   const auto target = project_root / ".claude" / "skills" / "payload-markdown-docs";
+  const auto markdown_target = project_root / ".claude" / "skills" / "payload-markdown";
 
   CHECK(result.exit_code == 0);
   CHECK(result.stdout_text.find("Agent: claude") != std::string::npos);
   CHECK(std::filesystem::exists(target / "SKILL.md"));
+  CHECK(std::filesystem::exists(markdown_target / "SKILL.md"));
   CHECK(read_text(target / "SKILL.md").find("Claude docs root: ./docs") != std::string::npos);
 }
 
@@ -428,9 +441,11 @@ TEST_CASE("legacy skill install remains a Codex alias") {
 
   const auto result = pmdocs::run(args({"skill", "install"}));
   const auto target = project_root / ".agents" / "skills" / "payload-markdown-docs";
+  const auto markdown_target = project_root / ".agents" / "skills" / "payload-markdown";
 
   CHECK(result.exit_code == 0);
   CHECK(std::filesystem::exists(target / "SKILL.md"));
+  CHECK(std::filesystem::exists(markdown_target / "SKILL.md"));
 }
 
 TEST_CASE("skill install renders placeholders from flags") {
@@ -456,6 +471,7 @@ TEST_CASE("skill install renders placeholders from flags") {
 
   CHECK(result.exit_code == 0);
   const auto skill = read_text(out / "SKILL.md");
+  CHECK(std::filesystem::exists(project_root / "payload-markdown" / "SKILL.md"));
   CHECK(skill.find("Docs root: content/docs") != std::string::npos);
   CHECK(skill.find("Package manager: pnpm") != std::string::npos);
   CHECK(skill.find("pmdocs validate content/docs") != std::string::npos);

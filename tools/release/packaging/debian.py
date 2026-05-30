@@ -37,6 +37,8 @@ REQUIRED_DEBIAN_PACKAGE_PATHS: tuple[str, ...] = (
     "usr/share/doc/pmdocs/copyright",
     "usr/share/pmdocs/skills/payload-markdown-docs/codex/SKILL.md",
     "usr/share/pmdocs/skills/payload-markdown-docs/claude/SKILL.md",
+    "usr/share/pmdocs/skills/payload-markdown/codex/SKILL.md",
+    "usr/share/pmdocs/skills/payload-markdown/claude/SKILL.md",
 )
 ALTERNATE_DEBIAN_PACKAGE_PATH_GROUPS: tuple[tuple[str, ...], ...] = ()
 

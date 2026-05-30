@@ -52,6 +52,14 @@ Codex default output:
         troubleshooting.md
       examples/
         github-actions.md
+    payload-markdown/
+      SKILL.md
+      reference/
+        payload-markdown-directives.md
+        formatting.md
+        quality.md
+      examples/
+        docs-page.md
 ```
 
 Claude default output:
@@ -71,22 +79,33 @@ Claude default output:
         troubleshooting.md
       examples/
         github-actions.md
+    payload-markdown/
+      SKILL.md
+      reference/
+        payload-markdown-directives.md
+        formatting.md
+        quality.md
+      examples/
+        docs-page.md
 ```
 
-The canonical source artifacts live in the package repository:
+The canonical `payload-markdown-docs` source artifacts live in this package:
 
 ```text
 skills/payload-markdown-docs/codex/
 skills/payload-markdown-docs/claude/
 ```
 
-For Payload Markdown directive authoring guidance, install or inspect the
-companion skill source from:
+The companion `payload-markdown` skill source is copied from the installed
+dependency during native CLI packaging:
 
 ```text
 node_modules/@valkyrianlabs/payload-markdown/skills/payload-markdown/codex/
 node_modules/@valkyrianlabs/payload-markdown/skills/payload-markdown/claude/
 ```
+
+The installed native `pmdocs` package writes both skills next to each other so
+renderer directive guidance is available through the same agent skill root.
 
 `install skill` installs local agent guidance only. It does not publish skills,
 sync docs, install public routes, or call Payload.
@@ -182,7 +201,9 @@ pmdocs install skill --agent codex \
 ```
 
 Use `--dry-run` to preview files and `--force` to overwrite changed existing
-skill files. Unchanged existing files are accepted.
+skill files. Unchanged existing files are accepted. When `--out` is set, it
+selects the `payload-markdown-docs` output directory; the `payload-markdown`
+companion is installed as a sibling directory.
 
 ## What The Skills Teach
 

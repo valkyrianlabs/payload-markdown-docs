@@ -24,6 +24,7 @@ class DebianRulesContractTests(unittest.TestCase):
         self.assertIn("install: true", cli_meson)
         self.assertIn("install_subdir(", meson)
         self.assertIn("'skills/payload-markdown-docs'", meson)
+        self.assertIn("'node_modules' / '@valkyrianlabs' / 'payload-markdown'", meson)
         self.assertIn("install_dir: pmdocs_data_dir / 'skills'", meson)
         self.assertIn("if get_option('install_skill_data')", meson)
 
@@ -31,7 +32,7 @@ class DebianRulesContractTests(unittest.TestCase):
         install_manifest = (self._repo_root() / "debian" / "pmdocs.install").read_text(encoding="utf-8")
 
         self.assertIn("usr/bin/pmdocs", install_manifest)
-        self.assertIn("usr/share/pmdocs/skills/payload-markdown-docs", install_manifest)
+        self.assertIn("usr/share/pmdocs/skills", install_manifest)
         self.assertNotIn("lib/systemd/system", install_manifest)
         self.assertNotIn("usr/share/pmdocs-web", install_manifest)
 
