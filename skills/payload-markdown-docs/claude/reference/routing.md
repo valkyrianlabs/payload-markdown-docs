@@ -48,7 +48,14 @@ Do not hardcode production docs domains for internal navigation.
 
 ## Route Adapter
 
-The `/next` export can resolve docs routes and let an app fall back to normal Pages rendering when no docs route matches. It does not mutate Pages.
+The `/next` export can resolve docs routes and let an app fall back to normal
+Pages rendering when no docs route matches. It does not mutate Pages.
+
+For Next App Router slug routes, prefer `path`. It accepts a normalized path
+string, a single `[slug]` string, or a `[...slug]` / `[[...slug]]` segment
+array. Use `getPayloadMarkdownDocsRoutePath({ path: slug })` when the fallback
+Pages query also needs the normalized path string. The legacy `slug` option is
+still supported for compatibility.
 
 ## Agent Skills
 

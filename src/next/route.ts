@@ -47,9 +47,13 @@ export const getPayloadMarkdownDocsRoutePath = ({
   slug,
   path,
 }: {
-  path?: string
+  path?: string | string[]
   slug?: string | string[]
 }): string => {
+  if (Array.isArray(path)) {
+    return path.length === 0 ? '/' : joinRouteSegments(...path)
+  }
+
   if (path !== undefined) {
     return normalizeRoutePath(path)
   }

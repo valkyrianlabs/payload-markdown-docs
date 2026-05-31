@@ -238,6 +238,11 @@ describe('Payload Markdown Docs route adapter', () => {
     ).toBe('/plugins/payload-markdown/configuration/themes')
     expect(
       getPayloadMarkdownDocsRoutePath({
+        path: ['plugins', 'payload-markdown', 'configuration', 'themes'],
+      }),
+    ).toBe('/plugins/payload-markdown/configuration/themes')
+    expect(
+      getPayloadMarkdownDocsRoutePath({
         path: 'plugins/payload-markdown/',
       }),
     ).toBe('/plugins/payload-markdown')
@@ -250,7 +255,7 @@ describe('Payload Markdown Docs route adapter', () => {
     })
 
     const resolved = await resolvePayloadMarkdownDocsRoute({
-      path: '/payload-markdown/getting-started/installation',
+      path: ['payload-markdown', 'getting-started', 'installation'],
       payload,
     })
 

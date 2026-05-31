@@ -4,6 +4,8 @@ export type PayloadMarkdownDocsFindArgs = Parameters<Payload['find']>[0]
 
 export type PayloadMarkdownDocsReadPayload = Pick<Payload, 'find'>
 
+export type PayloadMarkdownDocsRoutePathInput = string | string[]
+
 export type PayloadMarkdownDocsCollectionSlugs = {
   docs?: CollectionSlug
   docsAssets?: CollectionSlug
@@ -16,8 +18,16 @@ export type ResolvePayloadMarkdownDocsRouteOptions = {
   includeDrafts?: boolean
   markdownField?: string
   overrideAccess?: boolean
-  path?: string
+  /**
+   * Route path to resolve. Accepts a normalized path string, a single dynamic
+   * route segment, or a Next catch-all route segment array.
+   */
+  path?: PayloadMarkdownDocsRoutePathInput
   payload: PayloadMarkdownDocsReadPayload
+  /**
+   * @deprecated Use `path` instead. It accepts both string and string[] route
+   * inputs.
+   */
   slug?: string | string[]
 }
 

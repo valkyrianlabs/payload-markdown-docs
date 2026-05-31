@@ -87,6 +87,7 @@ export type {
   PayloadMarkdownDocsOpenGraphImage,
   PayloadMarkdownDocsOverrides,
   PayloadMarkdownDocsReadPayload,
+  PayloadMarkdownDocsRoutePathInput,
   PayloadMarkdownDocsRouteMode,
   PayloadMarkdownDocsSidebarItem,
   ResolvedPayloadMarkdownDocsGroup,

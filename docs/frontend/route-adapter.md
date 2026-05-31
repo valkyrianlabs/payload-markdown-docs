@@ -11,7 +11,23 @@ tags:
 
 # Route Adapter
 
-The `/next` export lets a Next route resolve generated docs routes without mutating the Pages collection.
+The `/next` export lets an existing Next slug route render generated docs
+before falling back to normal Pages rendering. The plugin reads generated docs,
+docs sets, and docs groups; it does not mutate your Pages collection or create
+public frontend routes for you.
+
+The usual pattern is:
+
+1. normalize the incoming Next route params with `getPayloadMarkdownDocsRoutePath`
+2. call `resolvePayloadMarkdownDocsRoute`
+3. render `PayloadMarkdownDocsPage` when a docs route matches
+4. fall back to your existing Pages query and renderer
+
+:::callout {variant="info" title="Prefer one catch-all route when possible"}
+If your Pages route can be changed, a single `[[...slug]]` route is the
+simplest integration. It can render top-level Pages, nested Pages, docs group
+indexes, docs set indexes, and generated docs pages from one place.
+:::
 
 ```tsx
 import { notFound } from 'next/navigation'
@@ -20,6 +36,7 @@ import config from '@payload-config'
 
 import {
   PayloadMarkdownDocsPage,
+  getPayloadMarkdownDocsRoutePath,
   resolvePayloadMarkdownDocsRoute,
 } from '@valkyrianlabs/payload-markdown-docs/next'
 
@@ -30,34 +47,150 @@ export default async function Page({
 }: {
   params: Promise<{ slug?: string[] }>
 }) {
-  const { slug } = await params
+  const { slug = [] } = await params
+  const path = getPayloadMarkdownDocsRoutePath({ path: slug })
   const payload = await getPayload({ config })
 
   const resolved = await resolvePayloadMarkdownDocsRoute({
     payload,
-    slug,
+    path,
   })
 
   if (resolved) {
     return <PayloadMarkdownDocsPage resolved={resolved} />
   }
 
+  // Replace this with your normal Pages collection lookup.
+  const page = await queryPageByPath({ path })
+
+  if (page) {
+    return <RenderPage page={page} />
+  }
+
   notFound()
 }
 ```
 
-## Fallback To Pages
+`queryPageByPath` and `RenderPage` are placeholders for your app's existing
+Pages loader and renderer.
 
-In a real app, replace `notFound()` with your normal Pages collection lookup when `resolved` is `null`.
+`path` accepts a normalized route string, a single `[slug]` string, or a
+`[...slug]` / `[[...slug]]` string array. `slug` remains supported on
+`resolvePayloadMarkdownDocsRoute`, but `path` is clearer for new integrations.
 
-:::callout {variant="info" title="Read-only"}
-The route adapter reads generated docs records, docs sets, and docs groups. It does not create Pages, mutate Pages, or sync docs.
-:::
+## Existing Slug Routes
+
+If your site already has `app/(frontend)/[slug]/page.tsx`, call the resolver at
+the top of that route before querying Pages. This covers top-level docs routes
+such as `/plugins` or `/payload-markdown-docs`.
+
+Generated docs are usually nested below a docs set route base, so a one-segment
+`[slug]` route cannot match every docs page. Add a catch-all route such as
+`app/(frontend)/[...slug]/page.tsx`, or replace the Pages route with one
+`app/(frontend)/[[...slug]]/page.tsx` route when that is feasible.
+
+Use the same resolver-first flow in both route files:
+
+```tsx
+const resolved = await resolvePayloadMarkdownDocsRoute({
+  payload,
+  path,
+  includeDrafts: draft,
+})
+
+if (resolved) {
+  return <PayloadMarkdownDocsPage resolved={resolved} />
+}
+```
+
+Then run your normal Pages fallback. In a flat Pages collection, that may be a
+lookup by `slug`. In a path-based Pages collection, use the normalized path
+string.
+
+## With Nested Docs Pages
+
+When your Pages collection uses `@payloadcms/plugin-nested-docs`, query fallback
+Pages by their full route path instead of only the final slug. A common approach
+is to store a `fullPath` field from the nested-docs breadcrumbs:
+
+```ts
+import type { CollectionBeforeChangeHook } from 'payload'
+
+import type { Page } from '@/payload-types'
+
+export const populateFullPath: CollectionBeforeChangeHook<Page> = ({ data }) => {
+  const url = data?.breadcrumbs?.at(-1)?.url
+
+  if (url) {
+    data.fullPath = url
+  }
+
+  return data
+}
+```
+
+Add `fullPath` as an indexed field on Pages and populate it before change. Your
+catch-all route can then resolve docs first and fall back to:
+
+```ts
+const result = await payload.find({
+  collection: 'pages',
+  limit: 1,
+  pagination: false,
+  where: {
+    fullPath: {
+      equals: path,
+    },
+  },
+})
+```
+
+This keeps docs routing and nested Page routing independent. The docs adapter
+does not need the Pages `fullPath` field; only your fallback Pages query does.
+
+## Caching
 
 Production App Router pages can otherwise cache generated docs output. The sync
 endpoint revalidates generated docs paths after successful writes, but
 `dynamic = 'force-dynamic'` is the simplest option when the app prefers always
 fresh docs reads.
+
+## Metadata
+
+In `generateMetadata`, resolve docs first and fall back to the Pages metadata
+helper only when the route is not a docs route:
+
+```ts
+import type { Metadata } from 'next'
+
+import {
+  generatePayloadMarkdownDocsMetadata,
+  getPayloadMarkdownDocsRoutePath,
+} from '@valkyrianlabs/payload-markdown-docs/next'
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug?: string[] }>
+}): Promise<Metadata> {
+  const { slug = [] } = await params
+  const path = getPayloadMarkdownDocsRoutePath({ path: slug })
+  const payload = await getPayload({ config })
+
+  const docsMetadata = await generatePayloadMarkdownDocsMetadata({
+    payload,
+    path,
+  })
+
+  if (docsMetadata) {
+    return docsMetadata
+  }
+
+  const page = await queryPageByPath({ path })
+
+  return generatePageMetadata({ page })
+}
+```
 
 ## Resolution Order
 

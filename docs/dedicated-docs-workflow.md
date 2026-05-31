@@ -253,7 +253,8 @@ record in `Docs Globals > Access`.
 
 ## Native Route Adapter
 
-Use the `/next` export from an existing route layer to resolve docs routes before falling back to your normal Pages collection route.
+Use the `/next` export from an existing route layer to resolve docs routes
+before falling back to your normal Pages collection route.
 
 ```tsx
 import { notFound } from 'next/navigation'
@@ -261,15 +262,17 @@ import { getPayload } from 'payload'
 import config from '@payload-config'
 import {
   PayloadMarkdownDocsPage,
+  getPayloadMarkdownDocsRoutePath,
   resolvePayloadMarkdownDocsRoute,
 } from '@valkyrianlabs/payload-markdown-docs/next'
 
 export default async function Page({ params }: { params: Promise<{ slug?: string[] }> }) {
-  const { slug } = await params
+  const { slug = [] } = await params
+  const path = getPayloadMarkdownDocsRoutePath({ path: slug })
   const payload = await getPayload({ config })
   const resolved = await resolvePayloadMarkdownDocsRoute({
     payload,
-    slug,
+    path,
   })
 
   if (resolved) {
@@ -283,6 +286,12 @@ export default async function Page({ params }: { params: Promise<{ slug?: string
 The route adapter can resolve exact docs records, docs set index routes, and
 docs group index routes where `pageMode` is `auto`. It returns `null` for
 normal Page routes so your app can fall back to existing Page rendering.
+
+In a Pages-backed site, call the resolver before the Pages lookup in your slug
+route. Prefer one `[[...slug]]` route when possible, or keep an existing
+`[slug]` route and add `[...slug]` for nested docs pages. See
+[Route Adapter](/frontend/route-adapter) for the full integration pattern,
+including `@payloadcms/plugin-nested-docs` fallback queries and metadata.
 
 ## Docs Set Admin Manager
 

@@ -518,36 +518,61 @@ Labs Debian repository anywhere you run operator commands.
 The plugin does not mutate your Pages collection and does not register public
 frontend routes.
 
-Add route handlers in your Next app where you want docs to render.
+Resolve docs from the same slug route that renders your normal Pages collection.
+Render docs first when they match, then fall back to your existing Pages query.
 
 ```tsx
 import config from '@payload-config'
 import {
   PayloadMarkdownDocsPage,
+  getPayloadMarkdownDocsRoutePath,
   resolvePayloadMarkdownDocsRoute,
 } from '@valkyrianlabs/payload-markdown-docs/next'
 import { notFound } from 'next/navigation'
 import { getPayload } from 'payload'
 
+export const dynamic = 'force-dynamic'
+
 export default async function Page({ params }: { params: Promise<{ slug?: string[] }> }) {
-  const { slug } = await params
+  const { slug = [] } = await params
+  const path = getPayloadMarkdownDocsRoutePath({ path: slug })
   const payload = await getPayload({ config })
 
   const resolved = await resolvePayloadMarkdownDocsRoute({
     payload,
-    slug,
+    path,
   })
 
   if (resolved) {
     return <PayloadMarkdownDocsPage resolved={resolved} />
   }
 
+  const page = await queryPageByPath({ path })
+
+  if (page) {
+    return <RenderPage page={page} />
+  }
+
   notFound()
 }
 ```
 
-This lets your app decide where documentation lives while the plugin handles
-resolution and rendering.
+`queryPageByPath` and `RenderPage` are placeholders for your app's existing
+Pages loader and renderer.
+
+`path` accepts a normalized route string, a single `[slug]` string, or a
+`[...slug]` / `[[...slug]]` string array. The older `slug` option remains
+supported, but `path` is clearer for new route integrations.
+
+Use a catch-all route such as `app/(frontend)/[[...slug]]/page.tsx` when
+possible. If an existing `[slug]` route must stay in place, use the same
+resolver-first flow there and add a `[...slug]` route for nested docs pages. For
+`@payloadcms/plugin-nested-docs`, query fallback Pages by a stored full path
+such as `fullPath`; otherwise keep using the route field your Pages collection
+already uses.
+
+See [Route Adapter](docs/frontend/route-adapter.md) for complete integration
+notes and metadata examples.
 
 ## Docs Navigation
 

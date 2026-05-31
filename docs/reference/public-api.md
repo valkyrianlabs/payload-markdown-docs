@@ -42,6 +42,7 @@ import {
   PayloadMarkdownDocsPage,
   PayloadMarkdownDocsNavbar,
   getDocsForSitemap,
+  getPayloadMarkdownDocsRoutePath,
   generatePayloadMarkdownDocsMetadata,
   getPayloadMarkdownDocsMetadata,
   resolvePayloadMarkdownDocsRoute,
@@ -51,6 +52,11 @@ import {
 This surface owns route resolution, page rendering, metadata, sitemap helpers,
 navigation helpers, marketing render components, and the public asset route
 handler factory.
+
+Use `getPayloadMarkdownDocsRoutePath` to normalize route input from a string,
+`[slug]`, or catch-all slug array before resolving docs and before querying a
+fallback Pages collection. `resolvePayloadMarkdownDocsRoute` supports `path` for
+new integrations; the older `slug` option remains available for compatibility.
 
 Use the nav/header builders for frontend navigation data.
 
