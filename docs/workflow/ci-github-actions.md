@@ -31,6 +31,7 @@ permissions:
 Required secret or environment value:
 
 - `DOCS_SYNC_ENDPOINT`
+- `PMDOCS_SOURCE`: the Payload docs set slug to pass as `--source`
 
 Create a docs set whose slug matches the CLI source and add a GitHub OIDC record
 in `Docs Globals > Access`. The docs set branch remains the normal publishing
@@ -55,7 +56,7 @@ the CI output proves the native CLI path is being used.
 Important commands:
 
 ```bash
-pmdocs validate --source main-docs
+pmdocs validate --source "$PMDOCS_SOURCE"
 ```
 
 Main-branch sync defaults to sync mode:
@@ -63,7 +64,7 @@ Main-branch sync defaults to sync mode:
 ```bash
 pmdocs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
-  --source main-docs \
+  --source "$PMDOCS_SOURCE" \
   --github-oidc
 ```
 
@@ -72,7 +73,7 @@ Pull request dry-run is explicit:
 ```bash
 pmdocs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
-  --source main-docs \
+  --source "$PMDOCS_SOURCE" \
   --github-oidc \
   --dry-run
 ```
@@ -80,10 +81,13 @@ pmdocs push \
 ```bash
 pmdocs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
-  --source main-docs \
+  --source "$PMDOCS_SOURCE" \
   --github-oidc \
   --publish
 ```
+
+Do not omit `--source` in copied workflow templates. Set `PMDOCS_SOURCE` to the
+docs set slug you created in Payload Admin.
 
 :::callout {variant="warning" title="Server gates still apply"}
 The publish job succeeds only when the server has `sync.allowWrites: true`, `sync.allowPublish: true`, and `target.enableDrafts: true`.

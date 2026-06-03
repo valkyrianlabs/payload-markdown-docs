@@ -32,8 +32,8 @@ The GitHub OIDC JWT is malformed, uses an unsupported algorithm, has an invalid 
 ## `oidc_invalid_audience`
 
 The token audience does not match the docs set slug. Use a CLI source that
-matches the docs set slug, or omit `--source` in GitHub Actions when the
-repository name is the docs set slug.
+matches the docs set slug. In GitHub Actions workflows, pass that source
+explicitly instead of relying on repository-name inference.
 
 ## `oidc_repository_not_allowed`
 

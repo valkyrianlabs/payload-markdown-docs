@@ -42,6 +42,9 @@ Then create records in Payload Admin:
 - `Docs Globals > Sets`: a docs set whose slug matches the CLI source
 - `Docs Globals > Access`: a GitHub OIDC record for the trusted owner
 
+The docs set slug is the `pmdocs --source` value and the OIDC audience. Choose
+that source id before writing the workflow.
+
 The docs set branch is the normal publishing boundary. The token repository
 owner must match a GitHub OIDC Access owner. If `limitRepos` is off, any
 repository under that owner is trusted. If it is on, the repository must be
@@ -60,12 +63,15 @@ permissions:
 
 ## Push With OIDC
 
+Replace `<docs-set-slug>` with the Payload docs set slug. Pass it explicitly in
+GitHub Actions workflows instead of relying on repository-name defaults.
+
 Sync is the default mode:
 
 ```bash
 pmdocs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
-  --source main-docs \
+  --source <docs-set-slug> \
   --github-oidc
 ```
 
@@ -75,7 +81,7 @@ checks:
 ```bash
 pmdocs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
-  --source main-docs \
+  --source <docs-set-slug> \
   --github-oidc \
   --dry-run
 ```
@@ -85,13 +91,14 @@ Request published output separately:
 ```bash
 pmdocs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
-  --source main-docs \
+  --source <docs-set-slug> \
   --github-oidc \
   --publish
 ```
 
-When the docs set slug matches the repository name, omit `--source` in GitHub
-Actions and the CLI derives it from `GITHUB_REPOSITORY`.
+OIDC authentication does not require `--repository`, `--branch`, or `--commit`.
+Payload verifies repository, ref, and commit identity from GitHub's OIDC token
+claims. Those flags are optional manifest metadata, not OIDC requirements.
 
 :::details {title="Advanced workflow refs"}
 You do not need this for normal docs publishing. Each docs set can enable exact

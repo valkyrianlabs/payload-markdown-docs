@@ -109,8 +109,9 @@ pmdocs push \
   --github-oidc
 ```
 
-When the docs set slug matches the repository name, `--source` can be omitted in
-GitHub Actions and the CLI infers it from `GITHUB_REPOSITORY`.
+This quick start passes `--source main-docs` explicitly because copied GitHub
+Actions workflow templates should name the intended docs set instead of relying
+on repository-name inference.
 
 :::details {title="Why dry-run first?"}
 Dry-runs verify authentication, replay protection, the manifest, route

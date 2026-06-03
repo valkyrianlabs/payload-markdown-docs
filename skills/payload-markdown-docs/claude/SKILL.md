@@ -89,11 +89,28 @@ props, themes, or formatting rules.
 - Do not tell users to run `pnpm exec payload-markdown-docs`; the supported CLI
   is the native `pmdocs` binary.
 
+## Source ID Safety
+
+`main-docs` is only a quick-start example source id. The real `--source` value
+is the user's upstream docs id, which must match the Payload docs set slug.
+
+When adding or installing a GitHub Actions OIDC workflow:
+
+- Always include `--source <users-upstream-docs-id>` on `validate`, `plan`, and
+  `push` commands.
+- Do not infer the source id from the repository name, package name, branch,
+  docs directory, or `GITHUB_REPOSITORY`.
+- If the user did not provide the source/docs id, stop the task before editing
+  the workflow. Explain that there is not enough context to add OIDC safely and
+  ask for the Payload docs set slug/source id.
+- Do not use `main-docs` unless the user explicitly says their docs set slug is
+  `main-docs`.
+
 ## Default Workflow
 
 ```bash
-pmdocs validate --source main-docs
-pmdocs plan --source main-docs
+pmdocs validate --source <users-upstream-docs-id>
+pmdocs plan --source <users-upstream-docs-id>
 ```
 
 If the project does not use the conventional `./docs` location, add
@@ -105,7 +122,7 @@ GitHub OIDC sync:
 ```bash
 pmdocs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
-  --source main-docs \
+  --source <users-upstream-docs-id> \
   --github-oidc
 ```
 
@@ -114,7 +131,7 @@ Explicit dry-run:
 ```bash
 pmdocs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
-  --source main-docs \
+  --source <users-upstream-docs-id> \
   --github-oidc \
   --dry-run
 ```
@@ -124,7 +141,7 @@ Ed25519 sync:
 ```bash
 pmdocs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
-  --source main-docs \
+  --source <users-upstream-docs-id> \
   --key-id github-actions-main \
   --private-key-env DOCS_SYNC_PRIVATE_KEY
 ```
@@ -134,7 +151,7 @@ Publishing request, only when the user explicitly wants published output:
 ```bash
 pmdocs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
-  --source main-docs \
+  --source <users-upstream-docs-id> \
   --github-oidc \
   --publish
 ```

@@ -17,6 +17,9 @@ it through Homebrew or the Valkyrian Labs Debian repository.
 The npm package `@valkyrianlabs/payload-markdown-docs` installs the Payload
 plugin and runtime helpers only. It does not provide the supported CLI surface.
 
+Examples use `main-docs` as a sample docs set slug. Replace it with the Payload
+docs set slug for your upstream docs package.
+
 :::toc {title="On this page" depth="3" theme="compact"}
 :::
 
@@ -144,7 +147,7 @@ GitHub OIDC:
 ```bash
 pmdocs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
-  --source main-docs \
+  --source <docs-set-slug> \
   --github-oidc
 ```
 
@@ -178,8 +181,13 @@ OIDC-specific flags:
 - `--github-oidc`
 - `--oidc-token-env <env-name>`
 
-When `--source` is omitted in GitHub Actions, the CLI derives it from
-`GITHUB_REPOSITORY`.
+Pass `--source` explicitly in CI. The CLI can derive it from
+`GITHUB_REPOSITORY` only when the docs set slug matches the repository name,
+but copied workflow templates should not rely on that fallback.
+
+`--repository`, `--branch`, and `--commit` are optional source metadata flags.
+They are not required for GitHub OIDC authentication because Payload verifies
+repository, ref, and SHA from the OIDC token claims.
 
 ## install skill
 

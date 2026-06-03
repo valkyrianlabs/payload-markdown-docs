@@ -18,6 +18,9 @@ Two auth modes are supported:
 - Ed25519 request signing for provider-neutral CI/local workflows.
 - GitHub OIDC bearer auth for GitHub Actions without a long-lived private key.
 
+Examples that use `main-docs` are using the quick-start docs set slug. Replace
+it with the Payload docs set slug for the project you are syncing.
+
 ## Dry Run
 
 ```bash
@@ -70,7 +73,7 @@ PKCS#8/SPKI public keys from `keygen` or `ssh-ed25519 ...` OpenSSH public keys.
 ```bash
 pmdocs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
-  --source main-docs \
+  --source <docs-set-slug> \
   --github-oidc
 ```
 
@@ -86,5 +89,9 @@ OIDC is bearer authentication, not a body signature. The server resolves the
 docs set, verifies the JWT against GitHub's JWKS, checks docs-set claim
 branch plus Access owner/repository records, checks the body hash, and
 uses the token `jti` for replay protection.
+
+OIDC does not require `--repository`, `--branch`, or `--commit`; those are
+optional manifest metadata. The trusted repository, ref, and SHA come from the
+GitHub OIDC token claims.
 
 See the [security model](/concepts/security-model).

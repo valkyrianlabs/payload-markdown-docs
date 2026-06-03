@@ -18,6 +18,10 @@ permissions:
   id-token: write
   contents: read
 
+env:
+  # Replace with the Payload docs set slug. Do not infer this value.
+  PMDOCS_SOURCE: "<users-upstream-docs-id>"
+
 jobs:
   docs:
     runs-on: ubuntu-latest
@@ -42,14 +46,14 @@ jobs:
           pmdocs --help
 
       - name: Validate docs package
-        run: pmdocs validate --source main-docs
+        run: pmdocs validate --source "$PMDOCS_SOURCE"
 
       - name: Dry-run docs package sync
         if: github.event_name == 'pull_request'
         run: |
           pmdocs push \
             --endpoint "$DOCS_SYNC_ENDPOINT" \
-            --source main-docs \
+            --source "$PMDOCS_SOURCE" \
             --github-oidc \
             --dry-run
         env:
@@ -60,7 +64,7 @@ jobs:
         run: |
           pmdocs push \
             --endpoint "$DOCS_SYNC_ENDPOINT" \
-            --source main-docs \
+            --source "$PMDOCS_SOURCE" \
             --github-oidc \
             --publish
         env:

@@ -63,12 +63,12 @@ Use:
 ```bash
 pmdocs push \
   --endpoint "$DOCS_SYNC_ENDPOINT" \
-  --source main-docs \
+  --source <docs-set-slug> \
   --github-oidc
 ```
 
-Do not pass route or OIDC audience flags. In GitHub Actions, `--source` can be
-omitted when the repository name is the docs set slug.
+Do not pass route or OIDC audience flags. In GitHub Actions workflow templates,
+pass `--source` explicitly with the docs set slug.
 
 ## Skill-First AI Workflow
 

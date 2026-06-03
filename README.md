@@ -379,8 +379,10 @@ Preview the sync plan:
 pmdocs plan --source payload-markdown-docs
 ```
 
-In GitHub Actions, `--source` can be omitted when the docs set slug matches the
-repository name. The CLI infers it from `GITHUB_REPOSITORY`.
+Pass `--source` explicitly in CI. It must match the docs set slug in Payload
+Admin. The CLI can derive it from `GITHUB_REPOSITORY` when the docs set slug
+matches the repository name, but explicit source ids make workflow intent
+auditable and avoid publishing the wrong docs set.
 
 ## Publish From GitHub Actions
 
@@ -415,12 +417,16 @@ steps:
   - run: |
       pmdocs push \
         --endpoint "$DOCS_SYNC_ENDPOINT" \
-        --repository "$GITHUB_REPOSITORY" \
-        --branch "$GITHUB_REF_NAME" \
-        --commit "$GITHUB_SHA" \
+        --source payload-markdown-docs \
         --github-oidc \
         --publish
 ```
+
+OIDC authentication does not require `--repository`, `--branch`, or `--commit`.
+Payload verifies the trusted owner, repository, branch/ref, commit SHA, and
+docs set audience from GitHub's OIDC token claims. Those CLI flags only add
+optional source metadata to the manifest and are usually unnecessary in GitHub
+Actions workflows.
 
 `push` defaults to sync mode and publishes the conventional package layout:
 human docs from `./docs` and native skill artifacts from `./skills/<source>` when
