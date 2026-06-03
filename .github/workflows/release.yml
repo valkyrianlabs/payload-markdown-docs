@@ -826,8 +826,5 @@ jobs:
           pmdocs push ./docs \
             --endpoint "${DOCS_SYNC_ENDPOINT}" \
             --source payload-markdown-docs \
-            --repository "$GITHUB_REPOSITORY" \
-            --branch "$GITHUB_REF_NAME" \
-            --commit "$GITHUB_SHA" \
             --github-oidc \
             --publish
