@@ -12,20 +12,33 @@ dependencies:
 
 # Payload Markdown Docs
 
-<span class="flex flex-row gap-x-3 [&_img]:my-0">
-  <a href="https://github.com/valkyrianlabs/payload-markdown-docs/actions">
-    <img alt="GitHub Workflow Status" src="https://img.shields.io/github/actions/workflow/status/valkyrianlabs/payload-markdown-docs/deploy.yml">
-  </a>
-  <a href="https://www.npmjs.com/package/@valkyrianlabs/payload-markdown-docs">
-    <img alt="npm" src="https://img.shields.io/npm/v/@valkyrianlabs/payload-markdown-docs">
-  </a>
-  <a href="https://www.npmjs.com/package/@valkyrianlabs/payload-markdown-docs">
-    <img alt="npm downloads" src="https://img.shields.io/npm/dw/@valkyrianlabs/payload-markdown-docs">
-  </a>
-  <a href="https://github.com/valkyrianlabs/payload-markdown-docs?tab=MIT-1-ov-file">
-    <img alt="license" src="https://img.shields.io/npm/l/@valkyrianlabs/payload-markdown-docs">
-  </a>
-</span>
+:::badges
+::badge[GitHub Workflow Status]{
+type="github"
+target="workflow"
+repo="valkyrianlabs/payload-markdown-docs"
+workflow="deploy.yml"
+href="https://github.com/valkyrianlabs/payload-markdown-docs/actions"
+}
+::badge[npm]{
+type="npm"
+target="version"
+package="@valkyrianlabs/payload-markdown-docs"
+href="https://www.npmjs.com/package/@valkyrianlabs/payload-markdown-docs"
+}
+::badge[npm downloads]{
+type="npm"
+target="downloads"
+package="@valkyrianlabs/payload-markdown-docs"
+href="https://www.npmjs.com/package/@valkyrianlabs/payload-markdown-docs"
+}
+::badge[license]{
+type="npm"
+target="license"
+package="@valkyrianlabs/payload-markdown-docs"
+href="https://github.com/valkyrianlabs/payload-markdown-docs?tab=MIT-1-ov-file"
+}
+:::
 
 `@valkyrianlabs/payload-markdown-docs` publishes Git-backed Markdown documentation into Payload CMS. Developers and agents edit files in a repo-local `docs/` folder, CI validates and authenticates a manifest, and the Payload plugin decides what can be synced.
 
