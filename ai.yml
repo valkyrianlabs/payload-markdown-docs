@@ -22,7 +22,7 @@ profiles:
         structured_mode: strict_json_schema
       polish:
         model: gpt-5.4
-        reasoning_effort: xhigh
+        reasoning_effort: high
       release_notes:
-        model: gpt-5.5
+        model: gpt-5.4
         reasoning_effort: xhigh
