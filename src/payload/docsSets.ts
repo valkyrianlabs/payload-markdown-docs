@@ -12,6 +12,14 @@ import {
 import { isPublicDocsSetRecord } from './visibility.js'
 
 export type DocsSetPayloadOperations = {
+  db?: {
+    updateOne?: (args: {
+      collection: string
+      data: Record<string, unknown>
+      id: number | string
+      req?: unknown
+    }) => Promise<unknown>
+  }
   find: (args: {
     collection: string
     depth?: number
@@ -19,6 +27,7 @@ export type DocsSetPayloadOperations = {
     limit?: number
     overrideAccess?: boolean
     pagination?: boolean
+    req?: unknown
     sort?: string
     where?: unknown
   }) => Promise<{
@@ -149,6 +158,16 @@ export const isEd25519AuthEnabled = (
   auth: { ed25519?: boolean | PayloadMarkdownDocsAuthToggle; mode?: 'disabled' } | undefined,
 ): boolean => auth?.mode !== 'disabled' && authToggleEnabled(auth?.ed25519, false)
 
+/**
+ * Records sync bookkeeping on the docs set without publishing admin work in progress
+ * (DOCS-11).
+ *
+ * Payload's update merges onto the latest version, so `update({ draft: false })` on a
+ * docs set with an unpublished admin draft publishes that draft. Bookkeeping is
+ * therefore written to the main record only (no new version, `_status` untouched).
+ * The one exception is a `--publish` sync of a docs set that has never been published:
+ * publishing it is what makes the synced docs reachable, as before.
+ */
 export const updateDocsSetAfterSync = async ({
   collectionSlug,
   docsSetId,
@@ -164,24 +183,53 @@ export const updateDocsSetAfterSync = async ({
   publish: boolean
   req?: unknown
 }): Promise<void> => {
-  if (!payload.update) {
+  const sync = {
+    lastStatus: 'success',
+    lastSyncedAt: now.toISOString(),
+  }
+  const mainRecord = (
+    await payload.find({
+      collection: collectionSlug,
+      depth: 0,
+      draft: false,
+      limit: 1,
+      overrideAccess: true,
+      req,
+      where: {
+        id: {
+          equals: docsSetId,
+        },
+      },
+    })
+  ).docs[0]
+  const isPublished = isRecord(mainRecord) && mainRecord._status === 'published'
+
+  if (publish && !isPublished) {
+    await payload.update?.({
+      id: String(docsSetId),
+      collection: collectionSlug,
+      data: {
+        _status: 'published',
+        sync,
+      },
+      draft: false,
+      overrideAccess: true,
+      req,
+    })
+
     return
   }
 
-  await payload.update({
-    id: String(docsSetId),
-    collection: collectionSlug,
-    data: {
-      _status: publish ? 'published' : 'draft',
-      sync: {
-        lastStatus: 'success',
-        lastSyncedAt: now.toISOString(),
+  if (typeof payload.db?.updateOne === 'function') {
+    await payload.db.updateOne({
+      id: docsSetId,
+      collection: collectionSlug,
+      data: {
+        sync,
       },
-    },
-    draft: !publish,
-    overrideAccess: true,
-    req,
-  })
+      req,
+    })
+  }
 }
 
 const toResolvedGroup = (

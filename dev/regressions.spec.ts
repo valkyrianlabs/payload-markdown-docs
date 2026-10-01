@@ -537,6 +537,53 @@ describeDb('docs sync real-DB regressions', () => {
     })
   })
 
+  describe('docs set bookkeeping (DOCS-11)', () => {
+    test('a --publish sync does not publish unrelated admin drafts on the docs set', async () => {
+      const slug = uniqueSlug('wip')
+      const set = await createDocsSet(payload, slug, { description: 'Published description' })
+      await payload.update({
+        id: set.id,
+        collection: 'docs-sets',
+        data: { description: 'ADMIN WIP DRAFT - not ready' } as never,
+        draft: true,
+        overrideAccess: true,
+      })
+
+      const result = await sync(buildManifest(slug, [{ content: '# A\n', path: 'a.md' }]))
+      expect(result.status).toBe(200)
+
+      const published = await payload.findByID({
+        id: set.id,
+        collection: 'docs-sets',
+        draft: false,
+        overrideAccess: true,
+      })
+      expect(published.description).toBe('Published description')
+      expect(published.sync?.lastStatus).toBe('success')
+
+      const latestDraft = await payload.findByID({
+        id: set.id,
+        collection: 'docs-sets',
+        draft: true,
+        overrideAccess: true,
+      })
+      expect(latestDraft.description).toBe('ADMIN WIP DRAFT - not ready')
+    })
+
+    test('a --publish sync still publishes a never-published docs set', async () => {
+      const slug = uniqueSlug('first-publish')
+      await createDocsSet(payload, slug, { _status: 'draft' })
+      expect((await sync(buildManifest(slug, [{ content: '# A\n', path: 'a.md' }]))).status).toBe(
+        200,
+      )
+      expect(
+        (
+          await resolvePayloadMarkdownDocsRoute({ path: `/${slug}/a`, payload: payload as never })
+        )?.type,
+      ).toBe('doc')
+    })
+  })
+
   describe('public visibility (DOCS-1, DOCS-12)', () => {
     test('non-publish (draft) docs never appear in llms.txt / llms-full.txt', async () => {
       const slug = uniqueSlug('vis')

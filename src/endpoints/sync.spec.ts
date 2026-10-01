@@ -1753,13 +1753,11 @@ describe('sync endpoint dry-run handling', () => {
         draft: true,
       }),
     )
-    expect(payload.update).toHaveBeenCalledWith(
+    // A non-publish sync only records bookkeeping on the docs set's main record; it
+    // never writes a docs-set version or changes its publish state (DOCS-11).
+    expect(payload.update).not.toHaveBeenCalledWith(
       expect.objectContaining({
         collection: DEFAULT_DOCS_SETS_COLLECTION_SLUG,
-        data: expect.objectContaining({
-          _status: 'draft',
-        }),
-        draft: true,
       }),
     )
   })
