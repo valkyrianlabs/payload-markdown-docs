@@ -7,7 +7,9 @@ from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
 
+from tools.release.changelog.ai.config import AIPipelineConfig, AIPipelineStageConfig
 from tools.release.changelog.release_workflow import (
+    _run_release_ai_pipeline,
     parse_release_ai_settings,
     refresh_debian_changelog_entry,
     release_notes_context_matches,
@@ -98,6 +100,93 @@ class ReleaseWorkflowSelectionTests(unittest.TestCase):
             openai_path.assert_called_once()
             local_path.assert_not_called()
             manual_path.assert_not_called()
+
+    def test_release_pipeline_zero_emergency_items_for_non_empty_release_does_not_use_raw_fallback(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            pipeline = AIPipelineConfig(
+                provider="openai",
+                base_url=None,
+                fallback_model="gpt-5-mini",
+                profile_slug="test",
+                enabled_stages=("emergency_triage", "triage", "draft"),
+                stages={
+                    "emergency_triage": AIPipelineStageConfig(
+                        model="gpt-5-nano",
+                        temperature=0.0,
+                        max_output_tokens=300,
+                    ),
+                    "triage": AIPipelineStageConfig(
+                        model="gpt-5-nano",
+                        temperature=0.0,
+                        max_output_tokens=300,
+                    ),
+                    "draft": AIPipelineStageConfig(
+                        model="gpt-5-mini",
+                        temperature=0.2,
+                        max_output_tokens=300,
+                    ),
+                    "polish": AIPipelineStageConfig(
+                        model="gpt-5-mini",
+                        temperature=0.0,
+                        max_output_tokens=300,
+                    ),
+                    "release_notes": AIPipelineStageConfig(
+                        model="gpt-5-mini",
+                        temperature=0.0,
+                        max_output_tokens=300,
+                    ),
+                },
+            )
+            semantic_payload = {
+                "schema_version": "payload_markdown_docs.release.semantic_payload.v1",
+                "version": "1.2.3",
+                "commit_count": 1,
+                "categories": [
+                    {
+                        "name": "tools",
+                        "candidate_commits": [{"sha": "abc123", "subject": "Fix release tooling"}],
+                    }
+                ],
+            }
+            providers = {"emergency_triage": object(), "triage": object(), "draft": object()}
+            emergency_result = type(
+                "_Emergency",
+                (),
+                {
+                    "schema_version": "payload_markdown_docs.release.ai_emergency_triage.v1",
+                    "items": (),
+                    "version": "1.2.3",
+                },
+            )()
+
+            with (
+                patch(
+                    "tools.release.changelog.release_workflow._build_stage_providers",
+                    return_value=providers,
+                ),
+                patch(
+                    "tools.release.changelog.release_workflow.run_emergency_triage_stage",
+                    return_value=emergency_result,
+                ),
+                patch(
+                    "tools.release.changelog.release_workflow.run_triage_stage",
+                ) as triage_stage,
+                patch(
+                    "tools.release.changelog.release_workflow.generate_draft_from_payload",
+                ) as draft_stage,
+            ):
+                with self.assertRaisesRegex(ValueError, "refusing to fall back to raw semantic triage"):
+                    _ = _run_release_ai_pipeline(
+                        repo_root=repo_root,
+                        payload={"schema_version": "payload"},
+                        semantic_payload=semantic_payload,
+                        pipeline=pipeline,
+                        logger=lambda _line: None,
+                    )
+
+            triage_stage.assert_not_called()
+            draft_stage.assert_not_called()
 
     def test_local_path_requires_explicit_enable_flag(self) -> None:
         with TemporaryDirectory() as temp_dir:

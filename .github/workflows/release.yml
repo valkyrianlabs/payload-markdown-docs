@@ -337,11 +337,18 @@ jobs:
         shell: bash
         env:
           RELEASE_AI_MODE: ${{ vars.RELEASE_AI_MODE || 'auto' }}
-          RELEASE_AI_PROFILE_OPENAI: ${{ vars.RELEASE_AI_PROFILE_OPENAI || 'openai-balanced' }}
+          # Profile precedence: VL_AI_RELEASE_PROFILE (valkyrianlabs org variable), RELEASE_AI_PROFILE,
+          # RELEASE_AI_PROFILE_OPENAI (legacy). Unset values fall through to the ai.yml-backed default.
+          VL_AI_RELEASE_PROFILE: ${{ vars.VL_AI_RELEASE_PROFILE || '' }}
+          RELEASE_AI_PROFILE: ${{ vars.RELEASE_AI_PROFILE || '' }}
+          RELEASE_AI_PROFILE_OPENAI: ${{ vars.RELEASE_AI_PROFILE_OPENAI || '' }}
           RELEASE_LOCAL_LLM_ENABLED: ${{ vars.RELEASE_LOCAL_LLM_ENABLED || 'false' }}
           RELEASE_LOCAL_LLM_PROFILE: ${{ vars.RELEASE_LOCAL_LLM_PROFILE || '' }}
           RELEASE_LOCAL_LLM_BASE_URL: ${{ vars.RELEASE_LOCAL_LLM_BASE_URL || '' }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY || '' }}
+          # DeepSeek key (valkyrianlabs org secret); DEEPSEEK_API_KEY is the generic fallback name.
+          VL_DEEPSEEK_API_KEY: ${{ secrets.VL_DEEPSEEK_API_KEY || '' }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY || '' }}
           RELEASE_LOCAL_LLM_API_KEY: ${{ secrets.RELEASE_LOCAL_LLM_API_KEY || '' }}
         run: |
           set -euo pipefail

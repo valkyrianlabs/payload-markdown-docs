@@ -66,7 +66,11 @@ from tools.release.changelog.ai.providers import (
 from tools.release.changelog.ai.render.markdown import render_draft_markdown, render_polish_markdown
 from tools.release.changelog.ai.stages.draft import generate_draft_from_payload, render_draft_result_json
 from tools.release.changelog.ai.stages.emergency_triage import (
+    EMERGENCY_TRIAGE_ZERO_ITEMS_ERROR,
+    build_emergency_triage_context_metadata,
     build_triage_input_from_emergency_result,
+    is_non_empty_emergency_triage_source,
+    render_emergency_triage_context_json,
     render_emergency_triage_result_json,
     run_emergency_triage_stage,
 )
@@ -148,7 +152,11 @@ __all__ = [
     "render_draft_markdown",
     "render_draft_result_json",
     "run_emergency_triage_stage",
+    "build_emergency_triage_context_metadata",
     "render_emergency_triage_result_json",
+    "render_emergency_triage_context_json",
+    "is_non_empty_emergency_triage_source",
+    "EMERGENCY_TRIAGE_ZERO_ITEMS_ERROR",
     "build_triage_input_from_emergency_result",
     "run_polish_stage",
     "render_polish_markdown",

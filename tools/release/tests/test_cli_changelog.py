@@ -651,6 +651,15 @@ class CliChangelogAICheckTests(unittest.TestCase):
 
 
 class CliChangelogAIDraftTests(unittest.TestCase):
+    def setUp(self) -> None:
+        # Tests that default to repo_root="." would otherwise write `.changelog_scratch/` (cached draft,
+        # emergency artifacts) into the real checkout; run each test from a throwaway cwd instead.
+        temp_dir = TemporaryDirectory()
+        self.addCleanup(temp_dir.cleanup)
+        self._original_cwd = os.getcwd()
+        os.chdir(temp_dir.name)
+        self.addCleanup(os.chdir, self._original_cwd)
+
     @staticmethod
     def _args(
         *,
@@ -818,6 +827,53 @@ class CliChangelogAIDraftTests(unittest.TestCase):
                 "payload_markdown_docs.release.ai_emergency_triage.v1",
             )
 
+    def test_ai_draft_emergency_triage_zero_items_for_non_empty_release_does_not_use_raw_fallback(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir)
+            semantic_payload = {
+                "schema_version": "payload_markdown_docs.release.semantic_payload.v1",
+                "version": "1.2.3",
+                "commit_count": 1,
+                "categories": [
+                    {
+                        "name": "tools",
+                        "candidate_commits": [{"sha": "abc123", "subject": "Fix release tooling"}],
+                    }
+                ],
+            }
+            emergency_obj = SimpleNamespace(items=(), version="1.2.3")
+
+            (repo_root / "VERSION").write_text("1.2.3\n", encoding="utf-8")
+            (repo_root / "ai.yml").write_text(
+                build_openai_profile(
+                    emergency_triage="gpt-5-nano",
+                    triage="gpt-5-nano",
+                    draft="gpt-5-mini",
+                ),
+                encoding="utf-8",
+            )
+
+            args = self._args(
+                repo_root=str(repo_root),
+                ai_profile="openai-balanced",
+                provider=None,
+                model=None,
+                use_triage=False,
+            )
+
+            with AIDraftHarness(self) as h:
+                h.mock_semantic_payload(semantic_payload)
+                h.mock_emergency_triage(
+                    emergency_obj,
+                    '{"schema_version":"payload_markdown_docs.release.ai_emergency_triage.v1","version":"1.2.3","items":[]}\n',
+                )
+
+                with self.assertRaisesRegex(ValueError, "refusing to fall back to raw semantic triage"):
+                    _ = cmd_changelog_ai_draft(args)
+
+                h.mocks.run_triage_stage.assert_not_called()
+                h.mocks.build_triage_input_from_emergency_result.assert_not_called()
+
     def test_ai_draft_release_notes_uses_draft_input_even_when_polish_enabled(self) -> None:
         with TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir)
@@ -960,6 +1016,8 @@ class CliChangelogAIDraftTests(unittest.TestCase):
                     h.assert_stderr_contains(fragment)
 
     def test_main_validates_save_json_flags(self) -> None:
+        # Needs the real checkout (VERSION + git history) to reach flag validation; it writes no scratch files.
+        os.chdir(self._original_cwd)
         cases = (
             {
                 "name": "triage_json_without_triage",

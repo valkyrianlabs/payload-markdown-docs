@@ -4,12 +4,18 @@ import json
 import os
 import re
 from datetime import datetime, timezone
-from email.utils import format_datetime
+from email.utils import format_datetime, parsedate_to_datetime
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Literal, Mapping
 
 from tools.release.changelog.ai.config import (
+    DEEPSEEK_API_KEY_ENV_VAR,
+    describe_api_key_env_var,
+    resolve_api_key_from_env,
+    DEFAULT_DEEPSEEK_BASE_URL,
+    OPENAI_API_KEY_ENV_VAR,
     AIPipelineCLIOverrides,
     AIPipelineConfig,
     AIProviderConfig,
@@ -28,7 +34,10 @@ from tools.release.changelog.ai.providers.base import StructuredJSONProvider
 from tools.release.changelog.ai.render.markdown import render_draft_markdown, render_polish_markdown
 from tools.release.changelog.ai.stages.draft import generate_draft_from_payload
 from tools.release.changelog.ai.stages.emergency_triage import (
+    EMERGENCY_TRIAGE_ZERO_ITEMS_ERROR,
     build_triage_input_from_emergency_result,
+    is_non_empty_emergency_triage_source,
+    render_emergency_triage_context_json,
     render_emergency_triage_result_json,
     run_emergency_triage_stage,
 )
@@ -43,7 +52,17 @@ ReleaseAIMode = Literal["auto", "openai-only", "local-only", "disabled"]
 ReleaseChangelogPath = Literal["openai", "local", "cached-draft", "manual"]
 
 DEFAULT_RELEASE_AI_MODE: ReleaseAIMode = "auto"
-DEFAULT_RELEASE_OPENAI_PROFILE = "openai-balanced"
+# Must name a profile that exists in ai.yml; used only when no profile variable is set.
+DEFAULT_RELEASE_OPENAI_PROFILE = "openai-premium-deep-triage"
+# Profile selection, highest precedence first: organization-level variable, repo/generic variable, legacy name.
+VL_RELEASE_AI_PROFILE_ENV_VAR = "VL_AI_RELEASE_PROFILE"
+RELEASE_AI_PROFILE_ENV_VAR = "RELEASE_AI_PROFILE"
+LEGACY_RELEASE_AI_PROFILE_ENV_VAR = "RELEASE_AI_PROFILE_OPENAI"
+RELEASE_AI_PROFILE_ENV_VARS: tuple[str, ...] = (
+    VL_RELEASE_AI_PROFILE_ENV_VAR,
+    RELEASE_AI_PROFILE_ENV_VAR,
+    LEGACY_RELEASE_AI_PROFILE_ENV_VAR,
+)
 DEFAULT_CHANGELOG_SCRATCH_DIR = Path(".changelog_scratch")
 DEFAULT_CACHED_DRAFT_PATH = DEFAULT_CHANGELOG_SCRATCH_DIR / "changelog.draft.md"
 RELEASE_CONTEXT_METADATA_SCHEMA_VERSION = "payload_markdown_docs.release.changelog_context.v1"
@@ -66,12 +85,15 @@ _DEBIAN_KIND_REF_RE = re.compile(
 @dataclass(frozen=True)
 class ReleaseAISettings:
     mode: ReleaseAIMode
+    # Hosted AI profile from ai.yml (VL_AI_RELEASE_PROFILE, RELEASE_AI_PROFILE, legacy RELEASE_AI_PROFILE_OPENAI). Its stages may
+    # use hosted OpenAI and/or DeepSeek; each needs its own key. The "openai" path names are historical.
     openai_profile: str
     openai_api_key_present: bool
     local_enabled: bool
     local_profile: str | None
     local_base_url_override: str | None
     local_api_key: str | None
+    deepseek_api_key_present: bool = False
 
 
 @dataclass(frozen=True)
@@ -267,8 +289,19 @@ def parse_release_ai_settings(environ: Mapping[str, str] | None = None) -> Relea
 
     mode_raw = env.get("RELEASE_AI_MODE", DEFAULT_RELEASE_AI_MODE)
     mode = _parse_release_ai_mode(mode_raw)
-    openai_profile = _normalize_or_default(env.get("RELEASE_AI_PROFILE_OPENAI"), DEFAULT_RELEASE_OPENAI_PROFILE)
-    openai_api_key_present = bool(_normalize_optional_string(env.get("OPENAI_API_KEY")))
+    openai_profile = _normalize_or_default(
+        next(
+            (
+                value
+                for value in (_normalize_optional_string(env.get(name)) for name in RELEASE_AI_PROFILE_ENV_VARS)
+                if value
+            ),
+            None,
+        ),
+        DEFAULT_RELEASE_OPENAI_PROFILE,
+    )
+    openai_api_key_present = bool(_normalize_optional_string(env.get(OPENAI_API_KEY_ENV_VAR)))
+    deepseek_api_key_present = resolve_api_key_from_env(DEEPSEEK_API_KEY_ENV_VAR, env) is not None
     local_enabled = _parse_bool(env.get("RELEASE_LOCAL_LLM_ENABLED"), var_name="RELEASE_LOCAL_LLM_ENABLED", default=False)
     local_profile = _normalize_optional_string(env.get("RELEASE_LOCAL_LLM_PROFILE"))
     local_base_url_override = _normalize_optional_string(env.get("RELEASE_LOCAL_LLM_BASE_URL"))
@@ -282,6 +315,7 @@ def parse_release_ai_settings(environ: Mapping[str, str] | None = None) -> Relea
         local_profile=local_profile,
         local_base_url_override=local_base_url_override,
         local_api_key=local_api_key,
+        deepseek_api_key_present=deepseek_api_key_present,
     )
 
 
@@ -298,8 +332,9 @@ def resolve_release_changelog(
 ) -> ReleaseChangelogSelection:
     emit = logger or (lambda _line: None)
     emit(f"Release changelog mode: {settings.mode}")
-    emit(f"OpenAI profile: {settings.openai_profile}")
+    emit(f"Hosted AI profile: {settings.openai_profile}")
     emit(f"OpenAI API key present: {'yes' if settings.openai_api_key_present else 'no'}")
+    emit(f"DeepSeek API key present: {'yes' if settings.deepseek_api_key_present else 'no'}")
     emit(f"Local LLM fallback enabled: {'yes' if settings.local_enabled else 'no'}")
     if settings.local_profile:
         emit(f"Local LLM profile: {settings.local_profile}")
@@ -308,9 +343,9 @@ def resolve_release_changelog(
 
     for candidate in _release_candidate_order(settings.mode):
         if candidate == "openai":
-            can_use_openai, reason = _can_attempt_openai(settings)
+            can_use_openai, reason = _can_attempt_openai(settings, repo_root=repo_root)
             if not can_use_openai:
-                emit(f"Skipping OpenAI path: {reason}")
+                emit(f"Skipping hosted AI path: {reason}")
                 continue
             try:
                 content, release_notes_content = _generate_openai_release_changelog(
@@ -321,9 +356,9 @@ def resolve_release_changelog(
                     logger=emit,
                 )
             except Exception as exc:
-                emit(f"OpenAI path failed, falling back: {exc}")
+                emit(f"Hosted AI path failed, falling back: {exc}")
                 continue
-            emit("Selected changelog path: OpenAI")
+            emit(f"Selected changelog path: hosted AI (profile {settings.openai_profile})")
             return ReleaseChangelogSelection(
                 path="openai",
                 content=content,
@@ -379,6 +414,7 @@ def resolve_release_changelog(
         validation = validate_manual_changelog_current(
             repo_root=repo_root,
             changelog_path=manual_changelog_path,
+            baseline_tag=_manual_changelog_baseline_tag(context),
         )
         emit("Selected changelog path: manual/no-AI fallback (existing debian/changelog)")
         emit(
@@ -420,7 +456,15 @@ def validate_manual_changelog_current(
     *,
     repo_root: Path,
     changelog_path: Path | str,
+    baseline_tag: str | None = None,
 ) -> ManualChangelogValidation:
+    """Guard the manual fallback against shipping a previous release's notes.
+
+    `set-version`/`bump` only rewrite the top-entry header, so a matching version proves nothing
+    about the body. When `baseline_tag` (the last shipped release) is known, the top entry's trailer
+    date must not predate that tag's commit: an entry written before the previous release shipped is
+    by construction the previous release's notes.
+    """
     version_path = repo_root / "VERSION"
     version = read_version_file(version_path)
     target_path = Path(changelog_path)
@@ -450,6 +494,12 @@ def validate_manual_changelog_current(
                 "Manual changelog validation failed: stale changelog. "
                 f"{target_path} targets {detected} but VERSION is {version}."
             )
+        _require_entry_newer_than_baseline(
+            repo_root=repo_root,
+            content=content,
+            target_path=target_path,
+            baseline_tag=baseline_tag,
+        )
         return ManualChangelogValidation(
             path=target_path,
             version=str(version),
@@ -469,6 +519,73 @@ def validate_manual_changelog_current(
         detected_target=str(version),
         content=content,
     )
+
+
+_CHANGELOG_TRAILER_PATTERN = re.compile(r"^ -- .+?>\s{1,2}(?P<date>\S.*)$")
+
+
+def _manual_changelog_baseline_tag(context: ReleaseContext | None) -> str | None:
+    if context is None:
+        return None
+    # This repo's ReleaseContext has no release-success ledger; fall back to the resolved previous tag.
+    return getattr(context, "last_successful_release_tag", None) or context.previous_tag
+
+
+def _top_entry_trailer_datetime(content: str) -> datetime | None:
+    for line in content.splitlines():
+        match = _CHANGELOG_TRAILER_PATTERN.match(line)
+        if match:
+            try:
+                return parsedate_to_datetime(match.group("date").strip())
+            except (TypeError, ValueError):
+                return None
+    return None
+
+
+def _git_tag_commit_datetime(repo_root: Path, tag: str) -> datetime | None:
+    try:
+        completed = subprocess.run(
+            ["git", "log", "-1", "--format=%ct", f"{tag}^{{commit}}"],
+            cwd=repo_root,
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=30,
+        )
+    except Exception:
+        return None
+    raw = completed.stdout.strip()
+    if completed.returncode != 0 or not raw.isdigit():
+        return None
+    return datetime.fromtimestamp(int(raw), tz=timezone.utc)
+
+
+def _require_entry_newer_than_baseline(
+    *,
+    repo_root: Path,
+    content: str,
+    target_path: Path,
+    baseline_tag: str | None,
+) -> None:
+    if not baseline_tag:
+        return
+    baseline_at = _git_tag_commit_datetime(repo_root, baseline_tag)
+    if baseline_at is None:
+        return
+    entry_at = _top_entry_trailer_datetime(content)
+    if entry_at is None:
+        raise ValueError(
+            "Manual changelog validation failed: stale changelog. "
+            f"Cannot read the top entry trailer date in {target_path} to prove it postdates {baseline_tag}."
+        )
+    if entry_at < baseline_at:
+        raise ValueError(
+            "Manual changelog validation failed: stale changelog body. "
+            f"The top entry in {target_path} is dated {entry_at.isoformat()}, before the previous release "
+            f"{baseline_tag} ({baseline_at.isoformat()}); only its version header was bumped. Either make the "
+            "AI changelog path available to the release-artifacts job (RELEASE_AI_PROFILE + its provider key) or write a real "
+            "top entry for this release (e.g. `dch`) before tagging."
+        )
 
 
 def validate_cached_draft_current(
@@ -592,11 +709,32 @@ def _release_candidate_order(mode: ReleaseAIMode) -> tuple[ReleaseChangelogPath,
     return ("cached-draft", "manual")
 
 
-def _can_attempt_openai(settings: ReleaseAISettings) -> tuple[bool, str]:
-    if not settings.openai_api_key_present:
-        return False, "OPENAI_API_KEY is not set."
+def _can_attempt_openai(settings: ReleaseAISettings, *, repo_root: Path | None = None) -> tuple[bool, str]:
     if not settings.openai_profile:
-        return False, "RELEASE_AI_PROFILE_OPENAI is not set."
+        return False, f"{' / '.join(RELEASE_AI_PROFILE_ENV_VARS)} is not set."
+    providers: tuple[str, ...] = ("openai",)
+    if repo_root is not None:
+        try:
+            providers = resolve_ai_pipeline_config(
+                repo_root=repo_root,
+                profile_slug=settings.openai_profile,
+                cli_overrides=AIPipelineCLIOverrides(),
+            ).enabled_stage_providers()
+        except ValueError:
+            # Not resolvable here (e.g. missing ai.yml); the attempt itself reports the real error and falls back.
+            providers = ("openai",)
+    if "openai-compatible" in providers:
+        return False, (
+            f"profile `{settings.openai_profile}` uses a local openai-compatible provider; "
+            "configure it via RELEASE_LOCAL_LLM_PROFILE instead."
+        )
+    if "openai" in providers and not settings.openai_api_key_present:
+        return False, f"{OPENAI_API_KEY_ENV_VAR} is not set (profile `{settings.openai_profile}` uses OpenAI)."
+    if "deepseek" in providers and not settings.deepseek_api_key_present:
+        return False, (
+            f"{describe_api_key_env_var(DEEPSEEK_API_KEY_ENV_VAR)} is not set "
+            f"(profile `{settings.openai_profile}` uses DeepSeek)."
+        )
     return True, "ok"
 
 
@@ -619,9 +757,12 @@ def _generate_openai_release_changelog(
     pipeline = resolve_ai_pipeline_config(
         repo_root=repo_root,
         profile_slug=settings.openai_profile,
-        cli_overrides=AIPipelineCLIOverrides(provider="openai"),
+        cli_overrides=AIPipelineCLIOverrides(),
     )
-    logger(f"Attempting OpenAI profile `{settings.openai_profile}`.")
+    logger(
+        f"Attempting hosted AI profile `{settings.openai_profile}` "
+        f"(providers: {', '.join(pipeline.enabled_stage_providers())})."
+    )
     return _run_release_ai_pipeline(
         repo_root=repo_root,
         payload=payload,
@@ -688,7 +829,7 @@ def _run_release_ai_pipeline(
         include_triage=run_triage,
         include_polish=run_polish,
         include_release_notes=run_release_notes,
-        local_api_key=local_api_key if pipeline.provider == "openai-compatible" else None,
+        local_api_key=local_api_key,
         logger=logger,
     )
 
@@ -710,6 +851,12 @@ def _run_release_ai_pipeline(
 
     if run_triage:
         if has_empty_semantic_categories:
+            if (
+                run_emergency_triage
+                and isinstance(semantic_payload, dict)
+                and is_non_empty_emergency_triage_source(semantic_payload)
+            ):
+                raise ValueError(EMERGENCY_TRIAGE_ZERO_ITEMS_ERROR)
             emit(
                 "Skipping triage stages: semantic payload has no categories; "
                 "falling back to deterministic payload draft input."
@@ -722,7 +869,7 @@ def _run_release_ai_pipeline(
                 emergency_triage_result = run_emergency_triage_stage(
                     semantic_payload,
                     provider=providers["emergency_triage"],
-                    provider_kind=pipeline.provider,
+                    provider_kind=pipeline.stage_provider("emergency_triage"),
                     reasoning_effort=emergency_triage_cfg.reasoning_effort,
                     structured_mode=emergency_triage_cfg.structured_mode,
                     temperature=emergency_triage_cfg.temperature,
@@ -747,6 +894,10 @@ def _run_release_ai_pipeline(
                 raise ValueError(f"Emergency triage stage failed: {exc}") from exc
             emit("Emergency triage: artifact write start")
             _write_emergency_triage_artifact(repo_root=repo_root, content=render_emergency_triage_result_json(emergency_triage_result))
+            _write_emergency_triage_context_artifact(
+                repo_root=repo_root,
+                content=render_emergency_triage_context_json(semantic_payload, emergency_triage_result),
+            )
             emit("Emergency triage: artifact write end")
             if emergency_triage_result.items:
                 triage_input_payload = build_triage_input_from_emergency_result(
@@ -755,6 +906,11 @@ def _run_release_ai_pipeline(
                 )
                 triage_input_mode = "synthesized_semantic"
             else:
+                if is_non_empty_emergency_triage_source(semantic_payload):
+                    raise ValueError(
+                        "Emergency triage produced zero synthesized items for a non-empty release; "
+                        "refusing to fall back to raw semantic triage."
+                    )
                 emit(
                     "Emergency triage produced zero synthesized items; "
                     "falling back to raw semantic triage input."
@@ -764,7 +920,7 @@ def _run_release_ai_pipeline(
                 triage_result = run_triage_stage(
                     triage_input_payload,
                     provider=providers["triage"],
-                    provider_kind=pipeline.provider,
+                    provider_kind=pipeline.stage_provider("triage"),
                     reasoning_effort=triage_cfg.reasoning_effort,
                     structured_mode=triage_cfg.structured_mode,
                     temperature=triage_cfg.temperature,
@@ -795,7 +951,7 @@ def _run_release_ai_pipeline(
             draft_input,
             provider=providers["draft"],
             source_kind=source_kind,
-            provider_kind=pipeline.provider,
+            provider_kind=pipeline.stage_provider("draft"),
             reasoning_effort=draft_cfg.reasoning_effort,
             structured_mode=draft_cfg.structured_mode,
             temperature=draft_cfg.temperature,
@@ -828,7 +984,7 @@ def _run_release_ai_pipeline(
             release_notes_result = run_release_notes_stage(
                 draft_markdown,
                 provider=providers["release_notes"],
-                provider_kind=pipeline.provider,
+                provider_kind=pipeline.stage_provider("release_notes"),
                 reasoning_effort=release_notes_cfg.reasoning_effort,
                 structured_mode=release_notes_cfg.structured_mode,
                 temperature=release_notes_cfg.temperature,
@@ -858,7 +1014,7 @@ def _run_release_ai_pipeline(
             polish_result = run_polish_stage(
                 draft,
                 provider=providers["polish"],
-                provider_kind=pipeline.provider,
+                provider_kind=pipeline.stage_provider("polish"),
                 reasoning_effort=polish_cfg.reasoning_effort,
                 structured_mode=polish_cfg.structured_mode,
                 temperature=polish_cfg.temperature,
@@ -910,12 +1066,15 @@ def _build_stage_providers(
     stage_providers: dict[AIStageName, StructuredJSONProvider] = {}
 
     for stage in stage_order:
-        stage_cfg = pipeline.stages[stage]
+        stage_kind = pipeline.stage_provider(stage)
+        base_cfg = pipeline.provider_config_for_stage(stage)
         provider_cfg = AIProviderConfig(
-            kind=pipeline.provider,
-            model=stage_cfg.model,
-            base_url=pipeline.base_url,
-            api_key=local_api_key,
+            kind=stage_kind,
+            model=base_cfg.model,
+            base_url=base_cfg.base_url,
+            api_key_env_var=base_cfg.api_key_env_var,
+            # The local gateway key only ever goes to local openai-compatible stages.
+            api_key=local_api_key if stage_kind == "openai-compatible" else None,
             timeout_seconds=_resolve_stage_provider_timeout_seconds(stage),
         )
         fingerprint = (
@@ -930,7 +1089,9 @@ def _build_stage_providers(
             provider = build_structured_json_provider(provider_cfg)
             _ = run_provider_preflight(provider_cfg, provider=provider, require_model=True)
             providers_by_fingerprint[fingerprint] = provider
-            endpoint = provider_cfg.base_url or "<hosted>"
+            endpoint = provider_cfg.base_url or (
+                DEFAULT_DEEPSEEK_BASE_URL if provider_cfg.kind == "deepseek" else "<hosted>"
+            )
             logger(
                 "AI preflight OK: "
                 f"provider={provider_cfg.kind}, model={provider_cfg.model}, endpoint={endpoint}"
@@ -942,6 +1103,15 @@ def _build_stage_providers(
 
 def _write_emergency_triage_artifact(*, repo_root: Path, content: str) -> None:
     target = (repo_root / DEFAULT_CHANGELOG_SCRATCH_DIR / "emergency_triage.json").resolve()
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content, encoding="utf-8")
+    except Exception:
+        return
+
+
+def _write_emergency_triage_context_artifact(*, repo_root: Path, content: str) -> None:
+    target = (repo_root / DEFAULT_CHANGELOG_SCRATCH_DIR / "emergency_triage.context.json").resolve()
     try:
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(content, encoding="utf-8")
@@ -989,19 +1159,29 @@ def _capture_release_stage_failure_artifact(
         return
 
 
+DEFAULT_AI_PROVIDER_TIMEOUT_SECONDS = 180.0
+DEFAULT_AI_EMERGENCY_TRIAGE_TIMEOUT_SECONDS = 45.0
+
+
 def _resolve_stage_provider_timeout_seconds(stage: AIStageName) -> float | None:
-    if stage != "emergency_triage":
-        return None
-    raw = os.getenv("RELEASE_AI_EMERGENCY_TRIAGE_PROVIDER_TIMEOUT_SECONDS", "45").strip()
+    # Every stage gets a bounded per-request timeout so a provider outage falls back to the
+    # cached/manual path instead of hanging the release job (the SDK default is 600s x retries).
+    if stage == "emergency_triage":
+        return _positive_float_env(
+            "RELEASE_AI_EMERGENCY_TRIAGE_PROVIDER_TIMEOUT_SECONDS", DEFAULT_AI_EMERGENCY_TRIAGE_TIMEOUT_SECONDS
+        )
+    return _positive_float_env("RELEASE_AI_PROVIDER_TIMEOUT_SECONDS", DEFAULT_AI_PROVIDER_TIMEOUT_SECONDS)
+
+
+def _positive_float_env(name: str, default: float) -> float:
+    raw = (os.getenv(name) or "").strip()
     if not raw:
-        return 45.0
+        return default
     try:
         value = float(raw)
     except ValueError:
-        return 45.0
-    if value <= 0:
-        return 45.0
-    return value
+        return default
+    return value if value > 0 else default
 
 
 def _validate_cached_context_matches(

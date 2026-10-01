@@ -78,7 +78,14 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
         self.assertLess(native_job.index("Generate release changelog"), native_job.index("Build Debian package"))
         self.assertIn("python -m tools.release changelog release", native_job)
         self.assertIn("RELEASE_AI_MODE: ${{ vars.RELEASE_AI_MODE || 'auto' }}", native_job)
-        self.assertIn("RELEASE_AI_PROFILE_OPENAI: ${{ vars.RELEASE_AI_PROFILE_OPENAI || 'openai-balanced' }}", native_job)
+        # Org-level (valkyrianlabs) profile variable and DeepSeek secret, plus repo/legacy fallbacks.
+        self.assertIn("VL_AI_RELEASE_PROFILE: ${{ vars.VL_AI_RELEASE_PROFILE || '' }}", native_job)
+        self.assertIn("RELEASE_AI_PROFILE: ${{ vars.RELEASE_AI_PROFILE || '' }}", native_job)
+        self.assertIn("RELEASE_AI_PROFILE_OPENAI: ${{ vars.RELEASE_AI_PROFILE_OPENAI || '' }}", native_job)
+        self.assertIn("VL_DEEPSEEK_API_KEY: ${{ secrets.VL_DEEPSEEK_API_KEY || '' }}", native_job)
+        self.assertIn("DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY || '' }}", native_job)
+        # No hard-coded profile fallback that ai.yml does not define.
+        self.assertNotIn("openai-balanced", native_job)
         self.assertIn("OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY || '' }}", native_job)
         self.assertIn("RELEASE_LOCAL_LLM_API_KEY: ${{ secrets.RELEASE_LOCAL_LLM_API_KEY || '' }}", native_job)
         self.assertIn("--output release/changelog.release.md", native_job)

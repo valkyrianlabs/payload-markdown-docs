@@ -56,3 +56,6 @@ dev/.env
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+
+# Repository-local shell environment (maps host variables; never commit)
+/.bashrc

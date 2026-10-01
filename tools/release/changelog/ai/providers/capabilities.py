@@ -48,6 +48,14 @@ def get_provider_capabilities(provider_kind: AIProviderKind) -> ProviderCapabili
             default_structured_mode="strict_json_schema",
         )
 
+    if provider_kind == "deepseek":
+        return ProviderCapabilities(
+            provider_kind=provider_kind,
+            supports_reasoning_effort=True,
+            supports_strict_schema=True,
+            default_structured_mode="strict_json_schema",
+        )
+
     if provider_kind == "openai-compatible":
         return ProviderCapabilities(
             provider_kind=provider_kind,
@@ -93,6 +101,10 @@ def resolve_generation_settings(
         _validate_reasoning_effort(requested_reasoning_effort)
 
     reasoning_effort = requested_reasoning_effort
+    if reasoning_effort == "max" and provider_kind == "openai":
+        # `max` is DeepSeek's top level; OpenAI's highest is `xhigh`.
+        reasoning_effort = "xhigh"
+        degradations.append("reasoning_effort `max` mapped to `xhigh` for hosted OpenAI.")
     if reasoning_effort is not None and not capabilities.supports_reasoning_effort:
         reasoning_effort = None
         degradations.append(
@@ -123,6 +135,9 @@ def resolve_request_parameter_capabilities(
     normalized_model = model.strip().lower()
     if provider_kind == "openai" and normalized_model.startswith("gpt-5"):
         # GPT-5 reasoning flows are tuned via `reasoning` controls, not `temperature`.
+        supports_temperature = False
+    if provider_kind == "deepseek":
+        # DeepSeek reasoning models are steered by `reasoning.effort`; temperature is not honored.
         supports_temperature = False
     return RequestParameterCapabilities(
         provider_kind=provider_kind,

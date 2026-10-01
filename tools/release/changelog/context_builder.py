@@ -49,6 +49,13 @@ def build_release_context(
     release_kind = _release_kind(parsed_version)
     release_focus = _release_focus(release_kind)
 
+    if previous_tag is not None and parsed_version is not None and _is_current_release_tag(previous_tag, parsed_version):
+        raise ValueError(
+            "Explicit changelog checkpoint equals the current release tag "
+            f"`{previous_tag}` for VERSION {version}; refusing to build an empty release range. "
+            "Use --since-tag with the previous release tag."
+        )
+
     if previous_tag is None:
         resolved_previous_tag = _resolve_default_previous_tag_result(repo_root, version)
         previous_tag = resolved_previous_tag.previous_tag

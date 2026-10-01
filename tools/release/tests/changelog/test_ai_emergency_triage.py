@@ -14,8 +14,11 @@ from tools.release.changelog.ai.contracts.emergency_triage import (
 )
 from tools.release.changelog.ai.stages.emergency_triage import (
     AI_TRIAGE_SYNTHESIZED_INPUT_SCHEMA_VERSION,
+    build_emergency_triage_input_payload,
+    build_fallback_evidence_unit_id,
     build_semantic_evidence_unit_id,
     build_triage_input_from_emergency_result,
+    render_emergency_triage_context_json,
     run_emergency_triage_stage,
 )
 
@@ -274,7 +277,114 @@ def _sample_semantic_payload_with_hunks(count: int) -> dict:
     return payload
 
 
+def _sample_semantic_payload_without_hunks(commit_count: int = 2) -> dict:
+    payload = _sample_semantic_payload()
+    commits: list[dict] = []
+    for index in range(commit_count):
+        commits.append(
+            {
+                "sha": f"abcd{index:04d}",
+                "subject": f"Improve release tooling fallback {index}",
+                "body": f"Body for fallback commit {index}.",
+                "categories": ["tools"],
+                "weight": "medium",
+                "weight_score": 160 + index,
+                "changed_files": 2,
+                "insertions": 20 + index,
+                "deletions": 3,
+                "sample_paths": [f"tools/release/fallback_{index}.py"],
+            }
+        )
+    payload["commit_count"] = commit_count
+    payload["categories"][0]["candidate_commits"] = commits
+    payload["categories"][0]["supporting_files"] = ["tools/release/changelog/context_builder.py"]
+    payload["categories"][0]["semantic_hunks"] = []
+    payload["all_commits"] = commits
+    return payload
+
+
 class AIEmergencyTriageStageTests(unittest.TestCase):
+    def test_payload_without_semantic_hunks_gets_fallback_items(self) -> None:
+        payload = _sample_semantic_payload_without_hunks(commit_count=2)
+
+        projection = build_emergency_triage_input_payload(payload)
+
+        self.assertEqual(projection["semantic_hunk_item_count"], 0)
+        self.assertEqual(projection["fallback_item_count"], 2)
+        self.assertEqual(projection["source_commit_count"], 2)
+        self.assertEqual(projection["source_category_count"], 1)
+        self.assertEqual(projection["source_all_commits_count"], 2)
+        self.assertEqual(
+            [item["id"] for item in projection["items"]],
+            [
+                build_fallback_evidence_unit_id("tools", 0),
+                build_fallback_evidence_unit_id("tools", 1),
+            ],
+        )
+        self.assertIn("Commit subject: Improve release tooling fallback 0", projection["items"][0]["excerpt"])
+        self.assertIn("Supporting files:", projection["items"][0]["excerpt"])
+
+    def test_fallback_item_ids_are_stable(self) -> None:
+        payload = _sample_semantic_payload_without_hunks(commit_count=3)
+
+        first = build_emergency_triage_input_payload(payload)
+        second = build_emergency_triage_input_payload(payload)
+
+        self.assertEqual([item["id"] for item in first["items"]], [item["id"] for item in second["items"]])
+        self.assertEqual(
+            [item["id"] for item in first["items"]],
+            ["fallback:tools:1", "fallback:tools:2", "fallback:tools:3"],
+        )
+
+    def test_non_empty_release_with_zero_projection_items_raises(self) -> None:
+        payload = {
+            "schema_version": "payload_markdown_docs.release.semantic_payload.v1",
+            "version": "0.34.1",
+            "commit_count": 3,
+            "categories": [],
+            "all_commits": [],
+        }
+
+        with self.assertRaisesRegex(ValueError, "Emergency triage built zero input items"):
+            _ = run_emergency_triage_stage(payload, provider=_BatchEchoProvider())
+
+    def test_zero_commit_count_with_source_commits_still_counts_as_non_empty(self) -> None:
+        payload = {
+            "schema_version": "payload_markdown_docs.release.semantic_payload.v1",
+            "version": "0.34.1",
+            "commit_count": 0,
+            "categories": [],
+            "all_commits": [{"sha": "abc123", "subject": "Fix release tooling"}],
+        }
+
+        with self.assertRaisesRegex(ValueError, "Emergency triage built zero input items"):
+            _ = run_emergency_triage_stage(payload, provider=_BatchEchoProvider())
+
+    def test_large_release_without_hunks_still_runs_emergency_triage(self) -> None:
+        payload = _sample_semantic_payload_without_hunks(commit_count=30)
+        provider = _BatchEchoProvider()
+
+        result = run_emergency_triage_stage(payload, provider=provider)
+
+        self.assertGreater(len(result.items), 0)
+        self.assertEqual(len(result.items), 14)
+        self.assertTrue(all(item.id.startswith("fallback:tools:") for item in result.items))
+
+    def test_context_metadata_exposes_coverage_counts(self) -> None:
+        payload = _sample_semantic_payload_without_hunks(commit_count=2)
+        result = run_emergency_triage_stage(payload, provider=_BatchEchoProvider())
+
+        metadata = json.loads(render_emergency_triage_context_json(payload, result))
+
+        self.assertEqual(metadata["emergency_input_item_count"], 2)
+        self.assertEqual(metadata["emergency_output_item_count"], 2)
+        self.assertEqual(metadata["semantic_category_count"], 1)
+        self.assertEqual(metadata["semantic_hunk_count"], 0)
+        self.assertEqual(metadata["fallback_item_count"], 2)
+        self.assertEqual(metadata["commit_count"], 2)
+        self.assertEqual(metadata["previous_tag"], "v0.34.0")
+        self.assertEqual(metadata["head_sha"], "abc123")
+
     def test_run_stage_enforces_one_item_per_input_unit_id(self) -> None:
         payload = _sample_semantic_payload()
         unit_one = build_semantic_evidence_unit_id("tools", 0)
