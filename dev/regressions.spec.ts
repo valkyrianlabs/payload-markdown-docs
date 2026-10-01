@@ -478,6 +478,13 @@ describeDb('docs sync real-DB regressions', () => {
       const first = await sync(invalid, { nonce, timestamp })
       expect(first.status).toBe(400)
       expect(first.json.error.code).toBe('invalid_manifest')
+      expect(first.json.error.issues).toContainEqual(
+        expect.objectContaining({
+          code: 'path_traversal',
+          path: '../escape.md',
+          severity: 'error',
+        }),
+      )
 
       const replay = await sync(invalid, { nonce, timestamp })
       expect(replay.status).toBe(409)

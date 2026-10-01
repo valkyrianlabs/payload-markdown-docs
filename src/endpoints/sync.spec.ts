@@ -823,7 +823,41 @@ describe('sync endpoint dry-run handling', () => {
     expect(response.status).toBe(400)
     expect(json.error).toMatchObject({
       code: 'invalid_manifest',
+      // Validation issues are returned so the CLI can print them (CLI-6, DOCS-17).
+      issues: [expect.objectContaining({ code: 'empty_manifest', severity: 'error' })],
     })
+  })
+
+  it('names the manifest files behind duplicate routes', async () => {
+    const { privateKey, publicKey } = keyPair()
+    const body = JSON.stringify(
+      buildDocsManifest({
+        files: [
+          { content: '# Sub\n', path: 'sub.md' },
+          { content: '# Sub index\n', path: 'sub/index.md' },
+        ],
+        sourceId: 'main-docs',
+      }),
+    )
+    const { json, response } = await callEndpoint({
+      body,
+      headers: signBody({ body, privateKey }),
+      publicKey: publicKey.toString(),
+    })
+
+    expect(response.status).toBe(409)
+    expect(json.error).toMatchObject({
+      code: 'route_collision',
+      issues: [
+        expect.objectContaining({
+          code: 'duplicate_desired_route',
+          message: expect.stringContaining('sub.md, sub/index.md'),
+          severity: 'error',
+        }),
+      ],
+      message: 'Two or more manifest files resolve to the same route.',
+    })
+    expect(json.routeCollisions).toBeDefined()
   })
 
   it('rejects unknown sources when no docs set or configured source matches', async () => {
@@ -994,9 +1028,10 @@ describe('sync endpoint dry-run handling', () => {
       }),
     )
     const payload = createMockPayload({
-      assetsFindError: new Error(
-        'Failed query: select count(*) from "payload_markdown_docs_assets"',
-      ),
+      // Shape of a real drizzle error for a missing table: the driver error is the cause.
+      assetsFindError: new Error('Failed query: select count(*) from "payload_markdown_docs_assets"', {
+        cause: new Error('relation "payload_markdown_docs_assets" does not exist'),
+      }),
     })
 
     const { json, response } = await callEndpoint({
@@ -2770,7 +2805,10 @@ describe('sync endpoint dry-run handling', () => {
     })
 
     expect(response.status).toBe(409)
-    expect(json.error).toMatchObject({ code: 'manual_edit_conflict' })
+    expect(json.error).toMatchObject({
+      code: 'manual_edit_conflict',
+      issues: [expect.objectContaining({ path: expect.any(String), severity: 'error' })],
+    })
     expect(payload.create).not.toHaveBeenCalledWith(expect.objectContaining({ collection: 'docs' }))
     expect(payload.update).not.toHaveBeenCalledWith(expect.objectContaining({ collection: 'docs' }))
   })

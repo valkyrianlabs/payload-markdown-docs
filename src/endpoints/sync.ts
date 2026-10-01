@@ -164,6 +164,17 @@ export type CreateSyncEndpointOptions = {
   syncRunsEnabled: boolean
 }
 
+/**
+ * Structured detail on every non-2xx response (shared contract with `pmdocs`).
+ * `severity: 'warning'` entries are informational and never the cause of the error.
+ */
+export type SyncErrorIssue = {
+  code: string
+  message: string
+  path?: string
+  severity: 'error' | 'warning'
+}
+
 type SyncErrorResponse = {
   conflicts?: {
     reason: string
@@ -172,6 +183,7 @@ type SyncErrorResponse = {
   }[]
   error: {
     code: DocsSyncEndpointErrorCode
+    issues?: SyncErrorIssue[]
     message: string
   }
   ok: false
@@ -180,6 +192,64 @@ type SyncErrorResponse = {
     route: string
     sourcePath?: string
   }[]
+}
+
+type SyncErrorExtras = {
+  issues?: SyncErrorIssue[]
+} & Omit<SyncErrorResponse, 'error' | 'ok'>
+
+const describeCollisionReason = (reason: string): string => {
+  switch (reason) {
+    case 'descendant_route_collision':
+      return 'overlaps a route reserved by another docs set, group, or page'
+    case 'duplicate_desired_route':
+      return 'is produced by more than one manifest file'
+    case 'existing_asset_route_collision':
+      return 'is already used by an asset of another docs set'
+    case 'existing_doc_route_collision':
+      return 'is already used by a doc of another docs set'
+    case 'route_retained_by_published_doc':
+      return 'is still served by a published doc this sync does not publish'
+    default:
+      return 'collides with an existing route reservation'
+  }
+}
+
+const describeConflictReason = (reason: string): string => {
+  switch (reason) {
+    case 'current_content_hash_mismatch':
+      return 'was edited outside the docs sync workflow'
+    case 'missing_current_record':
+      return 'has no current record to update'
+    case 'unmanaged_record':
+      return 'is not managed by payload-markdown-docs'
+    default:
+      return 'cannot be changed safely'
+  }
+}
+
+const deriveErrorIssues = (extras: SyncErrorExtras): SyncErrorIssue[] | undefined => {
+  const issues = [
+    ...(extras.issues ?? []),
+    ...(extras.issues
+      ? []
+      : (extras.routeCollisions ?? []).map((collision) => ({
+          code: collision.reason,
+          message: `Route ${collision.route} ${describeCollisionReason(collision.reason)}.`,
+          path: collision.sourcePath,
+          severity: 'error' as const,
+        }))),
+    ...(extras.issues
+      ? []
+      : (extras.conflicts ?? []).map((conflict) => ({
+          code: conflict.reason,
+          message: `${conflict.sourcePath}${conflict.route ? ` (${conflict.route})` : ''} ${describeConflictReason(conflict.reason)}.`,
+          path: conflict.sourcePath,
+          severity: 'error' as const,
+        }))),
+  ]
+
+  return issues.length > 0 ? issues : undefined
 }
 
 type SerializedChange = {
@@ -263,19 +333,24 @@ const errorResponse = (
   code: DocsSyncEndpointErrorCode,
   message: string,
   status = 400,
-  extras: Omit<SyncErrorResponse, 'error' | 'ok'> = {},
-): Response =>
-  jsonResponse(
+  extras: SyncErrorExtras = {},
+): Response => {
+  const { issues: _issues, ...rest } = extras
+  const issues = deriveErrorIssues(extras)
+
+  return jsonResponse(
     {
-      ...extras,
+      ...rest,
       error: {
         code,
+        ...(issues ? { issues } : {}),
         message,
       },
       ok: false,
     },
     status,
   )
+}
 
 const docsAssetsStorageUnavailableResponse = (): Response =>
   errorResponse('assets_storage_unavailable', DOCS_ASSETS_STORAGE_UNAVAILABLE_MESSAGE, 500)
@@ -715,6 +790,20 @@ const getLifecyclePolicyError = ({
   }
 
   return undefined
+}
+
+const getManifestRouteOwners = (manifest: ValidatedDocsManifest): Map<string, string[]> => {
+  const owners = new Map<string, string[]>()
+
+  for (const entry of [...manifest.files, ...manifest.assets]) {
+    if (!entry.route) {
+      continue
+    }
+
+    owners.set(entry.route, [...(owners.get(entry.route) ?? []), entry.path])
+  }
+
+  return owners
 }
 
 const getRouteCollisionIssues = async ({
@@ -1228,6 +1317,16 @@ const authenticateSyncRequest = async ({
   })
 }
 
+const toSyncErrorIssue = (
+  issue: DocsValidationIssue,
+  severity: SyncErrorIssue['severity'],
+): SyncErrorIssue => ({
+  code: issue.code,
+  message: issue.message,
+  ...(issue.path ? { path: issue.path } : {}),
+  severity,
+})
+
 const warnedUnscopedKeys = new Set<string>()
 
 /**
@@ -1454,16 +1553,12 @@ const createSyncEndpointHandler =
     })
 
     if (!validation.ok) {
-      return jsonResponse(
-        {
-          error: {
-            code: 'invalid_manifest',
-            message: 'Sync manifest is invalid.',
-          },
-          ok: false,
-        },
-        400,
-      )
+      return errorResponse('invalid_manifest', 'Sync manifest is invalid.', 400, {
+        issues: [
+          ...validation.issues.map((issue) => toSyncErrorIssue(issue, 'error')),
+          ...validation.warnings.map((issue) => toSyncErrorIssue(issue, 'warning')),
+        ],
+      })
     }
 
     const effectiveDeleteBehavior = options.deleteBehavior ?? 'archive'
@@ -1496,11 +1591,38 @@ const createSyncEndpointHandler =
     }
 
     if (routeCollisions.length > 0) {
+      const routeOwners = getManifestRouteOwners(validation.data)
+      const duplicateRoutes = [...routeOwners.entries()].filter(([, paths]) => paths.length > 1)
+      const onlyDuplicates = routeCollisions.every((collision) =>
+        duplicateRoutes.some(([route]) => collision.route.split(' <> ').includes(route)),
+      )
+
       return errorResponse(
         'route_collision',
-        'One or more docs routes collide with an existing route reservation.',
+        onlyDuplicates
+          ? 'Two or more manifest files resolve to the same route.'
+          : 'One or more docs routes collide with an existing route reservation.',
         409,
         {
+          issues: [
+            ...duplicateRoutes.map(([route, paths]) => ({
+              code: 'duplicate_desired_route',
+              message: `Route ${route} is produced by ${paths.join(', ')}.`,
+              path: paths[0],
+              severity: 'error' as const,
+            })),
+            ...routeCollisions
+              .filter(
+                (collision) =>
+                  !duplicateRoutes.some(([route]) => collision.route.split(' <> ').includes(route)),
+              )
+              .map((collision) => ({
+                code: collision.reason,
+                message: `Route ${collision.route} ${describeCollisionReason(collision.reason)}.`,
+                path: routeOwners.get(collision.route.split(' <> ')[0] ?? '')?.[0],
+                severity: 'error' as const,
+              })),
+          ],
           routeCollisions,
         },
       )

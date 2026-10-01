@@ -1275,9 +1275,10 @@ describe('docs asset endpoints', () => {
   it('returns a friendly migration error when asset storage is missing', async () => {
     const endpoint = createDocsAssetsEndpoints({}).find((item) => item.path === '/llms.txt')
     const payload = createMockPayload({
-      assetsFindError: new Error(
-        'Failed query: select count(*) from "payload_markdown_docs_assets"',
-      ),
+      // Shape of a real drizzle error for a missing table: the driver error is the cause.
+      assetsFindError: new Error('Failed query: select count(*) from "payload_markdown_docs_assets"', {
+        cause: new Error('relation "payload_markdown_docs_assets" does not exist'),
+      }),
     })
 
     const response = await endpoint?.handler(
@@ -1291,5 +1292,34 @@ describe('docs asset endpoints', () => {
     expect(response?.status).toBe(500)
     expect(text).toContain('Docs assets schema is missing')
     expect(text).toContain('pnpm dev')
+  })
+})
+
+describe('docs assets storage error classification', () => {
+  it('only treats a missing assets table as unavailable storage', async () => {
+    const { isDocsAssetsStorageUnavailableError } = await import('./assetsStorage.js')
+
+    expect(
+      isDocsAssetsStorageUnavailableError(
+        new Error('Failed query', {
+          cause: new Error('relation "payload_markdown_docs_assets" does not exist'),
+        }),
+      ),
+    ).toBe(true)
+    expect(
+      isDocsAssetsStorageUnavailableError(new Error('no such table: payload_markdown_docs_assets')),
+    ).toBe(true)
+    expect(
+      isDocsAssetsStorageUnavailableError(
+        new Error(
+          'duplicate key value violates unique constraint "payload_markdown_docs_assets_route_idx"',
+        ),
+      ),
+    ).toBe(false)
+    expect(
+      isDocsAssetsStorageUnavailableError(
+        new Error('The following field is invalid: payload-markdown-docs-assets.route'),
+      ),
+    ).toBe(false)
   })
 })
