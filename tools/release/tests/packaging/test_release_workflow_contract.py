@@ -46,7 +46,11 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
         self.assertIn("python -m tools.release prepare-homebrew-formula", workflow)
         self.assertIn("meson setup build-native -Dinstall_skill_data=false", workflow)
         self.assertNotIn("native_cli_parity_tests=true", workflow)
-        self.assertIn("meson setup build-homebrew -Dinstall_skill_data=false", workflow)
+        self.assertIn(
+            "meson setup build-homebrew -Dinstall_skill_data=true -Dcompanion_skill_data=auto",
+            workflow,
+        )
+        self.assertIn('"$stage/usr/local/bin/pmdocs" doctor', workflow)
 
     def test_release_workflow_validates_and_smoke_tests_native_artifacts(self) -> None:
         workflow = self._workflow()

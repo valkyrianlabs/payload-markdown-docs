@@ -19,13 +19,20 @@ class Pmdocs < Formula
   depends_on "openssl@3"
 
   def install
-    system "meson", "setup", "build", *std_meson_args
+    # The release archive ships the payload-markdown-docs skill but not the npm
+    # companion skill, so install the bundled skill data and let Meson skip the
+    # companion when it is absent.
+    system "meson", "setup", "build", *std_meson_args,
+           "-Dinstall_skill_data=true", "-Dcompanion_skill_data=auto"
     system "meson", "compile", "-C", "build"
     system "meson", "install", "-C", "build"
   end
 
   test do
     assert_match version.to_s, shell_output("#{bin}/pmdocs --version")
+    assert_match "status: ok", shell_output("#{bin}/pmdocs doctor")
+    assert_match "payload-markdown-docs/SKILL.md",
+                 shell_output("#{bin}/pmdocs install skill --agent codex --dry-run")
     assert_match "pmdocs skill install", shell_output("#{bin}/pmdocs skill install --help")
   end
 end

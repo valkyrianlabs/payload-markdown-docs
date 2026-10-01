@@ -457,9 +457,16 @@ jobs:
       - name: Build and test native CLI for formula source build parity
         run: |
           set -euo pipefail
-          meson setup build-homebrew -Dinstall_skill_data=false
+          # Same options as homebrew/Formula/pmdocs.rb: the release archive has no
+          # node_modules, so only the payload-markdown-docs skill is bundled.
+          meson setup build-homebrew -Dinstall_skill_data=true -Dcompanion_skill_data=auto
           meson compile -C build-homebrew
           meson test -C build-homebrew
+          stage="$PWD/stage-homebrew"
+          DESTDIR="$stage" meson install -C build-homebrew
+          export PMDOCS_DATA_DIR="$stage/usr/local/share/pmdocs"
+          "$stage/usr/local/bin/pmdocs" doctor
+          "$stage/usr/local/bin/pmdocs" install skill --agent codex --dry-run | grep -F 'payload-markdown-docs/SKILL.md'
 
       - name: Stage release Homebrew formula
         if: needs.validate-release-state.outputs.publish_required == 'true'
