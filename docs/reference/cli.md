@@ -62,6 +62,12 @@ pmdocs doctor
 Prints local native CLI diagnostics. It does not check networking, Payload
 server configuration, auth, OIDC, or signing.
 
+`doctor` exits `0` with `status: ok` when the bundled skill data is present and
+`1` with `status: degraded` when it is missing, because `pmdocs install skill`
+cannot work without it. Homebrew builds bundle the `payload-markdown-docs` skill
+but not the npm companion `payload-markdown` skill; `doctor` notes this and
+`install skill` installs the bundled skill only.
+
 ## validate
 
 ```bash
@@ -334,12 +340,17 @@ guidance.
 - `--repository <repo>`
 - `--branch <branch>`
 - `--commit <sha>`
-- `--strict-routes`
 - `--json`
 - `--pretty`
 - `--max-files <number>`
 - `--max-file-bytes <number>`
 - `--max-total-bytes <number>`
 - `--max-body-bytes <number>`
+- `--route-base <path>` and `--asset-route-base <path>` (`validate` and `plan`)
+
+`--strict-routes` is a `push` flag only. Without `--source`, the docs set slug
+comes from `GITHUB_REPOSITORY` (the repository name) when it is set, otherwise
+from the docs root directory name, or `local-docs` when that directory is named
+`docs`.
 
 :::

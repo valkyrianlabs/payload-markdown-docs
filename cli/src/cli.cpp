@@ -667,12 +667,13 @@ std::string docs_command_help_text(std::string_view command) {
 
   out << "  --json                     Print JSON output.\n";
   out << "  --pretty                   Pretty-print JSON output.\n";
-  out << "  --source <id>              Docs set slug. Defaults to the GitHub repository name in GitHub Actions, otherwise local-docs.\n";
+  out << "  --source <id>              Docs set slug. Defaults to the repository name from GITHUB_REPOSITORY,\n";
+  out << "                             otherwise the docs root directory name (local-docs when it is \"docs\").\n";
   out << "  --repository <repo>        Source repository metadata.\n";
   out << "  --branch <branch>          Source branch metadata.\n";
   out << "  --commit <sha>             Source commit metadata.\n";
-  out << "  --max-files <number>       Maximum file count.\n";
-  out << "  --max-file-bytes <number>  Maximum single file size.\n";
+  out << "  --max-files <number>       Maximum docs file count and asset count. Defaults to 500.\n";
+  out << "  --max-file-bytes <number>  Maximum size of a single docs file or asset. Defaults to 500000.\n";
   out << "  --max-total-bytes <number> Maximum total bytes of docs and asset contents. Defaults to 5000000.\n";
   out << "  --max-body-bytes <number>  Maximum serialized sync request body bytes; match the server's sync\n";
   out << "                             maxBodyBytes. Defaults to 5000000.\n";
@@ -719,12 +720,14 @@ Options:
   --delete-behavior <value> archive, delete, draft, or ignore. Defaults to archive.
   --json                    Print structured JSON output.
   --pretty                  Pretty-print JSON output with --json.
-  --source <id>             Docs set slug. Defaults to the GitHub repository name in GitHub Actions, otherwise local-docs.
+  --source <id>             Docs set slug. Defaults to the repository name from GITHUB_REPOSITORY,
+                            otherwise the docs root directory name (local-docs when it is "docs").
+                            Pass it explicitly in CI.
   --repository <repo>       Source repository metadata.
   --branch <branch>         Source branch metadata.
   --commit <sha>            Source commit metadata.
-  --max-files <number>      Maximum file count.
-  --max-file-bytes <number> Maximum single file size.
+  --max-files <number>      Maximum docs file count and asset count. Defaults to 500.
+  --max-file-bytes <number> Maximum size of a single docs file or asset. Defaults to 500000.
   --max-total-bytes <number> Maximum total bytes of docs and asset contents. Defaults to 5000000.
   --max-body-bytes <number> Maximum serialized request body bytes; match the server's sync
                             maxBodyBytes. Defaults to 5000000.
@@ -743,6 +746,9 @@ Usage:
 
 Reports local native CLI diagnostics only. It does not check networking,
 Payload server configuration, auth, OIDC, or signing.
+
+Exits 0 with "status: ok" when bundled skill data is present, and 1 with
+"status: degraded" when it is missing (pmdocs install skill cannot work).
 )";
 }
 
@@ -917,14 +923,36 @@ CommandResult doctor_result() {
   out << "\n";
   out << "project_skill_path: " << diagnostics["project_skill_path"].get<std::string>() << "\n";
 
+  const auto companion_found = std::ranges::find(found_skill_packages, std::string{"payload-markdown"}) != found_skill_packages.end();
+  std::vector<std::string> notes;
+
   if (!skill_found) {
-    out << "diagnostics:\n";
-    out << "- Bundled payload-markdown-docs skill data was not found. Run meson install or set PMDOCS_DATA_DIR for local tests.\n";
+    notes.push_back(
+      "Bundled payload-markdown-docs skill data was not found, so `pmdocs install skill` cannot work. "
+      "Reinstall pmdocs from a package that bundles skill data (the Debian package or the Homebrew formula), build with "
+      "-Dinstall_skill_data=true, or set PMDOCS_DATA_DIR."
+    );
+  } else if (!companion_found) {
+    notes.push_back(
+      "The payload-markdown companion skill is not bundled; `pmdocs install skill` installs payload-markdown-docs only."
+    );
   }
 
-  out << "status: ok\n";
+  if (!notes.empty()) {
+    out << "diagnostics:\n";
+    for (const auto& note : notes) {
+      out << "- " << note << "\n";
+    }
+  }
 
-  return make_stdout(out.str());
+  // Missing primary skill data breaks a documented command: report it as
+  // degraded with a non-zero exit so scripts and package tests notice.
+  out << "status: " << (skill_found ? "ok" : "degraded") << "\n";
+
+  return {
+    .exit_code = skill_found ? 0 : 1,
+    .stdout_text = out.str(),
+  };
 }
 
 struct ArgvBuffer {
@@ -1185,8 +1213,8 @@ CommandResult run(std::vector<std::string_view> args) {
     command->add_option("--repository", options.repository, "Source repository metadata.");
     command->add_option("--branch", options.branch, "Source branch metadata.");
     command->add_option("--commit", options.commit, "Source commit metadata.");
-    command->add_option("--max-files", options.max_files, "Maximum file count.");
-    command->add_option("--max-file-bytes", options.max_file_bytes, "Maximum single file size.");
+    command->add_option("--max-files", options.max_files, "Maximum docs file count and asset count.");
+    command->add_option("--max-file-bytes", options.max_file_bytes, "Maximum size of a single docs file or asset.");
     command->add_option("--max-total-bytes", options.max_total_bytes, "Maximum total bytes of docs and asset contents.");
     command->add_option("--max-body-bytes", options.max_body_bytes, "Maximum serialized sync request body bytes (server maxBodyBytes).");
     command->add_flag("--json", options.print_json, "Print JSON output.");

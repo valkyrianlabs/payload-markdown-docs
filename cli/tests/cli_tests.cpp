@@ -1475,3 +1475,34 @@ TEST_CASE("plan matches server route bases, publish state and existing assets") 
   CHECK(help.stdout_text.find("--route-base") != std::string::npos);
   CHECK(help.stdout_text.find("--publish") != std::string::npos);
 }
+
+TEST_CASE("doctor reports missing skill data as degraded with a non-zero exit") {
+  TempDir temp{"pmdocs-test-doctor-degraded"};
+  const auto data_root = temp.path() / "empty-data";
+  std::filesystem::create_directories(data_root);
+
+  {
+    EnvGuard data_dir{"PMDOCS_DATA_DIR", data_root.string()};
+    const auto degraded = pmdocs::run(args({"doctor"}));
+    CHECK(degraded.exit_code == 1);
+    CHECK(degraded.stdout_text.find("status: degraded") != std::string::npos);
+    CHECK(degraded.stdout_text.find("cannot work") != std::string::npos);
+  }
+
+  {
+    write_text(data_root / "skills" / "payload-markdown-docs" / "codex" / "SKILL.md", "# Skill\n");
+    EnvGuard data_dir{"PMDOCS_DATA_DIR", data_root.string()};
+    const auto primary_only = pmdocs::run(args({"doctor"}));
+    CHECK(primary_only.exit_code == 0);
+    CHECK(primary_only.stdout_text.find("status: ok") != std::string::npos);
+    CHECK(primary_only.stdout_text.find("companion skill is not bundled") != std::string::npos);
+  }
+
+  {
+    const auto full_data = create_skill_fixture(temp.path());
+    EnvGuard data_dir{"PMDOCS_DATA_DIR", full_data.string()};
+    const auto full = pmdocs::run(args({"doctor"}));
+    CHECK(full.exit_code == 0);
+    CHECK(full.stdout_text.find("diagnostics:") == std::string::npos);
+  }
+}
