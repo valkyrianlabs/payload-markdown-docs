@@ -76,24 +76,6 @@ DecodedCodePoint decode_at(std::string_view value, std::size_t index) {
   return {code_point, length};
 }
 
-void append_utf8(std::string& output, std::uint32_t code_point) {
-  if (code_point < 0x80) {
-    output.push_back(static_cast<char>(code_point));
-  } else if (code_point < 0x800) {
-    output.push_back(static_cast<char>(0xC0U | (code_point >> 6U)));
-    output.push_back(static_cast<char>(0x80U | (code_point & 0x3FU)));
-  } else if (code_point < 0x10000) {
-    output.push_back(static_cast<char>(0xE0U | (code_point >> 12U)));
-    output.push_back(static_cast<char>(0x80U | ((code_point >> 6U) & 0x3FU)));
-    output.push_back(static_cast<char>(0x80U | (code_point & 0x3FU)));
-  } else {
-    output.push_back(static_cast<char>(0xF0U | (code_point >> 18U)));
-    output.push_back(static_cast<char>(0x80U | ((code_point >> 12U) & 0x3FU)));
-    output.push_back(static_cast<char>(0x80U | ((code_point >> 6U) & 0x3FU)));
-    output.push_back(static_cast<char>(0x80U | (code_point & 0x3FU)));
-  }
-}
-
 // ECMAScript WhiteSpace + LineTerminator (String.prototype.trim, RegExp \s).
 bool is_js_whitespace(std::uint32_t code_point) {
   return code_point == 0x09 || code_point == 0x0A || code_point == 0x0B || code_point == 0x0C

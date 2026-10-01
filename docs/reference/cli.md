@@ -76,6 +76,25 @@ from `./skills/<source>` when that directory exists, and optional custom
 `./skills` directory is optional; only an explicitly supplied missing
 `--skills <path>` fails validation.
 
+What the docs walk includes:
+
+- every lowercase `.md` file below the docs root, at any depth
+- hidden files and directories (names starting with `.`), each reported as a
+  warning; pass `--skip-hidden` to leave them out
+
+What it leaves out, always reported as a `skipped_path` warning:
+
+- `.git` and `node_modules` directories at any depth
+- `build`, `dist`, and `.next` directories directly below the docs root (the
+  same names deeper in the tree are ordinary docs sections)
+- symbolic links (not followed)
+- Markdown-like files that are not lowercase `.md`, such as `README.MD` or
+  `notes.markdown`
+
+Files that are not valid UTF-8 fail validation with an `invalid_encoding`
+error that names the file. Skill packages follow the same walk rules and report
+files other than `.md`, `.txt`, `.json`, `.yaml`, and `.yml`.
+
 ## manifest
 
 ```bash
@@ -171,6 +190,7 @@ Common push flags:
 - `--no-skills`
 - `--no-llms`
 - `--no-llms-full`
+- `--skip-hidden`
 - `--dry-run`
 - `--strict-routes`
 - `--publish`
@@ -260,6 +280,7 @@ guidance.
 - `--no-skills`
 - `--no-llms`
 - `--no-llms-full`
+- `--skip-hidden`
 - `--repository <repo>`
 - `--branch <branch>`
 - `--commit <sha>`

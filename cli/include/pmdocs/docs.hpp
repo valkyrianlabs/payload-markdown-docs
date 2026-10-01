@@ -32,6 +32,7 @@ struct DocsCommandOptions {
   std::optional<std::string> repository;
   std::filesystem::path skills_root = "./skills";
   bool skills_root_explicit = false;
+  bool skip_hidden = false;
   std::optional<std::string> source_id;
   bool no_docs = false;
   bool no_llms = false;

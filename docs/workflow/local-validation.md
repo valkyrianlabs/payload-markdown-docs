@@ -37,7 +37,11 @@ pmdocs validate ./docs --source main-docs
 ```
 
 Validation checks source paths, frontmatter, asset paths, hashes, file limits,
-docs set slug, and manifest shape.
+docs set slug, and manifest shape. It also lists every file the docs walk
+leaves out (symlinks, `README.MD`-style extensions, `node_modules`, and
+root-level `build` / `dist` / `.next` directories) and every hidden file it
+includes, so nothing is dropped silently. Pass `--skip-hidden` to exclude
+hidden files and directories.
 
 ## Manifest
 

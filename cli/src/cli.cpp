@@ -83,6 +83,18 @@ void write_file(const std::filesystem::path& path, std::string_view content) {
   }
 }
 
+// Absolute, lexically normal, and without a trailing separator, so "dir/",
+// "dir/." and "." compare equal to "dir" in containment checks.
+std::filesystem::path absolute_normalized(const std::filesystem::path& path) {
+  auto normalized = std::filesystem::absolute(path).lexically_normal();
+
+  if (!normalized.has_filename() && normalized.has_relative_path()) {
+    normalized = normalized.parent_path();
+  }
+
+  return normalized;
+}
+
 std::string replace_all(std::string input, std::string_view needle, std::string_view replacement) {
   std::size_t offset = 0;
 
@@ -119,10 +131,6 @@ bool is_safe_relative_path(const std::filesystem::path& path) {
   }
 
   return true;
-}
-
-std::filesystem::path absolute_normalized(const std::filesystem::path& path) {
-  return std::filesystem::absolute(path).lexically_normal();
 }
 
 bool is_supported_agent(std::string_view agent) {
@@ -279,11 +287,13 @@ std::filesystem::path project_skill_dir_for_package(
   const InstallSkillOptions& options,
   std::string_view package_slug
 ) {
+  const auto out_dir = absolute_normalized(options.out_dir);
+
   if (package_slug == kPrimarySkillName) {
-    return options.out_dir;
+    return out_dir;
   }
 
-  return options.out_dir.parent_path() / std::string{package_slug};
+  return out_dir.parent_path() / std::string{package_slug};
 }
 
 std::vector<SkillInstallTarget> skill_install_targets(const InstallSkillOptions& options) {
@@ -638,6 +648,7 @@ std::string docs_command_help_text(std::string_view command) {
   out << "  --no-skills               Exclude skill artifacts.\n";
   out << "  --no-llms                 Exclude llms.txt.\n";
   out << "  --no-llms-full            Exclude llms-full.txt.\n";
+  out << "  --skip-hidden             Skip hidden files and directories (names starting with a dot).\n";
 
   if (command == "plan") {
     out << "  --existing <path>          JSON array of existing docs records.\n";
@@ -681,6 +692,7 @@ Options:
   --no-skills               Exclude skill artifacts.
   --no-llms                 Exclude llms.txt.
   --no-llms-full            Exclude llms-full.txt.
+  --skip-hidden             Skip hidden files and directories (names starting with a dot).
   --endpoint <url>          Full Payload sync endpoint URL.
   --key-id <id>             Server-configured Ed25519 key id.
   --private-key-file <path> Private key file from keygen, or an unencrypted OpenSSH Ed25519 key.
@@ -1148,6 +1160,7 @@ CommandResult run(std::vector<std::string_view> args) {
     command->add_flag("--no-skills", options.no_skills, "Exclude skill artifacts.");
     command->add_flag("--no-llms", options.no_llms, "Exclude llms.txt.");
     command->add_flag("--no-llms-full", options.no_llms_full, "Exclude llms-full.txt.");
+    command->add_flag("--skip-hidden", options.skip_hidden, "Skip hidden files and directories (names starting with a dot).");
     command->add_option("--source", options.source_id, "Docs set/source id.");
     command->add_option("--repository", options.repository, "Source repository metadata.");
     command->add_option("--branch", options.branch, "Source branch metadata.");

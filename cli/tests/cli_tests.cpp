@@ -10,6 +10,7 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 
+#include <algorithm>
 #include <array>
 #include <cctype>
 #include <cstdlib>
@@ -1049,4 +1050,148 @@ TEST_CASE("plan supports existing records and delete behavior") {
   const auto plan = nlohmann::json::parse(json_result.stdout_text);
   CHECK(plan["docs"]["create"].size() == 1);
   CHECK(plan["assets"]["create"].size() == 0);
+}
+
+namespace {
+
+bool has_issue(const nlohmann::json& issues, std::string_view code, std::string_view path) {
+  for (const auto& issue : issues) {
+    if (issue["code"] == code && issue.contains("path") && issue["path"] == path) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+std::vector<std::string> manifest_paths(const nlohmann::json& manifest) {
+  std::vector<std::string> paths;
+
+  for (const auto& file : manifest["files"]) {
+    paths.push_back(file["path"].get<std::string>());
+  }
+
+  return paths;
+}
+
+bool contains_path(const std::vector<std::string>& paths, std::string_view path) {
+  return std::find(paths.begin(), paths.end(), path) != paths.end();
+}
+
+} // namespace
+
+TEST_CASE("docs walk applies build exclusions only at the root and reports every skipped path") {
+  TempDir temp{"pmdocs-test-walk"};
+  const auto root = temp.path() / "docs";
+  const auto root_string = root.string();
+  write_text(root / "index.md", "# Home\n");
+  write_text(root / "guides" / "build" / "index.md", "# Build guide\n");
+  write_text(root / "guides" / "dist" / "page.md", "# Dist guide\n");
+  write_text(root / "dist" / "generated.md", "# Generated\n");
+  write_text(root / "build" / "out.md", "# Out\n");
+  write_text(root / "guides" / "node_modules" / "pkg" / "readme.md", "# Dependency\n");
+  write_text(root / "README.MD", "# Upper\n");
+  write_text(root / "notes.markdown", "# Notes\n");
+  write_text(root / ".draft.md", "# Draft\n");
+  write_text(root / ".hidden" / "secret.md", "# Secret\n");
+  write_text(root / "image.png", "png");
+  std::filesystem::create_symlink(root / "index.md", root / "link.md");
+
+  const auto result = pmdocs::run(args({"validate", root_string, "--source", "main-docs", "--json", "--no-skills", "--no-llms", "--no-llms-full"}));
+  REQUIRE(result.exit_code == 0);
+  const auto output = nlohmann::json::parse(result.stdout_text);
+  const auto& warnings = output["validation"]["warnings"];
+  std::vector<std::string> paths;
+  for (const auto& file : output["validation"]["data"]["files"]) {
+    paths.push_back(file["path"].get<std::string>());
+  }
+
+  CHECK(contains_path(paths, "guides/build/index.md"));
+  CHECK(contains_path(paths, "guides/dist/page.md"));
+  CHECK(contains_path(paths, ".draft.md"));
+  CHECK(contains_path(paths, ".hidden/secret.md"));
+  CHECK_FALSE(contains_path(paths, "dist/generated.md"));
+  CHECK_FALSE(contains_path(paths, "build/out.md"));
+  CHECK_FALSE(contains_path(paths, "guides/node_modules/pkg/readme.md"));
+  CHECK_FALSE(contains_path(paths, "link.md"));
+  CHECK(has_issue(warnings, "skipped_path", "dist"));
+  CHECK(has_issue(warnings, "skipped_path", "build"));
+  CHECK(has_issue(warnings, "skipped_path", "guides/node_modules"));
+  CHECK(has_issue(warnings, "skipped_path", "README.MD"));
+  CHECK(has_issue(warnings, "skipped_path", "notes.markdown"));
+  CHECK(has_issue(warnings, "skipped_path", "link.md"));
+  CHECK(has_issue(warnings, "hidden_path", ".draft.md"));
+  CHECK(has_issue(warnings, "hidden_path", ".hidden/secret.md"));
+  CHECK_FALSE(has_issue(warnings, "skipped_path", "image.png"));
+
+  const auto skip_hidden = pmdocs::run(args({"manifest", root_string, "--source", "main-docs", "--skip-hidden", "--no-skills", "--no-llms", "--no-llms-full"}));
+  REQUIRE(skip_hidden.exit_code == 0);
+  const auto manifest_without_hidden = manifest_paths(nlohmann::json::parse(skip_hidden.stdout_text));
+  CHECK_FALSE(contains_path(manifest_without_hidden, ".draft.md"));
+  CHECK_FALSE(contains_path(manifest_without_hidden, ".hidden/secret.md"));
+  CHECK(skip_hidden.stderr_text.find(".hidden: Skipped hidden directory (--skip-hidden).") != std::string::npos);
+
+  const auto text = pmdocs::run(args({"validate", root_string, "--source", "main-docs", "--no-skills", "--no-llms", "--no-llms-full"}));
+  CHECK(text.stdout_text.find("- README.MD: Skipped Markdown file with extension \".MD\"") != std::string::npos);
+}
+
+TEST_CASE("non-UTF-8 docs are reported with their path instead of crashing") {
+  TempDir temp{"pmdocs-test-encoding"};
+  const auto root = temp.path() / "docs";
+  const auto root_string = root.string();
+  write_text(root / "index.md", "# Home\n");
+  write_text(root / "latin1.md", std::string{"# Caf\xe9\n"});
+
+  const auto validate = pmdocs::run(args({"validate", root_string, "--source", "main-docs", "--no-skills", "--no-llms", "--no-llms-full"}));
+  CHECK(validate.exit_code == 1);
+  CHECK(validate.stdout_text.find("- latin1.md: File content is not valid UTF-8") != std::string::npos);
+
+  const auto json_result = pmdocs::run(args({"validate", root_string, "--source", "main-docs", "--json", "--no-skills", "--no-llms", "--no-llms-full"}));
+  CHECK(json_result.exit_code == 1);
+  const auto output = nlohmann::json::parse(json_result.stdout_text);
+  CHECK(has_issue(output["validation"]["issues"], "invalid_encoding", "latin1.md"));
+
+  const auto manifest = pmdocs::run(args({"manifest", root_string, "--source", "main-docs", "--no-skills", "--no-llms", "--no-llms-full"}));
+  CHECK(manifest.exit_code == 1);
+  CHECK(manifest.stderr_text.find("latin1.md: File content is not valid UTF-8") != std::string::npos);
+  CHECK(manifest.stderr_text.find("type_error") == std::string::npos);
+
+  const auto push = pmdocs::run(args({
+    "push",
+    root_string,
+    "--source",
+    "main-docs",
+    "--endpoint",
+    "https://example.invalid/api/documentation/sync",
+    "--github-oidc",
+    "--oidc-token-env",
+    "PMDOCS_TEST_UNUSED_TOKEN",
+    "--no-skills",
+    "--no-llms",
+    "--no-llms-full",
+  }));
+  CHECK(push.exit_code == 1);
+  CHECK(push.stderr_text.find("latin1.md: File content is not valid UTF-8") != std::string::npos);
+}
+
+TEST_CASE("trailing separators in path arguments are handled") {
+  TempDir temp{"pmdocs-test-trailing"};
+  const auto docs = temp.path() / "mydocs";
+  write_text(docs / "index.md", "# Home\n");
+  const auto data_root = create_skill_fixture(temp.path());
+  EnvGuard data_dir{"PMDOCS_DATA_DIR", data_root.string()};
+  CwdGuard cwd{temp.path()};
+
+  const auto validate = pmdocs::run(args({"validate", "./mydocs/", "--no-skills"}));
+  CHECK(validate.exit_code == 0);
+  CHECK(validate.stdout_text.find("Source: mydocs\n") != std::string::npos);
+
+  const auto skill = pmdocs::run(args({"install", "skill", "--codex", "--out", "skillsout/", "--dry-run"}));
+  CHECK(skill.exit_code == 0);
+  CHECK(skill.stdout_text.find("payload-markdown: " + (temp.path() / "payload-markdown").lexically_normal().string()) != std::string::npos);
+
+  std::filesystem::create_directories(temp.path() / "app" / "(payload)");
+  const auto routes = pmdocs::run(args({"install", "routes", "--payload-app", "app/(payload)/", "--dry-run"}));
+  CHECK(routes.exit_code == 0);
+  CHECK(routes.stderr_text.empty());
 }

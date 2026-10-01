@@ -144,6 +144,9 @@ struct PublishPackageSummary {
 struct PublishPackage {
   std::vector<PackageAsset> assets;
   std::vector<WalkedDocsFile> files;
+  // Walk-level problems (invalid encoding) and notes (skipped, hidden paths).
+  std::vector<Issue> issues;
+  std::vector<Issue> warnings;
   PublishPackageSummary summary;
 };
 
@@ -286,14 +289,6 @@ std::string trim(std::string_view value) {
   const auto last = value.find_last_not_of(" \t\r\n");
 
   return std::string{value.substr(first, last - first + 1)};
-}
-
-bool starts_with(std::string_view value, std::string_view prefix) {
-  return value.substr(0, prefix.size()) == prefix;
-}
-
-bool ends_with(std::string_view value, std::string_view suffix) {
-  return value.size() >= suffix.size() && value.substr(value.size() - suffix.size()) == suffix;
 }
 
 std::string normalize_base64(std::string_view value) {
@@ -1035,7 +1030,8 @@ std::string format_issues(const std::vector<Issue>& issues) {
 }
 
 std::string json_string(const json& value, bool pretty) {
-  return value.dump(pretty ? 2 : -1) + "\n";
+  // Output only: replace invalid UTF-8 instead of throwing a raw type_error.
+  return value.dump(pretty ? 2 : -1, ' ', false, json::error_handler_t::replace) + "\n";
 }
 
 std::string get_repository_name() {
@@ -1055,12 +1051,23 @@ std::string get_repository_name() {
   return value.substr(slash + 1);
 }
 
+// Absolute, lexically normal, and without a trailing separator ("dir/" -> "dir").
+std::filesystem::path normalized_directory(const std::filesystem::path& path) {
+  auto normalized = std::filesystem::absolute(path).lexically_normal();
+
+  if (!normalized.has_filename() && normalized.has_relative_path()) {
+    normalized = normalized.parent_path();
+  }
+
+  return normalized;
+}
+
 std::string default_source_id(const std::filesystem::path& docs_root) {
   if (const auto repository = get_repository_name(); !repository.empty()) {
     return repository;
   }
 
-  const auto name = std::filesystem::absolute(docs_root).filename().string();
+  const auto name = normalized_directory(docs_root).filename().string();
 
   return name == "docs" ? "local-docs" : name;
 }
@@ -1078,14 +1085,145 @@ std::string source_id_for(const DocsCommandOptions& options) {
     return *options.source_id;
   }
 
-  return default_source_id(effective_docs_root(options));
+  auto source_id = default_source_id(effective_docs_root(options));
+
+  if (source_id.empty()) {
+    throw std::runtime_error{"Could not derive a docs set slug from the docs root. Pass --source <docs-set-slug>."};
+  }
+
+  return source_id;
 }
 
 std::string lower_copy(std::string value);
 
-std::vector<WalkedDocsFile> walk_docs_files(const std::filesystem::path& root) {
-  static const std::set<std::string> ignored_directories = {".git", ".next", "build", "dist", "node_modules"};
-  const auto absolute_root = std::filesystem::absolute(root).lexically_normal();
+// Directories that are never docs content, skipped at any depth.
+bool is_always_ignored_directory(const std::string& name) {
+  return name == ".git" || name == "node_modules";
+}
+
+// Build output directories, skipped only directly below the walked root.
+bool is_root_ignored_directory(const std::string& name) {
+  return name == ".next" || name == "build" || name == "dist";
+}
+
+bool is_hidden_name(const std::string& name) {
+  return name.size() > 1 && name.front() == '.' && name != "..";
+}
+
+bool is_markdown_like_extension(const std::string& extension) {
+  const auto lower = lower_copy(extension);
+  return lower == ".md" || lower == ".markdown" || lower == ".mdx" || lower == ".mdown";
+}
+
+// Path relative to the walked root for messages; always valid UTF-8.
+std::string display_relative(const std::filesystem::path& path, const std::filesystem::path& root) {
+  // Lexical, so a symlink is reported under its own name, not its target's.
+  const auto relative = path.lexically_relative(root);
+  return contract::sanitize_utf8(relative.empty() ? path.generic_string() : relative.generic_string());
+}
+
+struct WalkContext {
+  std::filesystem::path root;
+  std::string label;
+  bool skip_hidden = false;
+  std::vector<Issue>* issues = nullptr;
+  std::vector<Issue>* warnings = nullptr;
+};
+
+// Shared directory walk for docs and skills. Calls `on_file` for regular
+// files that pass the walk rules and reports everything it leaves out.
+template <typename OnFile>
+void walk_tree(const WalkContext& context, OnFile on_file) {
+  std::error_code error;
+  std::filesystem::recursive_directory_iterator iterator{context.root, error};
+  const std::filesystem::recursive_directory_iterator end;
+
+  if (error) {
+    throw std::runtime_error{"Could not read " + context.label + " root: " + error.message()};
+  }
+
+  for (; iterator != end; iterator.increment(error)) {
+    if (error) {
+      throw std::runtime_error{"Could not walk " + context.label + " root: " + error.message()};
+    }
+
+    const auto& entry = *iterator;
+    const auto status = entry.symlink_status(error);
+
+    if (error) {
+      throw std::runtime_error{"Could not inspect " + context.label + " entry: " + error.message()};
+    }
+
+    const auto name = entry.path().filename().string();
+    const auto relative = display_relative(entry.path(), context.root);
+
+    if (std::filesystem::is_symlink(status)) {
+      if (std::filesystem::is_directory(entry.path(), error)) {
+        iterator.disable_recursion_pending();
+      }
+      error.clear();
+
+      context.warnings->push_back(issue("skipped_path", "Skipped symbolic link; symlinks are not followed.", relative));
+      continue;
+    }
+
+    if (std::filesystem::is_directory(status)) {
+      if (is_always_ignored_directory(name) || (iterator.depth() == 0 && is_root_ignored_directory(name))) {
+        iterator.disable_recursion_pending();
+        context.warnings->push_back(issue("skipped_path", "Skipped directory \"" + name + "\" (build output or tooling directory).", relative));
+      } else if (context.skip_hidden && is_hidden_name(name)) {
+        iterator.disable_recursion_pending();
+        context.warnings->push_back(issue("skipped_path", "Skipped hidden directory (--skip-hidden).", relative));
+      }
+
+      continue;
+    }
+
+    if (!std::filesystem::is_regular_file(status)) {
+      continue;
+    }
+
+    const auto hidden = std::ranges::any_of(entry.path().lexically_relative(context.root), [](const std::filesystem::path& part) {
+      return is_hidden_name(part.string());
+    });
+
+    if (hidden && context.skip_hidden) {
+      context.warnings->push_back(issue("skipped_path", "Skipped hidden file (--skip-hidden).", relative));
+      continue;
+    }
+
+    on_file(entry.path(), relative, hidden);
+  }
+}
+
+std::optional<std::string> read_utf8_file(
+  const std::filesystem::path& path,
+  const std::string& display_path,
+  std::vector<Issue>& issues
+) {
+  const auto display_is_utf8 = contract::is_valid_utf8(path.generic_string());
+  auto content = read_file(path);
+
+  if (!display_is_utf8) {
+    issues.push_back(issue("invalid_encoding", "File name is not valid UTF-8; rename the file.", display_path));
+    return std::nullopt;
+  }
+
+  if (!contract::is_valid_utf8(content)) {
+    issues.push_back(issue("invalid_encoding", "File content is not valid UTF-8; re-save the file as UTF-8.", display_path));
+    return std::nullopt;
+  }
+
+  return content;
+}
+
+std::vector<WalkedDocsFile> walk_docs_files(
+  const std::filesystem::path& root,
+  bool skip_hidden,
+  std::vector<Issue>& issues,
+  std::vector<Issue>& warnings
+) {
+  const auto absolute_root = normalized_directory(root);
   std::error_code error;
 
   if (!std::filesystem::is_directory(absolute_root, error)) {
@@ -1093,62 +1231,47 @@ std::vector<WalkedDocsFile> walk_docs_files(const std::filesystem::path& root) {
   }
 
   std::vector<WalkedDocsFile> files;
-  std::filesystem::recursive_directory_iterator iterator{absolute_root, error};
-  const std::filesystem::recursive_directory_iterator end;
+  const WalkContext context{
+    .root = absolute_root,
+    .label = "docs",
+    .skip_hidden = skip_hidden,
+    .issues = &issues,
+    .warnings = &warnings,
+  };
 
-  if (error) {
-    throw std::runtime_error{"Could not read docs root: " + error.message()};
-  }
+  walk_tree(context, [&](const std::filesystem::path& file_path, const std::string& relative, bool hidden) {
+    const auto extension = file_path.extension().string();
 
-  for (; iterator != end; iterator.increment(error)) {
-    if (error) {
-      throw std::runtime_error{"Could not walk docs root: " + error.message()};
-    }
-
-    const auto& entry = *iterator;
-    const auto status = entry.symlink_status(error);
-
-    if (error) {
-      throw std::runtime_error{"Could not inspect docs entry: " + error.message()};
-    }
-
-    if (std::filesystem::is_symlink(status)) {
-      if (std::filesystem::is_directory(entry.path(), error)) {
-        iterator.disable_recursion_pending();
+    if (extension != ".md") {
+      if (is_markdown_like_extension(extension)) {
+        warnings.push_back(issue("skipped_path", "Skipped Markdown file with extension \"" + extension + "\"; docs pages must use lowercase .md.", relative));
       }
 
-      continue;
+      return;
     }
 
-    if (std::filesystem::is_directory(status)) {
-      if (ignored_directories.contains(entry.path().filename().string())) {
-        iterator.disable_recursion_pending();
-      }
+    const auto content = read_utf8_file(file_path, relative, issues);
 
-      continue;
+    if (!content) {
+      return;
     }
 
-    if (!std::filesystem::is_regular_file(status) || entry.path().extension() != ".md") {
-      continue;
-    }
-
-    auto relative = std::filesystem::relative(entry.path(), absolute_root, error);
-
-    if (error) {
-      throw std::runtime_error{"Could not compute docs relative path: " + error.message()};
-    }
-
-    const auto normalized = contract::normalize_docs_path(relative.generic_string());
+    const auto normalized = contract::normalize_docs_path(relative);
 
     if (!normalized.ok) {
-      throw std::runtime_error{normalized.message};
+      issues.push_back(issue(normalized.code, normalized.message, relative));
+      return;
+    }
+
+    if (hidden) {
+      warnings.push_back(issue("hidden_path", "Hidden file is included in the docs package; pass --skip-hidden to exclude hidden files.", normalized.path));
     }
 
     files.push_back({
-      .content = read_file(entry.path()),
+      .content = *content,
       .path = normalized.path,
     });
-  }
+  });
 
   std::ranges::sort(files, [](const auto& left, const auto& right) {
     const auto left_path = lower_copy(left.path);
@@ -1173,80 +1296,63 @@ std::string lower_copy(std::string value) {
   return value;
 }
 
-std::vector<PackageAsset> walk_skill_files(const std::filesystem::path& root, const std::string& source_id) {
-  static const std::set<std::string> ignored_directories = {".git", ".next", "build", "dist", "node_modules"};
+std::vector<PackageAsset> walk_skill_files(
+  const std::filesystem::path& root,
+  const std::string& source_id,
+  bool skip_hidden,
+  std::vector<Issue>& issues,
+  std::vector<Issue>& warnings
+) {
   static const std::set<std::string> allowed_extensions = {".json", ".md", ".txt", ".yaml", ".yml"};
-  const auto absolute_root = std::filesystem::absolute(root).lexically_normal();
+  const auto absolute_root = normalized_directory(root);
   const auto skill_package_root = absolute_root / source_id;
   std::error_code error;
 
-  if (!std::filesystem::exists(skill_package_root, error)) {
-    return {};
-  }
-
-  if (!std::filesystem::is_directory(skill_package_root, error)) {
+  if (source_id.empty() || !std::filesystem::is_directory(skill_package_root, error)) {
     return {};
   }
 
   std::vector<PackageAsset> files;
-  std::filesystem::recursive_directory_iterator iterator{skill_package_root, error};
-  const std::filesystem::recursive_directory_iterator end;
+  const WalkContext context{
+    .root = skill_package_root,
+    .label = "skills",
+    .skip_hidden = skip_hidden,
+    .issues = &issues,
+    .warnings = &warnings,
+  };
 
-  if (error) {
-    throw std::runtime_error{"Could not read skills root: " + error.message()};
-  }
+  walk_tree(context, [&](const std::filesystem::path& file_path, const std::string& relative, bool hidden) {
+    const auto display = "skills/" + source_id + "/" + relative;
 
-  for (; iterator != end; iterator.increment(error)) {
-    if (error) {
-      throw std::runtime_error{"Could not walk skills root: " + error.message()};
+    if (!allowed_extensions.contains(lower_copy(file_path.extension().string()))) {
+      warnings.push_back(issue("skipped_path", "Skipped skill file type; only .md, .txt, .json, .yaml and .yml files are published.", display));
+      return;
     }
 
-    const auto& entry = *iterator;
-    const auto status = entry.symlink_status(error);
+    const auto content = read_utf8_file(file_path, display, issues);
 
-    if (error) {
-      throw std::runtime_error{"Could not inspect skill entry: " + error.message()};
+    if (!content) {
+      return;
     }
 
-    if (std::filesystem::is_symlink(status)) {
-      if (std::filesystem::is_directory(entry.path(), error)) {
-        iterator.disable_recursion_pending();
-      }
-
-      continue;
-    }
-
-    if (std::filesystem::is_directory(status)) {
-      if (ignored_directories.contains(entry.path().filename().string())) {
-        iterator.disable_recursion_pending();
-      }
-
-      continue;
-    }
-
-    if (!std::filesystem::is_regular_file(status) || !allowed_extensions.contains(lower_copy(entry.path().extension().string()))) {
-      continue;
-    }
-
-    auto relative = std::filesystem::relative(entry.path(), absolute_root, error);
-
-    if (error) {
-      throw std::runtime_error{"Could not compute skill relative path: " + error.message()};
-    }
-
-    const auto normalized = contract::normalize_asset_path("skills/" + relative.generic_string());
+    const auto normalized = contract::normalize_asset_path(display);
 
     if (!normalized.ok) {
-      throw std::runtime_error{normalized.message};
+      issues.push_back(issue(normalized.code, normalized.message, display));
+      return;
+    }
+
+    if (hidden) {
+      warnings.push_back(issue("hidden_path", "Hidden file is included in the skill package; pass --skip-hidden to exclude hidden files.", normalized.path));
     }
 
     files.push_back({
-      .content = read_file(entry.path()),
+      .content = *content,
       .content_type = contract::asset_content_type(normalized.path),
       .kind = "skill",
       .path = normalized.path,
     });
-  }
+  });
 
   std::ranges::sort(files, [](const auto& left, const auto& right) {
     const auto left_path = lower_copy(left.path);
@@ -1262,11 +1368,14 @@ std::optional<PackageAsset> read_optional_asset_file(
   const std::filesystem::path& file_path,
   const std::string& asset_path,
   const std::string& kind,
-  const std::string& route
+  const std::string& route,
+  std::vector<Issue>& issues,
+  bool& present
 ) {
   const auto absolute_path = std::filesystem::absolute(file_path).lexically_normal();
+  present = path_exists(absolute_path);
 
-  if (!path_exists(absolute_path)) {
+  if (!present) {
     return std::nullopt;
   }
 
@@ -1276,8 +1385,14 @@ std::optional<PackageAsset> read_optional_asset_file(
     throw std::runtime_error{normalized.message};
   }
 
+  const auto content = read_utf8_file(absolute_path, normalized.path, issues);
+
+  if (!content) {
+    return std::nullopt;
+  }
+
   return PackageAsset{
-    .content = read_file(absolute_path),
+    .content = *content,
     .content_type = contract::asset_content_type(normalized.path),
     .kind = kind,
     .path = normalized.path,
@@ -1290,7 +1405,7 @@ PublishPackage collect_publish_package(const DocsCommandOptions& options, const 
   const auto docs_root = effective_docs_root(options);
 
   if (options.include_docs) {
-    const auto absolute_docs_root = std::filesystem::absolute(docs_root).lexically_normal();
+    const auto absolute_docs_root = normalized_directory(docs_root);
 
     if (!path_exists(absolute_docs_root)) {
       throw std::runtime_error{
@@ -1300,38 +1415,40 @@ PublishPackage collect_publish_package(const DocsCommandOptions& options, const 
       };
     }
 
-    package.files = walk_docs_files(docs_root);
+    package.files = walk_docs_files(docs_root, options.skip_hidden, package.issues, package.warnings);
   }
 
   std::vector<PackageAsset> skill_assets;
 
   if (options.include_skills) {
-    const auto absolute_skills_root = std::filesystem::absolute(options.skills_root).lexically_normal();
+    const auto absolute_skills_root = normalized_directory(options.skills_root);
 
     if (!path_exists(absolute_skills_root)) {
       if (options.skills_root_explicit) {
         throw std::runtime_error{"Skills root does not exist: " + options.skills_root.string()};
       }
     } else {
-      skill_assets = walk_skill_files(options.skills_root, source_id);
+      skill_assets = walk_skill_files(options.skills_root, source_id, options.skip_hidden, package.issues, package.warnings);
     }
   }
 
+  bool llms_present = false;
   const auto llms_asset =
     options.include_llms && (path_exists(std::filesystem::absolute(options.llms_path).lexically_normal()) || options.llms_path_explicit)
-      ? read_optional_asset_file(options.llms_path, "llms.txt", "llms", "/llms.txt")
+      ? read_optional_asset_file(options.llms_path, "llms.txt", "llms", "/llms.txt", package.issues, llms_present)
       : std::optional<PackageAsset>{};
 
-  if (options.include_llms && options.llms_path_explicit && !llms_asset) {
+  if (options.include_llms && options.llms_path_explicit && !llms_present) {
     throw std::runtime_error{"llms.txt file does not exist: " + options.llms_path.string()};
   }
 
+  bool llms_full_present = false;
   const auto llms_full_asset =
     options.include_llms_full && (path_exists(std::filesystem::absolute(options.llms_full_path).lexically_normal()) || options.llms_full_path_explicit)
-      ? read_optional_asset_file(options.llms_full_path, "llms-full.txt", "llms-full", "/llms-full.txt")
+      ? read_optional_asset_file(options.llms_full_path, "llms-full.txt", "llms-full", "/llms-full.txt", package.issues, llms_full_present)
       : std::optional<PackageAsset>{};
 
-  if (options.include_llms_full && options.llms_full_path_explicit && !llms_full_asset) {
+  if (options.include_llms_full && options.llms_full_path_explicit && !llms_full_present) {
     throw std::runtime_error{"llms-full.txt file does not exist: " + options.llms_full_path.string()};
   }
 
@@ -1345,15 +1462,21 @@ PublishPackage collect_publish_package(const DocsCommandOptions& options, const 
 
   package.assets.insert(package.assets.end(), skill_assets.begin(), skill_assets.end());
 
-  if (package.files.empty() && package.assets.empty()) {
+  if (package.files.empty() && package.assets.empty() && package.issues.empty()) {
     throw std::runtime_error{"Publish package is empty. Enable at least one of docs, skills, llms.txt, or llms-full.txt."};
   }
+
+  const auto by_path = [](const Issue& left, const Issue& right) {
+    return left.path.value_or("") < right.path.value_or("");
+  };
+  std::ranges::stable_sort(package.issues, by_path);
+  std::ranges::stable_sort(package.warnings, by_path);
 
   package.summary = {
     .assets = package.assets.size(),
     .docs = package.files.size(),
-    .llms = llms_asset ? "present" : "missing",
-    .llms_full = llms_full_asset ? "present" : "missing",
+    .llms = llms_present ? "present" : "missing",
+    .llms_full = llms_full_present ? "present" : "missing",
     .skills = skill_assets.size(),
   };
 
@@ -1449,6 +1572,20 @@ ValidationResult validate_manifest(const json& manifest, const DocsCommandOption
   validation_options.max_total_bytes = options.max_total_bytes.value_or(contract::kDefaultMaxTotalBytes);
 
   return contract::validate_manifest(manifest, validation_options);
+}
+
+void merge_package_findings(ValidationResult& validation, const PublishPackage& package) {
+  validation.issues.insert(validation.issues.begin(), package.issues.begin(), package.issues.end());
+  validation.warnings.insert(validation.warnings.begin(), package.warnings.begin(), package.warnings.end());
+  validation.ok = validation.ok && package.issues.empty();
+}
+
+std::string format_warnings_block(const std::vector<Issue>& warnings) {
+  if (warnings.empty()) {
+    return {};
+  }
+
+  return "Warnings:\n" + format_issues(warnings) + "\n";
 }
 
 json validated_file_to_json(const ValidatedFile& file) {
@@ -1905,6 +2042,7 @@ CommandResult validate_or_manifest(const DocsCommandOptions& options, bool print
     const auto package = collect_publish_package(options, source_id);
     const auto manifest = build_manifest(package, source_id, options);
     auto validation = validate_manifest(manifest, options, "/" + source_id);
+    merge_package_findings(validation, package);
 
     if (print_manifest) {
       if (!validation.ok) {
@@ -1917,6 +2055,7 @@ CommandResult validate_or_manifest(const DocsCommandOptions& options, bool print
       return {
         .exit_code = 0,
         .stdout_text = json_string(manifest, options.pretty),
+        .stderr_text = format_warnings_block(validation.warnings),
       };
     }
 
@@ -2204,6 +2343,7 @@ CommandResult run_plan_command(const PlanCommandOptions& options) {
     const auto package = collect_publish_package(options, source_id);
     const auto manifest = build_manifest(package, source_id, options, options.delete_behavior);
     auto validation = validate_manifest(manifest, options, "/" + source_id);
+    merge_package_findings(validation, package);
 
     if (!validation.ok) {
       return {
@@ -2228,12 +2368,14 @@ CommandResult run_plan_command(const PlanCommandOptions& options) {
           {"docs", plan_to_json(plan)},
           {"package", package_summary_to_json(package.summary)},
         }, options.pretty),
+        .stderr_text = format_warnings_block(validation.warnings),
       };
     }
 
     return {
       .exit_code = 0,
       .stdout_text = format_plan_summary(plan, asset_plan, package.summary),
+      .stderr_text = format_warnings_block(validation.warnings),
     };
   } catch (const std::exception& error) {
     return {
@@ -2311,6 +2453,7 @@ CommandResult run_push_command(const PushCommandOptions& options) {
       options.publish
     );
     auto validation = validate_manifest(manifest, options, "/" + source_id);
+    merge_package_findings(validation, package);
 
     if (!validation.ok) {
       return {
@@ -2319,7 +2462,7 @@ CommandResult run_push_command(const PushCommandOptions& options) {
       };
     }
 
-    std::string route_warning;
+    std::string route_warning = format_warnings_block(validation.warnings);
     if (!package.assets.empty() && !has_public_asset_routes()) {
       if (options.strict_routes) {
         return {
@@ -2328,7 +2471,7 @@ CommandResult run_push_command(const PushCommandOptions& options) {
         };
       }
 
-      route_warning = kMissingAssetRoutesWarning;
+      route_warning += kMissingAssetRoutesWarning;
     }
 
     const auto body = manifest.dump();
