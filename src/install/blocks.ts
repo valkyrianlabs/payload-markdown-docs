@@ -8,6 +8,7 @@ import type {
 } from '../types.js'
 
 import { DocsCTABlock } from '../blocks/index.js'
+import { pruneBlockUploadRelations } from '../fields/pruneUploadRelations.js'
 import {
   getSelectedBlockKeys,
   resolveCollectionBlockSelection,
@@ -165,10 +166,13 @@ export const installDocsMarketingBlocks = ({
   collectionConfigs,
   collections,
   globalSelection,
+  missingUploadCollections = new Set(),
 }: {
   collectionConfigs?: PayloadMarkdownDocsCollectionsConfig
   collections: CollectionConfig[]
   globalSelection?: DocsBlockInstallSelection
+  /** Upload collections the app does not define; fields pointing only at them are omitted. */
+  missingUploadCollections?: Set<string>
 }): InstallDocsMarketingBlocksResult => {
   if (globalSelection === undefined && !collectionConfigs) {
     return {
@@ -198,7 +202,9 @@ export const installDocsMarketingBlocks = ({
         globalSelection,
       }),
     )
-    const blocksToInstall = selectedKeys.map((key) => docsMarketingBlocks[key])
+    const blocksToInstall = selectedKeys.map((key) =>
+      pruneBlockUploadRelations(docsMarketingBlocks[key], missingUploadCollections),
+    )
 
     if (blocksToInstall.length === 0) {
       return collection

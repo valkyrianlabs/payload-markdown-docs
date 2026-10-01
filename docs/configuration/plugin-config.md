@@ -228,6 +228,14 @@ payloadMarkdownDocs({
 })
 ```
 
+The docs-set SEO meta image, the docs `heroImage` field, and the media fields
+inside installed heroes and `docsCTA` blocks reference the `media` upload
+collection. If the app defines no `media` collection, the plugin omits those
+fields and logs one warning instead of failing Payload config validation. Hero
+image collections listed in `additionalMediaCollections` that do not exist are
+omitted the same way. The check sees collections defined before the plugin
+runs, so define `media` in your own config rather than in a later plugin.
+
 Set `target.heroImage: false` to omit the field.
 
 ## SEO Fields

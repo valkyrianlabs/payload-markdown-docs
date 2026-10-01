@@ -10,19 +10,25 @@ export type CreateDocsSetsCollectionOptions = {
   docsCollectionSlug?: string
   docsGroupsCollectionSlug: string
   seoEnabled: boolean
-  seoUploadCollectionSlug: string
+  /** Upload collection for the SEO meta image; omitted when the app has none. */
+  seoUploadCollectionSlug?: string
   slug: string
 }
 
-const createSEOField = (uploadsCollection: string): Field => ({
+const createSEOField = (uploadsCollection: string | undefined): Field => ({
   name: 'meta',
   type: 'group',
   fields: [
     MetaTitleField({}),
     MetaDescriptionField({}),
-    MetaImageField({
-      relationTo: uploadsCollection,
-    }),
+    // Without an upload collection the meta image field cannot be created (X-17).
+    ...(uploadsCollection
+      ? [
+          MetaImageField({
+            relationTo: uploadsCollection,
+          }),
+        ]
+      : []),
   ],
   label: 'SEO',
 })

@@ -83,6 +83,49 @@ const resolveHeroImageMediaCollectionSlugs = (
   ]
 }
 
+/**
+ * Upload relationships to collections the app does not define make Payload config
+ * sanitization throw (`InvalidFieldRelationship`). Apps without a `media` collection
+ * get the docs-set SEO meta image and docs hero image fields omitted instead (X-17).
+ * Apps that define the collections get an unchanged config.
+ */
+const omitMissingUploadCollections = ({
+  existingSlugs,
+  heroImageMediaCollectionSlugs,
+}: {
+  existingSlugs: Set<string>
+  heroImageMediaCollectionSlugs?: string[]
+}): {
+  heroImageMediaCollectionSlugs?: string[]
+  missing: string[]
+  seoUploadCollectionSlug?: string
+} => {
+  const missing = new Set<string>()
+  const seoUploadCollectionSlug = existingSlugs.has(DEFAULT_MEDIA_COLLECTION_SLUG)
+    ? DEFAULT_MEDIA_COLLECTION_SLUG
+    : undefined
+
+  if (!seoUploadCollectionSlug) {
+    missing.add(DEFAULT_MEDIA_COLLECTION_SLUG)
+  }
+
+  const availableHeroSlugs = heroImageMediaCollectionSlugs?.filter((slug) => {
+    if (existingSlugs.has(slug)) {
+      return true
+    }
+
+    missing.add(slug)
+
+    return false
+  })
+
+  return {
+    heroImageMediaCollectionSlugs: availableHeroSlugs,
+    missing: [...missing],
+    seoUploadCollectionSlug,
+  }
+}
+
 const resolveCollectionOptions = (
   pluginOptions: PayloadMarkdownDocsConfig,
 ): ResolvedCollectionOptions => {
@@ -273,6 +316,22 @@ export const payloadMarkdownDocs =
 
     assertNoCollectionSlugConflicts(incomingConfig, collectionSlugsToAdd)
 
+    const uploadCollections = omitMissingUploadCollections({
+      existingSlugs: new Set(
+        (incomingConfig.collections ?? []).map((collection) => collection.slug),
+      ),
+      heroImageMediaCollectionSlugs,
+    })
+
+    if (uploadCollections.missing.length > 0) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `payloadMarkdownDocs: upload collection(s) ${uploadCollections.missing
+          .map((slug) => `"${slug}"`)
+          .join(', ')} not found; omitting the docs-set SEO meta image, docs hero image, and installed hero/block media fields that would reference them. Add a "${DEFAULT_MEDIA_COLLECTION_SLUG}" upload collection to enable them.`,
+      )
+    }
+
     const addedCollections = [
       ...(docsGroupsEnabled
         ? [
@@ -288,7 +347,7 @@ export const payloadMarkdownDocs =
               docsCollectionSlug: docsEnabled ? docsCollectionSlug : undefined,
               docsGroupsCollectionSlug,
               seoEnabled: pluginOptions.seo !== false,
-              seoUploadCollectionSlug: DEFAULT_MEDIA_COLLECTION_SLUG,
+              seoUploadCollectionSlug: uploadCollections.seoUploadCollectionSlug,
             }),
           ]
         : []),
@@ -314,7 +373,7 @@ export const payloadMarkdownDocs =
               slug: docsCollectionSlug,
               docsSetsCollectionSlug: docsSetsEnabled ? docsSetsCollectionSlug : undefined,
               enableDrafts,
-              heroImageMediaCollectionSlugs,
+              heroImageMediaCollectionSlugs: uploadCollections.heroImageMediaCollectionSlugs,
               markdownFieldName,
               syncRunsCollectionSlug: syncRunsEnabled ? syncRunsCollectionSlug : undefined,
             }),
@@ -370,12 +429,14 @@ export const payloadMarkdownDocs =
       collectionConfigs: pluginOptions.collections,
       collections: incomingConfig.collections ?? [],
       globalSelection: pluginOptions.blocks,
+      missingUploadCollections: new Set(uploadCollections.missing),
     })
     const docsHeroInstall = installDocsHeroFields({
       collectionConfigs: pluginOptions.collections,
       collections: marketingBlocksInstall.collections,
       defaultPagesCollectionSlug: pluginOptions.routing?.pages?.collection ?? DEFAULT_PAGES_COLLECTION_SLUG,
       globalSelection: pluginOptions.heroes,
+      missingUploadCollections: new Set(uploadCollections.missing),
       pagesSelection: pluginOptions.pages?.heroes,
     })
     const incomingCollections = addDocsMarketingAfterReadHooks({
