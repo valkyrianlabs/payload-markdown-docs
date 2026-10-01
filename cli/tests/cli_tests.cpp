@@ -16,6 +16,7 @@
 #include <cctype>
 #include <cstdlib>
 #include <filesystem>
+#include <map>
 #include <fstream>
 #include <sstream>
 #include <stdexcept>
@@ -1420,4 +1421,57 @@ TEST_CASE("push warns when the private key file is readable by other users") {
   CHECK(quiet.exit_code == 0);
   CHECK(quiet.stderr_text.find("accessible by other users") == std::string::npos);
   (void)second.captured_request();
+}
+
+TEST_CASE("plan matches server route bases, publish state and existing assets") {
+  TempDir temp{"pmdocs-test-plan-server"};
+  const auto root = temp.path() / "docs";
+  const auto root_string = root.string();
+  const auto llms = temp.path() / "llms.txt";
+  const auto llms_string = llms.string();
+  write_text(root / "b.md", "# B\n");
+  write_text(root / "fx1" / "a.md", "# A\n");
+  write_text(llms, "# llms\n");
+
+  const auto routes_of = [](const nlohmann::json& plan) {
+    std::map<std::string, std::string> routes;
+    for (const auto& change : plan["docs"]["create"]) {
+      routes[change["sourcePath"].get<std::string>()] = change["desired"]["route"].get<std::string>();
+    }
+    return routes;
+  };
+
+  const auto default_plan = nlohmann::json::parse(pmdocs::run(args({"plan", root_string, "--source", "fx1", "--no-skills", "--no-llms", "--no-llms-full", "--json"})).stdout_text);
+  CHECK(default_plan["routeBase"] == "/fx1");
+  CHECK(routes_of(default_plan)["fx1/a.md"] == "/fx1/a");
+
+  const auto grouped = pmdocs::run(args({"plan", root_string, "--source", "fx1", "--route-base", "/grp/fx1", "--no-skills", "--no-llms", "--no-llms-full", "--json"}));
+  REQUIRE(grouped.exit_code == 0);
+  const auto grouped_plan = nlohmann::json::parse(grouped.stdout_text);
+  CHECK(routes_of(grouped_plan)["b.md"] == "/grp/fx1/b");
+  CHECK(routes_of(grouped_plan)["fx1/a.md"] == "/grp/fx1/fx1/a");
+
+  const auto b_hash = pmdocs::sha256_hex("# B\n");
+  const auto llms_hash = pmdocs::sha256_hex("# llms\n");
+  write_text(temp.path() / "existing.json", R"([{"route":"/fx1/b","sourcePath":"b.md","sourceHash":")" + b_hash + R"(","status":"published"}])");
+  write_text(temp.path() / "existing-assets.json", R"([{"sourcePath":"llms.txt","contentType":"text/plain; charset=utf-8","kind":"llms","route":"/llms.txt","sourceHash":")" + llms_hash + R"("},{"sourcePath":"old.txt","contentType":"text/plain; charset=utf-8","kind":"static"}])");
+  const auto existing = (temp.path() / "existing.json").string();
+  const auto existing_assets = (temp.path() / "existing-assets.json").string();
+
+  const auto draft_plan = nlohmann::json::parse(pmdocs::run(args({"plan", root_string, "--source", "fx1", "--existing", existing, "--no-skills", "--no-llms", "--no-llms-full", "--json"})).stdout_text);
+  CHECK(draft_plan["docs"]["update"].size() == 1);
+
+  const auto published = pmdocs::run(args({"plan", root_string, "--source", "fx1", "--existing", existing, "--existing-assets", existing_assets, "--publish", "--llms", llms_string, "--no-skills", "--no-llms-full", "--json"}));
+  REQUIRE(published.exit_code == 0);
+  const auto published_plan = nlohmann::json::parse(published.stdout_text);
+  CHECK(published_plan["publish"] == true);
+  CHECK(published_plan["docs"]["unchanged"].size() == 1);
+  CHECK(published_plan["docs"]["update"].empty());
+  CHECK(published_plan["assets"]["unchanged"].size() == 1);
+  CHECK(published_plan["assets"]["archive"].size() == 1);
+  CHECK(published_plan["assets"]["create"].empty());
+
+  const auto help = pmdocs::run(args({"plan", "--help"}));
+  CHECK(help.stdout_text.find("--route-base") != std::string::npos);
+  CHECK(help.stdout_text.find("--publish") != std::string::npos);
 }

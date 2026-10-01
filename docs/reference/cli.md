@@ -128,8 +128,26 @@ pmdocs plan --source main-docs
 pmdocs plan ./docs --source main-docs
 ```
 
-Plans against an optional local existing-records JSON file. Without
-`--existing`, all valid docs are planned as creates.
+Plans against optional local existing-records JSON files. Without
+`--existing`, all valid docs are planned as creates; without
+`--existing-assets`, all assets are planned as creates.
+
+The plan is a local approximation of the server's dry-run. To match it:
+
+- pass `--publish` when the push will use `--publish` (otherwise existing
+  published records are planned as status updates)
+- pass `--route-base` for docs sets that are not served at `/<source>`: a
+  grouped docs set uses `/<group-route>/<source>`, a product-nested one
+  `/<group-route>/<source>/docs` (also pass
+  `--asset-route-base /<group-route>/<source>` so skill asset routes match)
+- export current records with the `--existing` (docs) and `--existing-assets`
+  (assets) shapes: arrays of `{ "sourcePath", "route", "sourceHash", "status",
+  "archived" }` and `{ "sourcePath", "kind", "contentType", "route",
+  "sourceHash", "archived" }`
+
+`pmdocs push --dry-run` asks the server for the authoritative plan.
+`validate` accepts `--route-base` and `--asset-route-base` too, so route
+collision checks use the same routes.
 
 ## keygen
 

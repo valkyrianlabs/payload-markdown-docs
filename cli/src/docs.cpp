@@ -1820,10 +1820,21 @@ json build_manifest(
 
 using contract::is_valid_delete_behavior;
 
-ValidationResult validate_manifest(const json& manifest, const DocsCommandOptions& options, const std::string& route_base) {
+// Route bases used for local route derivation. The server derives them from the
+// docs set (group route, slug, route mode); `--route-base` and
+// `--asset-route-base` let validate/plan match grouped or product-nested sets.
+std::string route_base_for(const DocsCommandOptions& options, const std::string& source_id) {
+  return contract::normalize_route_path(options.route_base.value_or("/" + source_id));
+}
+
+std::string asset_route_base_for(const DocsCommandOptions& options, const std::string& source_id) {
+  return contract::normalize_route_path(options.asset_route_base.value_or(route_base_for(options, source_id)));
+}
+
+ValidationResult validate_manifest(const json& manifest, const DocsCommandOptions& options, const std::string& source_id) {
   contract::ValidationOptions validation_options;
-  validation_options.asset_route_base = route_base;
-  validation_options.route_base = route_base;
+  validation_options.asset_route_base = asset_route_base_for(options, source_id);
+  validation_options.route_base = route_base_for(options, source_id);
   validation_options.max_file_bytes = options.max_file_bytes.value_or(contract::kDefaultMaxFileBytes);
   validation_options.max_files = options.max_files.value_or(contract::kDefaultMaxFiles);
   validation_options.max_assets = options.max_files.value_or(contract::kDefaultMaxFiles);
@@ -2021,6 +2032,52 @@ std::vector<ExistingRecord> load_existing_records(const std::filesystem::path& p
     }
     if (item.contains("title") && item["title"].is_string()) {
       record.title = item["title"].get<std::string>();
+    }
+
+    records.push_back(record);
+  }
+
+  return records;
+}
+
+std::vector<ExistingAssetRecord> load_existing_asset_records(const std::filesystem::path& path) {
+  json parsed;
+  try {
+    parsed = json::parse(read_file(path));
+  } catch (const std::exception& error) {
+    throw std::runtime_error{"Could not read --existing-assets file: " + std::string{error.what()}};
+  }
+
+  const auto invalid = std::runtime_error{
+    "--existing-assets must point to a JSON array of existing asset records with string sourcePath, contentType, and kind."
+  };
+
+  if (!parsed.is_array()) {
+    throw invalid;
+  }
+
+  std::vector<ExistingAssetRecord> records;
+
+  for (const auto& item : parsed) {
+    if (!item.is_object() || !item.contains("sourcePath") || !item["sourcePath"].is_string()
+        || !item.contains("contentType") || !item["contentType"].is_string() || !item.contains("kind") || !item["kind"].is_string()) {
+      throw invalid;
+    }
+
+    ExistingAssetRecord record = {
+      .content_type = item["contentType"].get<std::string>(),
+      .kind = item["kind"].get<std::string>(),
+      .source_path = item["sourcePath"].get<std::string>(),
+    };
+
+    if (item.contains("archived") && item["archived"].is_boolean()) {
+      record.archived = item["archived"].get<bool>();
+    }
+    if (item.contains("route") && item["route"].is_string()) {
+      record.route = item["route"].get<std::string>();
+    }
+    if (item.contains("sourceHash") && item["sourceHash"].is_string()) {
+      record.source_hash = item["sourceHash"].get<std::string>();
     }
 
     records.push_back(record);
@@ -2314,9 +2371,17 @@ json asset_plan_to_json(const AssetPlan& plan) {
   };
 }
 
-std::string format_plan_summary(const Plan& plan, const AssetPlan& asset_plan, const PublishPackageSummary& summary) {
+std::string format_plan_summary(
+  const Plan& plan,
+  const AssetPlan& asset_plan,
+  const PublishPackageSummary& summary,
+  const std::string& route_base,
+  bool publish
+) {
   std::ostringstream out;
   out << "pmdocs plan\n\n";
+  out << "Route base: " << route_base << "\n";
+  out << "Publish: " << (publish ? "yes" : "no") << "\n";
   out << "Docs: " << summary.docs << "\n";
   out << "Assets: " << summary.assets << "\n";
   out << "Skills: " << summary.skills << "\n";
@@ -2352,7 +2417,7 @@ CommandResult validate_or_manifest(const DocsCommandOptions& options, bool print
     const auto source_id = source_id_for(options);
     const auto package = collect_publish_package(options, source_id);
     const auto manifest = build_manifest(package, source_id, options);
-    auto validation = validate_manifest(manifest, options, "/" + source_id);
+    auto validation = validate_manifest(manifest, options, source_id);
     merge_package_findings(validation, package);
     add_route_collision_findings(validation, false);
     // Longest push shape: mode "dry-run", deleteBehavior "archive", publish false.
@@ -2663,8 +2728,8 @@ CommandResult run_plan_command(const PlanCommandOptions& options) {
 
     const auto source_id = source_id_for(options);
     const auto package = collect_publish_package(options, source_id);
-    const auto manifest = build_manifest(package, source_id, options, options.delete_behavior);
-    auto validation = validate_manifest(manifest, options, "/" + source_id);
+    const auto manifest = build_manifest(package, source_id, options, options.delete_behavior, std::nullopt, options.publish);
+    auto validation = validate_manifest(manifest, options, source_id);
     merge_package_findings(validation, package);
     add_route_collision_findings(validation, false);
     check_body_size(validation, build_manifest(package, source_id, options, "archive", "dry-run", false).dump().size(), options, false);
@@ -2681,8 +2746,14 @@ CommandResult run_plan_command(const PlanCommandOptions& options) {
       existing = load_existing_records(*options.existing_path);
     }
 
+    std::vector<ExistingAssetRecord> existing_assets;
+    if (options.existing_assets_path) {
+      existing_assets = load_existing_asset_records(*options.existing_assets_path);
+    }
+
     auto plan = plan_docs_sync(validation, existing, options.delete_behavior);
-    auto asset_plan = plan_docs_assets_sync(validation, {}, options.delete_behavior);
+    auto asset_plan = plan_docs_assets_sync(validation, existing_assets, options.delete_behavior);
+    const auto route_base = route_base_for(options, source_id);
 
     if (options.print_json) {
       return {
@@ -2691,6 +2762,8 @@ CommandResult run_plan_command(const PlanCommandOptions& options) {
           {"assets", asset_plan_to_json(asset_plan)},
           {"docs", plan_to_json(plan)},
           {"package", package_summary_to_json(package.summary)},
+          {"publish", options.publish},
+          {"routeBase", route_base},
         }, options.pretty),
         .stderr_text = format_warnings_block(validation.warnings),
       };
@@ -2698,7 +2771,7 @@ CommandResult run_plan_command(const PlanCommandOptions& options) {
 
     return {
       .exit_code = 0,
-      .stdout_text = format_plan_summary(plan, asset_plan, package.summary),
+      .stdout_text = format_plan_summary(plan, asset_plan, package.summary, route_base, options.publish),
       .stderr_text = format_warnings_block(validation.warnings),
     };
   } catch (const std::exception& error) {
@@ -2786,7 +2859,7 @@ CommandResult run_push_command(const PushCommandOptions& options) {
       mode,
       options.publish
     );
-    auto validation = validate_manifest(manifest, options, "/" + source_id);
+    auto validation = validate_manifest(manifest, options, source_id);
     merge_package_findings(validation, package);
     add_route_collision_findings(validation, true);
     const auto body = manifest.dump();

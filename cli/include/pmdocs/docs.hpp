@@ -10,6 +10,7 @@
 namespace pmdocs {
 
 struct DocsCommandOptions {
+  std::optional<std::string> asset_route_base;
   std::optional<std::string> branch;
   std::optional<std::string> commit;
   std::optional<std::filesystem::path> docs_flag;
@@ -31,6 +32,7 @@ struct DocsCommandOptions {
   bool pretty = false;
   bool print_json = false;
   std::optional<std::string> repository;
+  std::optional<std::string> route_base;
   std::filesystem::path skills_root = "./skills";
   bool skills_root_explicit = false;
   bool skip_hidden = false;
@@ -43,6 +45,8 @@ struct DocsCommandOptions {
 
 struct PlanCommandOptions : DocsCommandOptions {
   std::optional<std::string> delete_behavior;
+  std::optional<std::string> existing_assets_path;
+  bool publish = false;
 };
 
 struct KeygenOptions {

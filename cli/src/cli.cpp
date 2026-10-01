@@ -650,8 +650,18 @@ std::string docs_command_help_text(std::string_view command) {
   out << "  --no-llms-full            Exclude llms-full.txt.\n";
   out << "  --skip-hidden             Skip hidden files and directories (names starting with a dot).\n";
 
+  if (command == "validate" || command == "plan") {
+    out << "  --route-base <path>        Docs route base for local routes. Defaults to /<source>; use the docs\n";
+    out << "                             set's route for grouped (/<group>/<source>) or product-nested\n";
+    out << "                             (/<group>/<source>/docs) docs sets.\n";
+    out << "  --asset-route-base <path>  Asset route base. Defaults to --route-base; use /<group>/<source>\n";
+    out << "                             for product-nested docs sets.\n";
+  }
+
   if (command == "plan") {
     out << "  --existing <path>          JSON array of existing docs records.\n";
+    out << "  --existing-assets <path>   JSON array of existing asset records.\n";
+    out << "  --publish                  Plan published output, like push --publish.\n";
     out << "  --delete-behavior <value>  archive, delete, draft, or ignore.\n";
   }
 
@@ -1168,6 +1178,10 @@ CommandResult run(std::vector<std::string_view> args) {
     command->add_flag("--no-llms-full", options.no_llms_full, "Exclude llms-full.txt.");
     command->add_flag("--skip-hidden", options.skip_hidden, "Skip hidden files and directories (names starting with a dot).");
     command->add_option("--source", options.source_id, "Docs set/source id.");
+    if (command->get_name() == "validate" || command->get_name() == "plan") {
+      command->add_option("--route-base", options.route_base, "Docs route base used for local route derivation.");
+      command->add_option("--asset-route-base", options.asset_route_base, "Asset route base used for local asset routes.");
+    }
     command->add_option("--repository", options.repository, "Source repository metadata.");
     command->add_option("--branch", options.branch, "Source branch metadata.");
     command->add_option("--commit", options.commit, "Source commit metadata.");
@@ -1195,6 +1209,8 @@ CommandResult run(std::vector<std::string_view> args) {
   auto* plan = app.add_subcommand("plan", "Build a dry sync plan against optional existing docs records.");
   plan_options_refs = add_docs_options(plan, plan_options);
   plan->add_option("--existing", plan_options.existing_path, "JSON array of existing docs records.");
+  plan->add_option("--existing-assets", plan_options.existing_assets_path, "JSON array of existing asset records.");
+  plan->add_flag("--publish", plan_options.publish, "Plan published output (like push --publish).");
   plan->add_option("--delete-behavior", plan_options.delete_behavior, "archive, delete, draft, or ignore.");
   plan->callback([&plan_requested]() {
     plan_requested = true;
