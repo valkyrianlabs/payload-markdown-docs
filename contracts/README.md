@@ -13,6 +13,11 @@ Every behaviour both sides must agree on is pinned by the JSON files in
 | Side | Runner | Command |
 |---|---|---|
 | TypeScript | `src/sync/contracts.spec.ts` | `pnpm exec vitest --run src/sync` |
+| C++ (`pmdocs`) | `cli/tests/contract_tests.cpp` (doctest, reads the files through `PMDOCS_CONTRACT_VECTORS_DIR`, set by Meson) | `meson test -C <build> 'pmdocs contract vectors'` |
+
+The C++ side keeps the protocol in `cli/src/sync_contract.cpp`
+(`pmdocs::contract`, declared in `cli/include/pmdocs/contract.hpp`); each
+function names its TypeScript twin.
 
 When the two implementations disagree, the server's behaviour is the contract
 (it decides what is accepted). Change a vector only together with both
@@ -105,7 +110,10 @@ top-level level-1 heading, else a filename-derived title.
 - The filename fallback splits the file (or, for `index.md`, directory) name on
   `-`, `_` and whitespace and upper-cases the first UTF-16 code unit of each
   part with `String.prototype.toUpperCase` (so astral characters are unchanged);
-  an empty result becomes `Untitled`.
+  an empty result becomes `Untitled`. `pmdocs` uses a table generated from
+  Node (`tools/dev/generate-js-uppercase-table.mjs` writes
+  `cli/src/js_uppercase_table.inc`); regenerate it when the server's Node
+  Unicode version changes.
 
 ### Assets
 

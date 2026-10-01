@@ -43,13 +43,10 @@ pmdocs skill install --dry-run
 Meson installs the binary and bundled skill data. Maintainer scripts should stay
 empty unless a future package genuinely needs system state migration.
 
-The optional npm parity harness is not part of Debian package builds. Run it
-from a normal repository checkout with:
-
-```bash
-meson setup build-parity -Dnative_cli_parity_tests=true
-meson test -C build-parity
-```
+Package builds run the native Meson test suite (`meson test`), which includes
+the shared TS/C++ protocol contract vectors under `contracts/vectors/`. There is
+no separate npm parity harness; the TypeScript side runs the same vectors from
+`pnpm exec vitest --run`.
 
 Protected CI publication to Nexus is controlled by `RELEASE_PUBLISH_MODE`,
 `NEXUS_REPO_URL`, `NEXUS_USER`, and `NEXUS_PASS`. Local and workflow-dispatch

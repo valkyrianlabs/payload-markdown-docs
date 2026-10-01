@@ -73,6 +73,7 @@ struct PushCommandOptions : DocsCommandOptions {
 };
 
 std::string sha256_hex(std::string_view input);
+std::string endpoint_path(const std::string& endpoint);
 std::string build_canonical_signing_string(
   const std::string& body_sha256,
   const std::string& method,

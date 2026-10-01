@@ -66,9 +66,9 @@ publication when
 Production environment. Formula install smoke tests still need a runner with
 Homebrew available, preferably protected macOS CI before v1.
 
-The Homebrew formula should run native Meson tests only. The npm parity harness
-requires repository dev dependencies and should stay in repository CI, not in
-the formula build.
+The Homebrew formula should run native Meson tests only. TypeScript checks
+(including the TypeScript half of the shared `contracts/vectors/` suite) need
+repository dev dependencies and stay in repository CI, not in the formula build.
 
 References:
 
