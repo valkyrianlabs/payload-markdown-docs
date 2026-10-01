@@ -721,6 +721,86 @@ std::string validate_endpoint_url(const std::string& endpoint) {
   return output;
 }
 
+struct EndpointParts {
+  std::string scheme;
+  std::string host;
+};
+
+EndpointParts endpoint_parts(const std::string& endpoint) {
+  ensure_curl_initialized();
+  CurlUrlPtr url{curl_url()};
+  if (!url || curl_url_set(url.get(), CURLUPART_URL, endpoint.c_str(), 0) != CURLUE_OK) {
+    throw std::runtime_error{"--endpoint must be a valid full http:// or https:// URL."};
+  }
+
+  EndpointParts parts;
+  for (const auto& [part, target] : {std::pair{CURLUPART_SCHEME, &parts.scheme}, std::pair{CURLUPART_HOST, &parts.host}}) {
+    char* value = nullptr;
+    if (curl_url_get(url.get(), part, &value, 0) == CURLUE_OK && value != nullptr) {
+      *target = value;
+    }
+    if (value != nullptr) {
+      curl_free(value);
+    }
+  }
+
+  return parts;
+}
+
+bool is_loopback_host(std::string host) {
+  std::ranges::transform(host, host.begin(), [](const unsigned char ch) {
+    return static_cast<char>(std::tolower(ch));
+  });
+
+  if (host == "localhost" || host == "[::1]" || host == "::1") {
+    return true;
+  }
+
+  // 127.0.0.0/8 as an IPv4 literal only ("127.example.com" is a DNS name).
+  int octets = 0;
+  std::size_t index = 0;
+  std::string first;
+
+  while (index <= host.size()) {
+    const auto dot = host.find('.', index);
+    const auto part = host.substr(index, dot == std::string::npos ? std::string::npos : dot - index);
+
+    if (part.empty() || part.size() > 3 || !std::ranges::all_of(part, [](const char ch) { return ch >= '0' && ch <= '9'; })
+        || std::stoi(part) > 255) {
+      return false;
+    }
+
+    if (octets == 0) {
+      first = part;
+    }
+
+    ++octets;
+
+    if (dot == std::string::npos) {
+      break;
+    }
+
+    index = dot + 1;
+  }
+
+  return octets == 4 && first == "127";
+}
+
+// Credentials (an OIDC bearer token, or a signed manifest) must not cross the
+// network in clear text: the bearer token is not bound to the body and can be
+// replayed (CLI-9). Plain http:// is allowed only for loopback hosts or with
+// an explicit --allow-insecure-http.
+std::optional<std::string> insecure_endpoint_error(const std::string& endpoint, bool allow_insecure_http) {
+  const auto parts = endpoint_parts(endpoint);
+
+  if (parts.scheme != "http" || allow_insecure_http || is_loopback_host(parts.host)) {
+    return std::nullopt;
+  }
+
+  return "Refusing to send docs sync credentials over plain http:// to " + parts.host
+    + ". Use an https:// endpoint, or pass --allow-insecure-http for a trusted network.\n";
+}
+
 std::size_t append_curl_response(char* ptr, std::size_t size, std::size_t nmemb, void* userdata) {
   auto* output = static_cast<std::string*>(userdata);
   output->append(ptr, size * nmemb);
@@ -2561,6 +2641,13 @@ CommandResult run_push_command(const PushCommandOptions& options) {
     }
 
     const auto endpoint = validate_endpoint_url(options.endpoint);
+
+    if (const auto error = insecure_endpoint_error(endpoint, options.allow_insecure_http)) {
+      return {
+        .exit_code = 1,
+        .stderr_text = *error,
+      };
+    }
 
     if (options.delete_behavior && !is_valid_delete_behavior(*options.delete_behavior)) {
       return {

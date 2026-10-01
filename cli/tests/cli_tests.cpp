@@ -1310,3 +1310,38 @@ TEST_CASE("push prints server issues, route collisions and conflicts per file") 
     (void)server.captured_request();
   }
 }
+
+TEST_CASE("push refuses plain http endpoints on non-loopback hosts") {
+  TempDir temp{"pmdocs-test-insecure-http"};
+  const auto root = temp.path() / "docs";
+  const auto root_string = root.string();
+  const auto keys = pmdocs::generate_ed25519_key_pair("pem");
+  const auto key_path = temp.path() / "key.pem";
+  const auto key_path_string = key_path.string();
+  write_text(root / "index.md", "# Home\n");
+  write_text(key_path, keys.private_key);
+  EnvGuard oidc{"PMDOCS_TEST_OIDC_TOKEN", "oidc-token"};
+
+  for (const auto* endpoint : {"http://docs.example.invalid/api/documentation/sync", "http://127.example.invalid/api/documentation/sync", "http://10.0.0.5/api/documentation/sync"}) {
+    INFO(endpoint);
+    const auto oidc = pmdocs::run(args({"push", root_string, "--endpoint", endpoint, "--source", "main-docs", "--github-oidc", "--oidc-token-env", "PMDOCS_TEST_OIDC_TOKEN", "--no-skills", "--no-llms", "--no-llms-full"}));
+    CHECK(oidc.exit_code == 1);
+    CHECK(oidc.stderr_text.find("Refusing to send docs sync credentials over plain http://") != std::string::npos);
+
+    const auto signed_push = pmdocs::run(args({"push", root_string, "--endpoint", endpoint, "--source", "main-docs", "--key-id", "k", "--private-key-file", key_path_string, "--no-skills", "--no-llms", "--no-llms-full"}));
+    CHECK(signed_push.exit_code == 1);
+    CHECK(signed_push.stderr_text.find("Refusing to send docs sync credentials over plain http://") != std::string::npos);
+  }
+
+  // The explicit override reaches the network layer (and fails to resolve).
+  const auto allowed = pmdocs::run(args({"push", root_string, "--endpoint", "http://docs.example.invalid/api/documentation/sync", "--source", "main-docs", "--github-oidc", "--oidc-token-env", "PMDOCS_TEST_OIDC_TOKEN", "--allow-insecure-http", "--no-skills", "--no-llms", "--no-llms-full"}));
+  CHECK(allowed.exit_code == 1);
+  CHECK(allowed.stderr_text.find("Refusing") == std::string::npos);
+  CHECK(allowed.stderr_text.find("HTTP request failed") != std::string::npos);
+
+  // Loopback stays allowed without the flag.
+  SingleRequestServer server{200, R"({"ok":true,"summary":{}})"};
+  const auto loopback = pmdocs::run(args({"push", root_string, "--endpoint", server.url(), "--source", "main-docs", "--github-oidc", "--oidc-token-env", "PMDOCS_TEST_OIDC_TOKEN", "--dry-run", "--no-skills", "--no-llms", "--no-llms-full"}));
+  CHECK(loopback.exit_code == 0);
+  (void)server.captured_request();
+}

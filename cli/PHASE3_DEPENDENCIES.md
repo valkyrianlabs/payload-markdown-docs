@@ -93,8 +93,8 @@ Use libcurl for:
 
 - Strict endpoint URL parsing.
 - Rejecting unsupported schemes.
-- Enforcing `https://` by default unless a local/dev flag explicitly allows
-  `http://localhost`.
+- Enforcing `https://` (implemented: plain `http://` is accepted for loopback
+  hosts only, or anywhere with the explicit `--allow-insecure-http` flag).
 - GET requests for nonce/OIDC flows if required by the current protocol.
 - POST requests for sync/push.
 - Status code handling.

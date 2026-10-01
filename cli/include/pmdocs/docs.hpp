@@ -62,6 +62,7 @@ struct SignedDocsRequest {
 };
 
 struct PushCommandOptions : DocsCommandOptions {
+  bool allow_insecure_http = false;
   std::optional<std::string> delete_behavior;
   bool dry_run = false;
   std::string endpoint;

@@ -695,7 +695,9 @@ Options:
   --no-llms                 Exclude llms.txt.
   --no-llms-full            Exclude llms-full.txt.
   --skip-hidden             Skip hidden files and directories (names starting with a dot).
-  --endpoint <url>          Full Payload sync endpoint URL.
+  --endpoint <url>          Full Payload sync endpoint URL. Must be https:// unless the host is
+                            localhost, 127.x.x.x or ::1.
+  --allow-insecure-http     Allow a plain http:// endpoint on any host (trusted networks only).
   --key-id <id>             Server-configured Ed25519 key id.
   --private-key-file <path> Private key file from keygen, or an unencrypted OpenSSH Ed25519 key.
   --private-key-env <name>  Environment variable containing the private key.
@@ -1201,6 +1203,7 @@ CommandResult run(std::vector<std::string_view> args) {
   auto* push = app.add_subcommand("push", "Sign and upload a docs package manifest to a Payload sync endpoint.");
   push_options_refs = add_docs_options(push, push_options);
   push->add_option("--endpoint", push_options.endpoint, "Full Payload sync endpoint URL.");
+  push->add_flag("--allow-insecure-http", push_options.allow_insecure_http, "Allow a plain http:// endpoint on a non-loopback host.");
   push->add_option("--key-id", push_options.key_id, "Server-configured Ed25519 key id.");
   push->add_option("--private-key-file", push_options.private_key_file, "Private key file.");
   push->add_option("--private-key-env", push_options.private_key_env, "Private key environment variable.");

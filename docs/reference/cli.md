@@ -187,6 +187,11 @@ pmdocs push \
 ```
 
 `push` defaults to sync mode. `--dry-run` submits a validation-only request.
+
+`--endpoint` must use `https://`. Plain `http://` is accepted only for loopback
+hosts (`localhost`, `127.x.x.x`, `::1`) so a GitHub OIDC bearer token or a
+signed manifest never crosses a network in clear text; pass
+`--allow-insecure-http` only for a trusted private network.
 `--publish` is separate from sync mode and requests published output. Publishing
 and writes remain server-owned.
 
@@ -204,6 +209,7 @@ turn that warning into a failure.
 Common push flags:
 
 - `--endpoint <url>`
+- `--allow-insecure-http`
 - `--source <id>`
 - `--docs <path>`
 - `--skills <path>`
