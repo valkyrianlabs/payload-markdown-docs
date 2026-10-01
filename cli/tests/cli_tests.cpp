@@ -9,6 +9,7 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 
 #include <algorithm>
 #include <array>
@@ -1344,4 +1345,79 @@ TEST_CASE("push refuses plain http endpoints on non-loopback hosts") {
   const auto loopback = pmdocs::run(args({"push", root_string, "--endpoint", server.url(), "--source", "main-docs", "--github-oidc", "--oidc-token-env", "PMDOCS_TEST_OIDC_TOKEN", "--dry-run", "--no-skills", "--no-llms", "--no-llms-full"}));
   CHECK(loopback.exit_code == 0);
   (void)server.captured_request();
+}
+
+namespace {
+
+class UmaskGuard {
+public:
+  explicit UmaskGuard(mode_t mask)
+    : previous_{::umask(mask)}
+  {}
+
+  UmaskGuard(const UmaskGuard&) = delete;
+  UmaskGuard& operator=(const UmaskGuard&) = delete;
+
+  ~UmaskGuard() {
+    ::umask(previous_);
+  }
+
+private:
+  mode_t previous_;
+};
+
+mode_t file_mode(const std::filesystem::path& path) {
+  struct stat info {};
+  REQUIRE(::stat(path.c_str(), &info) == 0);
+  return info.st_mode & 0777;
+}
+
+} // namespace
+
+TEST_CASE("keygen creates the private key 0600 regardless of umask and on --force") {
+  TempDir temp{"pmdocs-test-keygen-mode"};
+  const auto out = temp.path() / "nested" / "keys";
+  const auto out_string = out.string();
+  UmaskGuard umask{0};
+
+  const auto first = pmdocs::run(args({"keygen", "--out", out_string}));
+  REQUIRE(first.exit_code == 0);
+  CHECK(file_mode(out / "docs-sync-private.pem") == 0600);
+  CHECK(file_mode(out) == 0700);
+  CHECK(read_text(out / "docs-sync-private.pem").find("BEGIN PRIVATE KEY") != std::string::npos);
+
+  std::filesystem::permissions(out / "docs-sync-private.pem", std::filesystem::perms::owner_read | std::filesystem::perms::owner_write | std::filesystem::perms::group_read | std::filesystem::perms::others_read);
+  REQUIRE(file_mode(out / "docs-sync-private.pem") == 0644);
+  const auto forced = pmdocs::run(args({"keygen", "--out", out_string, "--force"}));
+  REQUIRE(forced.exit_code == 0);
+  CHECK(file_mode(out / "docs-sync-private.pem") == 0600);
+
+  for (const auto& entry : std::filesystem::directory_iterator{out}) {
+    CHECK(entry.path().filename().string().find(".tmp-") == std::string::npos);
+  }
+}
+
+TEST_CASE("push warns when the private key file is readable by other users") {
+  TempDir temp{"pmdocs-test-key-mode-warning"};
+  const auto root = temp.path() / "docs";
+  const auto root_string = root.string();
+  const auto keys = pmdocs::generate_ed25519_key_pair("pem");
+  const auto key_path = temp.path() / "key.pem";
+  const auto key_path_string = key_path.string();
+  write_text(root / "index.md", "# Home\n");
+  write_text(key_path, keys.private_key);
+  std::filesystem::permissions(key_path, std::filesystem::perms::owner_read | std::filesystem::perms::owner_write | std::filesystem::perms::group_read | std::filesystem::perms::others_read);
+
+  SingleRequestServer server{200, R"({"ok":true,"summary":{}})"};
+  const auto result = pmdocs::run(args({"push", root_string, "--endpoint", server.url(), "--source", "main-docs", "--key-id", "k", "--private-key-file", key_path_string, "--dry-run", "--no-skills", "--no-llms", "--no-llms-full"}));
+  CHECK(result.exit_code == 0);
+  CHECK(result.stderr_text.find("is accessible by other users (mode 0644)") != std::string::npos);
+  (void)server.captured_request();
+
+  std::filesystem::permissions(key_path, std::filesystem::perms::owner_read | std::filesystem::perms::owner_write);
+  SingleRequestServer second{200, R"({"ok":true,"summary":{}})"};
+  const auto quiet = pmdocs::run(args({"push", root_string, "--endpoint", second.url(), "--source", "main-docs", "--key-id", "k", "--private-key-file", key_path_string, "--dry-run", "--no-skills", "--no-llms", "--no-llms-full"}));
+  CHECK(quiet.exit_code == 0);
+  CHECK(quiet.stderr_text.find("accessible by other users") == std::string::npos);
+  (void)second.captured_request();
 }

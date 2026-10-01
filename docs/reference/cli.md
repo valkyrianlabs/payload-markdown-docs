@@ -137,8 +137,11 @@ Plans against an optional local existing-records JSON file. Without
 pmdocs keygen --out .docs-sync
 ```
 
-Generates Ed25519 PEM keys for signed sync. Add the public key to an Ed25519
-record in `Docs Globals > Access`. `push` also accepts unencrypted OpenSSH
+Generates Ed25519 PEM keys for signed sync. The private key file is created
+with mode `0600` (and a newly created `--out` directory with `0700`), whatever
+the current umask, including when `--force` replaces an existing key. `push`
+warns when `--private-key-file` is readable by group or other users. Add the
+public key to an Ed25519 record in `Docs Globals > Access`. `push` also accepts unencrypted OpenSSH
 Ed25519 private keys when the matching `ssh-ed25519 ...` public key is stored in
 Access.
 

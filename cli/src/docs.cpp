@@ -20,7 +20,9 @@
 #include <cstdio>
 #include <cstddef>
 #include <cstdint>
+#include <cerrno>
 #include <cstdlib>
+#include <cstring>
 #include <ctime>
 #include <filesystem>
 #include <fstream>
@@ -38,6 +40,10 @@
 #include <system_error>
 #include <utility>
 #include <vector>
+
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 namespace pmdocs {
 namespace {
@@ -277,6 +283,72 @@ void write_file(const std::filesystem::path& path, std::string_view content) {
   if (!output) {
     throw std::runtime_error{"Could not finish writing file: " + path.string()};
   }
+}
+
+// Writes a secret file that is never visible with a wider mode than 0600 (CLI-10):
+// mkstemp creates the temporary file 0600 (O_EXCL), and rename() replaces the
+// target atomically, including an existing --force target with a wider mode.
+void write_private_file(const std::filesystem::path& path, std::string_view content) {
+  auto temp_path = (path.parent_path() / ("." + path.filename().string() + ".tmp-XXXXXX")).string();
+  const int fd = ::mkstemp(temp_path.data());
+
+  if (fd < 0) {
+    throw std::runtime_error{"Could not create private key file in " + path.parent_path().string() + ": " + std::strerror(errno)};
+  }
+
+  const auto cleanup = [&]() {
+    ::close(fd);
+    ::unlink(temp_path.c_str());
+  };
+
+  if (::fchmod(fd, 0600) != 0) {
+    cleanup();
+    throw std::runtime_error{"Could not restrict private key file permissions: " + std::string{std::strerror(errno)}};
+  }
+
+  std::size_t written = 0;
+
+  while (written < content.size()) {
+    const auto result = ::write(fd, content.data() + written, content.size() - written);
+
+    if (result < 0) {
+      if (errno == EINTR) {
+        continue;
+      }
+
+      cleanup();
+      throw std::runtime_error{"Could not write private key file: " + std::string{std::strerror(errno)}};
+    }
+
+    written += static_cast<std::size_t>(result);
+  }
+
+  if (::fsync(fd) != 0 || ::close(fd) != 0) {
+    ::unlink(temp_path.c_str());
+    throw std::runtime_error{"Could not finish writing private key file: " + std::string{std::strerror(errno)}};
+  }
+
+  if (::rename(temp_path.c_str(), path.c_str()) != 0) {
+    const auto message = std::string{std::strerror(errno)};
+    ::unlink(temp_path.c_str());
+    throw std::runtime_error{"Could not write private key file " + path.string() + ": " + message};
+  }
+}
+
+// Warns (does not refuse, so existing CI key files keep working) when a private
+// key file is accessible by group or other users.
+std::string private_key_permission_warning(const std::filesystem::path& path) {
+  struct stat info {};
+
+  if (::stat(path.c_str(), &info) != 0 || (info.st_mode & 077) == 0) {
+    return {};
+  }
+
+  std::ostringstream mode;
+  mode << std::oct << (info.st_mode & 0777);
+
+  return "Warning: private key file " + path.string() + " is accessible by other users (mode 0" + mode.str()
+    + "). Restrict it with: chmod 600 " + path.string() + "\n";
 }
 
 std::string trim(std::string_view value) {
@@ -2528,13 +2600,14 @@ CommandResult run_keygen_command(const KeygenOptions& options) {
       };
     }
 
-    const auto out_dir = std::filesystem::absolute(*options.out_dir).lexically_normal();
+    const auto out_dir = normalized_directory(*options.out_dir);
     const auto public_key_path = out_dir / "docs-sync-public.pem";
     const auto private_key_path = out_dir / "docs-sync-private.pem";
     std::error_code error;
-    const auto public_exists = std::filesystem::exists(public_key_path, error);
+    const auto public_exists = std::filesystem::exists(std::filesystem::symlink_status(public_key_path, error));
     error.clear();
-    const auto private_exists = std::filesystem::exists(private_key_path, error);
+    const auto private_exists = std::filesystem::exists(std::filesystem::symlink_status(private_key_path, error));
+    error.clear();
 
     if (!options.force && (public_exists || private_exists)) {
       return {
@@ -2543,20 +2616,25 @@ CommandResult run_keygen_command(const KeygenOptions& options) {
       };
     }
 
-    std::filesystem::create_directories(out_dir, error);
-    if (error) {
-      return {
-        .exit_code = 1,
-        .stderr_text = "Could not create output directory: " + error.message() + "\n",
-      };
+    if (!std::filesystem::exists(out_dir, error)) {
+      error.clear();
+      std::filesystem::create_directories(out_dir.parent_path(), error);
+
+      // The key directory itself is created owner-only.
+      if (error || (::mkdir(out_dir.c_str(), 0700) != 0 && errno != EEXIST)) {
+        return {
+          .exit_code = 1,
+          .stderr_text = "Could not create output directory: " + (error ? error.message() : std::string{std::strerror(errno)}) + "\n",
+        };
+      }
     }
 
     write_file(public_key_path, trim(keys.public_key) + "\n");
-    write_file(private_key_path, trim(keys.private_key) + "\n");
+    write_private_file(private_key_path, trim(keys.private_key) + "\n");
 
     return {
       .exit_code = 0,
-      .stdout_text = "Wrote public key: " + public_key_path.string() + "\nWrote private key: " + private_key_path.string() + "\n",
+      .stdout_text = "Wrote public key: " + public_key_path.string() + "\nWrote private key: " + private_key_path.string() + " (mode 0600)\n",
     };
   } catch (const std::exception& error) {
     return {
@@ -2632,6 +2710,9 @@ CommandResult run_plan_command(const PlanCommandOptions& options) {
 }
 
 CommandResult run_push_command(const PushCommandOptions& options) {
+  // Warnings for stderr; kept outside the try so late failures still show them.
+  std::string notices;
+
   try {
     if (options.endpoint.empty()) {
       return {
@@ -2718,7 +2799,7 @@ CommandResult run_push_command(const PushCommandOptions& options) {
       };
     }
 
-    std::string route_warning = format_warnings_block(validation.warnings);
+    notices += format_warnings_block(validation.warnings);
     if (!package.assets.empty() && !has_public_asset_routes()) {
       if (options.strict_routes) {
         return {
@@ -2727,7 +2808,7 @@ CommandResult run_push_command(const PushCommandOptions& options) {
         };
       }
 
-      route_warning += kMissingAssetRoutesWarning;
+      notices += kMissingAssetRoutesWarning;
     }
 
     SignedDocsRequest request;
@@ -2755,11 +2836,12 @@ CommandResult run_push_command(const PushCommandOptions& options) {
         private_key = value;
       } else {
         try {
+          notices += private_key_permission_warning(*options.private_key_file);
           private_key = read_file(*options.private_key_file);
         } catch (const std::exception& error) {
           return {
             .exit_code = 1,
-            .stderr_text = std::string{"Could not read private key file: "} + error.what() + "\n",
+            .stderr_text = notices + "Could not read private key file: " + error.what() + "\n",
           };
         }
       }
@@ -2796,14 +2878,14 @@ CommandResult run_push_command(const PushCommandOptions& options) {
       return {
         .exit_code = response_ok ? 0 : 1,
         .stdout_text = json_string(output, options.pretty),
-        .stderr_text = route_warning,
+        .stderr_text = notices,
       };
     }
 
     if (!response_ok) {
       return {
         .exit_code = 1,
-        .stderr_text = route_warning + format_server_failure(response),
+        .stderr_text = notices + format_server_failure(response),
       };
     }
 
@@ -2852,12 +2934,12 @@ CommandResult run_push_command(const PushCommandOptions& options) {
     return {
       .exit_code = 0,
       .stdout_text = out.str(),
-      .stderr_text = route_warning,
+      .stderr_text = notices,
     };
   } catch (const std::exception& error) {
     return {
       .exit_code = 1,
-      .stderr_text = std::string{error.what()} + "\n",
+      .stderr_text = notices + std::string{error.what()} + "\n",
     };
   }
 }
