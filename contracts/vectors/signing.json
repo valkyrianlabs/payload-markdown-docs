@@ -1,0 +1,130 @@
+{
+  "contractVersion": 1,
+  "description": "Body hashing, canonical signing string, endpoint path extraction and Ed25519 request signing (src/security/canonical.ts, src/security/sign.ts; cli/src/docs.cpp build_canonical_signing_string, get_endpoint_path, sign_docs_sync_request). Ed25519 is deterministic, so signatures are compared byte-for-byte. The key is the RFC 8032 section 7.1 TEST 1 key.",
+  "sha256": [
+    {
+      "input": "",
+      "expect": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "input": "abc",
+      "expect": "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+    },
+    {
+      "input": "hello",
+      "expect": "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824"
+    },
+    {
+      "input": "héllo ✓ 𝄞",
+      "expect": "aba05606790661dbbd8dd839fb77a9aae31d3f138fcc28a75aa14e35c536e5f0"
+    },
+    {
+      "input": "{\"version\":1}",
+      "expect": "2430f1a2ad2982d0067885488a4c89e21ad1d7c83b115ba8f1b20acc88dfaea8"
+    },
+    {
+      "input": "line1\nline2\r\n",
+      "expect": "f5d17ba45bc3465c299c1de8a1666b82e5b66570952122565c4840377dd71f98"
+    }
+  ],
+  "canonical": [
+    {
+      "bodySha256": "ABCDEF",
+      "method": "post",
+      "path": "/api/documentation/sync/",
+      "timestamp": "2026-01-01T00:00:00.000Z",
+      "nonce": "nonce-1",
+      "expect": "v1\nPOST\n/api/documentation/sync\n2026-01-01T00:00:00.000Z\nnonce-1\nabcdef"
+    },
+    {
+      "bodySha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "method": "POST",
+      "path": "api//documentation///sync",
+      "timestamp": "2026-10-01T12:34:56.789Z",
+      "nonce": "7f9c2d3e-1b4a-4c5d-8e6f-0a1b2c3d4e5f",
+      "expect": "v1\nPOST\n/api/documentation/sync\n2026-10-01T12:34:56.789Z\n7f9c2d3e-1b4a-4c5d-8e6f-0a1b2c3d4e5f\ne3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "bodySha256": "ab",
+      "method": "POST",
+      "path": "  /  ",
+      "timestamp": "t",
+      "nonce": "n",
+      "expect": "v1\nPOST\n/\nt\nn\nab"
+    },
+    {
+      "bodySha256": "ab",
+      "method": "POST",
+      "path": "",
+      "timestamp": "t",
+      "nonce": "n",
+      "expect": "v1\nPOST\n/\nt\nn\nab"
+    }
+  ],
+  "endpointPath": [
+    {
+      "endpoint": "https://example.com/api/documentation/sync",
+      "expect": "/api/documentation/sync"
+    },
+    {
+      "endpoint": "https://example.com/api/documentation/sync/",
+      "expect": "/api/documentation/sync/"
+    },
+    {
+      "endpoint": "https://example.com/api/documentation/sync?ignored=true#frag",
+      "expect": "/api/documentation/sync"
+    },
+    {
+      "endpoint": "https://example.com:8443/api/documentation/sync",
+      "expect": "/api/documentation/sync"
+    },
+    {
+      "endpoint": "https://example.com",
+      "expect": "/"
+    },
+    {
+      "endpoint": "https://example.com/api/x/../documentation/sync",
+      "expect": "/api/documentation/sync"
+    },
+    {
+      "endpoint": "https://example.com/api/./documentation/sync",
+      "expect": "/api/documentation/sync"
+    },
+    {
+      "endpoint": "https://example.com/api/docs%20sync",
+      "expect": "/api/docs%20sync"
+    },
+    {
+      "endpoint": "http://127.0.0.1:3000/api/documentation/sync",
+      "expect": "/api/documentation/sync"
+    }
+  ],
+  "key": {
+    "seedHex": "9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60",
+    "publicKeyHex": "d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a",
+    "privateKeyPem": "-----BEGIN PRIVATE KEY-----\nMC4CAQAwBQYDK2VwBCIEIJ1hsZ3v/VpguoRK9JLsLMREScVpezJpGXA7rAMcrn9g\n-----END PRIVATE KEY-----\n",
+    "privateKeyBase64Der": "MC4CAQAwBQYDK2VwBCIEIJ1hsZ3v/VpguoRK9JLsLMREScVpezJpGXA7rAMcrn9g",
+    "privateKeyOpenSsh": "-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW\nQyNTUxOQAAACDXWpgBgrEKt9VL/tPJZAc6DuFy89qmIyWvAhpo9wdRGgAAAJgBAgMEAQID\nBAAAAAtzc2gtZWQyNTUxOQAAACDXWpgBgrEKt9VL/tPJZAc6DuFy89qmIyWvAhpo9wdRGg\nAAAECdYbGd7/1aYLqESvSS7CzEREnFaXsyaRlwO6wDHK5/YNdamAGCsQq31Uv+08lkBzoO\n4XLz2qYjJa8CGmj3B1EaAAAAD2NvbnRyYWN0LXZlY3RvcgECAwQFBg==\n-----END OPENSSH PRIVATE KEY-----\n",
+    "publicKeyPem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=\n-----END PUBLIC KEY-----\n",
+    "publicKeyOpenSsh": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAINdamAGCsQq31Uv+08lkBzoO4XLz2qYjJa8CGmj3B1Ea",
+    "rfc8032EmptyMessageSignatureHex": "e5564300c360ac729086e2cc806e828a84877f1eb8e5d974d873e065224901555fb8821590a33bacc61e39701cf9b46bd25bf5f0595bbe24655141438e7a100b"
+  },
+  "request": {
+    "body": "{\"version\":1,\"source\":{\"id\":\"main-docs\"},\"files\":[]}",
+    "endpoint": "https://docs.example.com/api/documentation/sync",
+    "keyId": "github-actions-main",
+    "nonce": "00000000-0000-4000-8000-000000000000",
+    "timestamp": "2026-01-01T00:00:00.000Z",
+    "expect": {
+      "canonical": "v1\nPOST\n/api/documentation/sync\n2026-01-01T00:00:00.000Z\n00000000-0000-4000-8000-000000000000\nfa9c75c371206db185acfff51525e24565029fa4b6e7ad1dcbde8eb43bc952a9",
+      "headers": {
+        "Content-Type": "application/json",
+        "X-VL-MD-DOCS-Body-SHA256": "fa9c75c371206db185acfff51525e24565029fa4b6e7ad1dcbde8eb43bc952a9",
+        "X-VL-MD-DOCS-Key-Id": "github-actions-main",
+        "X-VL-MD-DOCS-Nonce": "00000000-0000-4000-8000-000000000000",
+        "X-VL-MD-DOCS-Signature": "utPPzyB1XTqdUUlm+fM2S61wQ5ivRz3TxBV+7q75W2MIXV9ArSZNB4GnIw1KeqVNkbiUiUsLwyFcuxHqMDoBDQ==",
+        "X-VL-MD-DOCS-Timestamp": "2026-01-01T00:00:00.000Z"
+      }
+    }
+  }
+}

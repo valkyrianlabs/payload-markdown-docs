@@ -1,0 +1,567 @@
+{
+  "contractVersion": 1,
+  "description": "Docs path normalization and route derivation (src/sync/paths.ts normalizeDocsPath, deriveRouteFromSourcePath, checkDocsRouteSegments; cli/src/docs.cpp normalize_docs_path, derive_route_from_source_path, check_route_segments).",
+  "cases": [
+    {
+      "name": "root index",
+      "routeBase": "/docs-set",
+      "sourcePath": "index.md",
+      "expect": {
+        "path": "index.md",
+        "route": "/docs-set",
+        "unservableSegments": [],
+        "whitespaceSegments": []
+      }
+    },
+    {
+      "name": "root Index (index match is ASCII case-insensitive)",
+      "routeBase": "/docs-set",
+      "sourcePath": "Index.md",
+      "expect": {
+        "path": "Index.md",
+        "route": "/docs-set",
+        "unservableSegments": [],
+        "whitespaceSegments": []
+      }
+    },
+    {
+      "name": "root INDEX",
+      "routeBase": "/docs-set",
+      "sourcePath": "INDEX.md",
+      "expect": {
+        "path": "INDEX.md",
+        "route": "/docs-set",
+        "unservableSegments": [],
+        "whitespaceSegments": []
+      }
+    },
+    {
+      "name": "nested index",
+      "routeBase": "/docs-set",
+      "sourcePath": "guide/index.md",
+      "expect": {
+        "path": "guide/index.md",
+        "route": "/docs-set/guide",
+        "unservableSegments": [],
+        "whitespaceSegments": []
+      }
+    },
+    {
+      "name": "nested Index",
+      "routeBase": "/docs-set",
+      "sourcePath": "sub/Index.md",
+      "expect": {
+        "path": "sub/Index.md",
+        "route": "/docs-set/sub",
+        "unservableSegments": [],
+        "whitespaceSegments": []
+      }
+    },
+    {
+      "name": "nested INDEX",
+      "routeBase": "/docs-set",
+      "sourcePath": "guide/INDEX.md",
+      "expect": {
+        "path": "guide/INDEX.md",
+        "route": "/docs-set/guide",
+        "unservableSegments": [],
+        "whitespaceSegments": []
+      }
+    },
+    {
+      "name": "nested page",
+      "routeBase": "/docs-set",
+      "sourcePath": "getting-started/installation.md",
+      "expect": {
+        "path": "getting-started/installation.md",
+        "route": "/docs-set/getting-started/installation",
+        "unservableSegments": [],
+        "whitespaceSegments": []
+      }
+    },
+    {
+      "name": "deep page",
+      "routeBase": "/docs-set",
+      "sourcePath": "nested/deep/page.md",
+      "expect": {
+        "path": "nested/deep/page.md",
+        "route": "/docs-set/nested/deep/page",
+        "unservableSegments": [],
+        "whitespaceSegments": []
+      }
+    },
+    {
+      "name": "leading ./ and duplicate slashes",
+      "routeBase": "/docs-set",
+      "sourcePath": "./configuration//themes.md",
+      "expect": {
+        "path": "configuration/themes.md",
+        "route": "/docs-set/configuration/themes",
+        "unservableSegments": [],
+        "whitespaceSegments": []
+      }
+    },
+    {
+      "name": "backslash separators",
+      "routeBase": "/docs-set",
+      "sourcePath": "guide\\intro.md",
+      "expect": {
+        "path": "guide/intro.md",
+        "route": "/docs-set/guide/intro",
+        "unservableSegments": [],
+        "whitespaceSegments": []
+      }
+    },
+    {
+      "name": "case is preserved",
+      "routeBase": "/docs-set",
+      "sourcePath": "Guide.md",
+      "expect": {
+        "path": "Guide.md",
+        "route": "/docs-set/Guide",
+        "unservableSegments": [],
+        "whitespaceSegments": []
+      }
+    },
+    {
+      "name": "case is preserved in directories",
+      "routeBase": "/docs-set",
+      "sourcePath": "API/Reference.md",
+      "expect": {
+        "path": "API/Reference.md",
+        "route": "/docs-set/API/Reference",
+        "unservableSegments": [],
+        "whitespaceSegments": []
+      }
+    },
+    {
+      "name": "index-like name is not index",
+      "routeBase": "/docs-set",
+      "sourcePath": "indexes.md",
+      "expect": {
+        "path": "indexes.md",
+        "route": "/docs-set/indexes",
+        "unservableSegments": [],
+        "whitespaceSegments": []
+      }
+    },
+    {
+      "name": "index directory",
+      "routeBase": "/docs-set",
+      "sourcePath": "index/page.md",
+      "expect": {
+        "path": "index/page.md",
+        "route": "/docs-set/index/page",
+        "unservableSegments": [],
+        "whitespaceSegments": []
+      }
+    },
+    {
+      "name": "hidden file",
+      "routeBase": "/docs-set",
+      "sourcePath": ".draft.md",
+      "expect": {
+        "path": ".draft.md",
+        "route": "/docs-set/.draft",
+        "unservableSegments": [],
+        "whitespaceSegments": []
+      }
+    },
+    {
+      "name": "non-ASCII",
+      "routeBase": "/docs-set",
+      "sourcePath": "café.md",
+      "expect": {
+        "path": "café.md",
+        "route": "/docs-set/café",
+        "unservableSegments": [],
+        "whitespaceSegments": []
+      }
+    },
+    {
+      "name": "non-ASCII directory",
+      "routeBase": "/docs-set",
+      "sourcePath": "über-uns/index.md",
+      "expect": {
+        "path": "über-uns/index.md",
+        "route": "/docs-set/über-uns",
+        "unservableSegments": [],
+        "whitespaceSegments": []
+      }
+    },
+    {
+      "name": "slug replaces the last segment",
+      "routeBase": "/docs-set",
+      "sourcePath": "guide/install.md",
+      "slug": "setup",
+      "expect": {
+        "path": "guide/install.md",
+        "route": "/docs-set/guide/setup",
+        "unservableSegments": [],
+        "whitespaceSegments": []
+      }
+    },
+    {
+      "name": "slug on root index",
+      "routeBase": "/docs-set",
+      "sourcePath": "index.md",
+      "slug": "home",
+      "expect": {
+        "path": "index.md",
+        "route": "/docs-set/home",
+        "unservableSegments": [],
+        "whitespaceSegments": []
+      }
+    },
+    {
+      "name": "slug \"index\" on index.md is ignored",
+      "routeBase": "/docs-set",
+      "sourcePath": "index.md",
+      "slug": "index",
+      "expect": {
+        "path": "index.md",
+        "route": "/docs-set",
+        "unservableSegments": [],
+        "whitespaceSegments": []
+      }
+    },
+    {
+      "name": "slug \"INDEX\" on Index.md is ignored",
+      "routeBase": "/docs-set",
+      "sourcePath": "Index.md",
+      "slug": "INDEX",
+      "expect": {
+        "path": "Index.md",
+        "route": "/docs-set",
+        "unservableSegments": [],
+        "whitespaceSegments": []
+      }
+    },
+    {
+      "name": "slug on nested index replaces the directory segment",
+      "routeBase": "/docs-set",
+      "sourcePath": "sub/index.md",
+      "slug": "renamed",
+      "expect": {
+        "path": "sub/index.md",
+        "route": "/docs-set/renamed",
+        "unservableSegments": [],
+        "whitespaceSegments": []
+      }
+    },
+    {
+      "name": "slug \"index\" on a non-index file applies",
+      "routeBase": "/docs-set",
+      "sourcePath": "guide/page.md",
+      "slug": "index",
+      "expect": {
+        "path": "guide/page.md",
+        "route": "/docs-set/guide/index",
+        "unservableSegments": [],
+        "whitespaceSegments": []
+      }
+    },
+    {
+      "name": "empty slug is ignored",
+      "routeBase": "/docs-set",
+      "sourcePath": "guide/page.md",
+      "slug": "",
+      "expect": {
+        "path": "guide/page.md",
+        "route": "/docs-set/guide/page",
+        "unservableSegments": [],
+        "whitespaceSegments": []
+      }
+    },
+    {
+      "name": "route base prefix is stripped",
+      "routeBase": "/fx1",
+      "sourcePath": "fx1/a.md",
+      "expect": {
+        "path": "fx1/a.md",
+        "route": "/fx1/a",
+        "unservableSegments": [],
+        "whitespaceSegments": []
+      }
+    },
+    {
+      "name": "route base prefix is stripped for index",
+      "routeBase": "/fx1",
+      "sourcePath": "fx1/index.md",
+      "expect": {
+        "path": "fx1/index.md",
+        "route": "/fx1",
+        "unservableSegments": [],
+        "whitespaceSegments": []
+      }
+    },
+    {
+      "name": "route base prefix strip is case-sensitive",
+      "routeBase": "/fx1",
+      "sourcePath": "FX1/a.md",
+      "expect": {
+        "path": "FX1/a.md",
+        "route": "/fx1/FX1/a",
+        "unservableSegments": [],
+        "whitespaceSegments": []
+      }
+    },
+    {
+      "name": "grouped route base",
+      "routeBase": "/grp/fx1",
+      "sourcePath": "fx1/a.md",
+      "expect": {
+        "path": "fx1/a.md",
+        "route": "/grp/fx1/fx1/a",
+        "unservableSegments": [],
+        "whitespaceSegments": []
+      }
+    },
+    {
+      "name": "grouped route base prefix stripped",
+      "routeBase": "/grp/fx1",
+      "sourcePath": "grp/fx1/a.md",
+      "expect": {
+        "path": "grp/fx1/a.md",
+        "route": "/grp/fx1/a",
+        "unservableSegments": [],
+        "whitespaceSegments": []
+      }
+    },
+    {
+      "name": "product-nested route base",
+      "routeBase": "/plugins/fx1/docs",
+      "sourcePath": "guide.md",
+      "expect": {
+        "path": "guide.md",
+        "route": "/plugins/fx1/docs/guide",
+        "unservableSegments": [],
+        "whitespaceSegments": []
+      }
+    },
+    {
+      "name": "root route base index",
+      "routeBase": "/",
+      "sourcePath": "index.md",
+      "expect": {
+        "path": "index.md",
+        "route": "/",
+        "unservableSegments": [],
+        "whitespaceSegments": []
+      }
+    },
+    {
+      "name": "root route base page",
+      "routeBase": "/",
+      "sourcePath": "a/b.md",
+      "expect": {
+        "path": "a/b.md",
+        "route": "/a/b",
+        "unservableSegments": [],
+        "whitespaceSegments": []
+      }
+    },
+    {
+      "name": "route base is normalized",
+      "routeBase": "docs//set/",
+      "sourcePath": "a.md",
+      "expect": {
+        "path": "a.md",
+        "route": "/docs/set/a",
+        "unservableSegments": [],
+        "whitespaceSegments": []
+      }
+    },
+    {
+      "name": "space segment (warning)",
+      "routeBase": "/docs-set",
+      "sourcePath": "with space.md",
+      "expect": {
+        "path": "with space.md",
+        "route": "/docs-set/with space",
+        "unservableSegments": [],
+        "whitespaceSegments": [
+          "with space"
+        ]
+      }
+    },
+    {
+      "name": "NBSP segment (warning)",
+      "routeBase": "/docs-set",
+      "sourcePath": "a b.md",
+      "expect": {
+        "path": "a b.md",
+        "route": "/docs-set/a b",
+        "unservableSegments": [],
+        "whitespaceSegments": [
+          "a b"
+        ]
+      }
+    },
+    {
+      "name": "question mark segment (unservable)",
+      "routeBase": "/docs-set",
+      "sourcePath": "what?.md",
+      "expect": {
+        "path": "what?.md",
+        "route": "/docs-set/what?",
+        "unservableSegments": [
+          "what?"
+        ],
+        "whitespaceSegments": []
+      }
+    },
+    {
+      "name": "hash segment (unservable)",
+      "routeBase": "/docs-set",
+      "sourcePath": "a#b/page.md",
+      "expect": {
+        "path": "a#b/page.md",
+        "route": "/docs-set/a#b/page",
+        "unservableSegments": [
+          "a#b"
+        ],
+        "whitespaceSegments": []
+      }
+    },
+    {
+      "name": "tab segment (unservable)",
+      "routeBase": "/docs-set",
+      "sourcePath": "tab\there.md",
+      "expect": {
+        "path": "tab\there.md",
+        "route": "/docs-set/tab\there",
+        "unservableSegments": [
+          "tab\there"
+        ],
+        "whitespaceSegments": []
+      }
+    },
+    {
+      "name": "DEL segment (unservable)",
+      "routeBase": "/docs-set",
+      "sourcePath": "del.md",
+      "expect": {
+        "path": "del.md",
+        "route": "/docs-set/del",
+        "unservableSegments": [
+          "del"
+        ],
+        "whitespaceSegments": []
+      }
+    },
+    {
+      "name": "C1 control segment (unservable)",
+      "routeBase": "/docs-set",
+      "sourcePath": "c1.md",
+      "expect": {
+        "path": "c1.md",
+        "route": "/docs-set/c1",
+        "unservableSegments": [
+          "c1"
+        ],
+        "whitespaceSegments": []
+      }
+    },
+    {
+      "name": "slug hides an unservable file segment",
+      "routeBase": "/docs-set",
+      "sourcePath": "what?.md",
+      "slug": "what",
+      "expect": {
+        "path": "what?.md",
+        "route": "/docs-set/what",
+        "unservableSegments": [],
+        "whitespaceSegments": []
+      }
+    },
+    {
+      "name": "absolute path",
+      "routeBase": "/docs-set",
+      "sourcePath": "/docs/index.md",
+      "expect": {
+        "error": "invalid_path"
+      }
+    },
+    {
+      "name": "Windows drive path",
+      "routeBase": "/docs-set",
+      "sourcePath": "C:\\Users\\me\\docs.md",
+      "expect": {
+        "error": "invalid_path"
+      }
+    },
+    {
+      "name": "traversal",
+      "routeBase": "/docs-set",
+      "sourcePath": "getting-started/../../secret.md",
+      "expect": {
+        "error": "path_traversal"
+      }
+    },
+    {
+      "name": "dot segment",
+      "routeBase": "/docs-set",
+      "sourcePath": "a/./b.md",
+      "expect": {
+        "error": "invalid_path"
+      }
+    },
+    {
+      "name": "uppercase extension is not markdown",
+      "routeBase": "/docs-set",
+      "sourcePath": "README.MD",
+      "expect": {
+        "error": "non_markdown_file"
+      }
+    },
+    {
+      "name": "other extension",
+      "routeBase": "/docs-set",
+      "sourcePath": "notes.txt",
+      "expect": {
+        "error": "non_markdown_file"
+      }
+    },
+    {
+      "name": "markdown extension variant",
+      "routeBase": "/docs-set",
+      "sourcePath": "notes.markdown",
+      "expect": {
+        "error": "non_markdown_file"
+      }
+    },
+    {
+      "name": "bare extension",
+      "routeBase": "/docs-set",
+      "sourcePath": ".md",
+      "expect": {
+        "error": "invalid_path"
+      }
+    },
+    {
+      "name": "directory path",
+      "routeBase": "/docs-set",
+      "sourcePath": "guide/",
+      "expect": {
+        "error": "invalid_path"
+      }
+    },
+    {
+      "name": "empty path",
+      "routeBase": "/docs-set",
+      "sourcePath": "",
+      "expect": {
+        "error": "invalid_path"
+      }
+    },
+    {
+      "name": "whitespace path",
+      "routeBase": "/docs-set",
+      "sourcePath": "   ",
+      "expect": {
+        "error": "invalid_path"
+      }
+    }
+  ]
+}

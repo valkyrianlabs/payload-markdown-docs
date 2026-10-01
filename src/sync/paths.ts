@@ -1,5 +1,7 @@
 import type { DocsValidationErrorCode } from './validate.js'
 
+import { containsControlCharacter, containsNonControlWhitespace } from './text.js'
+
 export type NormalizeDocsPathResult =
   | {
       code: DocsValidationErrorCode
@@ -217,7 +219,7 @@ const joinRoutePaths = (...segments: Array<string | undefined>): string => {
   return normalizeRoutePath(joined)
 }
 
-export const deriveRouteFromSourcePath = ({
+const deriveRouteParts = ({
   slug,
   routeBase,
   sourcePath,
@@ -225,12 +227,18 @@ export const deriveRouteFromSourcePath = ({
   routeBase: string
   slug?: string
   sourcePath: string
-}): string => {
+}): {
+  routeBase: string
+  segments: string[]
+} => {
   const normalizedPath = normalizeDocsPath(sourcePath)
   const normalizedRouteBase = normalizeRouteBase(routeBase)
 
   if (!normalizedPath.ok) {
-    return normalizedRouteBase
+    return {
+      routeBase: normalizedRouteBase,
+      segments: [],
+    }
   }
 
   let routeSegments = [...normalizedPath.routeSegments]
@@ -256,13 +264,59 @@ export const deriveRouteFromSourcePath = ({
     routeSegments = [normalizedSlug]
   }
 
-  const routeSuffix = routeSegments.join('/')
+  return {
+    routeBase: normalizedRouteBase,
+    segments: routeSegments,
+  }
+}
+
+export const deriveRouteFromSourcePath = (input: {
+  routeBase: string
+  slug?: string
+  sourcePath: string
+}): string => {
+  const { routeBase, segments } = deriveRouteParts(input)
+  const routeSuffix = segments.join('/')
 
   if (!routeSuffix) {
-    return normalizedRouteBase
+    return routeBase
   }
 
-  return `${normalizedRouteBase}/${routeSuffix}`.replace(/\/+/g, '/')
+  return `${routeBase}/${routeSuffix}`.replace(/\/+/g, '/')
+}
+
+export type DocsRouteSegmentCheck = {
+  /** Segments that can never be requested (`?`, `#`, control characters). */
+  unservable: string[]
+  /** Segments containing whitespace (served only percent-encoded). */
+  whitespace: string[]
+}
+
+/**
+ * Checks the route segments a docs file contributes (after route-base
+ * stripping and slug replacement). Route-base segments come from server
+ * configuration and are not checked.
+ */
+export const checkDocsRouteSegments = (input: {
+  routeBase: string
+  slug?: string
+  sourcePath: string
+}): DocsRouteSegmentCheck => {
+  const { segments } = deriveRouteParts(input)
+  const result: DocsRouteSegmentCheck = {
+    unservable: [],
+    whitespace: [],
+  }
+
+  for (const segment of segments) {
+    if (segment.includes('?') || segment.includes('#') || containsControlCharacter(segment)) {
+      result.unservable.push(segment)
+    } else if (containsNonControlWhitespace(segment)) {
+      result.whitespace.push(segment)
+    }
+  }
+
+  return result
 }
 
 export const deriveAssetRouteFromSourcePath = ({
@@ -278,7 +332,7 @@ export const deriveAssetRouteFromSourcePath = ({
   sourceId?: string
   sourcePath: string
 }): string | undefined => {
-  if (route && route.trim() !== '') {
+  if (kind !== 'skill' && route && route.trim() !== '') {
     return normalizeRoutePath(route)
   }
 
@@ -307,6 +361,130 @@ export const deriveAssetRouteFromSourcePath = ({
   }
 
   return joinRoutePaths(routeBase, 'skills', skillPath)
+}
+
+const isUnsafeClientRoute = (route: string): boolean =>
+  route.includes('%') ||
+  route.includes('?') ||
+  route.includes('#') ||
+  containsControlCharacter(route) ||
+  route.split(/[\\/]/).some((segment) => segment === '.' || segment === '..')
+
+export type ResolveAssetRouteResult =
+  | {
+      code: DocsValidationErrorCode
+      message: string
+      ok: false
+    }
+  | {
+      ok: true
+      route?: string
+      warning?: {
+        code: DocsValidationErrorCode
+        message: string
+      }
+    }
+
+/**
+ * Resolves the public route for a manifest asset and confines any
+ * client-supplied route:
+ *
+ * - `skill` routes are always derived from the docs set; a client route is
+ *   ignored (with a warning when it differs);
+ * - `llms` / `llms-full` routes must be the root route (`/llms.txt`,
+ *   `/llms-full.txt`) or the same file directly under the asset route base;
+ * - `static` routes must be the asset route base or below it;
+ * - client routes must not contain `.`/`..` segments, percent-encoding,
+ *   `?`, `#` or control characters.
+ */
+export const resolveAssetRoute = ({
+  assetRouteBase,
+  kind,
+  route,
+  sourceId,
+  sourcePath,
+}: {
+  assetRouteBase: string
+  kind: string
+  route?: string
+  sourceId?: string
+  sourcePath: string
+}): ResolveAssetRouteResult => {
+  const derived = deriveAssetRouteFromSourcePath({
+    kind,
+    routeBase: assetRouteBase,
+    sourceId,
+    sourcePath,
+  })
+  const requested = route !== undefined && route.trim() !== '' ? route : undefined
+
+  if (requested === undefined) {
+    return {
+      ok: true,
+      route: derived,
+    }
+  }
+
+  if (kind === 'skill') {
+    const ignored = isUnsafeClientRoute(requested) || normalizeRoutePath(requested) !== derived
+
+    return {
+      ok: true,
+      route: derived,
+      ...(ignored
+        ? {
+            warning: {
+              code: 'asset_route_ignored' as const,
+              message: 'Skill asset routes are derived from the docs set; the manifest route was ignored.',
+            },
+          }
+        : {}),
+    }
+  }
+
+  if (isUnsafeClientRoute(requested)) {
+    return {
+      code: 'invalid_asset_route',
+      message:
+        'Asset route must not contain "." or ".." segments, percent-encoding, "?", "#", or control characters.',
+      ok: false,
+    }
+  }
+
+  const normalizedRoute = normalizeRoutePath(requested)
+  const normalizedBase = normalizeRouteBase(assetRouteBase)
+
+  if (kind === 'llms' || kind === 'llms-full') {
+    const fileName = kind === 'llms' ? 'llms.txt' : 'llms-full.txt'
+    const allowed = [`/${fileName}`, joinRoutePaths(normalizedBase, fileName)]
+
+    return allowed.includes(normalizedRoute)
+      ? {
+          ok: true,
+          route: normalizedRoute,
+        }
+      : {
+          code: 'invalid_asset_route',
+          message: `Asset route for ${kind} must be "${allowed[0]}" or "${allowed[1]}".`,
+          ok: false,
+        }
+  }
+
+  const insideBase =
+    normalizedBase === '/' ||
+    normalizedRoute === normalizedBase ||
+    normalizedRoute.startsWith(`${normalizedBase}/`)
+
+  return insideBase
+    ? {
+        ok: true,
+        route: normalizedRoute,
+      }
+    : {
+        code: 'invalid_asset_route',
+        message: `Asset route "${normalizedRoute}" must stay under the docs set asset route "${normalizedBase}".`,
+        ok: false,
+      }
 }
 
 export const deriveSkillArchiveRouteFromSourcePath = ({

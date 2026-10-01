@@ -54,7 +54,15 @@ The sync protocol uses JSON manifest uploads, not ZIP files.
 - duplicate normalized paths are rejected
 - declared SHA-256 must match content
 - frontmatter must use the supported subset
-- file count and size limits are enforced
+- derived route segments must not contain `?`, `#`, or control characters
+- file count and size limits are enforced; the binding size limit is the byte
+  length of the JSON request body (`maxBodyBytes`, 5,000,000 by default)
+- two files or assets that derive the same route are rejected by the sync
+  endpoint as a route collision
+- client-supplied asset `route` values are confined: skill routes are always
+  derived from the docs set, `llms`/`llms-full` routes must be `/llms.txt` /
+  `/llms-full.txt` (or that file under the docs set route), and `static`
+  routes must stay under the docs set route without `.`/`..`, `%`, `?`, or `#`
 
 ## Static Assets
 
@@ -73,7 +81,8 @@ Supported asset kinds:
 `llms` and `llms-full` assets are optional custom static fallback files. By
 default, `/llms.txt`, `/llms-full.txt`, and docs-set `llms` files are generated
 by the plugin from synced docs, docs set metadata, dependencies, and skills.
-Skill routes are derived from the computed docs set route, so
+Skill routes are always derived from the computed docs set route (a `route` sent
+for a skill asset is ignored with a warning), so
 `skills/main-docs/codex/SKILL.md` serves under a public route such as
 `/plugins/main-docs/skills/codex/SKILL.md`. The agent root route, for example
 `/plugins/main-docs/skills/codex`, is generated as a Markdown directory index,

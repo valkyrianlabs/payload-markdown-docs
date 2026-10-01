@@ -1,6 +1,10 @@
 import type { DocsValidationIssue } from './validate.js'
 
 import { normalizeDocsPath } from './paths.js'
+import { splitMarkdownLines, stripByteOrderMark } from './text.js'
+import { inferTitleFromMarkdown } from './title.js'
+
+export { inferTitleFromMarkdown, stripInlineMarkdown } from './title.js'
 
 export type DocsFrontmatter = {
   dependencies?: string[]
@@ -41,8 +45,9 @@ const stripQuotes = (value: string): string => {
   const trimmed = value.trim()
 
   if (
-    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
-    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+    trimmed.length >= 2 &&
+    ((trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+      (trimmed.startsWith("'") && trimmed.endsWith("'")))
   ) {
     return trimmed.slice(1, -1)
   }
@@ -62,26 +67,103 @@ const createFrontmatterIssue = ({
   path,
 })
 
-const isFrontmatterKey = (value: string): boolean => {
-  const firstCharacter = value.charCodeAt(0)
-  const startsWithLetter =
-    (firstCharacter >= 65 && firstCharacter <= 90) ||
-    (firstCharacter >= 97 && firstCharacter <= 122)
+const isAsciiLetterCode = (code: number): boolean =>
+  (code >= 65 && code <= 90) || (code >= 97 && code <= 122)
 
-  if (!startsWithLetter) {
+const isAsciiDigitCode = (code: number): boolean => code >= 48 && code <= 57
+
+/** Keys are `[A-Za-z_][A-Za-z0-9_-]*`; anything else is not a supported line. */
+const isFrontmatterKey = (value: string): boolean => {
+  if (value === '') {
     return false
   }
 
-  return [...value].every((character) => {
-    const code = character.charCodeAt(0)
+  const firstCharacter = value.charCodeAt(0)
 
-    return (
-      (code >= 48 && code <= 57) ||
-      (code >= 65 && code <= 90) ||
-      (code >= 97 && code <= 122)
-    )
-  })
+  if (!isAsciiLetterCode(firstCharacter) && firstCharacter !== 95) {
+    return false
+  }
+
+  for (let index = 1; index < value.length; index += 1) {
+    const code = value.charCodeAt(index)
+
+    if (!isAsciiLetterCode(code) && !isAsciiDigitCode(code) && code !== 95 && code !== 45) {
+      return false
+    }
+  }
+
+  return true
 }
+
+const isBlockScalarIndicator = (value: string): boolean => /^[|>][-+0-9]*$/.test(value)
+
+/**
+ * Parses a single-line YAML flow sequence (`[a, "b, c", 'd']`). Nested
+ * collections are not supported. Returns undefined for invalid input.
+ */
+const parseFlowSequence = (value: string): string[] | undefined => {
+  if (!value.startsWith('[') || !value.endsWith(']')) {
+    return undefined
+  }
+
+  const inner = value.slice(1, -1)
+
+  if (inner.trim() === '') {
+    return []
+  }
+
+  const items: string[] = []
+  let current = ''
+  let quote: string | undefined
+
+  for (const character of inner) {
+    if (quote) {
+      current += character
+
+      if (character === quote) {
+        quote = undefined
+      }
+
+      continue
+    }
+
+    if ((character === '"' || character === "'") && current.trim() === '') {
+      quote = character
+      current += character
+      continue
+    }
+
+    if (character === '[' || character === ']' || character === '{' || character === '}') {
+      return undefined
+    }
+
+    if (character === ',') {
+      items.push(current)
+      current = ''
+      continue
+    }
+
+    current += character
+  }
+
+  if (quote) {
+    return undefined
+  }
+
+  items.push(current)
+
+  if (items.length > 1 && (items.at(-1) ?? '').trim() === '') {
+    items.pop()
+  }
+
+  if (items.some((item) => item.trim() === '')) {
+    return undefined
+  }
+
+  return items.map(stripQuotes)
+}
+
+type ScalarFrontmatterField = 'description' | 'draft' | 'navTitle' | 'order' | 'slug' | 'status' | 'title'
 
 const assignFrontmatterValue = ({
   frontmatter,
@@ -90,58 +172,95 @@ const assignFrontmatterValue = ({
   rawValue,
 }: {
   frontmatter: DocsFrontmatter
-  key: string
+  key: ScalarFrontmatterField
   path?: string
   rawValue: string
-}): DocsValidationIssue | undefined => {
+}): {
+  issue?: DocsValidationIssue
+  warning?: DocsValidationIssue
+} => {
   const value = stripQuotes(rawValue)
 
   switch (key) {
     case 'description':
     case 'navTitle':
-    case 'slug':
-    case 'title':
       frontmatter[key] = value
-      return undefined
+      return {}
 
     case 'draft':
       if (value === 'true' || value === 'false') {
         frontmatter.draft = value === 'true'
-        return undefined
+        return {}
       }
 
-      return createFrontmatterIssue({
-        message: 'Frontmatter field "draft" must be a boolean.',
-        path,
-      })
+      return {
+        issue: createFrontmatterIssue({
+          message: 'Frontmatter field "draft" must be a boolean.',
+          path,
+        }),
+      }
 
     case 'order': {
+      // ECMAScript Number() semantics: decimal, 0x/0o/0b integers; blank is 0.
       const order = Number(value)
 
       if (Number.isFinite(order)) {
         frontmatter.order = order
-        return undefined
+
+        return value.trim() === ''
+          ? {
+              warning: createFrontmatterIssue({
+                message: 'Frontmatter field "order" is empty and was treated as 0.',
+                path,
+              }),
+            }
+          : {}
       }
 
-      return createFrontmatterIssue({
-        message: 'Frontmatter field "order" must be a number.',
-        path,
-      })
+      return {
+        issue: createFrontmatterIssue({
+          message: 'Frontmatter field "order" must be a number.',
+          path,
+        }),
+      }
     }
+
+    case 'slug':
+      frontmatter.slug = value
+
+      return value === ''
+        ? {
+            warning: createFrontmatterIssue({
+              message: 'Frontmatter field "slug" is empty and was ignored.',
+              path,
+            }),
+          }
+        : {}
 
     case 'status':
       if (value === 'draft' || value === 'published') {
         frontmatter.status = value
-        return undefined
+        return {}
       }
 
-      return createFrontmatterIssue({
-        message: 'Frontmatter field "status" must be "draft" or "published".',
-        path,
-      })
+      return {
+        issue: createFrontmatterIssue({
+          message: 'Frontmatter field "status" must be "draft" or "published".',
+          path,
+        }),
+      }
 
-    default:
-      return undefined
+    case 'title':
+      frontmatter.title = value
+
+      return value === ''
+        ? {
+            warning: createFrontmatterIssue({
+              message: 'Frontmatter field "title" is empty; the title is inferred instead.',
+              path,
+            }),
+          }
+        : {}
   }
 }
 
@@ -164,6 +283,36 @@ const validateParsedFrontmatter = (
   return issues
 }
 
+type FrontmatterContext =
+  | {
+      key: 'dependencies' | 'redirectFrom' | 'tags'
+      kind: 'array'
+    }
+  | {
+      key: string
+      kind: 'ignored'
+    }
+  | {
+      key: string
+      kind: 'scalar'
+    }
+  | {
+      kind: 'none'
+    }
+
+/**
+ * Parses the supported YAML frontmatter subset (see `docs/reference/frontmatter.md`
+ * and `contracts/README.md`):
+ *
+ * - an optional UTF-8 BOM, then `---` on the first line and a closing `---`;
+ * - top-level `key: value` lines with keys matching `[A-Za-z_][A-Za-z0-9_-]*`;
+ * - list fields as `- item` lines or a single-line flow list `[a, b]`;
+ * - full-line `#` comments.
+ *
+ * Unknown keys (and anything nested below them) are ignored with a warning.
+ * Nested values, multi-line values and block scalars on known fields are
+ * reported as issues instead of silently changing other fields.
+ */
 export const parseDocsFrontmatter = (
   markdown: string,
   options: {
@@ -172,22 +321,23 @@ export const parseDocsFrontmatter = (
 ): ParseDocsFrontmatterResult => {
   const issues: DocsValidationIssue[] = []
   const warnings: DocsValidationIssue[] = []
+  const source = stripByteOrderMark(markdown)
+  const lines = splitMarkdownLines(source)
 
-  if (!markdown.startsWith('---\n') && !markdown.startsWith('---\r\n')) {
+  if (lines.length < 2 || lines[0] !== '---') {
     return {
-      content: markdown,
+      content: source,
       frontmatter: {},
       issues,
       warnings,
     }
   }
 
-  const lines = markdown.split(/\r?\n/)
   const closingIndex = lines.findIndex((line, index) => index > 0 && line.trim() === '---')
 
   if (closingIndex === -1) {
     return {
-      content: markdown,
+      content: source,
       frontmatter: {},
       issues: [
         createFrontmatterIssue({
@@ -201,7 +351,7 @@ export const parseDocsFrontmatter = (
 
   const frontmatter: DocsFrontmatter = {}
   const frontmatterLines = lines.slice(1, closingIndex)
-  let currentArrayKey: 'dependencies' | 'redirectFrom' | 'tags' | undefined
+  let context: FrontmatterContext = { kind: 'none' }
 
   for (const line of frontmatterLines) {
     if (line.trim() === '') {
@@ -209,22 +359,59 @@ export const parseDocsFrontmatter = (
     }
 
     const trimmedStart = line.trimStart()
+    const indented = trimmedStart.length !== line.length
+
+    if (trimmedStart.startsWith('#')) {
+      continue
+    }
 
     if (trimmedStart.startsWith('- ')) {
-      if (!currentArrayKey) {
-        issues.push(
-          createFrontmatterIssue({
-            message: 'Frontmatter array item does not belong to a supported array field.',
-            path: options.path,
-          }),
-        )
+      if (context.kind === 'array') {
+        frontmatter[context.key] = [
+          ...(frontmatter[context.key] ?? []),
+          stripQuotes(trimmedStart.slice(2)),
+        ]
         continue
       }
 
-      frontmatter[currentArrayKey] = [
-        ...(frontmatter[currentArrayKey] ?? []),
-        stripQuotes(trimmedStart.slice(2)),
-      ]
+      if (context.kind === 'ignored') {
+        continue
+      }
+
+      issues.push(
+        createFrontmatterIssue({
+          message: 'Frontmatter array item does not belong to a supported array field.',
+          path: options.path,
+        }),
+      )
+      continue
+    }
+
+    if (indented) {
+      if (context.kind === 'ignored') {
+        continue
+      }
+
+      if (context.kind === 'array' || context.kind === 'scalar') {
+        issues.push(
+          createFrontmatterIssue({
+            message:
+              context.kind === 'array'
+                ? `Frontmatter field "${context.key}" only supports "- item" list entries.`
+                : `Frontmatter field "${context.key}" does not support nested or multi-line values.`,
+            path: options.path,
+          }),
+        )
+        context = { key: context.key, kind: 'ignored' }
+        continue
+      }
+
+      issues.push(
+        createFrontmatterIssue({
+          message: `Unsupported indented frontmatter line: ${line}`,
+          path: options.path,
+        }),
+      )
       continue
     }
 
@@ -239,11 +426,9 @@ export const parseDocsFrontmatter = (
           path: options.path,
         }),
       )
-      currentArrayKey = undefined
+      context = { kind: 'none' }
       continue
     }
-
-    currentArrayKey = undefined
 
     if (!knownFrontmatterFields.has(key)) {
       warnings.push({
@@ -251,34 +436,73 @@ export const parseDocsFrontmatter = (
         message: `Unknown frontmatter field "${key}" was ignored.`,
         path: options.path,
       })
+      context = { key, kind: 'ignored' }
       continue
     }
 
     if (arrayFrontmatterFields.has(key)) {
-      if (rawValue.trim() !== '') {
+      const arrayKey = key as 'dependencies' | 'redirectFrom' | 'tags'
+
+      if (rawValue === '') {
+        context = { key: arrayKey, kind: 'array' }
+        frontmatter[arrayKey] = []
+        continue
+      }
+
+      context = { key, kind: 'ignored' }
+
+      if (rawValue.startsWith('[')) {
+        const items = parseFlowSequence(rawValue)
+
+        if (items) {
+          frontmatter[arrayKey] = items
+          continue
+        }
+
         issues.push(
           createFrontmatterIssue({
-            message: `Frontmatter field "${key}" must use list item syntax.`,
+            message: `Frontmatter field "${key}" has an invalid flow list; use [a, b] or "- item" lines.`,
             path: options.path,
           }),
         )
         continue
       }
 
-      currentArrayKey = key as 'dependencies' | 'redirectFrom' | 'tags'
-      frontmatter[currentArrayKey] = []
+      issues.push(
+        createFrontmatterIssue({
+          message: `Frontmatter field "${key}" must use list item syntax.`,
+          path: options.path,
+        }),
+      )
       continue
     }
 
-    const issue = assignFrontmatterValue({
+    if (isBlockScalarIndicator(rawValue)) {
+      issues.push(
+        createFrontmatterIssue({
+          message: `Frontmatter field "${key}" uses a YAML block scalar (${rawValue}), which is not supported; use a single-line value.`,
+          path: options.path,
+        }),
+      )
+      context = { key, kind: 'ignored' }
+      continue
+    }
+
+    context = { key, kind: 'scalar' }
+
+    const result = assignFrontmatterValue({
       frontmatter,
-      key,
+      key: key as ScalarFrontmatterField,
       path: options.path,
       rawValue,
     })
 
-    if (issue) {
-      issues.push(issue)
+    if (result.issue) {
+      issues.push(result.issue)
+    }
+
+    if (result.warning) {
+      warnings.push(result.warning)
     }
   }
 
@@ -290,14 +514,6 @@ export const parseDocsFrontmatter = (
     issues,
     warnings,
   }
-}
-
-export const inferTitleFromMarkdown = (content: string): string | undefined => {
-  const h1Line = content
-    .split(/\r?\n/)
-    .find((line) => /^#\s+[^#]/.test(line.trim()))
-
-  return h1Line?.replace(/^#\s+/, '').replace(/\s+#*$/, '').trim() || undefined
 }
 
 export const titleFromSourcePath = (sourcePath: string): string => {
@@ -313,11 +529,15 @@ export const titleFromSourcePath = (sourcePath: string): string => {
     lastSegment.toLowerCase() === 'index.md' ? pathSegments.at(-2) ?? 'index' : lastSegment
   const withoutExtension = baseName.replace(/\.md$/, '')
 
-  return withoutExtension
+  // Only the first UTF-16 code unit is upper-cased (astral characters are left
+  // as-is); the native CLI mirrors this with a generated BMP case table.
+  const title = withoutExtension
     .split(/[-_\s]+/)
     .filter(Boolean)
     .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
     .join(' ')
+
+  return title === '' ? 'Untitled' : title
 }
 
 export const resolveDocsTitle = ({
@@ -329,4 +549,6 @@ export const resolveDocsTitle = ({
   frontmatter: DocsFrontmatter
   sourcePath: string
 }): string =>
-  frontmatter.title ?? inferTitleFromMarkdown(content) ?? titleFromSourcePath(sourcePath)
+  (frontmatter.title !== undefined && frontmatter.title !== '' ? frontmatter.title : undefined) ??
+  inferTitleFromMarkdown(content) ??
+  titleFromSourcePath(sourcePath)

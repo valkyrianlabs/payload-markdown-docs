@@ -1,0 +1,279 @@
+{
+  "contractVersion": 1,
+  "description": "Asset route resolution and confinement (src/sync/paths.ts resolveAssetRoute; cli/src/docs.cpp resolve_asset_route). Default assetRouteBase \"/plugins/main-docs\", sourceId \"main-docs\".",
+  "cases": [
+    {
+      "name": "llms default",
+      "assetRouteBase": "/plugins/main-docs",
+      "sourceId": "main-docs",
+      "kind": "llms",
+      "sourcePath": "llms.txt",
+      "expect": {
+        "route": "/llms.txt",
+        "warning": null
+      }
+    },
+    {
+      "name": "llms-full default",
+      "assetRouteBase": "/plugins/main-docs",
+      "sourceId": "main-docs",
+      "kind": "llms-full",
+      "sourcePath": "llms-full.txt",
+      "expect": {
+        "route": "/llms-full.txt",
+        "warning": null
+      }
+    },
+    {
+      "name": "llms root route",
+      "assetRouteBase": "/plugins/main-docs",
+      "sourceId": "main-docs",
+      "kind": "llms",
+      "route": "/llms.txt",
+      "sourcePath": "llms.txt",
+      "expect": {
+        "route": "/llms.txt",
+        "warning": null
+      }
+    },
+    {
+      "name": "llms route under base",
+      "assetRouteBase": "/plugins/main-docs",
+      "sourceId": "main-docs",
+      "kind": "llms",
+      "route": "/plugins/main-docs/llms.txt",
+      "sourcePath": "llms.txt",
+      "expect": {
+        "route": "/plugins/main-docs/llms.txt",
+        "warning": null
+      }
+    },
+    {
+      "name": "llms route elsewhere",
+      "assetRouteBase": "/plugins/main-docs",
+      "sourceId": "main-docs",
+      "kind": "llms",
+      "route": "/evil.txt",
+      "sourcePath": "llms.txt",
+      "expect": {
+        "error": "invalid_asset_route"
+      }
+    },
+    {
+      "name": "llms-full root route without slash",
+      "assetRouteBase": "/plugins/main-docs",
+      "sourceId": "main-docs",
+      "kind": "llms-full",
+      "route": "llms-full.txt",
+      "sourcePath": "llms-full.txt",
+      "expect": {
+        "route": "/llms-full.txt",
+        "warning": null
+      }
+    },
+    {
+      "name": "skill derived",
+      "assetRouteBase": "/plugins/main-docs",
+      "sourceId": "main-docs",
+      "kind": "skill",
+      "sourcePath": "skills/main-docs/codex/SKILL.md",
+      "expect": {
+        "route": "/plugins/main-docs/skills/codex/SKILL.md",
+        "warning": null
+      }
+    },
+    {
+      "name": "skill nested derived",
+      "assetRouteBase": "/plugins/main-docs",
+      "sourceId": "main-docs",
+      "kind": "skill",
+      "sourcePath": "skills/main-docs/codex/reference/workflow.md",
+      "expect": {
+        "route": "/plugins/main-docs/skills/codex/reference/workflow.md",
+        "warning": null
+      }
+    },
+    {
+      "name": "skill matching client route",
+      "assetRouteBase": "/plugins/main-docs",
+      "sourceId": "main-docs",
+      "kind": "skill",
+      "route": "/plugins/main-docs/skills/codex/SKILL.md",
+      "sourcePath": "skills/main-docs/codex/SKILL.md",
+      "expect": {
+        "route": "/plugins/main-docs/skills/codex/SKILL.md",
+        "warning": null
+      }
+    },
+    {
+      "name": "skill client route is ignored",
+      "assetRouteBase": "/plugins/main-docs",
+      "sourceId": "main-docs",
+      "kind": "skill",
+      "route": "/other-docs-set/index.html",
+      "sourcePath": "skills/main-docs/codex/SKILL.md",
+      "expect": {
+        "route": "/plugins/main-docs/skills/codex/SKILL.md",
+        "warning": "asset_route_ignored"
+      }
+    },
+    {
+      "name": "skill traversal route is ignored",
+      "assetRouteBase": "/plugins/main-docs",
+      "sourceId": "main-docs",
+      "kind": "skill",
+      "route": "/admin/../../evil",
+      "sourcePath": "skills/main-docs/codex/SKILL.md",
+      "expect": {
+        "route": "/plugins/main-docs/skills/codex/SKILL.md",
+        "warning": "asset_route_ignored"
+      }
+    },
+    {
+      "name": "skill from another source has no route",
+      "assetRouteBase": "/plugins/main-docs",
+      "sourceId": "main-docs",
+      "kind": "skill",
+      "sourcePath": "skills/other/codex/SKILL.md",
+      "expect": {
+        "route": null,
+        "warning": null
+      }
+    },
+    {
+      "name": "skill without source id has no route",
+      "assetRouteBase": "/plugins/main-docs",
+      "sourceId": "",
+      "kind": "skill",
+      "sourcePath": "skills/main-docs/codex/SKILL.md",
+      "expect": {
+        "route": null,
+        "warning": null
+      }
+    },
+    {
+      "name": "static without route",
+      "assetRouteBase": "/plugins/main-docs",
+      "sourceId": "main-docs",
+      "kind": "static",
+      "sourcePath": "static/a.txt",
+      "expect": {
+        "route": null,
+        "warning": null
+      }
+    },
+    {
+      "name": "static under base",
+      "assetRouteBase": "/plugins/main-docs",
+      "sourceId": "main-docs",
+      "kind": "static",
+      "route": "/plugins/main-docs/files/a.txt",
+      "sourcePath": "static/a.txt",
+      "expect": {
+        "route": "/plugins/main-docs/files/a.txt",
+        "warning": null
+      }
+    },
+    {
+      "name": "static equal to base",
+      "assetRouteBase": "/plugins/main-docs",
+      "sourceId": "main-docs",
+      "kind": "static",
+      "route": "/plugins/main-docs/",
+      "sourcePath": "static/a.txt",
+      "expect": {
+        "route": "/plugins/main-docs",
+        "warning": null
+      }
+    },
+    {
+      "name": "static base prefix is not enough",
+      "assetRouteBase": "/plugins/main-docs",
+      "sourceId": "main-docs",
+      "kind": "static",
+      "route": "/plugins/main-docs-evil/a.txt",
+      "sourcePath": "static/a.txt",
+      "expect": {
+        "error": "invalid_asset_route"
+      }
+    },
+    {
+      "name": "static outside base",
+      "assetRouteBase": "/plugins/main-docs",
+      "sourceId": "main-docs",
+      "kind": "static",
+      "route": "/other-docs-set/index.html",
+      "sourcePath": "static/a.txt",
+      "expect": {
+        "error": "invalid_asset_route"
+      }
+    },
+    {
+      "name": "static dot-dot segment",
+      "assetRouteBase": "/plugins/main-docs",
+      "sourceId": "main-docs",
+      "kind": "static",
+      "route": "/plugins/main-docs/../other/x",
+      "sourcePath": "static/a.txt",
+      "expect": {
+        "error": "invalid_asset_route"
+      }
+    },
+    {
+      "name": "static dot segment",
+      "assetRouteBase": "/plugins/main-docs",
+      "sourceId": "main-docs",
+      "kind": "static",
+      "route": "/plugins/main-docs/./x",
+      "sourcePath": "static/a.txt",
+      "expect": {
+        "error": "invalid_asset_route"
+      }
+    },
+    {
+      "name": "static encoded segment",
+      "assetRouteBase": "/plugins/main-docs",
+      "sourceId": "main-docs",
+      "kind": "static",
+      "route": "/plugins/main-docs/%2e%2e/x",
+      "sourcePath": "static/a.txt",
+      "expect": {
+        "error": "invalid_asset_route"
+      }
+    },
+    {
+      "name": "static query",
+      "assetRouteBase": "/plugins/main-docs",
+      "sourceId": "main-docs",
+      "kind": "static",
+      "route": "/plugins/main-docs/x?y",
+      "sourcePath": "static/a.txt",
+      "expect": {
+        "error": "invalid_asset_route"
+      }
+    },
+    {
+      "name": "static backslash traversal",
+      "assetRouteBase": "/plugins/main-docs",
+      "sourceId": "main-docs",
+      "kind": "static",
+      "route": "/plugins/main-docs\\..\\x",
+      "sourcePath": "static/a.txt",
+      "expect": {
+        "error": "invalid_asset_route"
+      }
+    },
+    {
+      "name": "blank route is ignored",
+      "assetRouteBase": "/plugins/main-docs",
+      "sourceId": "main-docs",
+      "kind": "static",
+      "route": "   ",
+      "sourcePath": "static/a.txt",
+      "expect": {
+        "route": null,
+        "warning": null
+      }
+    }
+  ]
+}

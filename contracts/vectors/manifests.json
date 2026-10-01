@@ -1,0 +1,1882 @@
+{
+  "contractVersion": 1,
+  "description": "Manifest validation (src/sync/validate.ts validateDocsManifest + src/sync/routeCollisions.ts findManifestRouteCollisions; cli/src/docs.cpp validate_manifest + find_route_collisions). Issues/warnings are compared by code and path, in order. \"manifestJson\" cases must be parsed from that exact text (number formatting matters).",
+  "cases": [
+    {
+      "name": "valid minimal",
+      "manifest": {
+        "version": 1,
+        "source": {
+          "id": "main-docs"
+        },
+        "files": [
+          {
+            "content": "# Home\n",
+            "path": "index.md",
+            "sha256": "7d48eefbcff2495cc4b0cd99ea783bbc46184d78af064c56e1a7dc7ae9dba3aa"
+          }
+        ]
+      },
+      "options": {
+        "routeBase": "/main-docs",
+        "assetRouteBase": "/plugins/main-docs"
+      },
+      "expect": {
+        "ok": true,
+        "issues": [],
+        "warnings": [],
+        "files": [
+          {
+            "path": "index.md",
+            "route": "/main-docs",
+            "title": "Home"
+          }
+        ],
+        "assets": [],
+        "routeCollisions": []
+      }
+    },
+    {
+      "name": "valid with metadata",
+      "manifest": {
+        "version": 1,
+        "source": {
+          "id": "main-docs",
+          "branch": "main",
+          "commit": "abc",
+          "repository": "o/r"
+        },
+        "files": [
+          {
+            "content": "---\ntitle: Intro\n---\nText\n",
+            "path": "guide/intro.md",
+            "sha256": "19a83361611e2d709c2969de6b2e727c9e51868fbef79cd1b609df5e562fae56"
+          }
+        ],
+        "mode": "sync",
+        "deleteBehavior": "draft",
+        "publish": true
+      },
+      "options": {
+        "routeBase": "/main-docs",
+        "assetRouteBase": "/plugins/main-docs"
+      },
+      "expect": {
+        "ok": true,
+        "issues": [],
+        "warnings": [],
+        "files": [
+          {
+            "path": "guide/intro.md",
+            "route": "/main-docs/guide/intro",
+            "title": "Intro"
+          }
+        ],
+        "assets": [],
+        "routeCollisions": []
+      }
+    },
+    {
+      "name": "version 1.0 is accepted",
+      "manifestJson": "{\"version\":1.0,\"source\":{\"id\":\"main-docs\"},\"files\":[{\"path\":\"a.md\",\"content\":\"# A\\n\"}]}",
+      "options": {
+        "routeBase": "/main-docs",
+        "assetRouteBase": "/plugins/main-docs"
+      },
+      "expect": {
+        "ok": true,
+        "issues": [],
+        "warnings": [],
+        "files": [
+          {
+            "path": "a.md",
+            "route": "/main-docs/a",
+            "title": "A"
+          }
+        ],
+        "assets": [],
+        "routeCollisions": []
+      }
+    },
+    {
+      "name": "version 2",
+      "manifest": {
+        "version": 2,
+        "source": {
+          "id": "main-docs"
+        },
+        "files": [
+          {
+            "content": "# A\n",
+            "path": "a.md",
+            "sha256": "aa1237b773c38dbddef583c4868aaea7a44c5237ea7923aecca5513764b42d80"
+          }
+        ]
+      },
+      "options": {
+        "routeBase": "/main-docs",
+        "assetRouteBase": "/plugins/main-docs"
+      },
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "invalid_version"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "version string",
+      "manifest": {
+        "version": "1",
+        "source": {
+          "id": "main-docs"
+        },
+        "files": [
+          {
+            "content": "# A\n",
+            "path": "a.md",
+            "sha256": "aa1237b773c38dbddef583c4868aaea7a44c5237ea7923aecca5513764b42d80"
+          }
+        ]
+      },
+      "options": {
+        "routeBase": "/main-docs",
+        "assetRouteBase": "/plugins/main-docs"
+      },
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "invalid_version"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "manifest not an object",
+      "manifest": [],
+      "options": {
+        "routeBase": "/main-docs",
+        "assetRouteBase": "/plugins/main-docs"
+      },
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "invalid_manifest"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "missing source",
+      "manifest": {
+        "version": 1,
+        "files": [
+          {
+            "content": "# A\n",
+            "path": "a.md",
+            "sha256": "aa1237b773c38dbddef583c4868aaea7a44c5237ea7923aecca5513764b42d80"
+          }
+        ]
+      },
+      "options": {
+        "routeBase": "/main-docs",
+        "assetRouteBase": "/plugins/main-docs"
+      },
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "invalid_source"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "blank source id",
+      "manifest": {
+        "version": 1,
+        "source": {
+          "id": "  "
+        },
+        "files": [
+          {
+            "content": "# A\n",
+            "path": "a.md",
+            "sha256": "aa1237b773c38dbddef583c4868aaea7a44c5237ea7923aecca5513764b42d80"
+          }
+        ]
+      },
+      "options": {
+        "routeBase": "/main-docs",
+        "assetRouteBase": "/plugins/main-docs"
+      },
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "invalid_source"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "source not allowed",
+      "manifest": {
+        "version": 1,
+        "source": {
+          "id": "other"
+        },
+        "files": [
+          {
+            "content": "# A\n",
+            "path": "a.md",
+            "sha256": "aa1237b773c38dbddef583c4868aaea7a44c5237ea7923aecca5513764b42d80"
+          }
+        ]
+      },
+      "options": {
+        "routeBase": "/main-docs",
+        "assetRouteBase": "/plugins/main-docs",
+        "allowedSourceIds": [
+          "main-docs"
+        ]
+      },
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "invalid_source"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "invalid mode",
+      "manifest": {
+        "version": 1,
+        "source": {
+          "id": "main-docs"
+        },
+        "files": [
+          {
+            "content": "# A\n",
+            "path": "a.md",
+            "sha256": "aa1237b773c38dbddef583c4868aaea7a44c5237ea7923aecca5513764b42d80"
+          }
+        ],
+        "mode": "apply"
+      },
+      "options": {
+        "routeBase": "/main-docs",
+        "assetRouteBase": "/plugins/main-docs"
+      },
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "invalid_mode"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "invalid deleteBehavior",
+      "manifest": {
+        "version": 1,
+        "source": {
+          "id": "main-docs"
+        },
+        "files": [
+          {
+            "content": "# A\n",
+            "path": "a.md",
+            "sha256": "aa1237b773c38dbddef583c4868aaea7a44c5237ea7923aecca5513764b42d80"
+          }
+        ],
+        "deleteBehavior": "purge"
+      },
+      "options": {
+        "routeBase": "/main-docs",
+        "assetRouteBase": "/plugins/main-docs"
+      },
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "invalid_delete_behavior"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "publish not boolean",
+      "manifest": {
+        "version": 1,
+        "source": {
+          "id": "main-docs"
+        },
+        "files": [
+          {
+            "content": "# A\n",
+            "path": "a.md",
+            "sha256": "aa1237b773c38dbddef583c4868aaea7a44c5237ea7923aecca5513764b42d80"
+          }
+        ],
+        "publish": "yes"
+      },
+      "options": {
+        "routeBase": "/main-docs",
+        "assetRouteBase": "/plugins/main-docs"
+      },
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "invalid_manifest"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "files not array",
+      "manifest": {
+        "version": 1,
+        "source": {
+          "id": "main-docs"
+        },
+        "files": {}
+      },
+      "options": {
+        "routeBase": "/main-docs",
+        "assetRouteBase": "/plugins/main-docs"
+      },
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "invalid_manifest"
+          },
+          {
+            "code": "empty_manifest"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "assets not array",
+      "manifest": {
+        "version": 1,
+        "source": {
+          "id": "main-docs"
+        },
+        "files": [
+          {
+            "content": "# A\n",
+            "path": "a.md",
+            "sha256": "aa1237b773c38dbddef583c4868aaea7a44c5237ea7923aecca5513764b42d80"
+          }
+        ],
+        "assets": {}
+      },
+      "options": {
+        "routeBase": "/main-docs",
+        "assetRouteBase": "/plugins/main-docs"
+      },
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "invalid_manifest"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "empty manifest",
+      "manifest": {
+        "version": 1,
+        "source": {
+          "id": "main-docs"
+        },
+        "files": []
+      },
+      "options": {
+        "routeBase": "/main-docs",
+        "assetRouteBase": "/plugins/main-docs"
+      },
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "empty_manifest"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "assets only",
+      "manifest": {
+        "version": 1,
+        "source": {
+          "id": "main-docs"
+        },
+        "files": [],
+        "assets": [
+          {
+            "content": "# llms\n",
+            "contentType": "text/plain; charset=utf-8",
+            "kind": "llms",
+            "path": "llms.txt",
+            "sha256": "bd2444b6b5596c97dbf17f8482fa5c47d2099e0edfb6e4f64123e9d93e73bde3"
+          }
+        ]
+      },
+      "options": {
+        "routeBase": "/main-docs",
+        "assetRouteBase": "/plugins/main-docs"
+      },
+      "expect": {
+        "ok": true,
+        "issues": [],
+        "warnings": [],
+        "files": [],
+        "assets": [
+          {
+            "path": "llms.txt",
+            "route": "/llms.txt"
+          }
+        ],
+        "routeCollisions": []
+      }
+    },
+    {
+      "name": "too many files",
+      "manifest": {
+        "version": 1,
+        "source": {
+          "id": "main-docs"
+        },
+        "files": [
+          {
+            "content": "a",
+            "path": "a.md",
+            "sha256": "ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb"
+          },
+          {
+            "content": "b",
+            "path": "b.md",
+            "sha256": "3e23e8160039594a33894f6564e1b1348bbd7a0088d42c4acb73eeaed59c009d"
+          }
+        ]
+      },
+      "options": {
+        "routeBase": "/main-docs",
+        "assetRouteBase": "/plugins/main-docs",
+        "maxFiles": 1
+      },
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "too_many_files"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "file too large",
+      "manifest": {
+        "version": 1,
+        "source": {
+          "id": "main-docs"
+        },
+        "files": [
+          {
+            "content": "123456",
+            "path": "a.md",
+            "sha256": "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92"
+          }
+        ]
+      },
+      "options": {
+        "routeBase": "/main-docs",
+        "assetRouteBase": "/plugins/main-docs",
+        "maxFileBytes": 5
+      },
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "file_too_large",
+            "path": "a.md"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "total too large",
+      "manifest": {
+        "version": 1,
+        "source": {
+          "id": "main-docs"
+        },
+        "files": [
+          {
+            "content": "1234",
+            "path": "a.md",
+            "sha256": "03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4"
+          },
+          {
+            "content": "1234",
+            "path": "b.md",
+            "sha256": "03ac674216f3e15c761ee1a5e255f067953623c8b388b4459e13f978d7c846f4"
+          }
+        ]
+      },
+      "options": {
+        "routeBase": "/main-docs",
+        "assetRouteBase": "/plugins/main-docs",
+        "maxTotalBytes": 7
+      },
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "manifest_too_large"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "multi-byte content counts bytes",
+      "manifest": {
+        "version": 1,
+        "source": {
+          "id": "main-docs"
+        },
+        "files": [
+          {
+            "content": "éé",
+            "path": "a.md",
+            "sha256": "f13c007a1d8e6e1300b5957a143810cdd3555825466cf5d2617b1ac2fd8bd76b"
+          }
+        ]
+      },
+      "options": {
+        "routeBase": "/main-docs",
+        "assetRouteBase": "/plugins/main-docs",
+        "maxFileBytes": 3
+      },
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "file_too_large",
+            "path": "a.md"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "invalid hash",
+      "manifest": {
+        "version": 1,
+        "source": {
+          "id": "main-docs"
+        },
+        "files": [
+          {
+            "content": "# A\n",
+            "path": "a.md",
+            "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+          }
+        ]
+      },
+      "options": {
+        "routeBase": "/main-docs",
+        "assetRouteBase": "/plugins/main-docs"
+      },
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "invalid_hash",
+            "path": "a.md"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "uppercase hash accepted",
+      "manifest": {
+        "version": 1,
+        "source": {
+          "id": "main-docs"
+        },
+        "files": [
+          {
+            "content": "# A\n",
+            "path": "a.md",
+            "sha256": "AA1237B773C38DBDDEF583C4868AAEA7A44C5237EA7923AECCA5513764B42D80"
+          }
+        ]
+      },
+      "options": {
+        "routeBase": "/main-docs",
+        "assetRouteBase": "/plugins/main-docs"
+      },
+      "expect": {
+        "ok": true,
+        "issues": [],
+        "warnings": [],
+        "files": [
+          {
+            "path": "a.md",
+            "route": "/main-docs/a",
+            "title": "A"
+          }
+        ],
+        "assets": [],
+        "routeCollisions": []
+      }
+    },
+    {
+      "name": "malformed hash",
+      "manifest": {
+        "version": 1,
+        "source": {
+          "id": "main-docs"
+        },
+        "files": [
+          {
+            "content": "# A\n",
+            "path": "a.md",
+            "sha256": "xyz"
+          }
+        ]
+      },
+      "options": {
+        "routeBase": "/main-docs",
+        "assetRouteBase": "/plugins/main-docs"
+      },
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "invalid_hash",
+            "path": "a.md"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "hash omitted",
+      "manifest": {
+        "version": 1,
+        "source": {
+          "id": "main-docs"
+        },
+        "files": [
+          {
+            "content": "# A\n",
+            "path": "a.md"
+          }
+        ]
+      },
+      "options": {
+        "routeBase": "/main-docs",
+        "assetRouteBase": "/plugins/main-docs"
+      },
+      "expect": {
+        "ok": true,
+        "issues": [],
+        "warnings": [],
+        "files": [
+          {
+            "path": "a.md",
+            "route": "/main-docs/a",
+            "title": "A"
+          }
+        ],
+        "assets": [],
+        "routeCollisions": []
+      }
+    },
+    {
+      "name": "duplicate normalized paths",
+      "manifest": {
+        "version": 1,
+        "source": {
+          "id": "main-docs"
+        },
+        "files": [
+          {
+            "content": "# A\n",
+            "path": "a.md",
+            "sha256": "aa1237b773c38dbddef583c4868aaea7a44c5237ea7923aecca5513764b42d80"
+          },
+          {
+            "content": "# A\n",
+            "path": "./a.md",
+            "sha256": "aa1237b773c38dbddef583c4868aaea7a44c5237ea7923aecca5513764b42d80"
+          }
+        ]
+      },
+      "options": {
+        "routeBase": "/main-docs",
+        "assetRouteBase": "/plugins/main-docs"
+      },
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "duplicate_path",
+            "path": "a.md"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "file entry not an object",
+      "manifest": {
+        "version": 1,
+        "source": {
+          "id": "main-docs"
+        },
+        "files": [
+          "a.md"
+        ]
+      },
+      "options": {
+        "routeBase": "/main-docs",
+        "assetRouteBase": "/plugins/main-docs"
+      },
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "invalid_manifest"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "file entry missing content",
+      "manifest": {
+        "version": 1,
+        "source": {
+          "id": "main-docs"
+        },
+        "files": [
+          {
+            "path": "a.md"
+          }
+        ]
+      },
+      "options": {
+        "routeBase": "/main-docs",
+        "assetRouteBase": "/plugins/main-docs"
+      },
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "invalid_manifest",
+            "path": "a.md"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "non-markdown path",
+      "manifest": {
+        "version": 1,
+        "source": {
+          "id": "main-docs"
+        },
+        "files": [
+          {
+            "content": "# R\n",
+            "path": "README.MD",
+            "sha256": "3203e738731f57fb9a1289bd08c17bc50d8de842c64ae0122be9fa2e6931fb9e"
+          }
+        ]
+      },
+      "options": {
+        "routeBase": "/main-docs",
+        "assetRouteBase": "/plugins/main-docs"
+      },
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "non_markdown_file",
+            "path": "README.MD"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "traversal path",
+      "manifest": {
+        "version": 1,
+        "source": {
+          "id": "main-docs"
+        },
+        "files": [
+          {
+            "content": "# A\n",
+            "path": "../a.md",
+            "sha256": "aa1237b773c38dbddef583c4868aaea7a44c5237ea7923aecca5513764b42d80"
+          }
+        ]
+      },
+      "options": {
+        "routeBase": "/main-docs",
+        "assetRouteBase": "/plugins/main-docs"
+      },
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "path_traversal",
+            "path": "../a.md"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "frontmatter issue carries path",
+      "manifest": {
+        "version": 1,
+        "source": {
+          "id": "main-docs"
+        },
+        "files": [
+          {
+            "content": "---\norder: first\n---\n",
+            "path": "bad.md",
+            "sha256": "88fbd212ef0b1ed787799feaaad00c81a965a6a4a3e0677a58844452a8ee6ad1"
+          }
+        ]
+      },
+      "options": {
+        "routeBase": "/main-docs",
+        "assetRouteBase": "/plugins/main-docs"
+      },
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "invalid_frontmatter",
+            "path": "bad.md"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "unknown frontmatter key warning",
+      "manifest": {
+        "version": 1,
+        "source": {
+          "id": "main-docs"
+        },
+        "files": [
+          {
+            "content": "---\nfoo: bar\n---\n",
+            "path": "a.md",
+            "sha256": "23becc3f1f6f28298e627243654460ce1f4d46585368ecc0c8c3e0e90fcbb23f"
+          }
+        ]
+      },
+      "options": {
+        "routeBase": "/main-docs",
+        "assetRouteBase": "/plugins/main-docs"
+      },
+      "expect": {
+        "ok": true,
+        "issues": [],
+        "warnings": [
+          {
+            "code": "invalid_frontmatter",
+            "path": "a.md"
+          }
+        ],
+        "files": [
+          {
+            "path": "a.md",
+            "route": "/main-docs/a",
+            "title": "A"
+          }
+        ],
+        "assets": [],
+        "routeCollisions": []
+      }
+    },
+    {
+      "name": "unservable route segment",
+      "manifest": {
+        "version": 1,
+        "source": {
+          "id": "main-docs"
+        },
+        "files": [
+          {
+            "content": "# Q\n",
+            "path": "what?.md",
+            "sha256": "57b1b18eb815e8f672890f0d204ee17ba4c6b4dd5747c4071958b9a9ce93f831"
+          }
+        ]
+      },
+      "options": {
+        "routeBase": "/main-docs",
+        "assetRouteBase": "/plugins/main-docs"
+      },
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "invalid_route",
+            "path": "what?.md"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "whitespace route segment warning",
+      "manifest": {
+        "version": 1,
+        "source": {
+          "id": "main-docs"
+        },
+        "files": [
+          {
+            "content": "# S\n",
+            "path": "with space.md",
+            "sha256": "71fd25deffa58ddf2e18ac6f693f042c16d7feb0eb57931f94b51685176b5a5b"
+          }
+        ]
+      },
+      "options": {
+        "routeBase": "/main-docs",
+        "assetRouteBase": "/plugins/main-docs"
+      },
+      "expect": {
+        "ok": true,
+        "issues": [],
+        "warnings": [
+          {
+            "code": "route_whitespace",
+            "path": "with space.md"
+          }
+        ],
+        "files": [
+          {
+            "path": "with space.md",
+            "route": "/main-docs/with space",
+            "title": "S"
+          }
+        ],
+        "assets": [],
+        "routeCollisions": []
+      }
+    },
+    {
+      "name": "index.md and Index.md collide",
+      "manifest": {
+        "version": 1,
+        "source": {
+          "id": "main-docs"
+        },
+        "files": [
+          {
+            "content": "# A\n",
+            "path": "index.md",
+            "sha256": "aa1237b773c38dbddef583c4868aaea7a44c5237ea7923aecca5513764b42d80"
+          },
+          {
+            "content": "# B\n",
+            "path": "Index.md",
+            "sha256": "a81d3fbddd441e2d690b9c03c18251323a295c8eb8ebbfb81ca45b63bf8d5a06"
+          }
+        ]
+      },
+      "options": {
+        "routeBase": "/main-docs",
+        "assetRouteBase": "/plugins/main-docs"
+      },
+      "expect": {
+        "ok": true,
+        "issues": [],
+        "warnings": [],
+        "files": [
+          {
+            "path": "index.md",
+            "route": "/main-docs",
+            "title": "A"
+          },
+          {
+            "path": "Index.md",
+            "route": "/main-docs",
+            "title": "B"
+          }
+        ],
+        "assets": [],
+        "routeCollisions": [
+          {
+            "paths": [
+              "index.md",
+              "Index.md"
+            ],
+            "reason": "exact_route_collision",
+            "route": "/main-docs",
+            "routes": [
+              "/main-docs"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "page and directory index collide",
+      "manifest": {
+        "version": 1,
+        "source": {
+          "id": "main-docs"
+        },
+        "files": [
+          {
+            "content": "# A\n",
+            "path": "sub.md",
+            "sha256": "aa1237b773c38dbddef583c4868aaea7a44c5237ea7923aecca5513764b42d80"
+          },
+          {
+            "content": "# B\n",
+            "path": "sub/index.md",
+            "sha256": "a81d3fbddd441e2d690b9c03c18251323a295c8eb8ebbfb81ca45b63bf8d5a06"
+          },
+          {
+            "content": "---\nslug: sub\n---\n",
+            "path": "other.md",
+            "sha256": "3e0ad0913db0c9ab9b68ff6528d3ac92d7d7142b386381ab376a4e77e4faab14"
+          }
+        ]
+      },
+      "options": {
+        "routeBase": "/main-docs",
+        "assetRouteBase": "/plugins/main-docs"
+      },
+      "expect": {
+        "ok": true,
+        "issues": [],
+        "warnings": [],
+        "files": [
+          {
+            "path": "sub.md",
+            "route": "/main-docs/sub",
+            "title": "A"
+          },
+          {
+            "path": "sub/index.md",
+            "route": "/main-docs/sub",
+            "title": "B"
+          },
+          {
+            "path": "other.md",
+            "route": "/main-docs/sub",
+            "title": "Other"
+          }
+        ],
+        "assets": [],
+        "routeCollisions": [
+          {
+            "paths": [
+              "sub.md",
+              "sub/index.md",
+              "other.md"
+            ],
+            "reason": "exact_route_collision",
+            "route": "/main-docs/sub",
+            "routes": [
+              "/main-docs/sub"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "case-insensitive collision",
+      "manifest": {
+        "version": 1,
+        "source": {
+          "id": "main-docs"
+        },
+        "files": [
+          {
+            "content": "# A\n",
+            "path": "Guide.md",
+            "sha256": "aa1237b773c38dbddef583c4868aaea7a44c5237ea7923aecca5513764b42d80"
+          },
+          {
+            "content": "# B\n",
+            "path": "guide.md",
+            "sha256": "a81d3fbddd441e2d690b9c03c18251323a295c8eb8ebbfb81ca45b63bf8d5a06"
+          }
+        ]
+      },
+      "options": {
+        "routeBase": "/main-docs",
+        "assetRouteBase": "/plugins/main-docs"
+      },
+      "expect": {
+        "ok": true,
+        "issues": [],
+        "warnings": [],
+        "files": [
+          {
+            "path": "Guide.md",
+            "route": "/main-docs/Guide",
+            "title": "A"
+          },
+          {
+            "path": "guide.md",
+            "route": "/main-docs/guide",
+            "title": "B"
+          }
+        ],
+        "assets": [],
+        "routeCollisions": [
+          {
+            "paths": [
+              "Guide.md",
+              "guide.md"
+            ],
+            "reason": "case_insensitive_route_collision",
+            "route": "/main-docs/Guide",
+            "routes": [
+              "/main-docs/Guide",
+              "/main-docs/guide"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "doc and asset route collide",
+      "manifest": {
+        "version": 1,
+        "source": {
+          "id": "main-docs"
+        },
+        "files": [
+          {
+            "content": "# A\n",
+            "path": "files/a.md",
+            "sha256": "aa1237b773c38dbddef583c4868aaea7a44c5237ea7923aecca5513764b42d80"
+          }
+        ],
+        "assets": [
+          {
+            "content": "x",
+            "contentType": "text/plain; charset=utf-8",
+            "kind": "static",
+            "path": "static/a.txt",
+            "sha256": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+            "route": "/main-docs/files/a"
+          }
+        ]
+      },
+      "options": {
+        "routeBase": "/main-docs",
+        "assetRouteBase": "/main-docs"
+      },
+      "expect": {
+        "ok": true,
+        "issues": [],
+        "warnings": [],
+        "files": [
+          {
+            "path": "files/a.md",
+            "route": "/main-docs/files/a",
+            "title": "A"
+          }
+        ],
+        "assets": [
+          {
+            "path": "static/a.txt",
+            "route": "/main-docs/files/a"
+          }
+        ],
+        "routeCollisions": [
+          {
+            "paths": [
+              "files/a.md",
+              "static/a.txt"
+            ],
+            "reason": "exact_route_collision",
+            "route": "/main-docs/files/a",
+            "routes": [
+              "/main-docs/files/a"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "route base strips duplicate source prefix and collides",
+      "manifest": {
+        "version": 1,
+        "source": {
+          "id": "main-docs"
+        },
+        "files": [
+          {
+            "content": "# A\n",
+            "path": "main-docs/a.md",
+            "sha256": "aa1237b773c38dbddef583c4868aaea7a44c5237ea7923aecca5513764b42d80"
+          },
+          {
+            "content": "# B\n",
+            "path": "a.md",
+            "sha256": "a81d3fbddd441e2d690b9c03c18251323a295c8eb8ebbfb81ca45b63bf8d5a06"
+          }
+        ]
+      },
+      "options": {
+        "routeBase": "/main-docs",
+        "assetRouteBase": "/plugins/main-docs"
+      },
+      "expect": {
+        "ok": true,
+        "issues": [],
+        "warnings": [],
+        "files": [
+          {
+            "path": "main-docs/a.md",
+            "route": "/main-docs/a",
+            "title": "A"
+          },
+          {
+            "path": "a.md",
+            "route": "/main-docs/a",
+            "title": "B"
+          }
+        ],
+        "assets": [],
+        "routeCollisions": [
+          {
+            "paths": [
+              "main-docs/a.md",
+              "a.md"
+            ],
+            "reason": "exact_route_collision",
+            "route": "/main-docs/a",
+            "routes": [
+              "/main-docs/a"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "grouped route base avoids that collision",
+      "manifest": {
+        "version": 1,
+        "source": {
+          "id": "main-docs"
+        },
+        "files": [
+          {
+            "content": "# A\n",
+            "path": "main-docs/a.md",
+            "sha256": "aa1237b773c38dbddef583c4868aaea7a44c5237ea7923aecca5513764b42d80"
+          },
+          {
+            "content": "# B\n",
+            "path": "a.md",
+            "sha256": "a81d3fbddd441e2d690b9c03c18251323a295c8eb8ebbfb81ca45b63bf8d5a06"
+          }
+        ]
+      },
+      "options": {
+        "routeBase": "/grp/main-docs",
+        "assetRouteBase": "/plugins/main-docs"
+      },
+      "expect": {
+        "ok": true,
+        "issues": [],
+        "warnings": [],
+        "files": [
+          {
+            "path": "main-docs/a.md",
+            "route": "/grp/main-docs/main-docs/a",
+            "title": "A"
+          },
+          {
+            "path": "a.md",
+            "route": "/grp/main-docs/a",
+            "title": "B"
+          }
+        ],
+        "assets": [],
+        "routeCollisions": []
+      }
+    },
+    {
+      "name": "valid assets",
+      "manifest": {
+        "version": 1,
+        "source": {
+          "id": "main-docs"
+        },
+        "files": [
+          {
+            "content": "# Home\n",
+            "path": "index.md",
+            "sha256": "7d48eefbcff2495cc4b0cd99ea783bbc46184d78af064c56e1a7dc7ae9dba3aa"
+          }
+        ],
+        "assets": [
+          {
+            "content": "# llms\n",
+            "contentType": "text/plain; charset=utf-8",
+            "kind": "llms",
+            "path": "llms.txt",
+            "sha256": "bd2444b6b5596c97dbf17f8482fa5c47d2099e0edfb6e4f64123e9d93e73bde3",
+            "route": "/llms.txt"
+          },
+          {
+            "content": "# full\n",
+            "contentType": "text/plain; charset=utf-8",
+            "kind": "llms-full",
+            "path": "llms-full.txt",
+            "sha256": "7ec85c981fa1f113998a3fd5227b5888e1494a12329c93aab4a346924f8f15b1",
+            "route": "/llms-full.txt"
+          },
+          {
+            "content": "# Skill\n",
+            "contentType": "text/markdown; charset=utf-8",
+            "kind": "skill",
+            "path": "skills/main-docs/codex/SKILL.md",
+            "sha256": "74daeff849609b74a42500aff45eb6229a086907ab1b2badae4c29ed4fc10e3c"
+          }
+        ]
+      },
+      "options": {
+        "routeBase": "/main-docs",
+        "assetRouteBase": "/plugins/main-docs"
+      },
+      "expect": {
+        "ok": true,
+        "issues": [],
+        "warnings": [],
+        "files": [
+          {
+            "path": "index.md",
+            "route": "/main-docs",
+            "title": "Home"
+          }
+        ],
+        "assets": [
+          {
+            "path": "llms.txt",
+            "route": "/llms.txt"
+          },
+          {
+            "path": "llms-full.txt",
+            "route": "/llms-full.txt"
+          },
+          {
+            "path": "skills/main-docs/codex/SKILL.md",
+            "route": "/plugins/main-docs/skills/codex/SKILL.md"
+          }
+        ],
+        "routeCollisions": []
+      }
+    },
+    {
+      "name": "skill route is ignored with warning",
+      "manifest": {
+        "version": 1,
+        "source": {
+          "id": "main-docs"
+        },
+        "files": [],
+        "assets": [
+          {
+            "content": "# S\n",
+            "contentType": "text/plain; charset=utf-8",
+            "kind": "skill",
+            "path": "skills/main-docs/codex/SKILL.md",
+            "sha256": "71fd25deffa58ddf2e18ac6f693f042c16d7feb0eb57931f94b51685176b5a5b",
+            "route": "/other/x"
+          }
+        ]
+      },
+      "options": {
+        "routeBase": "/main-docs",
+        "assetRouteBase": "/plugins/main-docs"
+      },
+      "expect": {
+        "ok": true,
+        "issues": [],
+        "warnings": [
+          {
+            "code": "asset_route_ignored",
+            "path": "skills/main-docs/codex/SKILL.md"
+          }
+        ],
+        "files": [],
+        "assets": [
+          {
+            "path": "skills/main-docs/codex/SKILL.md",
+            "route": "/plugins/main-docs/skills/codex/SKILL.md"
+          }
+        ],
+        "routeCollisions": []
+      }
+    },
+    {
+      "name": "static route outside base",
+      "manifest": {
+        "version": 1,
+        "source": {
+          "id": "main-docs"
+        },
+        "files": [],
+        "assets": [
+          {
+            "content": "x",
+            "contentType": "text/plain; charset=utf-8",
+            "kind": "static",
+            "path": "static/a.txt",
+            "sha256": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+            "route": "/other-docs-set/index.html"
+          }
+        ]
+      },
+      "options": {
+        "routeBase": "/main-docs",
+        "assetRouteBase": "/plugins/main-docs"
+      },
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "invalid_asset_route",
+            "path": "static/a.txt"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "static route with traversal",
+      "manifest": {
+        "version": 1,
+        "source": {
+          "id": "main-docs"
+        },
+        "files": [],
+        "assets": [
+          {
+            "content": "x",
+            "contentType": "text/plain; charset=utf-8",
+            "kind": "static",
+            "path": "static/a.txt",
+            "sha256": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+            "route": "/plugins/main-docs/../../admin"
+          }
+        ]
+      },
+      "options": {
+        "routeBase": "/main-docs",
+        "assetRouteBase": "/plugins/main-docs"
+      },
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "invalid_asset_route",
+            "path": "static/a.txt"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "llms route elsewhere",
+      "manifest": {
+        "version": 1,
+        "source": {
+          "id": "main-docs"
+        },
+        "files": [],
+        "assets": [
+          {
+            "content": "x",
+            "contentType": "text/plain; charset=utf-8",
+            "kind": "llms",
+            "path": "llms.txt",
+            "sha256": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881",
+            "route": "/robots.txt"
+          }
+        ]
+      },
+      "options": {
+        "routeBase": "/main-docs",
+        "assetRouteBase": "/plugins/main-docs"
+      },
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "invalid_asset_route",
+            "path": "llms.txt"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "asset kind invalid",
+      "manifest": {
+        "version": 1,
+        "source": {
+          "id": "main-docs"
+        },
+        "files": [],
+        "assets": [
+          {
+            "content": "x",
+            "contentType": "text/plain; charset=utf-8",
+            "kind": "html",
+            "path": "a.txt",
+            "sha256": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881"
+          }
+        ]
+      },
+      "options": {
+        "routeBase": "/main-docs",
+        "assetRouteBase": "/plugins/main-docs"
+      },
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "invalid_asset",
+            "path": "a.txt"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "asset missing contentType",
+      "manifest": {
+        "version": 1,
+        "source": {
+          "id": "main-docs"
+        },
+        "files": [],
+        "assets": [
+          {
+            "content": "x",
+            "kind": "static",
+            "path": "a.txt"
+          }
+        ]
+      },
+      "options": {
+        "routeBase": "/main-docs",
+        "assetRouteBase": "/plugins/main-docs"
+      },
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "invalid_asset",
+            "path": "a.txt"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "asset blank contentType",
+      "manifest": {
+        "version": 1,
+        "source": {
+          "id": "main-docs"
+        },
+        "files": [],
+        "assets": [
+          {
+            "content": "x",
+            "contentType": "  ",
+            "kind": "static",
+            "path": "a.txt",
+            "sha256": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881"
+          }
+        ]
+      },
+      "options": {
+        "routeBase": "/main-docs",
+        "assetRouteBase": "/plugins/main-docs"
+      },
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "invalid_asset",
+            "path": "a.txt"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "asset entry not an object",
+      "manifest": {
+        "version": 1,
+        "source": {
+          "id": "main-docs"
+        },
+        "files": [],
+        "assets": [
+          1
+        ]
+      },
+      "options": {
+        "routeBase": "/main-docs",
+        "assetRouteBase": "/plugins/main-docs"
+      },
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "invalid_asset"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "asset traversal path",
+      "manifest": {
+        "version": 1,
+        "source": {
+          "id": "main-docs"
+        },
+        "files": [],
+        "assets": [
+          {
+            "content": "x",
+            "contentType": "text/plain; charset=utf-8",
+            "kind": "static",
+            "path": "../a.txt",
+            "sha256": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881"
+          }
+        ]
+      },
+      "options": {
+        "routeBase": "/main-docs",
+        "assetRouteBase": "/plugins/main-docs"
+      },
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "path_traversal",
+            "path": "../a.txt"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "duplicate asset paths",
+      "manifest": {
+        "version": 1,
+        "source": {
+          "id": "main-docs"
+        },
+        "files": [],
+        "assets": [
+          {
+            "content": "x",
+            "contentType": "text/plain; charset=utf-8",
+            "kind": "static",
+            "path": "a.txt",
+            "sha256": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881"
+          },
+          {
+            "content": "x",
+            "contentType": "text/plain; charset=utf-8",
+            "kind": "static",
+            "path": "./a.txt",
+            "sha256": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881"
+          }
+        ]
+      },
+      "options": {
+        "routeBase": "/main-docs",
+        "assetRouteBase": "/plugins/main-docs"
+      },
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "duplicate_asset_path",
+            "path": "a.txt"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "asset too large",
+      "manifest": {
+        "version": 1,
+        "source": {
+          "id": "main-docs"
+        },
+        "files": [],
+        "assets": [
+          {
+            "content": "123456",
+            "contentType": "text/plain; charset=utf-8",
+            "kind": "static",
+            "path": "a.txt",
+            "sha256": "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92"
+          }
+        ]
+      },
+      "options": {
+        "routeBase": "/main-docs",
+        "assetRouteBase": "/plugins/main-docs",
+        "maxFileBytes": 5
+      },
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "asset_too_large",
+            "path": "a.txt"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "too many assets",
+      "manifest": {
+        "version": 1,
+        "source": {
+          "id": "main-docs"
+        },
+        "files": [],
+        "assets": [
+          {
+            "content": "x",
+            "contentType": "text/plain; charset=utf-8",
+            "kind": "static",
+            "path": "a.txt",
+            "sha256": "2d711642b726b04401627ca9fbac32f5c8530fb1903cc4db02258717921a4881"
+          },
+          {
+            "content": "y",
+            "contentType": "text/plain; charset=utf-8",
+            "kind": "static",
+            "path": "b.txt",
+            "sha256": "a1fce4363854ff888cff4b8e7875d600c2682390412a8cf79b37d0b11148b0fa"
+          }
+        ]
+      },
+      "options": {
+        "routeBase": "/main-docs",
+        "assetRouteBase": "/plugins/main-docs",
+        "maxFiles": 1
+      },
+      "expect": {
+        "ok": true,
+        "issues": [],
+        "warnings": [],
+        "files": [],
+        "assets": [
+          {
+            "path": "a.txt",
+            "route": null
+          },
+          {
+            "path": "b.txt",
+            "route": null
+          }
+        ],
+        "routeCollisions": []
+      }
+    },
+    {
+      "name": "asset invalid hash",
+      "manifest": {
+        "version": 1,
+        "source": {
+          "id": "main-docs"
+        },
+        "files": [],
+        "assets": [
+          {
+            "content": "x",
+            "contentType": "text/plain; charset=utf-8",
+            "kind": "static",
+            "path": "a.txt",
+            "sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+          }
+        ]
+      },
+      "options": {
+        "routeBase": "/main-docs",
+        "assetRouteBase": "/plugins/main-docs"
+      },
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "invalid_hash",
+            "path": "a.txt"
+          }
+        ],
+        "warnings": []
+      }
+    }
+  ]
+}
