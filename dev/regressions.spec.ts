@@ -319,6 +319,79 @@ describeDb('docs sync real-DB regressions', () => {
     })
   })
 
+  describe('archive churn and asset removal (DOCS-9, DOCS-10)', () => {
+    test('already-archived docs are not re-archived on later syncs', async () => {
+      const slug = uniqueSlug('churn')
+      await createDocsSet(payload, slug)
+      await sync(
+        buildManifest(slug, [
+          { content: '# A\n', path: 'a.md' },
+          { content: '# B\n', path: 'b.md' },
+        ]),
+      )
+      const removal = await sync(buildManifest(slug, [{ content: '# A\n', path: 'a.md' }]))
+      expect(removal.json.summary.archive).toBe(1)
+
+      const archivedB = (await findDocsBySource(payload, slug)).find(
+        (doc) => doc.sourcePath === 'b.md',
+      )
+      const archivedAt = archivedB?.sync?.archivedAt
+      const versionsBefore = await payload.countVersions({
+        collection: 'docs',
+        where: { parent: { equals: archivedB?.id } },
+      })
+
+      for (let index = 0; index < 2; index += 1) {
+        const again = await sync(buildManifest(slug, [{ content: '# A\n', path: 'a.md' }]))
+        expect(again.status).toBe(200)
+        expect(again.json.summary.archive).toBe(0)
+      }
+
+      const after = (await findDocsBySource(payload, slug)).find((doc) => doc.sourcePath === 'b.md')
+      expect(after?.sync?.archivedAt).toBe(archivedAt)
+      expect(
+        (
+          await payload.countVersions({
+            collection: 'docs',
+            where: { parent: { equals: archivedB?.id } },
+          })
+        ).totalDocs,
+      ).toBe(versionsBefore.totalDocs)
+    })
+
+    test('a manifest with assets: [] archives every existing asset', async () => {
+      const slug = uniqueSlug('assets-empty')
+      await createDocsSet(payload, slug)
+      const skill = {
+        content: '# Skill\n',
+        contentType: 'text/markdown; charset=utf-8',
+        kind: 'skill',
+        path: `skills/${slug}/codex/SKILL.md`,
+      }
+      const withAssets = await sync(
+        buildManifest(slug, [{ content: '# A\n', path: 'a.md' }], { assets: [skill] }),
+      )
+      expect(withAssets.status).toBe(200)
+
+      const skillUrl = `http://localhost:3000/${slug}/skills/codex/SKILL.md`
+      const getSkill = () =>
+        callGet({
+          path: '/:routeBase*/skills/:agent/:assetPath*',
+          payload,
+          routeParams: { agent: 'codex', assetPath: ['SKILL.md'], routeBase: [slug] },
+          url: skillUrl,
+        })
+      expect((await getSkill()).status).toBe(200)
+
+      const emptied = await sync(
+        buildManifest(slug, [{ content: '# A\n', path: 'a.md' }], { assets: [] }),
+      )
+      expect(emptied.status).toBe(200)
+      expect(emptied.json.summary.assetArchive).toBe(1)
+      expect((await getSkill()).status).toBe(404)
+    })
+  })
+
   describe('public visibility (DOCS-1, DOCS-12)', () => {
     test('non-publish (draft) docs never appear in llms.txt / llms-full.txt', async () => {
       const slug = uniqueSlug('vis')

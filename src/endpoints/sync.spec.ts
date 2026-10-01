@@ -885,13 +885,80 @@ describe('sync endpoint dry-run handling', () => {
       publicKey: publicKey.toString(),
     })
 
+    // Existing assets are still looked up (so `assets: []` can archive them, DOCS-9),
+    // but a missing assets table does not fail a docs-only manifest.
     expect(response.status).toBe(200)
     expect(json).toMatchObject({
       ok: true,
     })
-    expect(payload.find).not.toHaveBeenCalledWith(
+  })
+
+  it('archives every existing asset when the manifest drops all assets', async () => {
+    const { privateKey, publicKey } = keyPair()
+    const body = JSON.stringify(createManifest({ assets: [], mode: 'sync', publish: true }))
+    const payload = createMockPayload({
+      existingAssets: [
+        {
+          id: 'asset-1',
+          content: '# Skill\n',
+          contentType: 'text/markdown; charset=utf-8',
+          kind: 'skill',
+          route: '/main-docs/skills/codex/SKILL.md',
+          sourcePath: 'skills/main-docs/codex/SKILL.md',
+          sync: {
+            archived: false,
+            contentHashAtLastSync: sha256Hex('# Skill\n'),
+            managedBy: MANAGED_BY,
+            sourceId: 'main-docs',
+          },
+        },
+        {
+          id: 'asset-2',
+          content: '# Old\n',
+          contentType: 'text/markdown; charset=utf-8',
+          kind: 'skill',
+          route: '/main-docs/skills/codex/old.md',
+          sourcePath: 'skills/main-docs/codex/old.md',
+          sync: {
+            archived: true,
+            contentHashAtLastSync: sha256Hex('# Old\n'),
+            managedBy: MANAGED_BY,
+            sourceId: 'main-docs',
+          },
+        },
+      ],
+    })
+
+    const { json, response } = await callEndpoint({
+      body,
+      endpointOptions: {
+        allowPublish: true,
+        allowWrites: true,
+        docsEnableDrafts: true,
+      },
+      headers: signBody({
+        body,
+        privateKey,
+      }),
+      payload,
+      publicKey: publicKey.toString(),
+    })
+
+    expect(response.status).toBe(200)
+    // Only the live asset is archived; the already-archived one is left alone (DOCS-10).
+    expect(json.summary).toMatchObject({ assetArchive: 1 })
+    expect(payload.update).toHaveBeenCalledWith(
       expect.objectContaining({
+        id: 'asset-1',
         collection: DEFAULT_DOCS_ASSETS_COLLECTION_SLUG,
+        data: expect.objectContaining({
+          sync: expect.objectContaining({ archived: true }),
+        }),
+      }),
+    )
+    expect(payload.update).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'asset-2',
       }),
     )
   })

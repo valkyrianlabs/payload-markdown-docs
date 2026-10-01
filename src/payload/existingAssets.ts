@@ -6,6 +6,7 @@ export type ExistingAssetsPayloadOperations = {
     depth?: number
     limit?: number
     overrideAccess?: boolean
+    pagination?: boolean
     select?: Record<string, boolean>
     where?: unknown
   }) => Promise<{
@@ -129,8 +130,8 @@ export const findExistingPayloadDocsAssetRecords = async ({
   const result = await payload.find({
     collection: collectionSlug,
     depth: 0,
-    limit: 1000,
     overrideAccess: true,
+    pagination: false,
     where: docsSetId
       ? {
           or: [

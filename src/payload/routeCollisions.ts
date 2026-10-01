@@ -13,6 +13,7 @@ export type RouteCollisionPayloadOperations = {
     draft?: boolean
     limit?: number
     overrideAccess?: boolean
+    pagination?: boolean
     where?: unknown
   }) => Promise<{
     docs: unknown[]
@@ -108,8 +109,8 @@ export const findExistingDocsRouteCollisions = async ({
     collection: collectionSlug,
     depth: 0,
     draft: includeDrafts,
-    limit: 1000,
     overrideAccess: true,
+    pagination: false,
     where: {
       route: {
         in: normalizedRoutes,
@@ -164,8 +165,8 @@ export const findExistingAssetRouteCollisions = async ({
   const result = await payload.find({
     collection: collectionSlug,
     depth: 0,
-    limit: 1000,
     overrideAccess: true,
+    pagination: false,
     where: {
       route: {
         in: normalizedRoutes,
@@ -228,8 +229,8 @@ export const findConfiguredPagesRouteCollisions = async ({
   const result = await payload.find({
     collection: collectionSlug,
     depth: 0,
-    limit: 1000,
     overrideAccess: true,
+    pagination: false,
   })
 
   const collisions = findPageRouteCollisions({

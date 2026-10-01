@@ -45,6 +45,7 @@ type AssetEndpointPayloadOperations = {
     draft?: boolean
     limit?: number
     overrideAccess?: boolean
+    pagination?: boolean
     sort?: string
     where?: unknown
   }) => Promise<{
@@ -383,8 +384,8 @@ const findSkillAssetsForDocsSet = async ({
   const result = await payload.find({
     collection: collectionSlug,
     depth: 0,
-    limit: 1000,
     overrideAccess: true,
+    pagination: false,
     where: {
       and: [
         {
@@ -481,8 +482,8 @@ const findSkillAssetsBySourceId = async ({
   const result = await payload.find({
     collection: collectionSlug,
     depth: 0,
-    limit: 1000,
     overrideAccess: true,
+    pagination: false,
     where: {
       and: [
         {

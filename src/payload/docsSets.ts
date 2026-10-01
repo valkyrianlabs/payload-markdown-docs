@@ -18,6 +18,7 @@ export type DocsSetPayloadOperations = {
     draft?: boolean
     limit?: number
     overrideAccess?: boolean
+    pagination?: boolean
     sort?: string
     where?: unknown
   }) => Promise<{
@@ -289,8 +290,8 @@ const getGroupsById = async ({
   const result = await payload.find({
     collection: collectionSlug,
     depth: 0,
-    limit: 1000,
     overrideAccess: true,
+    pagination: false,
   })
 
   return new Map(
@@ -359,8 +360,8 @@ export const findDocsSetByRouteBase = async ({
     payload.find({
       collection: collectionSlug,
       depth: 0,
-      limit: 1000,
       overrideAccess: true,
+      pagination: false,
     }),
     getGroupsById({
       collectionSlug: docsGroupsCollectionSlug,
@@ -395,8 +396,8 @@ export const findDocsSetByRoutePrefix = async ({
       collection: collectionSlug,
       depth: 0,
       draft: false,
-      limit: 1000,
       overrideAccess: true,
+      pagination: false,
     }),
     getGroupsById({
       collectionSlug: docsGroupsCollectionSlug,
@@ -454,8 +455,8 @@ export const findAllDocsSets = async ({
       collection: collectionSlug,
       depth: 0,
       draft: false,
-      limit: 1000,
       overrideAccess: true,
+      pagination: false,
     }),
     getGroupsById({
       collectionSlug: docsGroupsCollectionSlug,

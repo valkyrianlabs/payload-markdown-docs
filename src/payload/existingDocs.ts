@@ -7,6 +7,7 @@ export type ExistingDocsPayloadOperations = {
     draft?: boolean
     limit?: number
     overrideAccess?: boolean
+    pagination?: boolean
     where?: unknown
   }) => Promise<{
     docs: unknown[]
@@ -133,8 +134,8 @@ export const findExistingPayloadDocsRecords = async ({
     collection: collectionSlug,
     depth: 0,
     draft,
-    limit: 1000,
     overrideAccess: true,
+    pagination: false,
     where: docsSetId
       ? {
           or: [

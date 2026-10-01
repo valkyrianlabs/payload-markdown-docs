@@ -6,6 +6,7 @@ export type DocsAccessPayloadOperations = {
     depth?: number
     limit?: number
     overrideAccess?: boolean
+    pagination?: boolean
     where?: unknown
   }) => Promise<{
     docs: unknown[]
@@ -153,8 +154,8 @@ export const findTrustedGitHubSources = async ({
   const result = await payload.find({
     collection: collectionSlug,
     depth: 0,
-    limit: 1000,
     overrideAccess: true,
+    pagination: false,
     where: {
       accessType: {
         equals: 'githubOidc',

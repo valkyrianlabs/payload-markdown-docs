@@ -18,6 +18,7 @@ export type LlmsPayloadOperations = {
     draft?: boolean
     limit?: number
     overrideAccess?: boolean
+    pagination?: boolean
     sort?: string
     where?: unknown
   }) => Promise<{
@@ -171,8 +172,8 @@ const findDocsForDocsSet = async ({
     collection: docsCollectionSlug,
     depth: 0,
     draft: false,
-    limit: 1000,
     overrideAccess: true,
+    pagination: false,
     sort: 'order',
     where: {
       and: [
@@ -211,8 +212,8 @@ const findSkillAssetsForDocsSet = async ({
   const result = await payload.find({
     collection: docsAssetsCollectionSlug,
     depth: 0,
-    limit: 1000,
     overrideAccess: true,
+    pagination: false,
     where: {
       and: [
         {

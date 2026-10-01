@@ -56,6 +56,10 @@ import {
   updateDocsSetAfterSync,
   updateSyncRunAudit,
 } from '../payload/index.js'
+import {
+  withoutAlreadyArchivedAssetRemovals,
+  withoutAlreadyArchivedRemovals,
+} from '../payload/planNormalization.js'
 import { resolveDocsRouteClaims } from '../payload/routeClaims.js'
 import { runInSyncTransaction } from '../payload/transaction.js'
 import {
@@ -1358,17 +1362,20 @@ const createSyncEndpointHandler =
         })
       : []
     const existingDocs = existingPayloadDocs.map(toExistingDocsRecord)
-    const plan = planDocsSync({
-      deleteBehavior: effectiveDeleteBehavior,
-      desired: validation.data,
-      existing: existingDocs,
-    })
+    const plan = withoutAlreadyArchivedRemovals(
+      planDocsSync({
+        deleteBehavior: effectiveDeleteBehavior,
+        desired: validation.data,
+        existing: existingDocs,
+      }),
+    )
     const docsAssetsCollectionSlug =
       options.docsAssetsCollectionSlug ?? DEFAULT_DOCS_ASSETS_COLLECTION_SLUG
-    const shouldSyncAssets = options.docsAssetsEnabled === true && validation.data.assets.length > 0
     let existingPayloadAssets: Awaited<ReturnType<typeof findExistingPayloadDocsAssetRecords>> = []
 
-    if (shouldSyncAssets) {
+    // Existing assets are always loaded when assets are enabled, so a manifest that
+    // drops every asset (`assets: []`) archives them instead of leaving them live (DOCS-9).
+    if (options.docsAssetsEnabled === true) {
       try {
         existingPayloadAssets = await findExistingPayloadDocsAssetRecords({
           collectionSlug: docsAssetsCollectionSlug,
@@ -1377,20 +1384,28 @@ const createSyncEndpointHandler =
           sourceId: validation.data.source.id,
         })
       } catch (error) {
-        if (isDocsAssetsStorageUnavailableError(error)) {
-          return docsAssetsStorageUnavailableResponse()
+        if (!isDocsAssetsStorageUnavailableError(error)) {
+          throw error
         }
 
-        throw error
+        // Docs-only manifests do not require the assets table to exist yet.
+        if (validation.data.assets.length > 0) {
+          return docsAssetsStorageUnavailableResponse()
+        }
       }
     }
 
+    const shouldSyncAssets =
+      options.docsAssetsEnabled === true &&
+      (validation.data.assets.length > 0 || existingPayloadAssets.length > 0)
     const existingAssets = existingPayloadAssets.map(toExistingAssetRecord)
-    const assetPlan = planDocsAssetsSync({
-      deleteBehavior: effectiveDeleteBehavior,
-      desired: validation.data,
-      existing: existingAssets,
-    })
+    const assetPlan = withoutAlreadyArchivedAssetRemovals(
+      planDocsAssetsSync({
+        deleteBehavior: effectiveDeleteBehavior,
+        desired: validation.data,
+        existing: existingAssets,
+      }),
+    )
     const warnings = [...validation.warnings, ...plan.warnings, ...assetPlan.warnings]
     const summary = {
       ...summarizePlan(plan),
