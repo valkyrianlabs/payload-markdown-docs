@@ -1,7 +1,9 @@
 import type { Config, Plugin } from 'payload'
 
+import type { DocsCollectionAccessProfile } from './collections/access.js'
 import type { PayloadMarkdownDocsConfig } from './types.js'
 
+import { withDocsCollectionAccess } from './collections/access.js'
 import {
   createDocsAccessCollection,
   createDocsAssetsCollection,
@@ -335,6 +337,35 @@ export const payloadMarkdownDocs =
         : []),
     ]
 
+    const accessProfiles: Record<string, { key: string; profile: DocsCollectionAccessProfile }> = {
+      [docsAccessCollectionSlug]: { key: 'docsAccess', profile: 'admin' },
+      [docsAssetsCollectionSlug]: { key: 'docsAssets', profile: 'admin' },
+      [docsCollectionSlug]: { key: 'docs', profile: 'admin' },
+      [docsGroupsCollectionSlug]: { key: 'docsGroups', profile: 'admin' },
+      [docsSetsCollectionSlug]: { key: 'docsSets', profile: 'admin' },
+      [noncesCollectionSlug]: { key: 'nonces', profile: 'audit' },
+      [syncRunsCollectionSlug]: { key: 'syncRuns', profile: 'audit' },
+    }
+    const addedCollectionsWithAccess = addedCollections.map((collection) => {
+      const accessProfile = accessProfiles[collection.slug]
+
+      if (!accessProfile) {
+        return collection
+      }
+
+      const collectionOptions = pluginOptions.collections?.[accessProfile.key]
+
+      return withDocsCollectionAccess({
+        admin: pluginOptions.access?.admin,
+        collection,
+        overrides:
+          typeof collectionOptions === 'object' && collectionOptions !== null
+            ? collectionOptions.access
+            : undefined,
+        profile: accessProfile.profile,
+      })
+    })
+
     const marketingBlocksInstall = installDocsMarketingBlocks({
       collectionConfigs: pluginOptions.collections,
       collections: incomingConfig.collections ?? [],
@@ -360,7 +391,7 @@ export const payloadMarkdownDocs =
 
     return {
       ...incomingConfig,
-      collections: [...incomingCollections, ...addedCollections],
+      collections: [...incomingCollections, ...addedCollectionsWithAccess],
       endpoints: [
         ...(incomingConfig.endpoints ?? []),
         createSyncEndpoint({

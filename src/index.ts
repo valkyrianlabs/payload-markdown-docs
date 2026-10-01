@@ -5,6 +5,7 @@ export type {
   DocsHeroInstallConfig,
   DocsHeroInstallSelection,
   DocsMarketingBlockKey,
+  PayloadMarkdownDocsAccessConfig,
   PayloadMarkdownDocsAuthConfig,
   PayloadMarkdownDocsCollectionConfig,
   PayloadMarkdownDocsCollectionsConfig,

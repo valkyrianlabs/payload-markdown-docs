@@ -392,6 +392,59 @@ describeDb('docs sync real-DB regressions', () => {
     })
   })
 
+  describe('plugin collection access (DOCS-6)', () => {
+    test('non-admin authenticated users cannot register sync keys or touch nonces', async () => {
+      const adminCollection = payload.config.admin.user
+      const customer = { id: 999, collection: 'customers', email: 'c@example.com' }
+
+      await expect(
+        payload.create({
+          collection: 'docs-access',
+          data: {
+            accessType: 'ed25519',
+            keyId: uniqueSlug('evil'),
+            publicKey: 'ssh-ed25519 AAAA',
+            title: 'evil',
+          } as never,
+          overrideAccess: false,
+          user: customer as never,
+        }),
+      ).rejects.toThrow()
+
+      await expect(
+        payload.find({
+          collection: 'docs-sync-nonces',
+          overrideAccess: false,
+          user: customer as never,
+        }),
+      ).rejects.toThrow()
+
+      const adminUser = { id: 1, collection: adminCollection, email: 'a@example.com' }
+      const created = await payload.create({
+        collection: 'docs-access',
+        data: {
+          accessType: 'ed25519',
+          keyId: uniqueSlug('admin-key'),
+          publicKey: 'ssh-ed25519 AAAA',
+          title: 'admin key',
+        } as never,
+        overrideAccess: false,
+        user: adminUser as never,
+      })
+      expect(created.id).toBeDefined()
+
+      // Replay nonces are read-only for every human, admins included.
+      await expect(
+        payload.delete({
+          collection: 'docs-sync-nonces',
+          overrideAccess: false,
+          user: adminUser as never,
+          where: { id: { exists: true } },
+        }),
+      ).rejects.toThrow()
+    })
+  })
+
   describe('public visibility (DOCS-1, DOCS-12)', () => {
     test('non-publish (draft) docs never appear in llms.txt / llms-full.txt', async () => {
       const slug = uniqueSlug('vis')

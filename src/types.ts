@@ -1,4 +1,12 @@
+import type { Access, CollectionConfig } from 'payload'
+
 export type PayloadMarkdownDocsConfig = {
+  /**
+   * Access control for the plugin collections. By default only users of the Payload
+   * admin user collection (`config.admin.user`) can manage docs, docs sets, groups,
+   * assets, and sync access keys; sync runs and nonces are read-only.
+   */
+  access?: PayloadMarkdownDocsAccessConfig
   auth?: PayloadMarkdownDocsAuthConfig
   blocks?: DocsBlockInstallSelection
   collections?: PayloadMarkdownDocsCollectionsConfig
@@ -30,7 +38,21 @@ export type PayloadMarkdownDocsAuthToggle = {
   enabled?: boolean
 }
 
+export type PayloadMarkdownDocsAccessConfig = {
+  /**
+   * Decides who is a docs administrator for the plugin collections' default access.
+   * Defaults to any logged-in user of the Payload admin user collection.
+   */
+  admin?: Access
+}
+
 export type PayloadMarkdownDocsCollectionConfig = {
+  /**
+   * Per-operation access overrides for a plugin-owned collection (docs, docsSets,
+   * docsGroups, docsAssets, docsAccess, syncRuns, nonces). Replaces the default
+   * admin-only rule for the listed operations.
+   */
+  access?: CollectionConfig['access']
   blocks?: DocsBlockInstallSelection
   enabled?: boolean
   heroes?: DocsHeroInstallSelection
