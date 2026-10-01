@@ -663,7 +663,9 @@ std::string docs_command_help_text(std::string_view command) {
   out << "  --commit <sha>             Source commit metadata.\n";
   out << "  --max-files <number>       Maximum file count.\n";
   out << "  --max-file-bytes <number>  Maximum single file size.\n";
-  out << "  --max-total-bytes <number> Maximum total Markdown bytes.\n";
+  out << "  --max-total-bytes <number> Maximum total bytes of docs and asset contents. Defaults to 5000000.\n";
+  out << "  --max-body-bytes <number>  Maximum serialized sync request body bytes; match the server's sync\n";
+  out << "                             maxBodyBytes. Defaults to 5000000.\n";
   out << "  --help                     Show this help.\n";
 
   return out.str();
@@ -711,7 +713,9 @@ Options:
   --commit <sha>            Source commit metadata.
   --max-files <number>      Maximum file count.
   --max-file-bytes <number> Maximum single file size.
-  --max-total-bytes <number> Maximum total Markdown bytes.
+  --max-total-bytes <number> Maximum total bytes of docs and asset contents. Defaults to 5000000.
+  --max-body-bytes <number> Maximum serialized request body bytes; match the server's sync
+                            maxBodyBytes. Defaults to 5000000.
   --help                    Show this help.
 
 GitHub OIDC requires workflow permissions: id-token: write and contents: read.
@@ -1167,7 +1171,8 @@ CommandResult run(std::vector<std::string_view> args) {
     command->add_option("--commit", options.commit, "Source commit metadata.");
     command->add_option("--max-files", options.max_files, "Maximum file count.");
     command->add_option("--max-file-bytes", options.max_file_bytes, "Maximum single file size.");
-    command->add_option("--max-total-bytes", options.max_total_bytes, "Maximum total Markdown bytes.");
+    command->add_option("--max-total-bytes", options.max_total_bytes, "Maximum total bytes of docs and asset contents.");
+    command->add_option("--max-body-bytes", options.max_body_bytes, "Maximum serialized sync request body bytes (server maxBodyBytes).");
     command->add_flag("--json", options.print_json, "Print JSON output.");
     command->add_flag("--pretty", options.pretty, "Pretty-print JSON output.");
     return refs;

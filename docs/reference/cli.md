@@ -92,7 +92,16 @@ What it leaves out, always reported as a `skipped_path` warning:
   `notes.markdown`
 
 Files that are not valid UTF-8 fail validation with an `invalid_encoding`
-error that names the file. Skill packages follow the same walk rules and report
+error that names the file.
+
+Size limits: `--max-file-bytes` (500,000) applies to each docs file and asset,
+`--max-total-bytes` (5,000,000) to the sum of all docs and asset contents, and
+`--max-body-bytes` (5,000,000) to the serialized JSON request body. The body
+limit is the one the server enforces first (`maxBodyBytes`, HTTP 413), and JSON
+escaping can make the body noticeably larger than the content, so `validate`,
+`manifest`, and `plan` check the largest body `push` could send and `push`
+checks the exact body. Pass `--max-body-bytes` when the server is configured
+with a different `maxBodyBytes`. Skill packages follow the same walk rules and report
 files other than `.md`, `.txt`, `.json`, `.yaml`, and `.yml`.
 
 ## manifest
@@ -290,5 +299,6 @@ guidance.
 - `--max-files <number>`
 - `--max-file-bytes <number>`
 - `--max-total-bytes <number>`
+- `--max-body-bytes <number>`
 
 :::

@@ -1195,3 +1195,33 @@ TEST_CASE("trailing separators in path arguments are handled") {
   CHECK(routes.exit_code == 0);
   CHECK(routes.stderr_text.empty());
 }
+
+TEST_CASE("validate, plan and push check the serialized request body size") {
+  TempDir temp{"pmdocs-test-body-size"};
+  const auto root = temp.path() / "docs";
+  const auto root_string = root.string();
+  // 300 content bytes become 600+ body bytes because every quote is escaped.
+  write_text(root / "index.md", std::string(300, '"'));
+
+  const auto small = pmdocs::run(args({"validate", root_string, "--source", "main-docs", "--no-skills", "--no-llms", "--no-llms-full", "--max-total-bytes", "1000", "--max-body-bytes", "500", "--json"}));
+  CHECK(small.exit_code == 1);
+  const auto output = nlohmann::json::parse(small.stdout_text);
+  CHECK(output["requestBodyBytes"].get<std::size_t>() > 600);
+  CHECK(output["validation"]["issues"][0]["code"] == "body_too_large");
+
+  const auto plan = pmdocs::run(args({"plan", root_string, "--source", "main-docs", "--no-skills", "--no-llms", "--no-llms-full", "--max-body-bytes", "500"}));
+  CHECK(plan.exit_code == 1);
+  CHECK(plan.stderr_text.find("above the server limit of 500 bytes") != std::string::npos);
+
+  const auto push = pmdocs::run(args({
+    "push", root_string, "--source", "main-docs", "--no-skills", "--no-llms", "--no-llms-full",
+    "--endpoint", "https://example.invalid/api/documentation/sync",
+    "--github-oidc", "--oidc-token-env", "PMDOCS_TEST_UNUSED_TOKEN",
+    "--max-body-bytes", "500",
+  }));
+  CHECK(push.exit_code == 1);
+  CHECK(push.stderr_text.find("Sync request body is ") != std::string::npos);
+
+  const auto large = pmdocs::run(args({"validate", root_string, "--source", "main-docs", "--no-skills", "--no-llms", "--no-llms-full", "--max-body-bytes", "10000"}));
+  CHECK(large.exit_code == 0);
+}

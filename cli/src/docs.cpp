@@ -1588,6 +1588,24 @@ std::string format_warnings_block(const std::vector<Issue>& warnings) {
   return "Warnings:\n" + format_issues(warnings) + "\n";
 }
 
+// The server rejects request bodies above maxBodyBytes (413) before it looks at
+// the manifest, so the serialized body size is the binding limit (CLI-5).
+void check_body_size(ValidationResult& validation, std::size_t body_bytes, const DocsCommandOptions& options, bool exact) {
+  const auto max_body_bytes = options.max_body_bytes.value_or(contract::kDefaultMaxBodyBytes);
+
+  if (body_bytes <= max_body_bytes) {
+    return;
+  }
+
+  validation.issues.push_back(issue(
+    "body_too_large",
+    std::string{exact ? "Sync request body is " : "Sync request body would be up to "} + std::to_string(body_bytes)
+      + " bytes, above the server limit of " + std::to_string(max_body_bytes)
+      + " bytes (sync maxBodyBytes). Split the docs package, or raise the server limit and pass --max-body-bytes."
+  ));
+  validation.ok = false;
+}
+
 json validated_file_to_json(const ValidatedFile& file) {
   return {
     {"content", file.content},
@@ -2043,6 +2061,9 @@ CommandResult validate_or_manifest(const DocsCommandOptions& options, bool print
     const auto manifest = build_manifest(package, source_id, options);
     auto validation = validate_manifest(manifest, options, "/" + source_id);
     merge_package_findings(validation, package);
+    // Longest push shape: mode "dry-run", deleteBehavior "archive", publish false.
+    const auto push_body_bytes = build_manifest(package, source_id, options, "archive", "dry-run", false).dump().size();
+    check_body_size(validation, push_body_bytes, options, false);
 
     if (print_manifest) {
       if (!validation.ok) {
@@ -2063,6 +2084,7 @@ CommandResult validate_or_manifest(const DocsCommandOptions& options, bool print
       json output = {
         {"fileCount", package.files.size()},
         {"package", package_summary_to_json(package.summary)},
+        {"requestBodyBytes", push_body_bytes},
         {"root", effective_docs_root(options).string()},
         {"sourceId", source_id},
         {"validation", validation_to_json(validation)},
@@ -2344,6 +2366,7 @@ CommandResult run_plan_command(const PlanCommandOptions& options) {
     const auto manifest = build_manifest(package, source_id, options, options.delete_behavior);
     auto validation = validate_manifest(manifest, options, "/" + source_id);
     merge_package_findings(validation, package);
+    check_body_size(validation, build_manifest(package, source_id, options, "archive", "dry-run", false).dump().size(), options, false);
 
     if (!validation.ok) {
       return {
@@ -2454,6 +2477,8 @@ CommandResult run_push_command(const PushCommandOptions& options) {
     );
     auto validation = validate_manifest(manifest, options, "/" + source_id);
     merge_package_findings(validation, package);
+    const auto body = manifest.dump();
+    check_body_size(validation, body.size(), options, true);
 
     if (!validation.ok) {
       return {
@@ -2474,7 +2499,6 @@ CommandResult run_push_command(const PushCommandOptions& options) {
       route_warning += kMissingAssetRoutesWarning;
     }
 
-    const auto body = manifest.dump();
     SignedDocsRequest request;
 
     if (options.github_oidc) {

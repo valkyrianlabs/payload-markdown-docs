@@ -24,6 +24,7 @@ struct DocsCommandOptions {
   bool llms_full_path_explicit = false;
   std::filesystem::path llms_path = "./llms.txt";
   bool llms_path_explicit = false;
+  std::optional<std::size_t> max_body_bytes;
   std::optional<std::size_t> max_file_bytes;
   std::optional<std::size_t> max_files;
   std::optional<std::size_t> max_total_bytes;
