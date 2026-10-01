@@ -25,7 +25,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Install pmdocs
         run: |
@@ -46,10 +46,20 @@ jobs:
       - name: Validate docs
         run: pmdocs validate --source "$PMDOCS_SOURCE"
 
-      - name: Dry-run docs sync
+      - name: Plan docs sync locally
         if: github.event_name == 'pull_request'
-        # Advanced workflow restrictions are optional. By default, any workflow
-        # from a trusted owner/repository on the docs set branch is accepted.
+        run: pmdocs plan --source "$PMDOCS_SOURCE"
+
+      - name: Dry-run docs sync
+        # Optional server-side dry run for pull requests. Pull request OIDC
+        # tokens carry `ref: refs/pull/<n>/merge`, so the Payload docs set must
+        # allow pull requests and the server must accept PR tokens for the
+        # docs set branch. Fork pull requests never receive an OIDC token.
+        # Opt in with the repository variable DOCS_SYNC_PR_DRY_RUN=true.
+        if: >-
+          github.event_name == 'pull_request' &&
+          vars.DOCS_SYNC_PR_DRY_RUN == 'true' &&
+          github.event.pull_request.head.repo.full_name == github.repository
         run: |
           pmdocs push \
             --endpoint "$DOCS_SYNC_ENDPOINT" \

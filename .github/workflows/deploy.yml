@@ -6,13 +6,19 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
+# Pull request code (possibly from forks) runs on GitHub-hosted runners only.
+# The persistent self-hosted runners also run Production release jobs, so they
+# only run trusted code from pushes to main.
 jobs:
   build-and-test:
-    runs-on: [self-hosted, Linux, X64, ubuntu-latest-lts]
+    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || fromJSON('["self-hosted","Linux","X64","ubuntu-latest-lts"]') }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version-file: '.nvmrc'
 
@@ -33,9 +39,9 @@ jobs:
 
   native-cli:
     name: Native CLI
-    runs-on: [self-hosted, Linux, X64, ubuntu-latest-lts]
+    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || fromJSON('["self-hosted","Linux","X64","ubuntu-latest-lts"]') }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Install native build dependencies
         run: |
