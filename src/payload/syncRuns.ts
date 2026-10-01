@@ -19,6 +19,13 @@ export type SyncRunSummary = {
 
 export type PayloadRecordId = number | string
 
+/** Issue row stored on a sync run. Codes may be validation codes or endpoint codes. */
+export type SyncRunIssue = {
+  code: string
+  message: string
+  path?: string
+}
+
 export type SyncRunsPayloadOperations = {
   create: (args: {
     collection: string
@@ -41,7 +48,7 @@ export type CreateSyncRunAuditInput = {
   commit?: string
   completedAt: Date
   deleteBehavior: DocsDeleteBehavior
-  errors: DocsValidationIssue[]
+  errors: SyncRunIssue[]
   fileCount: number
   keyId: string
   mode: DocsSyncMode
@@ -56,7 +63,7 @@ export type CreateSyncRunAuditInput = {
   warnings: DocsValidationIssue[]
 }
 
-const issueToArrayRow = (issue: DocsValidationIssue): { message: string } => ({
+const issueToArrayRow = (issue: SyncRunIssue): { message: string } => ({
   message: issue.path ? `${issue.path}: ${issue.message}` : issue.message,
 })
 
@@ -127,7 +134,7 @@ export const updateSyncRunAudit = async ({
 }: {
   collectionSlug: string
   completedAt: Date
-  errors?: DocsValidationIssue[]
+  errors?: SyncRunIssue[]
   payload: SyncRunsPayloadOperations
   status: SyncRunStatus
   summary?: SyncRunSummary

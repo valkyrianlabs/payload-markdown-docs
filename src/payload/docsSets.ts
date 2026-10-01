@@ -29,6 +29,7 @@ export type DocsSetPayloadOperations = {
     draft?: boolean
     id: string
     overrideAccess?: boolean
+    req?: unknown
   }) => Promise<Record<string, unknown>>
 }
 
@@ -149,12 +150,14 @@ export const updateDocsSetAfterSync = async ({
   now,
   payload,
   publish,
+  req,
 }: {
   collectionSlug: string
   docsSetId: PayloadRecordId
   now: Date
   payload: DocsSetPayloadOperations
   publish: boolean
+  req?: unknown
 }): Promise<void> => {
   if (!payload.update) {
     return
@@ -172,6 +175,7 @@ export const updateDocsSetAfterSync = async ({
     },
     draft: !publish,
     overrideAccess: true,
+    req,
   })
 }
 

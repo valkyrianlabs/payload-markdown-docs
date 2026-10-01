@@ -861,8 +861,9 @@ describe('sync endpoint dry-run handling', () => {
     expect(response.status).toBe(500)
     expect(json.error).toMatchObject({
       code: 'sync_endpoint_failed',
-      message: 'Sync endpoint failed: database unavailable',
     })
+    // Raw database messages are logged server-side, never echoed to the client.
+    expect(json.error.message).not.toContain('database unavailable')
   })
 
   it('does not require docs asset storage for docs-only manifests', async () => {
@@ -2436,11 +2437,13 @@ describe('sync endpoint dry-run handling', () => {
 
     expect(response.status).toBe(200)
     expect(json.summary).toMatchObject({ create: 1, delete: 1 })
-    expect(payload.delete).toHaveBeenCalledWith({
-      id: 'doc-1',
-      collection: 'docs',
-      overrideAccess: true,
-    })
+    expect(payload.delete).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'doc-1',
+        collection: 'docs',
+        overrideAccess: true,
+      }),
+    )
   })
 
   it('sets existing docs to draft when publish is not requested', async () => {

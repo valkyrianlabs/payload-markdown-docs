@@ -88,6 +88,27 @@ elsewhere.
 
 Hard delete requires `allowHardDelete: true`.
 
+Removals take effect on the public site in every sync, including syncs without
+`--publish`: `archive` and `draft` write the published record so a doc removed
+from Git stops being served immediately. `draft` additionally unpublishes it.
+
+An archived doc releases its route. Its stored route becomes
+`archived:<id>:<route>`, so another file can take over the URL (for example
+`guide.md` becoming `guide/index.md`, or two docs swapping `slug:` values).
+When the file comes back, the archived record is reactivated on its real route.
+
+A sync is applied in a single database transaction when the Payload database
+adapter supports transactions (Postgres, SQLite, MongoDB replica sets). If any
+write fails, no docs, assets, or docs-set changes from that sync are kept, and
+the sync run is recorded as `failed`.
+
+A sync is rejected with `409 route_collision` before any write when a route it
+needs is still held by a doc it cannot release: a doc owned by another docs
+set, or a published doc of the same set whose published version this sync does
+not update (for example a non-`--publish` sync that moves `guide.md` away from
+`/guide` while a new file claims `/guide`). Run the change as a `--publish`
+sync instead.
+
 :::details {title="Recommended default"}
 Use `deleteBehavior: 'archive'` and `allowHardDelete: false`. Archive keeps records available for review and avoids accidental destructive syncs.
 :::

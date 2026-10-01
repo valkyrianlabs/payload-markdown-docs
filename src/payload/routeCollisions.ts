@@ -22,6 +22,7 @@ export type RouteCollisionPayloadOperations = {
 export type DocsRouteCollisionIssue = {
   reason: string
   route: string
+  sourcePath?: string
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>

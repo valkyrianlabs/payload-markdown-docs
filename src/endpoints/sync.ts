@@ -56,6 +56,8 @@ import {
   updateDocsSetAfterSync,
   updateSyncRunAudit,
 } from '../payload/index.js'
+import { resolveDocsRouteClaims } from '../payload/routeClaims.js'
+import { runInSyncTransaction } from '../payload/transaction.js'
 import {
   assertNonceNotReplayed,
   buildCanonicalSigningString,
@@ -70,7 +72,6 @@ import {
 import { planDocsAssetsSync, planDocsSync, validateDocsManifest } from '../sync/index.js'
 import {
   DOCS_ASSETS_STORAGE_UNAVAILABLE_MESSAGE,
-  getErrorMessage,
   isDocsAssetsStorageUnavailableError,
 } from './assetsStorage.js'
 
@@ -168,6 +169,7 @@ type SyncErrorResponse = {
   routeCollisions?: {
     reason: string
     route: string
+    sourcePath?: string
   }[]
 }
 
@@ -1129,6 +1131,78 @@ const authenticateSyncRequest = async ({
   })
 }
 
+class SyncApplyConflictError extends Error {
+  readonly conflicts: { reason: string; route?: string; sourcePath: string }[]
+
+  constructor(conflicts: { reason: string; route?: string; sourcePath: string }[]) {
+    super('One or more docs were modified outside the docs sync workflow.')
+    this.name = 'SyncApplyConflictError'
+    this.conflicts = conflicts
+  }
+}
+
+const logSyncFailure = (req: PayloadRequest, error: unknown, message: string): void => {
+  const logger = (req.payload as { logger?: { error?: (...args: unknown[]) => void } } | undefined)
+    ?.logger
+
+  if (typeof logger?.error === 'function') {
+    logger.error({ err: error, msg: message })
+  }
+}
+
+const isRouteUniqueViolation = (error: unknown): boolean => {
+  if (!(error instanceof Error) || error.name !== 'ValidationError') {
+    return false
+  }
+
+  const data = (error as { data?: { errors?: { path?: string }[] } }).data
+
+  return (data?.errors ?? []).some((issue) => issue.path === 'route')
+}
+
+const classifySyncApplyFailure = (
+  error: unknown,
+): {
+  code: DocsSyncEndpointErrorCode
+  extras?: Omit<SyncErrorResponse, 'error' | 'ok'>
+  message: string
+  status: number
+} => {
+  if (error instanceof SyncApplyConflictError) {
+    return {
+      code: 'manual_edit_conflict',
+      extras: {
+        conflicts: error.conflicts,
+      },
+      message: error.message,
+      status: 409,
+    }
+  }
+
+  if (isRouteUniqueViolation(error)) {
+    return {
+      code: 'route_collision',
+      message:
+        'A docs route was claimed concurrently by another record. The sync was rolled back; retry it.',
+      status: 409,
+    }
+  }
+
+  if (isDocsAssetsStorageUnavailableError(error)) {
+    return {
+      code: 'assets_storage_unavailable',
+      message: DOCS_ASSETS_STORAGE_UNAVAILABLE_MESSAGE,
+      status: 500,
+    }
+  }
+
+  return {
+    code: 'sync_apply_failed',
+    message: 'Sync apply failed. See the server log for details.',
+    status: 500,
+  }
+}
+
 const createSyncEndpointHandler =
   (options: CreateSyncEndpointOptions) =>
   async (req: PayloadRequest): Promise<Response> => {
@@ -1368,6 +1442,29 @@ const createSyncEndpointHandler =
       }
     }
 
+    const writesMainForUpdates = validation.data.publish || !options.docsEnableDrafts
+    const routeClaims = options.docsEnabled
+      ? await resolveDocsRouteClaims({
+          collectionSlug: options.docsCollectionSlug,
+          deleteBehavior: effectiveDeleteBehavior,
+          existing: existingPayloadDocs,
+          payload: req.payload as unknown as Parameters<typeof resolveDocsRouteClaims>[0]['payload'],
+          plan,
+          writesMainForUpdates,
+        })
+      : { collisions: [], releases: [] }
+
+    if (routeClaims.collisions.length > 0) {
+      return errorResponse(
+        'route_collision',
+        'One or more docs routes are still held by another doc that this sync cannot release.',
+        409,
+        {
+          routeCollisions: routeClaims.collisions,
+        },
+      )
+    }
+
     await storeAcceptedNonce({
       bodyHash: authentication.identity.bodyHash,
       collectionSlug: options.noncesCollectionSlug,
@@ -1418,92 +1515,72 @@ const createSyncEndpointHandler =
       }
 
       try {
-        const applyResult = await applyDocsSync({
-          collectionSlug: options.docsCollectionSlug,
-          deleteBehavior: effectiveDeleteBehavior,
-          docsEnableDrafts: options.docsEnableDrafts,
-          docsSetId: sourceResolution.source.docsSet?.id,
-          existing: existingPayloadDocs,
-          manifest: validation.data,
-          markdownFieldName: options.markdownFieldName,
-          now: options.getNow?.() ?? new Date(),
-          payload: req.payload as unknown as ApplyDocsSyncPayloadOperations,
-          plan,
-          publish: validation.data.publish,
-          syncRunId,
-        })
+        await runInSyncTransaction({
+          payload: req.payload as unknown as Parameters<typeof runInSyncTransaction>[0]['payload'],
+          work: async (transactionReq) => {
+            const applyResult = await applyDocsSync({
+              collectionSlug: options.docsCollectionSlug,
+              deleteBehavior: effectiveDeleteBehavior,
+              docsEnableDrafts: options.docsEnableDrafts,
+              docsSetId: sourceResolution.source.docsSet?.id,
+              existing: existingPayloadDocs,
+              manifest: validation.data,
+              markdownFieldName: options.markdownFieldName,
+              now: options.getNow?.() ?? new Date(),
+              payload: req.payload as unknown as ApplyDocsSyncPayloadOperations,
+              plan,
+              publish: validation.data.publish,
+              releases: routeClaims.releases,
+              req: transactionReq,
+              syncRunId,
+            })
 
-        if (!applyResult.ok) {
-          return errorResponse(
-            'manual_edit_conflict',
-            'One or more docs were modified outside the docs sync workflow.',
-            409,
-            {
-              conflicts: applyResult.conflicts,
-            },
-          )
-        }
+            if (!applyResult.ok) {
+              throw new SyncApplyConflictError(applyResult.conflicts)
+            }
 
-        if (shouldSyncAssets) {
-          const applyAssetsResult = await applyDocsAssetsSync({
-            collectionSlug: docsAssetsCollectionSlug,
-            deleteBehavior: effectiveDeleteBehavior,
-            docsSetId: sourceResolution.source.docsSet?.id,
-            existing: existingPayloadAssets,
-            manifest: validation.data,
-            now: options.getNow?.() ?? new Date(),
-            payload: req.payload as unknown as ApplyDocsAssetsSyncPayloadOperations,
-            plan: assetPlan,
-            syncRunId,
-          })
+            if (shouldSyncAssets) {
+              const applyAssetsResult = await applyDocsAssetsSync({
+                collectionSlug: docsAssetsCollectionSlug,
+                deleteBehavior: effectiveDeleteBehavior,
+                docsSetId: sourceResolution.source.docsSet?.id,
+                existing: existingPayloadAssets,
+                manifest: validation.data,
+                now: options.getNow?.() ?? new Date(),
+                payload: req.payload as unknown as ApplyDocsAssetsSyncPayloadOperations,
+                plan: assetPlan,
+                req: transactionReq,
+                syncRunId,
+              })
 
-          if (!applyAssetsResult.ok) {
-            return errorResponse(
-              'manual_edit_conflict',
-              'One or more docs assets were modified outside the docs sync workflow.',
-              409,
-              {
-                conflicts: applyAssetsResult.conflicts,
-              },
-            )
-          }
-        }
+              if (!applyAssetsResult.ok) {
+                throw new SyncApplyConflictError(applyAssetsResult.conflicts)
+              }
+            }
 
-        await updateSyncRunAudit({
-          collectionSlug: options.syncRunsCollectionSlug,
-          completedAt: options.getNow?.() ?? new Date(),
-          payload: req.payload as unknown as SyncRunsPayloadOperations,
-          status: 'success',
-          summary,
-          syncRunId,
-          warnings,
-        })
-
-        if (sourceResolution.source.docsSet) {
-          await updateDocsSetAfterSync({
-            collectionSlug: options.docsSetsCollectionSlug,
-            docsSetId: sourceResolution.source.docsSet.id,
-            now: options.getNow?.() ?? new Date(),
-            payload: req.payload as unknown as DocsSetPayloadOperations,
-            publish: validation.data.publish,
-          })
-        }
-
-        await revalidateDocsSyncCache({
-          assetPlan,
-          docsSet: sourceResolution.source.docsSet,
-          manifest: validation.data,
-          options,
-          plan,
+            if (sourceResolution.source.docsSet) {
+              await updateDocsSetAfterSync({
+                collectionSlug: options.docsSetsCollectionSlug,
+                docsSetId: sourceResolution.source.docsSet.id,
+                now: options.getNow?.() ?? new Date(),
+                payload: req.payload as unknown as DocsSetPayloadOperations,
+                publish: validation.data.publish,
+                req: transactionReq,
+              })
+            }
+          },
         })
       } catch (error) {
+        const failure = classifySyncApplyFailure(error)
+
+        logSyncFailure(req, error, 'Docs sync apply failed and was rolled back.')
         await updateSyncRunAudit({
           collectionSlug: options.syncRunsCollectionSlug,
           completedAt: options.getNow?.() ?? new Date(),
           errors: [
             {
-              code: 'invalid_manifest',
-              message: error instanceof Error ? error.message : 'Sync apply failed.',
+              code: failure.code,
+              message: failure.message,
             },
           ],
           payload: req.payload as unknown as SyncRunsPayloadOperations,
@@ -1511,14 +1588,30 @@ const createSyncEndpointHandler =
           summary,
           syncRunId,
           warnings,
+        }).catch((auditError: unknown) => {
+          logSyncFailure(req, auditError, 'Could not mark docs sync run as failed.')
         })
 
-        return errorResponse(
-          'sync_apply_failed',
-          error instanceof Error ? `Sync apply failed: ${error.message}` : 'Sync apply failed.',
-          500,
-        )
+        return errorResponse(failure.code, failure.message, failure.status, failure.extras)
       }
+
+      await updateSyncRunAudit({
+        collectionSlug: options.syncRunsCollectionSlug,
+        completedAt: options.getNow?.() ?? new Date(),
+        payload: req.payload as unknown as SyncRunsPayloadOperations,
+        status: 'success',
+        summary,
+        syncRunId,
+        warnings,
+      })
+
+      await revalidateDocsSyncCache({
+        assetPlan,
+        docsSet: sourceResolution.source.docsSet,
+        manifest: validation.data,
+        options,
+        plan,
+      })
     }
 
     return jsonResponse({
@@ -1540,11 +1633,12 @@ const createSyncEndpointHandlerWithErrorBoundary =
     try {
       return await createSyncEndpointHandler(options)(req)
     } catch (error) {
+      // Never echo raw database/validation messages to the client (DOCS-17).
+      logSyncFailure(req, error, 'Docs sync endpoint failed.')
+
       return errorResponse(
         'sync_endpoint_failed',
-        error instanceof Error
-          ? `Sync endpoint failed: ${getErrorMessage(error)}`
-          : 'Sync endpoint failed.',
+        'Sync endpoint failed. See the server log for details.',
         500,
       )
     }

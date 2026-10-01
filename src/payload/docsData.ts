@@ -79,14 +79,18 @@ export const buildArchiveData = ({
   docsEnableDrafts = false,
   draftMissing = false,
   now,
+  releasedRoute,
   syncRunId,
 }: {
   docsEnableDrafts?: boolean
   draftMissing?: boolean
   now: Date
+  /** Released tombstone route so archived docs never keep a live unique route. */
+  releasedRoute?: string
   syncRunId?: number | string
 }): Record<string, unknown> => ({
   ...(draftMissing && docsEnableDrafts ? { _status: 'draft' } : {}),
+  ...(releasedRoute ? { route: releasedRoute } : {}),
   sync: {
     archived: true,
     archivedAt: now.toISOString(),

@@ -1,9 +1,11 @@
 import type { DocsDeleteBehavior, DocsSyncPlan, ValidatedDocsManifest } from '../sync/index.js'
 import type { DocsSyncConflict } from './docsConflicts.js'
 import type { ExistingPayloadDocsRecord } from './existingDocs.js'
+import type { DocsRouteRelease } from './routeClaims.js'
 
 import { findDocsSyncConflicts } from './docsConflicts.js'
 import { buildArchiveData, buildDocsData } from './docsData.js'
+import { toReleasedRoute } from './routeClaims.js'
 
 export type ApplyDocsSyncPayloadOperations = {
   create: (args: {
@@ -11,11 +13,21 @@ export type ApplyDocsSyncPayloadOperations = {
     data: Record<string, unknown>
     draft?: boolean
     overrideAccess?: boolean
+    req?: unknown
   }) => Promise<Record<string, unknown>>
+  db?: {
+    updateOne?: (args: {
+      collection: string
+      data: Record<string, unknown>
+      id: number | string
+      req?: unknown
+    }) => Promise<unknown>
+  }
   delete?: (args: {
     collection: string
     id: string
     overrideAccess?: boolean
+    req?: unknown
   }) => Promise<Record<string, unknown>>
   update: (args: {
     collection: string
@@ -23,6 +35,7 @@ export type ApplyDocsSyncPayloadOperations = {
     draft?: boolean
     id: string
     overrideAccess?: boolean
+    req?: unknown
   }) => Promise<Record<string, unknown>>
 }
 
@@ -39,6 +52,7 @@ export type ApplyDocsSyncResult =
         delete: number
         draft: number
         reactivate: number
+        release: number
         update: number
       }
     }
@@ -84,6 +98,8 @@ export const applyDocsSync = async ({
   payload,
   plan,
   publish,
+  releases = [],
+  req,
   syncRunId,
 }: {
   collectionSlug: string
@@ -97,6 +113,10 @@ export const applyDocsSync = async ({
   payload: ApplyDocsSyncPayloadOperations
   plan: DocsSyncPlan
   publish: boolean
+  /** Main-table routes to release before route-claiming writes (see resolveDocsRouteClaims). */
+  releases?: DocsRouteRelease[]
+  /** Request carrying the sync transaction, passed to every Payload operation. */
+  req?: unknown
   syncRunId?: number | string
 }): Promise<ApplyDocsSyncResult> => {
   const existingBySourcePath = new Map(existing.map((record) => [record.sourcePath, record]))
@@ -125,12 +145,143 @@ export const applyDocsSync = async ({
     delete: 0,
     draft: 0,
     reactivate: 0,
+    release: 0,
     update: 0,
   }
   const writeDraftOption = getDocsWriteDraftOption({
     docsEnableDrafts,
     publish,
   })
+  // Removals must change what is publicly served even in a non-publish sync, so they
+  // always write the main (published) record rather than a new draft version (DOCS-3).
+  const mainWriteOption = docsEnableDrafts ? { draft: false } : {}
+
+  // Write order (DOCS-2): removals release their routes first, then remaining route
+  // holders are released, then updates move routes, and creates claim routes last.
+  if (deleteBehavior === 'delete') {
+    if (!payload.delete) {
+      throw new Error('Payload delete operation is required for hard delete.')
+    }
+
+    for (const change of plan.delete) {
+      const current = existingBySourcePath.get(change.sourcePath)
+
+      if (!current) {
+        continue
+      }
+
+      await payload.delete({
+        id: current.id,
+        collection: collectionSlug,
+        overrideAccess: true,
+        req,
+      })
+      writes.delete += 1
+    }
+  }
+
+  if (deleteBehavior === 'archive' || deleteBehavior === 'draft') {
+    const removals = deleteBehavior === 'archive' ? plan.archive : plan.draft
+
+    for (const change of removals) {
+      const current = existingBySourcePath.get(change.sourcePath)
+
+      if (!current) {
+        continue
+      }
+
+      await payload.update({
+        id: current.id,
+        collection: collectionSlug,
+        data: buildArchiveData({
+          docsEnableDrafts,
+          draftMissing: deleteBehavior === 'draft',
+          now,
+          releasedRoute: toReleasedRoute(current.id, current.route),
+          syncRunId,
+        }),
+        ...mainWriteOption,
+        overrideAccess: true,
+        req,
+      })
+
+      if (deleteBehavior === 'archive') {
+        writes.archive += 1
+      } else {
+        writes.draft += 1
+      }
+    }
+  }
+
+  for (const release of releases) {
+    if (typeof payload.db?.updateOne === 'function') {
+      // Route-only main-table write: no new version, no publish side effects.
+      await payload.db.updateOne({
+        id: release.id,
+        collection: collectionSlug,
+        data: {
+          route: release.route,
+        },
+        req,
+      })
+    } else {
+      await payload.update({
+        id: release.id,
+        collection: collectionSlug,
+        data: {
+          route: release.route,
+        },
+        overrideAccess: true,
+        req,
+      })
+    }
+
+    writes.release += 1
+  }
+
+  const writeDesired = async (change: DocsSyncPlan['update'][number]): Promise<boolean> => {
+    if (!change.desired) {
+      return false
+    }
+
+    const current = existingBySourcePath.get(change.sourcePath)
+
+    if (!current) {
+      return false
+    }
+
+    await payload.update({
+      id: current.id,
+      collection: collectionSlug,
+      data: buildDocsData({
+        desired: change.desired,
+        docsEnableDrafts,
+        docsSetId,
+        manifest,
+        markdownFieldName,
+        now,
+        publish,
+        syncRunId,
+      }),
+      ...writeDraftOption,
+      overrideAccess: true,
+      req,
+    })
+
+    return true
+  }
+
+  for (const change of plan.update) {
+    if (await writeDesired(change)) {
+      writes.update += 1
+    }
+  }
+
+  for (const change of reactivations) {
+    if (await writeDesired(change)) {
+      writes.reactivate += 1
+    }
+  }
 
   for (const change of plan.create) {
     if (!change.desired) {
@@ -151,136 +302,9 @@ export const applyDocsSync = async ({
       }),
       ...writeDraftOption,
       overrideAccess: true,
+      req,
     })
     writes.create += 1
-  }
-
-  for (const change of plan.update) {
-    if (!change.desired) {
-      continue
-    }
-
-    const current = existingBySourcePath.get(change.sourcePath)
-
-    if (!current) {
-      continue
-    }
-
-    await payload.update({
-      id: current.id,
-      collection: collectionSlug,
-      data: buildDocsData({
-        desired: change.desired,
-        docsEnableDrafts,
-        docsSetId,
-        manifest,
-        markdownFieldName,
-        now,
-        publish,
-        syncRunId,
-      }),
-      ...writeDraftOption,
-      overrideAccess: true,
-    })
-    writes.update += 1
-  }
-
-  for (const change of reactivations) {
-    if (!change.desired) {
-      continue
-    }
-
-    const current = existingBySourcePath.get(change.sourcePath)
-
-    if (!current) {
-      continue
-    }
-
-    await payload.update({
-      id: current.id,
-      collection: collectionSlug,
-      data: buildDocsData({
-        desired: change.desired,
-        docsEnableDrafts,
-        docsSetId,
-        manifest,
-        markdownFieldName,
-        now,
-        publish,
-        syncRunId,
-      }),
-      ...writeDraftOption,
-      overrideAccess: true,
-    })
-    writes.reactivate += 1
-  }
-
-  if (deleteBehavior === 'archive') {
-    for (const change of plan.archive) {
-      const current = existingBySourcePath.get(change.sourcePath)
-
-      if (!current) {
-        continue
-      }
-
-      await payload.update({
-        id: current.id,
-        collection: collectionSlug,
-        data: buildArchiveData({
-          docsEnableDrafts,
-          now,
-          syncRunId,
-        }),
-        ...writeDraftOption,
-        overrideAccess: true,
-      })
-      writes.archive += 1
-    }
-  }
-
-  if (deleteBehavior === 'draft') {
-    for (const change of plan.draft) {
-      const current = existingBySourcePath.get(change.sourcePath)
-
-      if (!current) {
-        continue
-      }
-
-      await payload.update({
-        id: current.id,
-        collection: collectionSlug,
-        data: buildArchiveData({
-          docsEnableDrafts,
-          draftMissing: true,
-          now,
-          syncRunId,
-        }),
-        ...(docsEnableDrafts ? { draft: true } : {}),
-        overrideAccess: true,
-      })
-      writes.draft += 1
-    }
-  }
-
-  if (deleteBehavior === 'delete') {
-    if (!payload.delete) {
-      throw new Error('Payload delete operation is required for hard delete.')
-    }
-
-    for (const change of plan.delete) {
-      const current = existingBySourcePath.get(change.sourcePath)
-
-      if (!current) {
-        continue
-      }
-
-      await payload.delete({
-        id: current.id,
-        collection: collectionSlug,
-        overrideAccess: true,
-      })
-      writes.delete += 1
-    }
   }
 
   return {
