@@ -16,6 +16,11 @@ meson test -C build
 
 The native test suite covers command parsing, `doctor`, `skill install`, local
 `validate` / `manifest` / `plan`, `keygen`, and pre-network `push` behavior.
+`meson test` also runs `pmdocs contract vectors`, which executes the shared
+TS/C++ protocol vectors in `../contracts/vectors/` against
+`src/sync_contract.cpp` (see `../contracts/README.md`). Keep protocol logic in
+`src/sync_contract.cpp` and change it only together with `src/sync/*` and the
+vectors.
 
 ## Install smoke check
 

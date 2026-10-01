@@ -71,6 +71,11 @@ derivation. `assets` are native skill artifacts and optional static fallback
 artifacts stored separately. They do not require frontmatter and are not parsed
 as docs pages.
 
+`pmdocs` emits only these asset content types, chosen by file extension:
+`text/markdown; charset=utf-8` (`.md`), `application/json; charset=utf-8`
+(`.json`), `application/yaml; charset=utf-8` (`.yaml`, `.yml`), and
+`text/plain; charset=utf-8` (everything else, such as `llms.txt`).
+
 Supported asset kinds:
 
 - `llms`
