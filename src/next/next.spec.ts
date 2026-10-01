@@ -69,6 +69,25 @@ type TestFindArgs = {
   where?: unknown
 } & Parameters<PayloadMarkdownDocsReadPayload['find']>[0]
 
+// Mirrors Payload `select`: only selected top-level keys (plus `id`) come back, so a
+// reader that forgets to select `_status` sees it as undefined, exactly like real Payload.
+const applySelect = (
+  doc: Record<string, unknown>,
+  select: unknown,
+): Record<string, unknown> => {
+  if (typeof select !== 'object' || select === null || Array.isArray(select)) {
+    return doc
+  }
+
+  const selectedKeys = Object.entries(select as Record<string, unknown>)
+    .filter(([, value]) => value !== false && value !== undefined)
+    .map(([key]) => key)
+
+  return Object.fromEntries(
+    Object.entries(doc).filter(([key]) => key === 'id' || selectedKeys.includes(key)),
+  )
+}
+
 const createPaginatedDocs = (docs: Record<string, unknown>[]) => ({
   docs,
   hasNextPage: false,
@@ -190,9 +209,12 @@ const createPayloadMock = ({
   const find = vi.fn((args: TestFindArgs) =>
     Promise.resolve(
       createPaginatedDocs(
+        // Mirrors real Payload 3 semantics: `draft: false` reads the main table, which
+        // still contains never-published documents with `_status: 'draft'`. Public
+        // readers must filter `_status` themselves; the mock must not hide that bug.
         (collections[args.collection] ?? [])
-          .filter((doc) => args.draft === true || doc._status !== 'draft')
-          .filter((doc) => matchesWhere(doc, args.where)),
+          .filter((doc) => matchesWhere(doc, args.where))
+          .map((doc) => applySelect(doc, args.select)),
       ),
     ),
   ) as unknown as PayloadMarkdownDocsReadPayload['find'] & ReturnType<typeof vi.fn>

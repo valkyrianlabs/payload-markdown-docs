@@ -9,6 +9,7 @@ import {
   joinRouteSegments,
   normalizeRoutePath,
 } from '../routing/index.js'
+import { isPublicDocsSetRecord } from './visibility.js'
 
 export type DocsSetPayloadOperations = {
   find: (args: {
@@ -401,6 +402,7 @@ export const findDocsSetByRoutePrefix = async ({
   const normalizedRoute = normalizeRoutePath(route)
 
   return result.docs
+    .filter(isPublicDocsSetRecord)
     .map((doc) =>
       toResolvedDocsSet({
         doc,
@@ -458,6 +460,7 @@ export const findAllDocsSets = async ({
   ])
 
   return result.docs
+    .filter(isPublicDocsSetRecord)
     .flatMap((doc) => {
       const docsSet = toResolvedDocsSet({
         doc,

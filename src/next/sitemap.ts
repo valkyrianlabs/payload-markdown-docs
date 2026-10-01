@@ -674,6 +674,9 @@ const getDocsForSitemapUncached = async ({
           overrideAccess,
           select: {
             id: true,
+            // `draft: false` still returns never-published docs; `_status` is required for
+            // isVisibleDocsRecord to exclude them.
+            _status: true,
             docsSet: true,
             route: true,
             sourcePath: true,

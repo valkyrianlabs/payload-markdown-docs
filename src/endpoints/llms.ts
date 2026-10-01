@@ -4,6 +4,7 @@ import type { DocsSetPayloadOperations, ResolvedDocsSet } from '../payload/index
 import type { SkillBundle, SkillBundleAsset } from '../skillBundles.js'
 
 import { findAllDocsSets } from '../payload/index.js'
+import { isPublicDocsAssetRecord, isPublicDocsRecord } from '../payload/visibility.js'
 import { normalizeRoutePath } from '../routing/index.js'
 import { formatSkillAgentTitle, getSkillBundles } from '../skillBundles.js'
 import { createPublicUrl, getPublicRequestOrigin } from './publicOrigin.js'
@@ -91,13 +92,9 @@ const getStringArray = (value: unknown): string[] => {
 const compactText = (value: string): string => value.replace(/\s+/g, ' ').trim()
 
 const toLlmsDocRecord = (doc: unknown, markdownFieldName: string): LlmsDocRecord | undefined => {
-  if (!isRecord(doc)) {
-    return undefined
-  }
-
-  const sync = isRecord(doc.sync) ? doc.sync : undefined
-
-  if (sync?.archived === true) {
+  // Drafts (including never-published docs returned by `draft: false`) and archived docs
+  // must never reach public AI discovery files.
+  if (!isRecord(doc) || !isPublicDocsRecord(doc)) {
     return undefined
   }
 
@@ -126,13 +123,11 @@ const toLlmsDocRecord = (doc: unknown, markdownFieldName: string): LlmsDocRecord
 }
 
 const toLlmsSkillAsset = (asset: unknown): LlmsSkillAsset | undefined => {
-  if (!isRecord(asset)) {
+  if (!isRecord(asset) || !isPublicDocsAssetRecord(asset)) {
     return undefined
   }
 
-  const sync = isRecord(asset.sync) ? asset.sync : undefined
-
-  if (sync?.archived === true || asset.kind !== 'skill') {
+  if (asset.kind !== 'skill') {
     return undefined
   }
 
