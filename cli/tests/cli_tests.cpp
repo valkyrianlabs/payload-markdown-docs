@@ -1225,3 +1225,88 @@ TEST_CASE("validate, plan and push check the serialized request body size") {
   const auto large = pmdocs::run(args({"validate", root_string, "--source", "main-docs", "--no-skills", "--no-llms", "--no-llms-full", "--max-body-bytes", "10000"}));
   CHECK(large.exit_code == 0);
 }
+
+TEST_CASE("validate reports in-manifest route collisions per file") {
+  TempDir temp{"pmdocs-test-collisions"};
+  const auto root = temp.path() / "docs";
+  const auto root_string = root.string();
+  write_text(root / "index.md", "# Home\n");
+  write_text(root / "Index.md", "# Home again\n");
+  write_text(root / "sub.md", "# Sub\n");
+  write_text(root / "sub" / "index.md", "# Sub index\n");
+  write_text(root / "Guide.md", "# Guide\n");
+  write_text(root / "guide.md", "# guide\n");
+
+  const auto result = pmdocs::run(args({"validate", root_string, "--source", "main-docs", "--json", "--no-skills", "--no-llms", "--no-llms-full"}));
+  CHECK(result.exit_code == 1);
+  const auto output = nlohmann::json::parse(result.stdout_text);
+  const auto& issues = output["validation"]["issues"];
+  CHECK(has_issue(issues, "route_collision", "index.md"));
+  CHECK(has_issue(issues, "route_collision", "Index.md"));
+  CHECK(has_issue(issues, "route_collision", "sub.md"));
+  CHECK(has_issue(issues, "route_collision", "sub/index.md"));
+  CHECK(has_issue(output["validation"]["warnings"], "route_case_collision", "Guide.md"));
+  CHECK_FALSE(has_issue(issues, "route_collision", "Guide.md"));
+
+  const auto text = pmdocs::run(args({"validate", root_string, "--source", "main-docs", "--no-skills", "--no-llms", "--no-llms-full"}));
+  CHECK(text.stdout_text.find("- Index.md: Route \"/main-docs\" is also derived by index.md.") != std::string::npos);
+}
+
+TEST_CASE("push prints server issues, route collisions and conflicts per file") {
+  TempDir temp{"pmdocs-test-push-details"};
+  const auto root = temp.path() / "docs";
+  const auto root_string = root.string();
+  write_text(root / "index.md", "# Home\n");
+  EnvGuard oidc{"PMDOCS_TEST_OIDC_TOKEN", "oidc-token"};
+  const auto push = [&](const std::string& endpoint, bool json_output) {
+    std::vector<std::string_view> arguments = {
+      "push", root_string, "--endpoint", endpoint, "--source", "main-docs",
+      "--github-oidc", "--oidc-token-env", "PMDOCS_TEST_OIDC_TOKEN", "--dry-run",
+      "--no-skills", "--no-llms", "--no-llms-full",
+    };
+    if (json_output) {
+      arguments.emplace_back("--json");
+    }
+    return pmdocs::run(arguments);
+  };
+
+  {
+    SingleRequestServer server{
+      400,
+      R"({"ok":false,"error":{"code":"invalid_manifest","message":"Sync manifest is invalid.","issues":[{"code":"invalid_frontmatter","message":"Frontmatter field \"order\" must be a number.","path":"bad.md","severity":"error"},{"code":"route_whitespace","message":"Route segment has whitespace.","path":"a b.md","severity":"warning"}]}})",
+    };
+    const auto result = push(server.url(), false);
+    CHECK(result.exit_code == 1);
+    CHECK(result.stderr_text.find("Sync manifest is invalid.\n") != std::string::npos);
+    CHECK(result.stderr_text.find("- bad.md: Frontmatter field \"order\" must be a number. [invalid_frontmatter]") != std::string::npos);
+    CHECK(result.stderr_text.find("- a b.md: Route segment has whitespace. [warning: route_whitespace]") != std::string::npos);
+    (void)server.captured_request();
+  }
+
+  {
+    SingleRequestServer server{
+      409,
+      R"({"ok":false,"error":{"code":"route_collision","message":"One or more docs routes collide with an existing route reservation."},"routeCollisions":[{"reason":"exact_route_collision","route":"/main-docs/sub"},{"reason":"existing_doc_route_collision","route":"/main-docs","paths":["index.md"]}]})",
+    };
+    const auto result = push(server.url(), false);
+    CHECK(result.exit_code == 1);
+    CHECK(result.stderr_text.find("- /main-docs/sub (exact_route_collision)") != std::string::npos);
+    CHECK(result.stderr_text.find("- /main-docs (existing_doc_route_collision): index.md") != std::string::npos);
+    (void)server.captured_request();
+  }
+
+  {
+    SingleRequestServer server{
+      409,
+      R"({"ok":false,"error":{"code":"manual_edit_conflict","message":"One or more docs were modified outside the docs sync workflow."},"conflicts":[{"reason":"manual_edit","route":"/main-docs","sourcePath":"index.md"}]})",
+    };
+    const auto result = push(server.url(), true);
+    CHECK(result.exit_code == 1);
+    const auto output = nlohmann::json::parse(result.stdout_text);
+    CHECK(output["failure"]["code"] == "manual_edit_conflict");
+    CHECK(output["failure"]["conflicts"][0]["sourcePath"] == "index.md");
+    CHECK(output["failure"]["issues"].empty());
+    CHECK(output["failure"]["routeCollisions"].empty());
+    (void)server.captured_request();
+  }
+}

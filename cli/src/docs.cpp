@@ -812,11 +812,117 @@ std::string trim_response_text(const std::string& text) {
   return trimmed.substr(0, 1000) + "...";
 }
 
+// Server failure details. Current servers send `routeCollisions` and
+// `conflicts` next to `error`; newer servers add `error.issues`. Accept each
+// array under `error` or at the top level, and tolerate its absence.
+const json* failure_array(const json& body, const char* key) {
+  if (body.contains("error") && body["error"].is_object() && body["error"].contains(key) && body["error"][key].is_array()) {
+    return &body["error"][key];
+  }
+
+  if (body.contains(key) && body[key].is_array()) {
+    return &body[key];
+  }
+
+  return nullptr;
+}
+
+std::string json_text(const json& value, const char* key) {
+  if (value.is_object() && value.contains(key) && value[key].is_string()) {
+    return value[key].get<std::string>();
+  }
+
+  return {};
+}
+
+json failure_details_to_json(const HttpResponse& response) {
+  json details = {
+    {"code", nullptr},
+    {"message", nullptr},
+    {"issues", json::array()},
+    {"routeCollisions", json::array()},
+    {"conflicts", json::array()},
+  };
+
+  if (!response.has_json || !response.body.is_object()) {
+    return details;
+  }
+
+  if (response.body.contains("error") && response.body["error"].is_object()) {
+    if (const auto code = json_text(response.body["error"], "code"); !code.empty()) {
+      details["code"] = code;
+    }
+    if (const auto message = json_text(response.body["error"], "message"); !message.empty()) {
+      details["message"] = message;
+    }
+  }
+
+  for (const auto* key : {"issues", "routeCollisions", "conflicts"}) {
+    if (const auto* items = failure_array(response.body, key)) {
+      details[key] = *items;
+    }
+  }
+
+  return details;
+}
+
+std::string format_failure_details(const json& details) {
+  std::ostringstream out;
+
+  if (!details["issues"].empty()) {
+    out << "\nIssues:\n";
+    for (const auto& item : details["issues"]) {
+      const auto path = json_text(item, "path");
+      const auto code = json_text(item, "code");
+      const auto severity = json_text(item, "severity");
+      std::string tag = severity == "warning" ? "warning" : "";
+      if (!code.empty()) {
+        tag += (tag.empty() ? "" : ": ") + code;
+      }
+      out << "- " << (path.empty() ? "" : path + ": ") << json_text(item, "message") << (tag.empty() ? "" : " [" + tag + "]") << "\n";
+    }
+  }
+
+  if (!details["routeCollisions"].empty()) {
+    out << "\nRoute collisions:\n";
+    for (const auto& item : details["routeCollisions"]) {
+      const auto reason = json_text(item, "reason");
+      out << "- " << json_text(item, "route") << (reason.empty() ? "" : " (" + reason + ")");
+      if (item.is_object() && item.contains("paths") && item["paths"].is_array() && !item["paths"].empty()) {
+        std::vector<std::string> paths;
+        for (const auto& path : item["paths"]) {
+          if (path.is_string()) {
+            paths.push_back(path.get<std::string>());
+          }
+        }
+        out << ": ";
+        for (std::size_t index = 0; index < paths.size(); ++index) {
+          out << (index > 0 ? ", " : "") << paths[index];
+        }
+      }
+      out << "\n";
+    }
+  }
+
+  if (!details["conflicts"].empty()) {
+    out << "\nConflicts:\n";
+    for (const auto& item : details["conflicts"]) {
+      const auto route = json_text(item, "route");
+      out << "- " << json_text(item, "sourcePath") << ": " << json_text(item, "reason")
+          << (route.empty() ? "" : " (" + route + ")") << "\n";
+    }
+  }
+
+  return out.str();
+}
+
 std::string format_server_failure(const HttpResponse& response) {
   if (response.has_json && response.body.is_object()) {
+    const auto details = format_failure_details(failure_details_to_json(response));
+
     if (response.body.contains("error") && response.body["error"].is_object()
         && response.body["error"].contains("message") && response.body["error"]["message"].is_string()) {
-      return response.body["error"]["message"].get<std::string>() + "\n";
+      return response.body["error"]["message"].get<std::string>() + "\n" + details;
     }
 
     if (response.body.contains("errors") && response.body["errors"].is_array()) {
@@ -833,7 +939,7 @@ std::string format_server_failure(const HttpResponse& response) {
         for (const auto& message : messages) {
           out << "- " << message << "\n";
         }
-        return out.str();
+        return out.str() + details;
       }
     }
   }
@@ -1606,6 +1712,41 @@ void check_body_size(ValidationResult& validation, std::size_t body_bytes, const
   validation.ok = false;
 }
 
+// In-manifest route collisions (X-8, CLI-6). The sync endpoint rejects exact
+// collisions with `route_collision`; `as_warnings` keeps push advisory because
+// only the server knows the docs set's real route base.
+void add_route_collision_findings(ValidationResult& validation, bool as_warnings) {
+  for (const auto& collision : contract::find_route_collisions(validation)) {
+    const auto exact = collision.reason == "exact_route_collision";
+
+    for (const auto& path : collision.paths) {
+      std::string others;
+
+      for (const auto& other : collision.paths) {
+        if (other != path) {
+          others += (others.empty() ? "" : ", ") + other;
+        }
+      }
+
+      std::string routes;
+      for (const auto& route : collision.routes) {
+        routes += (routes.empty() ? "" : ", ") + route;
+      }
+
+      auto finding = exact
+        ? issue("route_collision", "Route \"" + collision.route + "\" is also derived by " + others + ".", path)
+        : issue("route_case_collision", "Routes " + routes + " differ only in letter case (" + others + ").", path);
+
+      if (exact && !as_warnings) {
+        validation.issues.push_back(std::move(finding));
+        validation.ok = false;
+      } else {
+        validation.warnings.push_back(std::move(finding));
+      }
+    }
+  }
+}
+
 json validated_file_to_json(const ValidatedFile& file) {
   return {
     {"content", file.content},
@@ -2061,6 +2202,7 @@ CommandResult validate_or_manifest(const DocsCommandOptions& options, bool print
     const auto manifest = build_manifest(package, source_id, options);
     auto validation = validate_manifest(manifest, options, "/" + source_id);
     merge_package_findings(validation, package);
+    add_route_collision_findings(validation, false);
     // Longest push shape: mode "dry-run", deleteBehavior "archive", publish false.
     const auto push_body_bytes = build_manifest(package, source_id, options, "archive", "dry-run", false).dump().size();
     check_body_size(validation, push_body_bytes, options, false);
@@ -2366,6 +2508,7 @@ CommandResult run_plan_command(const PlanCommandOptions& options) {
     const auto manifest = build_manifest(package, source_id, options, options.delete_behavior);
     auto validation = validate_manifest(manifest, options, "/" + source_id);
     merge_package_findings(validation, package);
+    add_route_collision_findings(validation, false);
     check_body_size(validation, build_manifest(package, source_id, options, "archive", "dry-run", false).dump().size(), options, false);
 
     if (!validation.ok) {
@@ -2477,6 +2620,7 @@ CommandResult run_push_command(const PushCommandOptions& options) {
     );
     auto validation = validate_manifest(manifest, options, "/" + source_id);
     merge_package_findings(validation, package);
+    add_route_collision_findings(validation, true);
     const auto body = manifest.dump();
     check_body_size(validation, body.size(), options, true);
 
@@ -2548,7 +2692,7 @@ CommandResult run_push_command(const PushCommandOptions& options) {
       && response.body.contains("ok") && response.body["ok"].is_boolean() && response.body["ok"].get<bool>();
 
     if (options.print_json) {
-      const json output = {
+      json output = {
         {"endpoint", endpoint},
         {"mode", mode},
         {"package", package_summary_to_json(package.summary)},
@@ -2556,6 +2700,11 @@ CommandResult run_push_command(const PushCommandOptions& options) {
         {"sourceId", source_id},
         {"status", response.status},
       };
+
+      if (!response_ok) {
+        // Normalized failure details; arrays are empty when the server sent none.
+        output["failure"] = failure_details_to_json(response);
+      }
 
       return {
         .exit_code = response_ok ? 0 : 1,

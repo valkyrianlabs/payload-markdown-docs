@@ -94,6 +94,13 @@ What it leaves out, always reported as a `skipped_path` warning:
 Files that are not valid UTF-8 fail validation with an `invalid_encoding`
 error that names the file.
 
+Two files that derive the same route (`index.md` and `Index.md`, or
+`guide.md` and `guide/index.md`) fail validation with a `route_collision` error
+on each file; the sync endpoint would reject them. Routes that differ only in
+letter case produce a `route_case_collision` warning. `push` reports local
+collisions as warnings and leaves the decision to the server, which knows the
+docs set's real route base.
+
 Size limits: `--max-file-bytes` (500,000) applies to each docs file and asset,
 `--max-total-bytes` (5,000,000) to the sum of all docs and asset contents, and
 `--max-body-bytes` (5,000,000) to the serialized JSON request body. The body
@@ -182,6 +189,13 @@ pmdocs push \
 `push` defaults to sync mode. `--dry-run` submits a validation-only request.
 `--publish` is separate from sync mode and requests published output. Publishing
 and writes remain server-owned.
+
+When the server rejects a push, `pmdocs` prints the error message followed by
+every detail the server returns: validation `issues` (with path, code, and
+severity), `routeCollisions`, and manual-edit `conflicts`. With `--json`, the
+output adds a normalized `failure` object with `code`, `message`, `issues`,
+`routeCollisions`, and `conflicts` (empty arrays when an older server does not
+send them).
 
 If assets are included and public Next asset route files are missing from the
 current working tree, `push` prints a warning. Add `--strict-routes` in CI to
