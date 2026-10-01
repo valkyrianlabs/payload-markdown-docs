@@ -15,6 +15,8 @@ export const createNoncesCollection = ({
     hidden: true,
     useAsTitle: 'nonce',
   },
+  // Replay protection relies on this: concurrent requests with the same nonce cannot
+  // both insert (DOCS-8). Existing installs must remove duplicate rows before migrating.
   fields: [
     {
       name: 'keyId',
@@ -56,6 +58,12 @@ export const createNoncesCollection = ({
     {
       name: 'usedAt',
       type: 'date',
+    },
+  ],
+  indexes: [
+    {
+      fields: ['keyId', 'nonce'],
+      unique: true,
     },
   ],
 })

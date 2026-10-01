@@ -17,6 +17,7 @@ import { sha256Hex } from '../src/sync/hash.js'
 import {
   buildManifest,
   callGet,
+  callRawSync,
   callSync,
   createDocsSet,
   createSyncKey,
@@ -442,6 +443,70 @@ describeDb('docs sync real-DB regressions', () => {
           where: { id: { exists: true } },
         }),
       ).rejects.toThrow()
+    })
+  })
+
+  describe('replay protection and pre-auth surface (DOCS-7, DOCS-8, DOCS-15)', () => {
+    test('concurrent requests with one nonce: exactly one is accepted', async () => {
+      const slug = uniqueSlug('race')
+      await createDocsSet(payload, slug)
+      const manifest = buildManifest(slug, [{ content: '# A\n', path: 'a.md' }], {
+        mode: 'dry-run',
+      })
+      const nonce = `race-${uniqueSlug('n')}`
+      const timestamp = new Date()
+      const results = await Promise.all(
+        [1, 2, 3, 4].map(() => sync(manifest, { nonce, timestamp })),
+      )
+
+      expect(results.map((result) => result.status).sort()).toEqual([200, 409, 409, 409])
+      const rows = await payload.find({
+        collection: 'docs-sync-nonces',
+        overrideAccess: true,
+        where: { nonce: { equals: nonce } },
+      })
+      expect(rows.totalDocs).toBe(1)
+    })
+
+    test('a nonce is consumed even when the request is rejected after authentication', async () => {
+      const slug = uniqueSlug('burn')
+      await createDocsSet(payload, slug)
+      const nonce = `burn-${uniqueSlug('n')}`
+      const timestamp = new Date()
+      const invalid = buildManifest(slug, [{ content: '# A\n', path: '../escape.md' }])
+
+      const first = await sync(invalid, { nonce, timestamp })
+      expect(first.status).toBe(400)
+      expect(first.json.error.code).toBe('invalid_manifest')
+
+      const replay = await sync(invalid, { nonce, timestamp })
+      expect(replay.status).toBe(409)
+      expect(replay.json.error.code).toBe('nonce_replay')
+    })
+
+    test('unauthenticated requests get the same answer for existing and missing docs sets', async () => {
+      const slug = uniqueSlug('oracle')
+      await createDocsSet(payload, slug)
+      const responses = await Promise.all(
+        [slug, 'does-not-exist'].map((id) =>
+          callRawSync({ body: JSON.stringify({ source: { id }, version: 1 }), payload }),
+        ),
+      )
+
+      expect(responses.map((response) => response.status)).toEqual([401, 401])
+      expect(responses[0]?.json).toEqual(responses[1]?.json)
+    })
+
+    test('non-slug source ids are rejected without echoing them', async () => {
+      for (const id of [{ like: '%' }, ['a', 'b'], 12345, { equals: 'x' }, 'x'.repeat(100_000)]) {
+        const response = await callRawSync({
+          body: JSON.stringify({ source: { id }, version: 1 }),
+          payload,
+        })
+
+        expect(response.status).toBe(400)
+        expect(JSON.stringify(response.json).length).toBeLessThan(400)
+      }
     })
   })
 

@@ -17,6 +17,7 @@ import {
   getCanonicalPathFromRequestUrl,
   toBase64Url,
 } from '../security/index.js'
+import { resetGitHubOidcKeyCaches } from '../security/jwks.js'
 import { buildDocsManifest, sha256Hex } from '../sync/index.js'
 import { createSyncEndpoint } from './index.js'
 
@@ -61,6 +62,8 @@ type MockPayload = {
 let currentPublicKey = ''
 
 beforeEach(() => {
+  // OIDC discovery and JWKS are cached per process; each test brings its own issuer keys.
+  resetGitHubOidcKeyCaches()
   cacheMocks.revalidatePath.mockClear()
   cacheMocks.revalidateTag.mockClear()
   cacheMocks.unstableCache.mockClear()
@@ -153,10 +156,14 @@ const createMockPayload = ({
   pages?: unknown[]
   replayNonce?: boolean
 } = {}): MockPayload => ({
+  // Mirrors the nonces collection's unique (keyId, nonce) index: a replayed nonce
+  // fails to insert, and the existing unexpired row is then found.
   create: vi.fn(({ collection }) =>
-    Promise.resolve({
-      id: `${collection}-id`,
-    }),
+    replayNonce && collection === 'docs-sync-nonces'
+      ? Promise.reject(new Error('duplicate key value violates unique constraint'))
+      : Promise.resolve({
+          id: `${collection}-id`,
+        }),
   ),
   delete: vi.fn(({ id }) =>
     Promise.resolve({
@@ -168,7 +175,7 @@ const createMockPayload = ({
 
     if (collection === 'docs-sync-nonces') {
       return Promise.resolve({
-        docs: replayNonce ? [{ id: 'nonce-id' }] : [],
+        docs: replayNonce ? [{ id: 'nonce-id', expiresAt: '2999-01-01T00:00:00.000Z' }] : [],
       })
     }
 
@@ -1302,36 +1309,97 @@ describe('sync endpoint dry-run handling', () => {
     })
   })
 
-  it('rejects unknown docs set sources before auth when no fallback source is configured', async () => {
+  it('does not reveal whether a docs set exists before authentication', async () => {
     const endpoint = createCmsManagedEndpointForTests({
       auth: {
         ed25519: true,
       },
     })
-    const body = JSON.stringify(
-      createManifest({
-        source: {
-          id: 'unknown-docs',
-        },
-      }),
-    )
-    const response = await endpoint.handler(
-      createRequest({
-        body,
-        payload: createMockPayload(),
-      }),
-    )
-    const json = (await response.json()) as Record<string, unknown>
 
-    expect(response.status).toBe(400)
-    expect(json).toMatchObject({
-      error: {
-        code: 'source_not_allowed',
-        message:
-          'No docs set exists for source "unknown-docs". Create a docs set with slug "unknown-docs" in Payload Admin before syncing this source.',
+    for (const id of ['unknown-docs', 'main-docs']) {
+      const payload = createMockPayload()
+      const body = JSON.stringify(createManifest({ source: { id } }))
+      const response = await endpoint.handler(createRequest({ body, payload }))
+      const json = (await response.json()) as { error: { code: string } }
+
+      expect(response.status).toBe(401)
+      expect(json.error.code).toBe('missing_header')
+      // No docs-set lookup happens for unauthenticated requests (DOCS-15).
+      expect(payload.find).not.toHaveBeenCalledWith(
+        expect.objectContaining({ collection: DEFAULT_DOCS_SETS_COLLECTION_SLUG }),
+      )
+    }
+  })
+
+  it('rejects non-slug source ids before any database access', async () => {
+    const endpoint = createCmsManagedEndpointForTests({
+      auth: {
+        ed25519: true,
       },
-      ok: false,
     })
+
+    for (const id of [{ like: '%' }, ['a', 'b'], 12345, 'x'.repeat(300), '../etc']) {
+      const payload = createMockPayload()
+      const body = JSON.stringify(createManifest({ source: { id } }))
+      const response = await endpoint.handler(createRequest({ body, payload }))
+      const json = (await response.json()) as { error: { code: string; message: string } }
+
+      expect(response.status).toBe(400)
+      expect(json.error.code).toBe('source_not_allowed')
+      expect(json.error.message.length).toBeLessThan(200)
+      expect(payload.find).not.toHaveBeenCalled()
+    }
+  })
+
+  it('rejects oversized bodies from Content-Length without reading them', async () => {
+    const { privateKey, publicKey } = keyPair()
+    const body = JSON.stringify(createManifest())
+    const headers = signBody({ body, privateKey })
+    headers.set('content-length', String(10_000_000))
+    const payload = createMockPayload()
+    const endpoint = createEndpointForTests({ publicKey: publicKey.toString() })
+    const response = await endpoint.handler(createRequest({ body, headers, payload }))
+
+    expect(response.status).toBe(413)
+    expect(payload.find).not.toHaveBeenCalled()
+  })
+
+  it('stores Ed25519 nonces until the signed timestamp leaves the skew window', async () => {
+    const { privateKey, publicKey } = keyPair()
+    const body = JSON.stringify(createManifest())
+    const payload = createMockPayload()
+    const { response } = await callEndpoint({
+      body,
+      headers: signBody({
+        body,
+        privateKey,
+        timestamp: new Date(now.getTime() + 299_000).toISOString(),
+      }),
+      payload,
+      publicKey: publicKey.toString(),
+    })
+
+    expect(response.status).toBe(200)
+    const nonceCreate = payload.create.mock.calls.find(
+      ([args]) => (args as { collection: string }).collection === 'docs-sync-nonces',
+    )?.[0] as { data: { expiresAt: string } }
+
+    // signed at now+299s, accepted until now+599s: the row must outlive that.
+    expect(Date.parse(nonceCreate.data.expiresAt)).toBeGreaterThan(now.getTime() + 599_000)
+  })
+
+  it('stores GitHub OIDC jti values until exp plus the allowed skew', async () => {
+    const tokenFixture = createOidcTokenFixture()
+    const { payload, response } = await callOidcEndpoint({ tokenFixture })
+
+    expect(response.status).toBe(200)
+    const nonceCreate = payload.create.mock.calls.find(
+      ([args]) => (args as { collection: string }).collection === 'docs-sync-nonces',
+    )?.[0] as { data: { expiresAt: string } }
+    const exp = Math.floor(now.getTime() / 1000) + 600
+
+    // Tokens stay acceptable until exp + 300s skew (DOCS-7).
+    expect(Date.parse(nonceCreate.data.expiresAt)).toBeGreaterThanOrEqual((exp + 300) * 1000)
   })
 
   it('rejects repeated GitHub OIDC jti values as replay', async () => {

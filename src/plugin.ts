@@ -459,6 +459,7 @@ export const payloadMarkdownDocs =
           allowHardDelete: pluginOptions.sync?.allowHardDelete,
           allowPublish: pluginOptions.sync?.allowPublish,
           allowWrites: pluginOptions.sync?.allowWrites,
+          auditDryRuns: pluginOptions.sync?.auditDryRuns,
           auth: pluginOptions.auth,
           deleteBehavior: pluginOptions.sync?.deleteBehavior,
           docsAccessCollectionSlug,

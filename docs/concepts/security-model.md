@@ -69,7 +69,27 @@ hard-delete authority.
 
 ## Replay Protection
 
-Accepted nonces are stored in the `docs-sync-nonces` collection. A repeated nonce for the same key id is rejected while it is still valid.
+Nonces are stored in the `docs-sync-nonces` collection as soon as a request is
+authenticated, before the manifest is validated or applied. The collection has
+a unique `(keyId, nonce)` index, so concurrent requests with the same nonce
+cannot both be accepted, and a request rejected later (invalid manifest, route
+collision, policy error) cannot be replayed once the problem is fixed.
+
+- Ed25519 nonces are kept at least until the signed timestamp leaves the
+  allowed clock skew window.
+- GitHub OIDC `jti` values are kept until the token's `exp` plus the allowed
+  skew, the full time the token can still be accepted.
+- Expired nonce rows are deleted opportunistically during later syncs.
+
+## Request Order
+
+The endpoint authenticates before it reads any docs-set data. Requests without
+valid credentials get a `401` that does not depend on whether the docs set in
+`source.id` exists. `source.id` must be a docs-set slug string, and bodies
+larger than `endpoint.maxBodyBytes` are rejected with `413` without being
+buffered. For GitHub OIDC, the token signature, issuer, audience (`source.id`),
+expiry, and trusted owner/repository are verified first; the docs set's branch,
+workflow, and pull-request rules are checked after the docs set is resolved.
 
 ## Common Rejections
 

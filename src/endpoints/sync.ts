@@ -12,7 +12,7 @@ import type {
   RouteCollisionPayloadOperations,
   SyncRunsPayloadOperations,
 } from '../payload/index.js'
-import type { FetchJson, NoncePayloadOperations } from '../security/index.js'
+import type { FetchJson, GitHubOidcClaims, NoncePayloadOperations  } from '../security/index.js'
 import type {
   DocsDeleteBehavior,
   DocsManifest,
@@ -63,15 +63,16 @@ import {
 import { resolveDocsRouteClaims } from '../payload/routeClaims.js'
 import { runInSyncTransaction } from '../payload/transaction.js'
 import {
-  assertNonceNotReplayed,
   buildCanonicalSigningString,
+  checkGitHubOidcPolicy,
+  consumeNonce,
   extractSyncRequestHeaders,
   getCanonicalPathFromRequestUrl,
-  storeAcceptedNonce,
+  pruneExpiredNonces,
   validateTimestampSkew,
   verifyBodySha256,
   verifyEd25519Signature,
-  verifyGitHubOidcToken,
+  verifyGitHubOidcIdentity,
 } from '../security/index.js'
 import { planDocsAssetsSync, planDocsSync, validateDocsManifest } from '../sync/index.js'
 import {
@@ -124,6 +125,7 @@ export type CreateSyncEndpointOptions = {
   allowHardDelete?: boolean
   allowPublish?: boolean
   allowWrites?: boolean
+  auditDryRuns?: boolean
   auth?: PayloadMarkdownDocsAuthConfig
   deleteBehavior?: DocsDeleteBehavior
   docsAccessCollectionSlug: string
@@ -288,6 +290,84 @@ const parseManifestBody = (rawBody: string): DocsManifest | undefined => {
   }
 }
 
+const SOURCE_ID_PATTERN = /^[a-z0-9][\w.-]{0,199}$/i
+
+const getManifestSourceId = (manifest: DocsManifest): string | undefined => {
+  const source = (manifest as { source?: unknown }).source
+  const id = isRecord(source) ? source.id : undefined
+
+  return typeof id === 'string' && SOURCE_ID_PATTERN.test(id) ? id : undefined
+}
+
+/**
+ * Reads the request body without buffering more than `maxBytes` (DOCS-15). Uses the
+ * Content-Length header and the body stream when available; falls back to `text()`.
+ */
+const readRequestBodyWithLimit = async (
+  req: PayloadRequest,
+  maxBytes: number,
+): Promise<{ ok: false; response: Response } | { ok: true; text: string }> => {
+  const tooLarge = () => ({
+    ok: false as const,
+    response: errorResponse('invalid_body', 'Sync request body is too large.', 413),
+  })
+  const contentLength = Number(req.headers?.get?.('content-length') ?? Number.NaN)
+
+  if (Number.isFinite(contentLength) && contentLength > maxBytes) {
+    return tooLarge()
+  }
+
+  const stream = (req as { body?: unknown }).body
+
+  if (
+    stream &&
+    typeof stream === 'object' &&
+    typeof (stream as ReadableStream<Uint8Array>).getReader === 'function'
+  ) {
+    const reader = (stream as ReadableStream<Uint8Array>).getReader()
+    const chunks: Uint8Array[] = []
+    let received = 0
+
+    for (;;) {
+      const { done, value } = await reader.read()
+
+      if (done) {
+        break
+      }
+
+      received += value.byteLength
+
+      if (received > maxBytes) {
+        await reader.cancel().catch(() => undefined)
+
+        return tooLarge()
+      }
+
+      chunks.push(value)
+    }
+
+    return {
+      ok: true,
+      text: Buffer.concat(chunks).toString('utf8'),
+    }
+  }
+
+  if (typeof req.text !== 'function') {
+    return {
+      ok: false,
+      response: errorResponse(
+        'invalid_body',
+        'Sync endpoint requires access to the request body text.',
+        400,
+      ),
+    }
+  }
+
+  const text = await req.text()
+
+  return Buffer.byteLength(text, 'utf8') > maxBytes ? tooLarge() : { ok: true, text }
+}
+
 type ResolvedSyncSource = {
   assetRouteBase: string
   docsSet: ResolvedDocsSet
@@ -296,13 +376,13 @@ type ResolvedSyncSource = {
 }
 
 const resolveSyncSource = async ({
-  manifest,
   options,
   payload,
+  sourceId,
 }: {
-  manifest: DocsManifest
   options: CreateSyncEndpointOptions
   payload: DocsSetPayloadOperations
+  sourceId: string
 }): Promise<
   | {
       response: Response
@@ -313,18 +393,6 @@ const resolveSyncSource = async ({
       source: ResolvedSyncSource
     }
 > => {
-  const sourceId = manifest.source?.id
-
-  if (!sourceId) {
-    return {
-      response: errorResponse(
-        'source_not_allowed',
-        'Manifest source.id is required and must match a docs set slug.',
-        400,
-      ),
-    }
-  }
-
   const docsSet = options.docsSetsEnabled
     ? await findDocsSetBySlug({
         slug: sourceId,
@@ -717,9 +785,10 @@ type AuthenticatedSyncRequest = {
   bodyHash: string
   branch?: string
   commit?: string
-  expiresAt: Date
   keyId: string
   nonce: string
+  /** Present for GitHub OIDC requests; docs-set policy is checked after lookup. */
+  oidcClaims?: GitHubOidcClaims
   repository?: string
 }
 
@@ -767,11 +836,13 @@ const authenticateEd25519Request = async ({
   options,
   rawBody,
   req,
+  sourceId,
 }: {
   now: Date
   options: CreateSyncEndpointOptions
   rawBody: string
   req: PayloadRequest
+  sourceId: string
 }): Promise<
   | {
       identity: AuthenticatedSyncRequest
@@ -851,20 +922,6 @@ const authenticateEd25519Request = async ({
     }
   }
 
-  const nonceAvailable = await assertNonceNotReplayed({
-    collectionSlug: options.noncesCollectionSlug,
-    keyId: headersResult.headers.keyId,
-    nonce: headersResult.headers.nonce,
-    now,
-    payload: req.payload as unknown as NoncePayloadOperations,
-  })
-
-  if (!nonceAvailable) {
-    return {
-      response: errorResponse('nonce_replay', 'Sync request nonce has already been used.', 409),
-    }
-  }
-
   const canonicalPath = getCanonicalPathFromRequestUrl({
     endpointPath: options.endpointPath,
     url: req.url,
@@ -889,12 +946,34 @@ const authenticateEd25519Request = async ({
     }
   }
 
+  const maxSkewSeconds = options.maxSkewSeconds ?? DEFAULT_MAX_SKEW_SECONDS
   const nonceTtlSeconds = options.nonceTtlSeconds ?? DEFAULT_NONCE_TTL_SECONDS
+  const signedAt = Date.parse(headersResult.headers.timestamp)
+  // Remember the nonce at least until the signed timestamp leaves the accepted skew
+  // window, plus a second of margin (DOCS-7).
+  const expiresAt = new Date(
+    Math.max(now.getTime() + nonceTtlSeconds * 1000, signedAt + maxSkewSeconds * 1000) + 1000,
+  )
+  const consumed = await consumeNonce({
+    bodyHash: bodyHash.computedHash,
+    collectionSlug: options.noncesCollectionSlug,
+    expiresAt,
+    keyId: headersResult.headers.keyId,
+    nonce: headersResult.headers.nonce,
+    now,
+    payload: req.payload as unknown as NoncePayloadOperations,
+    sourceId,
+  })
+
+  if (!consumed) {
+    return {
+      response: errorResponse('nonce_replay', 'Sync request nonce has already been used.', 409),
+    }
+  }
 
   return {
     identity: {
       bodyHash: bodyHash.computedHash,
-      expiresAt: new Date(now.getTime() + nonceTtlSeconds * 1000),
       keyId: headersResult.headers.keyId,
       nonce: headersResult.headers.nonce,
     },
@@ -902,17 +981,17 @@ const authenticateEd25519Request = async ({
 }
 
 const authenticateGitHubOidcRequest = async ({
-  docsSet,
   now,
   options,
   rawBody,
   req,
+  sourceId,
 }: {
-  docsSet: ResolvedDocsSet
   now: Date
   options: CreateSyncEndpointOptions
   rawBody: string
   req: PayloadRequest
+  sourceId: string
 }): Promise<
   | {
       identity: AuthenticatedSyncRequest
@@ -986,17 +1065,12 @@ const authenticateGitHubOidcRequest = async ({
     collectionSlug: options.docsAccessCollectionSlug,
     payload: req.payload as unknown as DocsAccessPayloadOperations,
   })
-  const allowedRef = docsSet.branch.startsWith('refs/')
-    ? docsSet.branch
-    : `refs/heads/${docsSet.branch}`
-
-  const verified = await verifyGitHubOidcToken({
+  // Identity only: the docs set is not looked up until the caller is authenticated.
+  // The audience must still equal the manifest source id (the docs set slug).
+  const verified = await verifyGitHubOidcIdentity({
     config: {
-      allowedRefs: [allowedRef],
-      allowedWorkflowRefs: docsSet.advancedSecurity?.allowedWorkflowRefs,
-      allowPullRequests: docsSet.allowPullRequests,
-      audience: docsSet.slug,
-      enforceWorkflowRefs: docsSet.advancedSecurity?.enabled === true,
+      audience: sourceId,
+      maxSkewSeconds: options.maxSkewSeconds,
       trustedSources,
     },
     fetchJson: options.oidcFetchJson,
@@ -1022,15 +1096,18 @@ const authenticateGitHubOidcRequest = async ({
     }
   }
 
-  const nonceAvailable = await assertNonceNotReplayed({
+  const consumed = await consumeNonce({
+    bodyHash: bodyHash.computedHash,
     collectionSlug: options.noncesCollectionSlug,
+    expiresAt: verified.token.expiresAt,
     keyId: verified.token.keyId,
     nonce: verified.token.claims.jti,
     now,
     payload: req.payload as unknown as NoncePayloadOperations,
+    sourceId,
   })
 
-  if (!nonceAvailable) {
+  if (!consumed) {
     return {
       response: errorResponse('oidc_replay', 'GitHub OIDC token jti has already been used.', 409),
     }
@@ -1042,26 +1119,26 @@ const authenticateGitHubOidcRequest = async ({
       bodyHash: bodyHash.computedHash,
       branch: verified.token.claims.ref,
       commit: verified.token.claims.sha,
-      expiresAt: verified.token.expiresAt,
       keyId: verified.token.keyId,
       nonce: verified.token.claims.jti,
+      oidcClaims: verified.token.claims,
       repository: verified.token.claims.repository,
     },
   }
 }
 
 const authenticateSyncRequest = async ({
-  docsSet,
   now,
   options,
   rawBody,
   req,
+  sourceId,
 }: {
-  docsSet: ResolvedDocsSet
   now: Date
   options: CreateSyncEndpointOptions
   rawBody: string
   req: PayloadRequest
+  sourceId: string
 }): Promise<
   | {
       identity: AuthenticatedSyncRequest
@@ -1099,11 +1176,11 @@ const authenticateSyncRequest = async ({
     }
 
     return authenticateGitHubOidcRequest({
-      docsSet,
       now,
       options,
       rawBody,
       req,
+      sourceId,
     })
   }
 
@@ -1123,15 +1200,16 @@ const authenticateSyncRequest = async ({
       options,
       rawBody,
       req,
+      sourceId,
     })
   }
 
   return authenticateGitHubOidcRequest({
-    docsSet,
     now,
     options,
     rawBody,
     req,
+    sourceId,
   })
 }
 
@@ -1216,47 +1294,79 @@ const createSyncEndpointHandler =
       return errorResponse('invalid_method', 'Sync endpoint only accepts POST.', 405)
     }
 
-    if (typeof req.text !== 'function') {
-      return errorResponse(
-        'invalid_body',
-        'Sync endpoint requires access to the request body text.',
-        400,
-      )
-    }
-
-    const rawBody = await req.text()
     const maxBodyBytes = options.maxBodyBytes ?? DEFAULT_MAX_BODY_BYTES
+    const body = await readRequestBodyWithLimit(req, maxBodyBytes)
 
-    if (Buffer.byteLength(rawBody, 'utf8') > maxBodyBytes) {
-      return errorResponse('invalid_body', 'Sync request body is too large.', 413)
+    if (!body.ok) {
+      return body.response
     }
 
+    const rawBody = body.text
     const manifest = parseManifestBody(rawBody)
 
     if (!manifest) {
       return errorResponse('invalid_body', 'Sync request body must be a JSON manifest.', 400)
     }
 
+    // Validated before any database access: the id selects the docs set and the OIDC
+    // audience, so it must be a plain slug string (DOCS-15).
+    const sourceId = getManifestSourceId(manifest)
+
+    if (!sourceId) {
+      return errorResponse(
+        'source_not_allowed',
+        'Manifest source.id is required and must be a docs set slug.',
+        400,
+      )
+    }
+
+    // Authenticate before looking up the docs set, so unauthenticated callers cannot
+    // probe which docs sets exist (DOCS-15).
+    const authentication = await authenticateSyncRequest({
+      now: startedAt,
+      options,
+      rawBody,
+      req,
+      sourceId,
+    })
+
+    if (authentication.response) {
+      return authentication.response
+    }
+
+    void pruneExpiredNonces({
+      collectionSlug: options.noncesCollectionSlug,
+      now: startedAt,
+      payload: req.payload as unknown as NoncePayloadOperations,
+    })
+
     const sourceResolution = await resolveSyncSource({
-      manifest,
       options,
       payload: req.payload as unknown as DocsSetPayloadOperations,
+      sourceId,
     })
 
     if (sourceResolution.response) {
       return sourceResolution.response
     }
 
-    const authentication = await authenticateSyncRequest({
-      docsSet: sourceResolution.source.docsSet,
-      now: startedAt,
-      options,
-      rawBody,
-      req,
-    })
+    if (authentication.identity.oidcClaims) {
+      const docsSet = sourceResolution.source.docsSet
+      const policy = checkGitHubOidcPolicy({
+        claims: authentication.identity.oidcClaims,
+        config: {
+          allowedRefs: [
+            docsSet.branch.startsWith('refs/') ? docsSet.branch : `refs/heads/${docsSet.branch}`,
+          ],
+          allowedWorkflowRefs: docsSet.advancedSecurity?.allowedWorkflowRefs,
+          allowPullRequests: docsSet.allowPullRequests,
+          enforceWorkflowRefs: docsSet.advancedSecurity?.enabled === true,
+        },
+      })
 
-    if (authentication.response) {
-      return authentication.response
+      if (!policy.ok) {
+        return errorResponse(policy.code, policy.message, 401)
+      }
     }
 
     const validation = validateDocsManifest(manifest, {
@@ -1480,20 +1590,9 @@ const createSyncEndpointHandler =
       )
     }
 
-    await storeAcceptedNonce({
-      bodyHash: authentication.identity.bodyHash,
-      collectionSlug: options.noncesCollectionSlug,
-      expiresAt: authentication.identity.expiresAt,
-      keyId: authentication.identity.keyId,
-      nonce: authentication.identity.nonce,
-      payload: req.payload as unknown as NoncePayloadOperations,
-      sourceId: validation.data.source.id,
-      usedAt: startedAt,
-    })
-
     let syncRunId: number | string | undefined
 
-    if (options.syncRunsEnabled) {
+    if (options.syncRunsEnabled && (isSyncMode || options.auditDryRuns !== false)) {
       const syncRun = await createSyncRunAudit({
         actor: authentication.identity.actor,
         bodyHash: authentication.identity.bodyHash,

@@ -115,6 +115,12 @@ export type PayloadMarkdownDocsSyncConfig = {
   allowHardDelete?: boolean
   allowPublish?: boolean
   allowWrites?: boolean
+  /**
+   * Record a sync-run audit row for dry-run requests. Defaults to true. Set to false
+   * to keep the sync-runs collection to applied syncs only; dry runs still consume
+   * their nonce for replay protection.
+   */
+  auditDryRuns?: boolean
   deleteBehavior?: 'archive' | 'delete' | 'draft' | 'ignore'
   revalidate?: false | PayloadMarkdownDocsSyncRevalidateConfig
 }

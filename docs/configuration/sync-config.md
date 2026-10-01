@@ -77,6 +77,11 @@ sync: {
 Use `revalidate: false` only when the app handles docs cache invalidation
 elsewhere.
 
+## Dry-Run Audit Records
+
+Every dry run records a sync run by default. Set `sync.auditDryRuns: false` to
+record applied syncs only. Dry runs still consume their nonce.
+
 ## Delete Behavior
 
 `deleteBehavior` can be:
