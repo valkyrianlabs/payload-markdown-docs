@@ -27,6 +27,10 @@
 /build
 /dist
 
+# release tooling outputs (local runs of python -m tools.release)
+/.changelog_scratch/
+/release/
+
 # misc
 .DS_Store
 *.pem
