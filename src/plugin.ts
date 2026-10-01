@@ -355,6 +355,7 @@ export const payloadMarkdownDocs =
         ? [
             createDocsAccessCollection({
               slug: docsAccessCollectionSlug,
+              docsSetsCollectionSlug: docsSetsEnabled ? docsSetsCollectionSlug : undefined,
             }),
           ]
         : []),

@@ -130,6 +130,32 @@ export const createDocsSetsCollection = ({
         {
           fields: [
             {
+              name: 'repositories',
+              type: 'array',
+              admin: {
+                description:
+                  'GitHub OIDC only: repositories allowed to publish this docs set (owner/repo, or repo under the trusted owner). Leave empty to accept any repository trusted in Access.',
+              },
+              fields: [
+                {
+                  name: 'value',
+                  type: 'text',
+                  required: true,
+                },
+              ],
+              label: 'Allowed repositories',
+            },
+            {
+              name: 'allowTagRefs',
+              type: 'checkbox',
+              admin: {
+                description:
+                  'GitHub OIDC only: accept any refs/tags/* ref (for example release-triggered publishing) in addition to the docs set branch. Turn off to accept only the branch.',
+              },
+              defaultValue: true,
+              label: 'Allow tag refs',
+            },
+            {
               name: 'advancedSecurity',
               type: 'group',
               admin: {

@@ -208,6 +208,33 @@ const repositoryMatches = ({
     : `${owner}/${normalized}`.toLowerCase() === repository.toLowerCase()
 }
 
+/** True when a trusted-source record covers the token's owner/repository. */
+export const githubOidcSourceMatches = ({
+  repository,
+  repositoryOwner,
+  source,
+}: {
+  repository: string
+  repositoryOwner: string
+  source: GitHubOidcTrustedSource
+}): boolean => {
+  if (source.owner.toLowerCase() !== repositoryOwner.toLowerCase()) {
+    return false
+  }
+
+  if (source.limitRepos !== true) {
+    return true
+  }
+
+  return (source.repositories ?? []).some((allowedRepository) =>
+    repositoryMatches({
+      allowed: allowedRepository,
+      owner: source.owner,
+      repository,
+    }),
+  )
+}
+
 const findTrustedSource = ({
   repository,
   repositoryOwner,
@@ -217,23 +244,13 @@ const findTrustedSource = ({
   repositoryOwner: string
   trustedSources: GitHubOidcTrustedSource[]
 }): GitHubOidcTrustedSource | undefined =>
-  trustedSources.find((source) => {
-    if (source.owner.toLowerCase() !== repositoryOwner.toLowerCase()) {
-      return false
-    }
-
-    if (source.limitRepos !== true) {
-      return true
-    }
-
-    return (source.repositories ?? []).some((allowedRepository) =>
-      repositoryMatches({
-        allowed: allowedRepository,
-        owner: source.owner,
-        repository,
-      }),
-    )
-  })
+  trustedSources.find((source) =>
+    githubOidcSourceMatches({
+      repository,
+      repositoryOwner,
+      source,
+    }),
+  )
 
 const verifyJwtSignature = ({
   jwk,

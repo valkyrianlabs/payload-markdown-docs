@@ -10,9 +10,10 @@ import type {
   ExistingPayloadDocsRecord,
   ResolvedDocsSet,
   RouteCollisionPayloadOperations,
+  ScopedGitHubOidcTrustedSource,
   SyncRunsPayloadOperations,
 } from '../payload/index.js'
-import type { FetchJson, GitHubOidcClaims, NoncePayloadOperations  } from '../security/index.js'
+import type { FetchJson, GitHubOidcClaims, NoncePayloadOperations } from '../security/index.js'
 import type {
   DocsDeleteBehavior,
   DocsManifest,
@@ -49,6 +50,7 @@ import {
   findExistingPayloadDocsRecords,
   findTrustedGitHubSources,
   getRecordId,
+  isDocsSetInScope,
   isEd25519AuthEnabled,
   isGitHubOidcAuthEnabled,
   toExistingAssetRecord,
@@ -68,6 +70,7 @@ import {
   consumeNonce,
   extractSyncRequestHeaders,
   getCanonicalPathFromRequestUrl,
+  githubOidcSourceMatches,
   pruneExpiredNonces,
   validateTimestampSkew,
   verifyBodySha256,
@@ -785,10 +788,14 @@ type AuthenticatedSyncRequest = {
   bodyHash: string
   branch?: string
   commit?: string
+  /** Ed25519 key scope: docs set ids this key may sync (empty = all, deprecated). */
+  ed25519DocsSetIds?: string[]
   keyId: string
   nonce: string
   /** Present for GitHub OIDC requests; docs-set policy is checked after lookup. */
   oidcClaims?: GitHubOidcClaims
+  /** Access records that trusted the OIDC token, with their docs-set scopes. */
+  oidcTrustedSources?: ScopedGitHubOidcTrustedSource[]
   repository?: string
 }
 
@@ -974,6 +981,7 @@ const authenticateEd25519Request = async ({
   return {
     identity: {
       bodyHash: bodyHash.computedHash,
+      ed25519DocsSetIds: keyConfig.docsSetIds,
       keyId: headersResult.headers.keyId,
       nonce: headersResult.headers.nonce,
     },
@@ -1122,6 +1130,13 @@ const authenticateGitHubOidcRequest = async ({
       keyId: verified.token.keyId,
       nonce: verified.token.claims.jti,
       oidcClaims: verified.token.claims,
+      oidcTrustedSources: trustedSources.filter((source) =>
+        githubOidcSourceMatches({
+          repository: verified.token.claims.repository,
+          repositoryOwner: verified.token.claims.repository_owner,
+          source,
+        }),
+      ),
       repository: verified.token.claims.repository,
     },
   }
@@ -1211,6 +1226,77 @@ const authenticateSyncRequest = async ({
     req,
     sourceId,
   })
+}
+
+const warnedUnscopedKeys = new Set<string>()
+
+/**
+ * Credential scope (DOCS-5): Access records may be limited to docs sets, and docs sets
+ * may bind GitHub OIDC to repositories, tag-ref acceptance, workflow refs, and pull
+ * requests. Unscoped Ed25519 keys keep working but log a one-time warning.
+ */
+const getCredentialScopeError = ({
+  docsSet,
+  identity,
+  req,
+}: {
+  docsSet: ResolvedDocsSet
+  identity: AuthenticatedSyncRequest
+  req: PayloadRequest
+}): Response | undefined => {
+  if (identity.oidcClaims) {
+    const sources = identity.oidcTrustedSources ?? []
+
+    if (
+      sources.length > 0 &&
+      !sources.some((source) => isDocsSetInScope(source.docsSetIds, docsSet.id))
+    ) {
+      return errorResponse(
+        'oidc_repository_not_allowed',
+        `GitHub OIDC repository "${identity.oidcClaims.repository}" is not allowed to sync docs set "${docsSet.slug}".`,
+        403,
+      )
+    }
+
+    const policy = checkGitHubOidcPolicy({
+      claims: identity.oidcClaims,
+      config: {
+        allowedRefs: [
+          docsSet.branch.startsWith('refs/') ? docsSet.branch : `refs/heads/${docsSet.branch}`,
+        ],
+        allowedRepositories: docsSet.repositories,
+        allowedWorkflowRefs: docsSet.advancedSecurity?.allowedWorkflowRefs,
+        allowPullRequests: docsSet.allowPullRequests,
+        allowTagRefs: docsSet.allowTagRefs,
+        enforceWorkflowRefs: docsSet.advancedSecurity?.enabled === true,
+      },
+    })
+
+    return policy.ok ? undefined : errorResponse(policy.code, policy.message, 401)
+  }
+
+  const docsSetIds = identity.ed25519DocsSetIds ?? []
+
+  if (docsSetIds.length === 0) {
+    if (!warnedUnscopedKeys.has(identity.keyId)) {
+      warnedUnscopedKeys.add(identity.keyId)
+      const logger = (req.payload as { logger?: { warn?: (...args: unknown[]) => void } })
+        ?.logger
+      logger?.warn?.(
+        `payloadMarkdownDocs: Ed25519 key "${identity.keyId}" is not limited to any docs set and can sync every docs set. Set "Allowed docs sets" on its Access record.`,
+      )
+    }
+
+    return undefined
+  }
+
+  return isDocsSetInScope(docsSetIds, docsSet.id)
+    ? undefined
+    : errorResponse(
+        'source_not_allowed',
+        `Sync key "${identity.keyId}" is not allowed to sync docs set "${docsSet.slug}".`,
+        403,
+      )
 }
 
 class SyncApplyConflictError extends Error {
@@ -1350,23 +1436,14 @@ const createSyncEndpointHandler =
       return sourceResolution.response
     }
 
-    if (authentication.identity.oidcClaims) {
-      const docsSet = sourceResolution.source.docsSet
-      const policy = checkGitHubOidcPolicy({
-        claims: authentication.identity.oidcClaims,
-        config: {
-          allowedRefs: [
-            docsSet.branch.startsWith('refs/') ? docsSet.branch : `refs/heads/${docsSet.branch}`,
-          ],
-          allowedWorkflowRefs: docsSet.advancedSecurity?.allowedWorkflowRefs,
-          allowPullRequests: docsSet.allowPullRequests,
-          enforceWorkflowRefs: docsSet.advancedSecurity?.enabled === true,
-        },
-      })
+    const scopeError = getCredentialScopeError({
+      docsSet: sourceResolution.source.docsSet,
+      identity: authentication.identity,
+      req,
+    })
 
-      if (!policy.ok) {
-        return errorResponse(policy.code, policy.message, 401)
-      }
+    if (scopeError) {
+      return scopeError
     }
 
     const validation = validateDocsManifest(manifest, {

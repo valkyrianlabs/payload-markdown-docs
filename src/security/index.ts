@@ -11,6 +11,7 @@ export {
 } from './ed25519Keys.js'
 export {
   checkGitHubOidcPolicy,
+  githubOidcSourceMatches,
   verifyGitHubOidcIdentity,
   verifyGitHubOidcToken,
 } from './githubOidc.js'

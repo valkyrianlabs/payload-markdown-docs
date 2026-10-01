@@ -1309,6 +1309,111 @@ describe('sync endpoint dry-run handling', () => {
     })
   })
 
+  it('rejects tag refs when the docs set disables them', async () => {
+    const tokenFixture = createOidcTokenFixture({
+      ref: 'refs/tags/anything',
+      repository: 'valkyrianlabs/unrelated-repo',
+      sub: 'repo:valkyrianlabs/unrelated-repo:ref:refs/tags/anything',
+    })
+    const payload = createMockPayload({
+      docsSets: [{ id: 'docs-set-1', slug: 'main-docs', allowTagRefs: false, branch: 'main' }],
+    })
+    const { json, response } = await callOidcEndpoint({ payload, tokenFixture })
+
+    expect(response.status).toBe(401)
+    expect(json.error).toMatchObject({ code: 'oidc_ref_not_allowed' })
+  })
+
+  it('binds GitHub OIDC publishing to the docs set repositories when listed', async () => {
+    const tokenFixture = createOidcTokenFixture({
+      repository: 'valkyrianlabs/unrelated-repo',
+      sub: 'repo:valkyrianlabs/unrelated-repo:ref:refs/heads/main',
+    })
+    const payload = createMockPayload({
+      docsSets: [
+        {
+          id: 'docs-set-1',
+          slug: 'main-docs',
+          branch: 'main',
+          repositories: [{ value: 'payload-markdown-docs' }],
+        },
+      ],
+    })
+    const { json, response } = await callOidcEndpoint({ payload, tokenFixture })
+
+    expect(response.status).toBe(401)
+    expect(json.error).toMatchObject({ code: 'oidc_repository_not_allowed' })
+
+    const allowed = await callOidcEndpoint({
+      payload: createMockPayload({
+        docsSets: [
+          {
+            id: 'docs-set-1',
+            slug: 'main-docs',
+            branch: 'main',
+            repositories: [{ value: 'valkyrianlabs/payload-markdown-docs' }],
+          },
+        ],
+      }),
+    })
+
+    expect(allowed.response.status).toBe(200)
+  })
+
+  it('rejects OIDC Access records scoped to other docs sets', async () => {
+    const { json, response } = await callOidcEndpoint({
+      payload: createMockPayload({
+        docsAccess: [
+          {
+            id: 'access-github-id',
+            accessType: 'githubOidc',
+            docsSets: ['some-other-set'],
+            identityKey: 'githubOidc:valkyrianlabs',
+            limitRepos: false,
+            owner: 'valkyrianlabs',
+          },
+        ],
+      }),
+    })
+
+    expect(response.status).toBe(403)
+    expect(json.error).toMatchObject({ code: 'oidc_repository_not_allowed' })
+  })
+
+  it('limits Ed25519 keys to their allowed docs sets', async () => {
+    const { privateKey, publicKey } = keyPair()
+    const body = JSON.stringify(createManifest())
+    const accessFor = (docsSets: unknown[]) => [
+      {
+        id: 'access-key-id',
+        accessType: 'ed25519',
+        docsSets,
+        identityKey: 'ed25519:test-key',
+        keyId: 'test-key',
+        publicKey: publicKey.toString(),
+      },
+    ]
+
+    const denied = await callEndpoint({
+      body,
+      headers: signBody({ body, nonce: 'scope-1', privateKey }),
+      payload: createMockPayload({ docsAccess: accessFor([{ id: 'other-set' }]) }),
+      publicKey: publicKey.toString(),
+    })
+
+    expect(denied.response.status).toBe(403)
+    expect(denied.json.error).toMatchObject({ code: 'source_not_allowed' })
+
+    const allowed = await callEndpoint({
+      body,
+      headers: signBody({ body, nonce: 'scope-2', privateKey }),
+      payload: createMockPayload({ docsAccess: accessFor(['docs-set-id']) }),
+      publicKey: publicKey.toString(),
+    })
+
+    expect(allowed.response.status).toBe(200)
+  })
+
   it('does not reveal whether a docs set exists before authentication', async () => {
     const endpoint = createCmsManagedEndpointForTests({
       auth: {

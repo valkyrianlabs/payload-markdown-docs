@@ -50,6 +50,8 @@ export type ResolvedDocsSet = {
     enabled: boolean
   }
   allowPullRequests: boolean
+  /** Accept `refs/tags/*` OIDC refs. Missing (pre-existing records) means true. */
+  allowTagRefs: boolean
   branch: string
   description?: string
   groupId?: string
@@ -57,6 +59,8 @@ export type ResolvedDocsSet = {
   groupRoutePath?: string
   id: PayloadRecordId
   productRoute: string
+  /** OIDC repository binding; empty = any repository trusted in Access. */
+  repositories: string[]
   routeBase: string
   routeMode: DocsSetRouteMode
   slug: string
@@ -262,12 +266,14 @@ const toResolvedDocsSet = ({
       : {}),
     slug,
     allowPullRequests: doc.allowPullRequests === true,
+    allowTagRefs: doc.allowTagRefs !== false,
     branch: getString(doc.branch) ?? 'main',
     description: getString(doc.description),
     groupId,
     groupPageMode: group?.pageMode,
     groupRoutePath: group?.routePath,
     productRoute,
+    repositories: getStringArray(doc.repositories),
     routeBase: normalizeRoutePath(
       deriveDocsSetRouteBase({
         docsSetSlug: slug,

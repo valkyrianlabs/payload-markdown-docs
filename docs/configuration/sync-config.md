@@ -33,9 +33,12 @@ Without `allowWrites: true`, `mode: "sync"` is rejected.
 
 Supported auth modes:
 
-- `ed25519` for signed requests with docs-set public keys.
-- `github-oidc` for GitHub Actions workflows with docs-set repository/ref
-  allowlists.
+- `ed25519` for signed requests with public keys stored in Access records.
+  A key can sync every docs set unless its Access record lists
+  `Allowed docs sets`; unscoped keys log a warning on use.
+- `github-oidc` for GitHub Actions workflows trusted through Access owner or
+  repository records, with per-docs-set branch, repository, tag-ref, workflow
+  ref, and pull-request rules.
 
 See [GitHub OIDC](/configuration/github-oidc) and [signed push](/workflow/signed-push).
 

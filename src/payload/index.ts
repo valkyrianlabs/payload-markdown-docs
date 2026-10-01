@@ -12,8 +12,14 @@ export {
   findDocsKeyById,
   findTrustedGitHubSources,
   isDocsAccessType,
+  isDocsSetInScope,
 } from './docsAccess.js'
-export type { DocsAccessPayloadOperations, DocsAccessType, ResolvedDocsKey } from './docsAccess.js'
+export type {
+  DocsAccessPayloadOperations,
+  DocsAccessType,
+  ResolvedDocsKey,
+  ScopedGitHubOidcTrustedSource,
+} from './docsAccess.js'
 export { findDocsSyncConflicts } from './docsConflicts.js'
 export type { DocsSyncConflict, DocsSyncConflictReason } from './docsConflicts.js'
 export { buildArchiveData, buildDocsData, getDocsDepth } from './docsData.js'

@@ -45,10 +45,27 @@ Then create records in Payload Admin:
 The docs set slug is the `pmdocs --source` value and the OIDC audience. Choose
 that source id before writing the workflow.
 
-The docs set branch is the normal publishing boundary. The token repository
-owner must match a GitHub OIDC Access owner. If `limitRepos` is off, any
-repository under that owner is trusted. If it is on, the repository must be
-listed.
+The token repository owner must match a GitHub OIDC Access owner. If
+`limitRepos` is off, any repository under that owner is trusted. If it is on,
+the repository must be listed. By itself an owner record trusts its
+repositories for every docs set: any trusted repository can mint a token whose
+audience is any docs set slug.
+
+Narrow that per docs set:
+
+- Access record `Allowed docs sets`: limit an owner/repository record to the
+  listed docs sets. Empty allows every docs set.
+- Docs set `Allowed repositories` (Security tab): only these repositories may
+  publish the docs set (`owner/repo`, or `repo` under the trusted owner). Empty
+  accepts any repository trusted in Access.
+- Docs set `Allow tag refs` (Security tab, on by default): tokens for any
+  `refs/tags/*` ref are accepted in addition to the docs set branch. This keeps
+  release-triggered publishing working. Turn it off so only the branch can
+  publish, or enable advanced workflow refs to limit tags to exact workflows.
+
+The docs set branch is the publishing boundary only for branch refs; with
+`Allow tag refs` on, anyone who can push a tag in a trusted repository can
+publish.
 
 ## Workflow Permissions
 

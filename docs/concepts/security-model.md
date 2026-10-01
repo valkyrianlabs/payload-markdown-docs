@@ -60,10 +60,12 @@ The manifest cannot choose:
 - source-specific auth allowlists
 
 Payload Admin docs sets own package routing, branch, OIDC audience, and
-source-specific restrictions. Access records own reusable publishing
-credentials and trust: Ed25519 public keys for signed manual, local, or
-non-GitHub sync, and GitHub OIDC owner/repository allowlists for GitHub Actions
-sync. Nonces provide replay protection. Sync runs provide audit history. Plugin
+GitHub OIDC restrictions (allowed repositories, tag-ref acceptance, workflow
+refs, pull requests). Access records own reusable publishing credentials and
+trust: Ed25519 public keys for signed manual, local, or non-GitHub sync, and
+GitHub OIDC owner/repository allowlists for GitHub Actions sync. An Access
+record is valid for every docs set unless its `Allowed docs sets` list is set;
+scope keys to the docs sets they publish. Nonces provide replay protection. Sync runs provide audit history. Plugin
 config owns collection setup and lifecycle gates such as write, publish, and
 hard-delete authority.
 

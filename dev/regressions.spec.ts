@@ -510,6 +510,33 @@ describeDb('docs sync real-DB regressions', () => {
     })
   })
 
+  describe('credential scope (DOCS-5)', () => {
+    test('an Ed25519 key limited to one docs set cannot sync another', async () => {
+      const allowedSlug = uniqueSlug('scope-a')
+      const otherSlug = uniqueSlug('scope-b')
+      const allowedSet = await createDocsSet(payload, allowedSlug)
+      await createDocsSet(payload, otherSlug)
+      const scopedKey = createSyncKey()
+      await registerSyncKey(payload, scopedKey, { docsSets: [allowedSet.id] })
+
+      const ok = await callSync({
+        key: scopedKey,
+        manifest: buildManifest(allowedSlug, [{ content: '# A\n', path: 'a.md' }]),
+        payload,
+      })
+      expect(ok.status).toBe(200)
+
+      const denied = await callSync({
+        key: scopedKey,
+        manifest: buildManifest(otherSlug, [{ content: '# A\n', path: 'a.md' }]),
+        payload,
+      })
+      expect(denied.status).toBe(403)
+      expect(denied.json.error.code).toBe('source_not_allowed')
+      expect(await findDocsBySource(payload, otherSlug)).toEqual([])
+    })
+  })
+
   describe('public visibility (DOCS-1, DOCS-12)', () => {
     test('non-publish (draft) docs never appear in llms.txt / llms-full.txt', async () => {
       const slug = uniqueSlug('vis')
