@@ -28,14 +28,17 @@ import {
 } from '../src/next/links.js'
 import { resolvePayloadMarkdownDocsRoute } from '../src/next/route.js'
 import { getPaginatedDocsForSitemap } from '../src/next/sitemap.js'
+import { signDocsSyncRequest } from '../src/security/sign.js'
 import { resolveDocsSetSkills } from '../src/utilities/normalizeSkills.js'
 import {
   buildManifest,
   callGet,
   callSync,
   createSyncKey,
+  findEndpoint,
   registerSyncKey,
   runDbTests,
+  SYNC_ENDPOINT_URL,
   type SyncKey,
 } from './helpers/syncHarness.js'
 
@@ -682,6 +685,54 @@ describeDb('read-side and sync characterization (docs-b2)', () => {
   })
 
   describe('sync responses', () => {
+    /** Raw response text: pins JSON key order and headers, not just parsed values. */
+    const syncRaw = async (manifest: unknown) => {
+      const body = JSON.stringify(manifest)
+      const signed = signDocsSyncRequest({
+        body,
+        endpoint: SYNC_ENDPOINT_URL,
+        keyId: key.keyId,
+        privateKey: key.privateKey,
+      })
+      const response = await findEndpoint(payload, '/documentation/sync').handler({
+        headers: new Headers(signed.headers as unknown as Record<string, string>),
+        method: 'POST',
+        payload,
+        text: () => Promise.resolve(body),
+        url: SYNC_ENDPOINT_URL,
+      } as never)
+
+      return {
+        contentType: response.headers.get('content-type'),
+        status: response.status,
+        text: (await response.text()).replace(/"syncRunId":"[^"]+"/, '"syncRunId":"<sync-run>"'),
+      }
+    }
+
+    test('raw dry-run and error bodies', async () => {
+      expect(
+        await syncRaw(
+          buildManifest(
+            'alpha',
+            [
+              { content: '# Alpha\n', path: 'index.md' },
+              { content: '# New\n', path: 'new.md' },
+            ],
+            { mode: 'dry-run', publish: false },
+          ),
+        ),
+      ).toMatchSnapshot()
+      expect(
+        await syncRaw(
+          buildManifest('gamma', [
+            { content: '# A\n', path: 'a.md' },
+            { content: '# A index\n', path: 'a/index.md' },
+          ]),
+        ),
+      ).toMatchSnapshot()
+      expect(await syncRaw({ files: [], source: { id: '../bad' }, version: 1 })).toMatchSnapshot()
+    })
+
     test('dry-run plan', async () => {
       const result = await callSync({
         key,

@@ -2399,6 +2399,30 @@ exports[`read-side and sync characterization (docs-b2) > sync responses > invali
 }
 `;
 
+exports[`read-side and sync characterization (docs-b2) > sync responses > raw dry-run and error bodies 1`] = `
+{
+  "contentType": "application/json",
+  "status": 200,
+  "text": "{"assetChanges":{"archive":[{"current":{"archived":false,"contentType":"text/plain; charset=utf-8","kind":"static","sourceHash":"19fdf3233b2af546c93079d9fcceafb47e58ff92e59e12097c687962456444c1"},"reason":"Existing asset is missing from desired manifest.","sourcePath":"static/notes.txt"},{"current":{"archived":false,"contentType":"text/markdown; charset=utf-8","kind":"skill","route":"/alpha/skills/codex/SKILL.md","sourceHash":"3ad22f6aefd9409c3e176611866a3d44f4c14a61e664af9c209d204f1fef9301"},"reason":"Existing asset is missing from desired manifest.","sourcePath":"skills/alpha/codex/SKILL.md"},{"current":{"archived":false,"contentType":"text/markdown; charset=utf-8","kind":"skill","route":"/alpha/skills/claude/reference/usage.md","sourceHash":"0bcac04f01dfe9368765a69759b8d64349548630d606a4f14cb5e1c784454c27"},"reason":"Existing asset is missing from desired manifest.","sourcePath":"skills/alpha/claude/reference/usage.md"},{"current":{"archived":false,"contentType":"text/markdown; charset=utf-8","kind":"skill","route":"/alpha/skills/claude/SKILL.md","sourceHash":"3d96f67068171a20d4ac9f3e782a963fe1cee92512d8b8362c433787f0984384"},"reason":"Existing asset is missing from desired manifest.","sourcePath":"skills/alpha/claude/SKILL.md"}],"create":[],"delete":[],"unchanged":[],"update":[]},"changes":{"archive":[{"current":{"archived":false,"route":"/alpha/unreleased","sourceHash":"f2414fae09833cd80882b40fea4e470d56e8bbc0861f602f0083b7c59f451ccd","title":"Unreleased"},"reason":"Existing doc is missing from desired manifest.","sourcePath":"unreleased.md"},{"current":{"archived":false,"route":"/alpha/hidden","sourceHash":"8c1577691b2544fb49c37b7c83ff2d74aee3667af4b45be83b07e221232567fc","title":"Hidden"},"reason":"Existing doc is missing from desired manifest.","sourcePath":"hidden.md"},{"current":{"archived":false,"route":"/alpha/nested","sourceHash":"421fdec84b375342342c0e955ff0d1f2677418b08f4d61d524c3015c62fe7181","title":"Nested Index"},"reason":"Existing doc is missing from desired manifest.","sourcePath":"nested/index.md"},{"current":{"archived":false,"route":"/alpha/nested/deep","sourceHash":"045b25e0a74e4bf83fa07fa6cc6cfe2fc754053c5e9b4b161fae4b78f829f182","title":"Deep Page"},"reason":"Existing doc is missing from desired manifest.","sourcePath":"nested/deep.md"},{"current":{"archived":false,"route":"/alpha/guide","sourceHash":"9b4527ae7aa24b680438708fc0ae240f601e8f0b928e7b6585602035d73d7275","title":"The Guide"},"reason":"Existing doc is missing from desired manifest.","sourcePath":"guide.md"}],"create":[{"desired":{"route":"/alpha/new","sha256":"f676b43bd55f91451babc1663739064abb7e11e2b5f4a7efe62c29e4eeb0d117","title":"New"},"reason":"No existing doc has this sourcePath.","sourcePath":"new.md"}],"delete":[],"draft":[],"unchanged":[],"update":[{"current":{"archived":false,"route":"/alpha","sourceHash":"11edc929c966c16bfae61a86fcd2910e9b260578b00a3afd72bae0523d739a48","title":"Alpha Home"},"desired":{"route":"/alpha","sha256":"017b70af1737a855266fc9eb9b3f88917dc972f20d2a1c7d6baa03b85260e8b8","title":"Alpha"},"reason":"Existing source hash differs from desired source hash.","sourcePath":"index.md"}]},"deleteBehavior":"archive","dryRun":true,"ok":true,"publishRequested":false,"summary":{"archive":5,"create":1,"delete":0,"draft":0,"unchanged":0,"update":1,"warnings":0,"assetArchive":4,"assetCreate":0,"assetDelete":0,"assetUnchanged":0,"assetUpdate":0},"syncRunId":"<sync-run>","warnings":[]}",
+}
+`;
+
+exports[`read-side and sync characterization (docs-b2) > sync responses > raw dry-run and error bodies 2`] = `
+{
+  "contentType": "application/json",
+  "status": 409,
+  "text": "{"routeCollisions":[{"paths":["a.md","a/index.md"],"reason":"exact_route_collision","route":"/custom/gamma/a"}],"error":{"code":"route_collision","issues":[{"code":"exact_route_collision","message":"Route /custom/gamma/a is produced by a.md, a/index.md.","path":"a.md","severity":"error"}],"message":"Two or more manifest files resolve to the same route."},"ok":false}",
+}
+`;
+
+exports[`read-side and sync characterization (docs-b2) > sync responses > raw dry-run and error bodies 3`] = `
+{
+  "contentType": "application/json",
+  "status": 400,
+  "text": "{"error":{"code":"source_not_allowed","message":"Manifest source.id is required and must be a docs set slug."},"ok":false}",
+}
+`;
+
 exports[`read-side and sync characterization (docs-b2) > sync responses > route collision inside the manifest 1`] = `
 {
   "json": {
