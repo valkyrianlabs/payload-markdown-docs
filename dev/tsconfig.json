@@ -19,6 +19,8 @@
         "./payload.config.ts"
       ]
     },
+    "composite": false,
+    "incremental": false,
     "noEmit": true,
     "emitDeclarationOnly": false
   }

@@ -459,6 +459,19 @@ export interface DocsSet {
     image?: (number | null) | Media;
   };
   /**
+   * GitHub OIDC only: repositories allowed to publish this docs set (owner/repo, or repo under the trusted owner). Leave empty to accept any repository trusted in Access.
+   */
+  repositories?:
+    | {
+        value: string;
+        id?: string | null;
+      }[]
+    | null;
+  /**
+   * GitHub OIDC only: accept any refs/tags/* ref (for example release-triggered publishing) in addition to the docs set branch. Turn off to accept only the branch.
+   */
+  allowTagRefs?: boolean | null;
+  /**
    * Optional workflow lock-down. Leave disabled to allow any workflow from a trusted GitHub owner/repository and branch.
    */
   advancedSecurity?: {
@@ -553,6 +566,7 @@ export interface Doc {
     sourcePath?: string | null;
     sourceHashAtLastSync?: string | null;
     contentHashAtLastSync?: string | null;
+    fieldsHashAtLastSync?: string | null;
     lastSyncedAt?: string | null;
     lastSyncRunId?: (number | null) | DocsSyncRun;
     managedBy?: string | null;
@@ -710,6 +724,10 @@ export interface DocsAccess {
         id?: string | null;
       }[]
     | null;
+  /**
+   * Docs sets this credential may sync. Leave empty to allow every docs set (not recommended; logs a warning when used).
+   */
+  docsSets?: (number | DocsSet)[] | null;
   updatedAt: string;
   createdAt: string;
 }
@@ -787,6 +805,7 @@ export interface User {
   resetPasswordExpiration?: string | null;
   salt?: string | null;
   hash?: string | null;
+  resetPasswordRequestedAt?: string | null;
   loginAttempts?: number | null;
   lockUntil?: string | null;
   sessions?:
@@ -1189,6 +1208,13 @@ export interface DocsSetsSelect<T extends boolean = true> {
         description?: T;
         image?: T;
       };
+  repositories?:
+    | T
+    | {
+        value?: T;
+        id?: T;
+      };
+  allowTagRefs?: T;
   advancedSecurity?:
     | T
     | {
@@ -1228,6 +1254,7 @@ export interface DocsAccessSelect<T extends boolean = true> {
         value?: T;
         id?: T;
       };
+  docsSets?: T;
   updatedAt?: T;
   createdAt?: T;
 }
@@ -1292,6 +1319,7 @@ export interface DocsSelect<T extends boolean = true> {
         sourcePath?: T;
         sourceHashAtLastSync?: T;
         contentHashAtLastSync?: T;
+        fieldsHashAtLastSync?: T;
         lastSyncedAt?: T;
         lastSyncRunId?: T;
         managedBy?: T;
@@ -1373,6 +1401,7 @@ export interface UsersSelect<T extends boolean = true> {
   resetPasswordExpiration?: T;
   salt?: T;
   hash?: T;
+  resetPasswordRequestedAt?: T;
   loginAttempts?: T;
   lockUntil?: T;
   sessions?:
@@ -1594,7 +1623,10 @@ export interface TaskSchedulePublish {
       value: number | Page;
     } | null;
     global?: string | null;
-    user?: (number | null) | User;
+    user?: {
+      relationTo: 'users';
+      value: number | User;
+    } | null;
   };
   output?: unknown;
 }
