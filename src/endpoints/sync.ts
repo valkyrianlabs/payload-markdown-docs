@@ -43,7 +43,6 @@ import {
   findDocsKeyById,
   findDocsSetBySlug,
   findDocsSyncConflicts,
-  findDuplicateDesiredRouteCollisions,
   findExistingAssetRouteCollisions,
   findExistingDocsRouteCollisions,
   findExistingPayloadDocsAssetRecords,
@@ -77,8 +76,16 @@ import {
   verifyEd25519Signature,
   verifyGitHubOidcIdentity,
 } from '../security/index.js'
-import { planDocsAssetsSync, planDocsSync, validateDocsManifest } from '../sync/index.js'
-import { ALLOWED_ASSET_CONTENT_TYPES, isAllowedAssetContentType } from './assetContentTypes.js'
+import {
+  findManifestRouteCollisions,
+  planDocsAssetsSync,
+  planDocsSync,
+  validateDocsManifest,
+} from '../sync/index.js'
+import {
+  ALLOWED_ASSET_CONTENT_TYPES_DESCRIPTION,
+  isAllowedAssetContentType,
+} from './assetContentTypes.js'
 import {
   DOCS_ASSETS_STORAGE_UNAVAILABLE_MESSAGE,
   isDocsAssetsStorageUnavailableError,
@@ -191,6 +198,8 @@ type SyncErrorResponse = {
   }
   ok: false
   routeCollisions?: {
+    /** Manifest files producing the route (in-manifest duplicates). */
+    paths?: string[]
     reason: string
     route: string
     sourcePath?: string
@@ -205,8 +214,6 @@ const describeCollisionReason = (reason: string): string => {
   switch (reason) {
     case 'descendant_route_collision':
       return 'overlaps a route reserved by another docs set, group, or page'
-    case 'duplicate_desired_route':
-      return 'is produced by more than one manifest file'
     case 'existing_asset_route_collision':
       return 'is already used by an asset of another docs set'
     case 'existing_doc_route_collision':
@@ -395,14 +402,22 @@ const readRequestBodyWithLimit = async (
   req: PayloadRequest,
   maxBytes: number,
 ): Promise<{ ok: false; response: Response } | { ok: true; text: string }> => {
-  const tooLarge = () => ({
+  const tooLarge = (bytes: number, atLeast = false) => ({
     ok: false as const,
-    response: errorResponse('invalid_body', 'Sync request body is too large.', 413),
+    response: errorResponse('invalid_body', 'Sync request body is too large.', 413, {
+      issues: [
+        {
+          code: 'body_too_large',
+          message: `Body is ${atLeast ? 'more than ' : ''}${bytes} bytes; limit is ${maxBytes} bytes.`,
+          severity: 'error',
+        },
+      ],
+    }),
   })
   const contentLength = Number(req.headers?.get?.('content-length') ?? Number.NaN)
 
   if (Number.isFinite(contentLength) && contentLength > maxBytes) {
-    return tooLarge()
+    return tooLarge(contentLength)
   }
 
   const stream = (req as { body?: unknown }).body
@@ -428,7 +443,7 @@ const readRequestBodyWithLimit = async (
       if (received > maxBytes) {
         await reader.cancel().catch(() => undefined)
 
-        return tooLarge()
+        return tooLarge(maxBytes, true)
       }
 
       chunks.push(value)
@@ -453,7 +468,9 @@ const readRequestBodyWithLimit = async (
 
   const text = await req.text()
 
-  return Buffer.byteLength(text, 'utf8') > maxBytes ? tooLarge() : { ok: true, text }
+  const bytes = Buffer.byteLength(text, 'utf8')
+
+  return bytes > maxBytes ? tooLarge(bytes) : { ok: true, text }
 }
 
 type ResolvedSyncSource = {
@@ -831,7 +848,15 @@ const getRouteCollisionIssues = async ({
 }) => {
   const desiredAssetRoutes = manifest.assets.flatMap((asset) => (asset.route ? [asset.route] : []))
   const desiredRoutes = [...manifest.files.map((file) => file.route), ...desiredAssetRoutes]
-  const duplicateDesiredRouteCollisions = findDuplicateDesiredRouteCollisions(desiredRoutes)
+  // In-manifest duplicates come from the shared protocol helper so the server and
+  // pmdocs name the same files (DOCS-17, CLI-6).
+  const duplicateDesiredRouteCollisions = findManifestRouteCollisions(manifest)
+    .filter((collision) => collision.reason === 'exact_route_collision')
+    .map((collision) => ({
+      paths: collision.paths,
+      reason: collision.reason,
+      route: collision.route,
+    }))
   const existingDocsRouteCollisions = options.docsEnabled
     ? await findExistingDocsRouteCollisions({
         collectionSlug: options.docsCollectionSlug,
@@ -1574,12 +1599,12 @@ const createSyncEndpointHandler =
     // Server-side asset content-type policy (DOCS-4): assets are served from the site
     // origin, so only text formats are accepted.
     const assetContentTypeIssues = validation.data.assets.flatMap((asset) =>
-      isAllowedAssetContentType(asset.kind, asset.contentType)
+      isAllowedAssetContentType(asset.contentType)
         ? []
         : [
             {
               code: 'invalid_asset',
-              message: `Asset content type "${asset.contentType}" is not allowed for ${asset.kind} assets. Allowed: ${(ALLOWED_ASSET_CONTENT_TYPES[asset.kind] ?? []).join(', ')}.`,
+              message: `Asset content type "${asset.contentType}" is not allowed for ${asset.kind} assets. Allowed: ${ALLOWED_ASSET_CONTENT_TYPES_DESCRIPTION}.`,
               path: asset.path,
               severity: 'error' as const,
             },
@@ -1623,37 +1648,29 @@ const createSyncEndpointHandler =
 
     if (routeCollisions.length > 0) {
       const routeOwners = getManifestRouteOwners(validation.data)
-      const duplicateRoutes = [...routeOwners.entries()].filter(([, paths]) => paths.length > 1)
-      const onlyDuplicates = routeCollisions.every((collision) =>
-        duplicateRoutes.some(([route]) => collision.route.split(' <> ').includes(route)),
+      const onlyManifestDuplicates = routeCollisions.every(
+        (collision) => 'paths' in collision && Array.isArray(collision.paths),
       )
 
       return errorResponse(
         'route_collision',
-        onlyDuplicates
+        onlyManifestDuplicates
           ? 'Two or more manifest files resolve to the same route.'
           : 'One or more docs routes collide with an existing route reservation.',
         409,
         {
-          issues: [
-            ...duplicateRoutes.map(([route, paths]) => ({
-              code: 'duplicate_desired_route',
-              message: `Route ${route} is produced by ${paths.join(', ')}.`,
-              path: paths[0],
+          issues: routeCollisions.map((collision) => {
+            const paths = 'paths' in collision && Array.isArray(collision.paths) ? collision.paths : undefined
+
+            return {
+              code: collision.reason,
+              message: paths
+                ? `Route ${collision.route} is produced by ${paths.join(', ')}.`
+                : `Route ${collision.route} ${describeCollisionReason(collision.reason)}.`,
+              path: paths?.[0] ?? routeOwners.get(collision.route.split(' <> ')[0] ?? '')?.[0],
               severity: 'error' as const,
-            })),
-            ...routeCollisions
-              .filter(
-                (collision) =>
-                  !duplicateRoutes.some(([route]) => collision.route.split(' <> ').includes(route)),
-              )
-              .map((collision) => ({
-                code: collision.reason,
-                message: `Route ${collision.route} ${describeCollisionReason(collision.reason)}.`,
-                path: routeOwners.get(collision.route.split(' <> ')[0] ?? '')?.[0],
-                severity: 'error' as const,
-              })),
-          ],
+            }
+          }),
           routeCollisions,
         },
       )
@@ -1758,6 +1775,14 @@ const createSyncEndpointHandler =
       deferredAssetCount > 0 ? { ...plannedAssets, create: [], update: [] } : plannedAssets
     const warnings: SyncWarning[] = [
       ...validation.warnings,
+      // Accepted, but they collide on case-insensitive filesystems, CDNs and caches.
+      ...findManifestRouteCollisions(validation.data)
+        .filter((collision) => collision.reason === 'case_insensitive_route_collision')
+        .map((collision) => ({
+          code: collision.reason,
+          message: `Routes ${collision.routes.join(', ')} differ only in letter case (${collision.paths.join(', ')}).`,
+          path: collision.paths[0],
+        })),
       ...plan.warnings,
       ...assetPlan.warnings,
       ...(deferredAssetCount > 0

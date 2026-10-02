@@ -83,12 +83,9 @@ elsewhere.
 ## Assets
 
 Manifest assets (skills, stored `llms.txt` files, static text files) are
-served from the site origin, so the server accepts only text content types:
-
-- `llms`, `llms-full`: `text/markdown`, `text/plain`
-- `skill`: those plus `application/json`, `application/yaml`,
-  `application/x-yaml`, `text/yaml`
-- `static`: the skill types plus `text/csv`
+served from the site origin, so the server accepts only the content types
+`pmdocs` emits: `text/markdown`, `text/plain`, `application/json`, and
+`application/yaml`, optionally with `charset=utf-8`.
 
 Other types (for example `text/html` or `image/svg+xml`) reject the sync with
 `invalid_manifest`. Every asset, llms, and skill response is sent with

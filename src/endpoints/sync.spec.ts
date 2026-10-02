@@ -850,14 +850,16 @@ describe('sync endpoint dry-run handling', () => {
       code: 'route_collision',
       issues: [
         expect.objectContaining({
-          code: 'duplicate_desired_route',
+          code: 'exact_route_collision',
           message: expect.stringContaining('sub.md, sub/index.md'),
           severity: 'error',
         }),
       ],
       message: 'Two or more manifest files resolve to the same route.',
     })
-    expect(json.routeCollisions).toBeDefined()
+    expect(json.routeCollisions).toEqual([
+      expect.objectContaining({ paths: ['sub.md', 'sub/index.md'], reason: 'exact_route_collision' }),
+    ])
   })
 
   it('rejects unknown sources when no docs set or configured source matches', async () => {
@@ -1571,6 +1573,14 @@ describe('sync endpoint dry-run handling', () => {
     const response = await endpoint.handler(createRequest({ body, headers, payload }))
 
     expect(response.status).toBe(413)
+    expect(((await response.json()) as { error: unknown }).error).toMatchObject({
+      issues: [
+        expect.objectContaining({
+          code: 'body_too_large',
+          message: 'Body is 10000000 bytes; limit is 5000000 bytes.',
+        }),
+      ],
+    })
     expect(payload.find).not.toHaveBeenCalled()
   })
 

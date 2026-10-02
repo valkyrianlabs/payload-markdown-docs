@@ -1332,12 +1332,12 @@ describe('docs asset content-type policy (DOCS-4)', () => {
       './assetContentTypes.js'
     )
 
-    expect(toServedAssetContentType('skill', 'text/html')).toBe('text/plain; charset=utf-8')
-    expect(toServedAssetContentType('skill', 'image/svg+xml')).toBe('text/plain; charset=utf-8')
-    expect(toServedAssetContentType('skill', 'text/markdown; charset=utf-8')).toBe(
+    expect(toServedAssetContentType('text/html')).toBe('text/plain; charset=utf-8')
+    expect(toServedAssetContentType('image/svg+xml')).toBe('text/plain; charset=utf-8')
+    expect(toServedAssetContentType('text/markdown; charset=utf-8')).toBe(
       'text/markdown; charset=utf-8',
     )
-    expect(toServedAssetContentType('llms', 'application/json')).toBe('text/plain; charset=utf-8')
+    expect(toServedAssetContentType('application/json')).toBe('application/json; charset=utf-8')
     expect(createSafeAssetHeaders('application/json; charset=utf-8')).toMatchObject({
       'Content-Disposition': 'attachment',
       'X-Content-Type-Options': 'nosniff',

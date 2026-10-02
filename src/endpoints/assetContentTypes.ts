@@ -7,30 +7,31 @@
  * accepted, and every served asset gets defensive headers.
  */
 
-const TEXT_TYPES = ['text/markdown', 'text/plain']
-const DATA_TYPES = ['application/json', 'application/yaml', 'application/x-yaml', 'text/yaml']
+import { isAllowedDocsAssetContentType } from '../sync/index.js'
 
-export const ALLOWED_ASSET_CONTENT_TYPES: Record<string, string[]> = {
-  llms: TEXT_TYPES,
-  'llms-full': TEXT_TYPES,
-  skill: [...TEXT_TYPES, ...DATA_TYPES],
-  static: [...TEXT_TYPES, ...DATA_TYPES, 'text/csv'],
-}
-
-const INLINE_TYPES = new Set(TEXT_TYPES)
+/** Inline-rendered types; everything else is served as an attachment. */
+const INLINE_TYPES = new Set(['text/markdown', 'text/plain'])
 
 export const getBaseContentType = (contentType: string): string =>
   contentType.split(';')[0]?.trim().toLowerCase() ?? ''
 
-export const isAllowedAssetContentType = (kind: string, contentType: string): boolean =>
-  (ALLOWED_ASSET_CONTENT_TYPES[kind] ?? []).includes(getBaseContentType(contentType))
+/**
+ * Single source of truth: the shared protocol allowlist (`src/sync/assetContentTypes`,
+ * pinned by contracts/vectors/content-types.json) — JSON, YAML, Markdown, plain text,
+ * optionally `charset=utf-8`.
+ */
+export const isAllowedAssetContentType = (contentType: string): boolean =>
+  isAllowedDocsAssetContentType(contentType)
+
+export const ALLOWED_ASSET_CONTENT_TYPES_DESCRIPTION =
+  'text/markdown, text/plain, application/json, application/yaml (optionally with charset=utf-8)'
 
 /**
  * Content type used when serving a stored asset. Disallowed types (for example rows
  * stored before this policy existed) are served as plain text.
  */
-export const toServedAssetContentType = (kind: string, contentType: string): string =>
-  isAllowedAssetContentType(kind, contentType)
+export const toServedAssetContentType = (contentType: string): string =>
+  isAllowedAssetContentType(contentType)
     ? `${getBaseContentType(contentType)}; charset=utf-8`
     : 'text/plain; charset=utf-8'
 

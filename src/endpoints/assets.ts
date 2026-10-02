@@ -659,7 +659,7 @@ const buildSkillZipResponse = ({
 
 const createAssetResponse = (asset: ServedDocsAsset): Response =>
   new Response(asset.content, {
-    headers: createSafeAssetHeaders(toServedAssetContentType(asset.kind, asset.contentType)),
+    headers: createSafeAssetHeaders(toServedAssetContentType(asset.contentType)),
   })
 
 const createMarkdownResponse = (content: string): Response =>
