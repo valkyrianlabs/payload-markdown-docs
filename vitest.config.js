@@ -24,6 +24,9 @@ export default defineConfig(() => {
       exclude: ['**/e2e.spec.ts', '**/node_modules/**', '**/dist/**'],
       hookTimeout: 30_000,
       include: ['dev/**/*.spec.ts', 'src/**/*.spec.ts'],
+      // Stub CSS side-effect imports of externalized packages so render tests can use
+      // the real payload-markdown renderer (X-10).
+      setupFiles: ['./vitest.css-loader.js'],
       testTimeout: 30_000,
     },
   }
