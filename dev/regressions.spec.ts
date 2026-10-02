@@ -9,9 +9,11 @@
 import type { Payload } from 'payload'
 
 import config from '@payload-config'
+import { sql } from '@payloadcms/db-postgres'
 import { getPayload } from 'payload'
 import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest'
 
+import { prepareDocsSyncMigration } from '../src/migrations/index.js'
 import { resolvePayloadMarkdownDocsRoute } from '../src/next/route.js'
 import { sha256Hex } from '../src/sync/hash.js'
 import {
@@ -489,6 +491,52 @@ describeDb('docs sync real-DB regressions', () => {
       const replay = await sync(invalid, { nonce, timestamp })
       expect(replay.status).toBe(409)
       expect(replay.json.error.code).toBe('nonce_replay')
+    })
+
+    test('prepareDocsSyncMigration lets the unique nonce index be created on old data', async () => {
+      // Installs before 1.1 had no unique (keyId, nonce) index, so duplicates can exist.
+      const db = payload.db as unknown as { drizzle: { execute: (query: unknown) => Promise<unknown> } }
+      const keyId = uniqueSlug('legacy-key')
+      const createIndex = sql`CREATE UNIQUE INDEX IF NOT EXISTS "keyId_nonce_idx" ON "docs_sync_nonces" USING btree ("key_id","nonce")`
+      const insert = (nonce: string, expiresAt: Date) =>
+        payload.create({
+          collection: 'docs-sync-nonces',
+          data: { expiresAt: expiresAt.toISOString(), keyId, nonce },
+          overrideAccess: true,
+        })
+      const past = new Date(Date.now() - 60_000)
+      const future = new Date(Date.now() + 60 * 60_000)
+
+      await db.drizzle.execute(sql`DROP INDEX "keyId_nonce_idx"`)
+      try {
+        await insert('expired', past)
+        await insert('expired', past)
+        const kept = await insert('live', future)
+        await insert('live', future)
+        await insert('other', future)
+
+        await expect(db.drizzle.execute(createIndex)).rejects.toThrow()
+
+        const result = await prepareDocsSyncMigration({ payload })
+        expect(result.expiredNoncesRemoved).toBeGreaterThanOrEqual(2)
+        expect(result.duplicateNoncesRemoved).toBe(1)
+
+        const rows = await payload.find({
+          collection: 'docs-sync-nonces',
+          overrideAccess: true,
+          sort: 'nonce',
+          where: { keyId: { equals: keyId } },
+        })
+        expect(rows.docs.map((doc) => doc.nonce)).toEqual(['live', 'other'])
+        expect(rows.docs[0]?.id).toBe(kept.id)
+
+        await expect(prepareDocsSyncMigration({ payload })).resolves.toEqual({
+          duplicateNoncesRemoved: 0,
+          expiredNoncesRemoved: 0,
+        })
+      } finally {
+        await db.drizzle.execute(createIndex)
+      }
     })
 
     test('unauthenticated requests get the same answer for existing and missing docs sets', async () => {

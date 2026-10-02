@@ -2974,6 +2974,10 @@ describe('Payload Markdown Docs /next package export', () => {
       import: './dist/blocks/index.js',
       types: './dist/blocks/index.d.ts',
     })
+    expect(packageJson.exports['./migrations']).toMatchObject({
+      import: './dist/migrations/index.js',
+      types: './dist/migrations/index.d.ts',
+    })
   })
 })
 

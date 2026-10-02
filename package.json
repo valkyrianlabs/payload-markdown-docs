@@ -40,6 +40,11 @@
       "types": "./dist/next/index.d.ts",
       "import": "./dist/next/index.js",
       "default": "./dist/next/index.js"
+    },
+    "./migrations": {
+      "types": "./dist/migrations/index.d.ts",
+      "import": "./dist/migrations/index.js",
+      "default": "./dist/migrations/index.js"
     }
   },
   "main": "./dist/index.js",
