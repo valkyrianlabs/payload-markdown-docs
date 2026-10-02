@@ -78,6 +78,7 @@
     "@payloadcms/db-sqlite": "latest",
     "@payloadcms/eslint-config": "latest",
     "@payloadcms/next": "latest",
+    "@payloadcms/plugin-seo": "latest",
     "@payloadcms/richtext-lexical": "latest",
     "@payloadcms/ui": "latest",
     "@playwright/test": "1.58.2",
@@ -87,6 +88,7 @@
     "@types/node": "22.19.9",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
+    "@valkyrianlabs/payload-markdown": "^1.5.0",
     "copyfiles": "2.4.1",
     "cross-env": "^7.0.3",
     "eslint": "^9.39.5",
@@ -109,7 +111,12 @@
     "vitest": "4.0.18"
   },
   "peerDependencies": {
-    "payload": ">=3.0.0"
+    "@payloadcms/plugin-seo": "^3.0.0",
+    "@valkyrianlabs/payload-markdown": "^1.5.0",
+    "next": "^15.2.0 || ^16.0.0",
+    "payload": "^3.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
   },
   "engines": {
     "node": "^18.20.2 || >=20.9.0",
@@ -129,8 +136,6 @@
   },
   "registry": "https://registry.npmjs.org/",
   "dependencies": {
-    "@payloadcms/plugin-seo": "latest",
-    "@valkyrianlabs/payload-markdown": "latest",
     "fflate": "^0.8.3"
   },
   "packageManager": "pnpm@10.33.0"
