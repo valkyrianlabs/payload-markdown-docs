@@ -16,13 +16,17 @@ export type ExistingDocsPayloadOperations = {
 
 export type ExistingPayloadDocsRecord = {
   content?: string
+  description?: null | string
   docsSetId?: number | string
   id: string
+  navTitle?: null | string
+  order?: null | number
   status?: 'draft' | 'published'
   sync?: {
     archived?: boolean
     archivedAt?: null | string
     contentHashAtLastSync?: string
+    fieldsHashAtLastSync?: string
     lastSyncedAt?: string
     lastSyncRunId?: string
     managedBy?: string
@@ -79,7 +83,10 @@ const toExistingPayloadDocsRecord = ({
     id,
     archived: typeof sync?.archived === 'boolean' ? sync.archived : undefined,
     content: typeof doc[markdownFieldName] === 'string' ? doc[markdownFieldName] : undefined,
+    description: typeof doc.description === 'string' ? doc.description : null,
     docsSetId: getRelationshipId(doc.docsSet),
+    navTitle: typeof doc.navTitle === 'string' ? doc.navTitle : null,
+    order: typeof doc.order === 'number' ? doc.order : null,
     route: doc.route,
     sourceHash: typeof doc.sourceHash === 'string' ? doc.sourceHash : undefined,
     sourcePath: doc.sourcePath,
@@ -93,6 +100,8 @@ const toExistingPayloadDocsRecord = ({
               : undefined,
           contentHashAtLastSync:
             typeof sync.contentHashAtLastSync === 'string' ? sync.contentHashAtLastSync : undefined,
+          fieldsHashAtLastSync:
+            typeof sync.fieldsHashAtLastSync === 'string' ? sync.fieldsHashAtLastSync : undefined,
           lastSyncedAt: typeof sync.lastSyncedAt === 'string' ? sync.lastSyncedAt : undefined,
           lastSyncRunId: typeof sync.lastSyncRunId === 'string' ? sync.lastSyncRunId : undefined,
           managedBy: typeof sync.managedBy === 'string' ? sync.managedBy : undefined,

@@ -646,6 +646,40 @@ describeDb('docs sync real-DB regressions', () => {
     })
   })
 
+  describe('manual edit protection (DOCS-21)', () => {
+    test('admin edits to synced metadata are reported instead of overwritten', async () => {
+      const slug = uniqueSlug('edit')
+      await createDocsSet(payload, slug)
+      const v1 = '---\ntitle: Guide\ndescription: First\norder: 2\n---\n# Guide\n'
+      expect((await sync(buildManifest(slug, [{ content: v1, path: 'guide.md' }]))).status).toBe(
+        200,
+      )
+
+      // Frontmatter changes made in Git are applied normally.
+      const v2 = v1.replace('description: First', 'description: Second')
+      expect((await sync(buildManifest(slug, [{ content: v2, path: 'guide.md' }]))).status).toBe(
+        200,
+      )
+
+      const [doc] = await findDocsBySource(payload, slug)
+      await payload.update({
+        id: doc?.id,
+        collection: 'docs',
+        data: { title: 'Edited in CMS' } as never,
+        overrideAccess: true,
+      })
+
+      const v3 = v2.replace('# Guide', '# Guide\n\nMore.')
+      const blocked = await sync(buildManifest(slug, [{ content: v3, path: 'guide.md' }]))
+      expect(blocked.status).toBe(409)
+      expect(blocked.json.error.code).toBe('manual_edit_conflict')
+      expect(blocked.json.conflicts).toContainEqual(
+        expect.objectContaining({ reason: 'current_fields_hash_mismatch', sourcePath: 'guide.md' }),
+      )
+      expect((await findDocsBySource(payload, slug))[0]?.title).toBe('Edited in CMS')
+    })
+  })
+
   describe('public visibility (DOCS-1, DOCS-12)', () => {
     test('non-publish (draft) docs never appear in llms.txt / llms-full.txt', async () => {
       const slug = uniqueSlug('vis')

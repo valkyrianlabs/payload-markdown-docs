@@ -229,6 +229,8 @@ const describeConflictReason = (reason: string): string => {
   switch (reason) {
     case 'current_content_hash_mismatch':
       return 'was edited outside the docs sync workflow'
+    case 'current_fields_hash_mismatch':
+      return 'has title, description, navTitle, or order edited outside the docs sync workflow'
     case 'missing_current_record':
       return 'has no current record to update'
     case 'unmanaged_record':

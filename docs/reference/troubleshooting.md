@@ -108,6 +108,12 @@ run the change as a `--publish` sync.
 
 A generated docs record changed outside the docs sync workflow. The sync aborts before writes to avoid overwriting human edits.
 
+Protection covers the Markdown content (`current_content_hash_mismatch`) and
+the synced `title`, `description`, `navTitle`, and `order`
+(`current_fields_hash_mismatch`). Docs last synced before field tracking was
+added are checked for content only until their next successful sync. CMS-only
+fields such as hero images and nav overrides are never overwritten by a sync.
+
 ## Public `/llms.txt` Or Skill Route 404
 
 If `/api/llms.txt` or a Payload API skill asset URL works but the public route
