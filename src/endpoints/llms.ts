@@ -7,6 +7,7 @@ import { findAllDocsSets } from '../payload/index.js'
 import { isPublicDocsAssetRecord, isPublicDocsRecord } from '../payload/visibility.js'
 import { normalizeRoutePath } from '../routing/index.js'
 import { formatSkillAgentTitle, getSkillBundles } from '../skillBundles.js'
+import { createSafeAssetHeaders } from './assetContentTypes.js'
 import { createPublicUrl, getPublicRequestOrigin } from './publicOrigin.js'
 
 export type LlmsKind = 'llms' | 'llms-full'
@@ -654,10 +655,7 @@ const renderRootLlmsFull = ({
 
 export const createLlmsResponse = (content: string): Response =>
   new Response(content, {
-    headers: {
-      'Cache-Control': 'no-store',
-      'Content-Type': textContentType,
-    },
+    headers: createSafeAssetHeaders(textContentType),
   })
 
 export const generateDocsSetLlms = async ({

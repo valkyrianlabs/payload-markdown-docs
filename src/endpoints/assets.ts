@@ -22,6 +22,11 @@ import {
   sanitizeSkillPackageSlug,
 } from '../skillBundles.js'
 import {
+  createSafeAssetHeaders,
+  SAFE_ASSET_HEADERS,
+  toServedAssetContentType,
+} from './assetContentTypes.js'
+import {
   DOCS_ASSETS_STORAGE_UNAVAILABLE_MESSAGE,
   isDocsAssetsStorageUnavailableError,
 } from './assetsStorage.js'
@@ -261,10 +266,7 @@ const createContentDispositionFilename = ({
 
 const notFoundResponse = (): Response =>
   new Response('Not found', {
-    headers: {
-      'Cache-Control': 'no-store',
-      'Content-Type': 'text/plain; charset=utf-8',
-    },
+    headers: createSafeAssetHeaders('text/plain; charset=utf-8'),
     status: 404,
   })
 
@@ -647,6 +649,7 @@ const buildSkillZipResponse = ({
   return new Response(new Blob([zipArchive], { type: 'application/zip' }), {
     headers: {
       'Cache-Control': 'no-store',
+      ...SAFE_ASSET_HEADERS,
       'Content-Disposition': `attachment; filename="${filename}"`,
       'Content-Type': 'application/zip',
     },
@@ -655,18 +658,12 @@ const buildSkillZipResponse = ({
 
 const createAssetResponse = (asset: ServedDocsAsset): Response =>
   new Response(asset.content, {
-    headers: {
-      'Cache-Control': 'no-store',
-      'Content-Type': asset.contentType,
-    },
+    headers: createSafeAssetHeaders(toServedAssetContentType(asset.kind, asset.contentType)),
   })
 
 const createMarkdownResponse = (content: string): Response =>
   new Response(content, {
-    headers: {
-      'Cache-Control': 'no-store',
-      'Content-Type': 'text/markdown; charset=utf-8',
-    },
+    headers: createSafeAssetHeaders('text/markdown; charset=utf-8'),
   })
 
 const createRootGetEndpoint = ({

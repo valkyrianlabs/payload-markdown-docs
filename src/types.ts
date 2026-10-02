@@ -116,6 +116,13 @@ export type PayloadMarkdownDocsSyncConfig = {
   allowPublish?: boolean
   allowWrites?: boolean
   /**
+   * Apply asset creates/updates (skills, llms, static files) in syncs without
+   * `--publish`. Defaults to false when the docs collection has drafts: assets have no
+   * draft state, so a non-publish sync defers them to the next `--publish` sync.
+   * Removals always apply.
+   */
+  applyAssetsOnDraftSync?: boolean
+  /**
    * Record a sync-run audit row for dry-run requests. Defaults to true. Set to false
    * to keep the sync-runs collection to applied syncs only; dry runs still consume
    * their nonce for replay protection.

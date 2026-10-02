@@ -80,6 +80,29 @@ sync: {
 Use `revalidate: false` only when the app handles docs cache invalidation
 elsewhere.
 
+## Assets
+
+Manifest assets (skills, stored `llms.txt` files, static text files) are
+served from the site origin, so the server accepts only text content types:
+
+- `llms`, `llms-full`: `text/markdown`, `text/plain`
+- `skill`: those plus `application/json`, `application/yaml`,
+  `application/x-yaml`, `text/yaml`
+- `static`: the skill types plus `text/csv`
+
+Other types (for example `text/html` or `image/svg+xml`) reject the sync with
+`invalid_manifest`. Every asset, llms, and skill response is sent with
+`X-Content-Type-Options: nosniff` and
+`Content-Security-Policy: default-src 'none'; sandbox`; JSON, YAML, and CSV are
+sent as attachments. Rows stored before this policy with another type are
+served as `text/plain`.
+
+Assets have no draft state. When the docs collection has drafts, a sync
+without `--publish` reports asset creates and updates but does not apply them
+(warning `assets_deferred_until_publish`); the next `--publish` sync applies
+them. Asset removals always apply. Set `sync.applyAssetsOnDraftSync: true` to
+apply asset changes in non-publish syncs as earlier versions did.
+
 ## Dry-Run Audit Records
 
 Every dry run records a sync run by default. Set `sync.auditDryRuns: false` to

@@ -1449,6 +1449,76 @@ describe('sync endpoint dry-run handling', () => {
     expect(allowed.response.status).toBe(200)
   })
 
+  it('rejects asset content types that could execute on the site origin', async () => {
+    const { privateKey, publicKey } = keyPair()
+    const body = JSON.stringify(
+      createManifest({
+        assets: [
+          {
+            content: '<script>alert(1)</script>',
+            contentType: 'text/html',
+            kind: 'skill',
+            path: 'skills/main-docs/codex/x.html',
+          },
+        ],
+      }),
+    )
+    const payload = createMockPayload()
+    const { json, response } = await callEndpoint({
+      body,
+      headers: signBody({ body, privateKey }),
+      payload,
+      publicKey: publicKey.toString(),
+    })
+
+    expect(response.status).toBe(400)
+    expect(json.error).toMatchObject({
+      code: 'invalid_manifest',
+      issues: [
+        expect.objectContaining({
+          code: 'invalid_asset',
+          path: 'skills/main-docs/codex/x.html',
+          severity: 'error',
+        }),
+      ],
+    })
+  })
+
+  it('defers asset writes in non-publish syncs when drafts are enabled', async () => {
+    const { privateKey, publicKey } = keyPair()
+    const body = JSON.stringify(
+      createManifest({
+        assets: [
+          {
+            content: '# Skill\n',
+            contentType: 'text/markdown; charset=utf-8',
+            kind: 'skill',
+            path: 'skills/main-docs/codex/SKILL.md',
+          },
+        ],
+        mode: 'sync',
+        publish: false,
+      }),
+    )
+    const payload = createMockPayload()
+    const { json, response } = await callEndpoint({
+      body,
+      endpointOptions: { allowPublish: true, allowWrites: true, docsEnableDrafts: true },
+      headers: signBody({ body, privateKey }),
+      payload,
+      publicKey: publicKey.toString(),
+    })
+
+    expect(response.status).toBe(200)
+    expect(json.summary).toMatchObject({ assetCreate: 0 })
+    expect(json.warnings).toContainEqual(
+      expect.objectContaining({ code: 'assets_deferred_until_publish' }),
+    )
+    expect(payload.create).not.toHaveBeenCalledWith(
+      expect.objectContaining({ collection: DEFAULT_DOCS_ASSETS_COLLECTION_SLUG }),
+    )
+  })
+
   it('does not reveal whether a docs set exists before authentication', async () => {
     const endpoint = createCmsManagedEndpointForTests({
       auth: {

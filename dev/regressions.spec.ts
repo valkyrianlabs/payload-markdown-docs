@@ -591,6 +591,61 @@ describeDb('docs sync real-DB regressions', () => {
     })
   })
 
+  describe('asset serving policy (DOCS-4)', () => {
+    const skillAsset = (slug: string, file: string, content: string, contentType: string) => ({
+      content,
+      contentType,
+      kind: 'skill',
+      path: `skills/${slug}/codex/${file}`,
+    })
+    const getSkillFile = (slug: string, file: string) =>
+      callGet({
+        path: '/:routeBase*/skills/:agent/:assetPath*',
+        payload,
+        routeParams: { agent: 'codex', assetPath: [file], routeBase: [slug] },
+        url: `http://localhost:3000/${slug}/skills/codex/${file}`,
+      })
+
+    test('script-capable asset content types are rejected', async () => {
+      const slug = uniqueSlug('xss')
+      await createDocsSet(payload, slug)
+      const result = await sync(
+        buildManifest(slug, [{ content: '# A\n', path: 'a.md' }], {
+          assets: [skillAsset(slug, 'x.html', '<script>alert(1)</script>', 'text/html')],
+        }),
+      )
+
+      expect(result.status).toBe(400)
+      expect(result.json.error.issues).toContainEqual(
+        expect.objectContaining({ code: 'invalid_asset', path: `skills/${slug}/codex/x.html` }),
+      )
+      expect((await getSkillFile(slug, 'x.html')).status).toBe(404)
+    })
+
+    test('assets from a non-publish sync do not go live until a publish sync', async () => {
+      const slug = uniqueSlug('asset-draft')
+      await createDocsSet(payload, slug)
+      const manifestWith = (publish: boolean) =>
+        buildManifest(slug, [{ content: '# A\n', path: 'a.md' }], {
+          assets: [skillAsset(slug, 'SKILL.md', '# Skill\n', 'text/markdown; charset=utf-8')],
+          publish,
+        })
+
+      const draft = await sync(manifestWith(false))
+      expect(draft.status).toBe(200)
+      expect(draft.json.warnings).toContainEqual(
+        expect.objectContaining({ code: 'assets_deferred_until_publish' }),
+      )
+      expect((await getSkillFile(slug, 'SKILL.md')).status).toBe(404)
+
+      expect((await sync(manifestWith(true))).status).toBe(200)
+      const live = await getSkillFile(slug, 'SKILL.md')
+      expect(live.status).toBe(200)
+      expect(live.headers.get('x-content-type-options')).toBe('nosniff')
+      expect(live.headers.get('content-security-policy')).toContain('sandbox')
+    })
+  })
+
   describe('public visibility (DOCS-1, DOCS-12)', () => {
     test('non-publish (draft) docs never appear in llms.txt / llms-full.txt', async () => {
       const slug = uniqueSlug('vis')

@@ -78,6 +78,7 @@ import {
   verifyGitHubOidcIdentity,
 } from '../security/index.js'
 import { planDocsAssetsSync, planDocsSync, validateDocsManifest } from '../sync/index.js'
+import { ALLOWED_ASSET_CONTENT_TYPES, isAllowedAssetContentType } from './assetContentTypes.js'
 import {
   DOCS_ASSETS_STORAGE_UNAVAILABLE_MESSAGE,
   isDocsAssetsStorageUnavailableError,
@@ -128,6 +129,8 @@ export type CreateSyncEndpointOptions = {
   allowHardDelete?: boolean
   allowPublish?: boolean
   allowWrites?: boolean
+  /** Apply asset creates/updates in non-publish syncs (pre-DOCS-4 behavior). Default false. */
+  applyAssetsOnDraftSync?: boolean
   auditDryRuns?: boolean
   auth?: PayloadMarkdownDocsAuthConfig
   deleteBehavior?: DocsDeleteBehavior
@@ -321,7 +324,14 @@ type SyncSuccessResponse = {
     warnings: number
   }
   syncRunId?: string
-  warnings: DocsValidationIssue[]
+  warnings: SyncWarning[]
+}
+
+/** Validator/planner warnings plus endpoint warnings such as deferred asset changes. */
+type SyncWarning = {
+  code: string
+  message: string
+  path?: string
 }
 
 const jsonResponse = (body: SyncErrorResponse | SyncSuccessResponse, status = 200): Response =>
@@ -1561,6 +1571,27 @@ const createSyncEndpointHandler =
       })
     }
 
+    // Server-side asset content-type policy (DOCS-4): assets are served from the site
+    // origin, so only text formats are accepted.
+    const assetContentTypeIssues = validation.data.assets.flatMap((asset) =>
+      isAllowedAssetContentType(asset.kind, asset.contentType)
+        ? []
+        : [
+            {
+              code: 'invalid_asset',
+              message: `Asset content type "${asset.contentType}" is not allowed for ${asset.kind} assets. Allowed: ${(ALLOWED_ASSET_CONTENT_TYPES[asset.kind] ?? []).join(', ')}.`,
+              path: asset.path,
+              severity: 'error' as const,
+            },
+          ],
+    )
+
+    if (assetContentTypeIssues.length > 0) {
+      return errorResponse('invalid_manifest', 'Sync manifest is invalid.', 400, {
+        issues: assetContentTypeIssues,
+      })
+    }
+
     const effectiveDeleteBehavior = options.deleteBehavior ?? 'archive'
     const lifecyclePolicyError = getLifecyclePolicyError({
       deleteBehavior: effectiveDeleteBehavior,
@@ -1708,14 +1739,36 @@ const createSyncEndpointHandler =
       options.docsAssetsEnabled === true &&
       (validation.data.assets.length > 0 || existingPayloadAssets.length > 0)
     const existingAssets = existingPayloadAssets.map(toExistingAssetRecord)
-    const assetPlan = withoutAlreadyArchivedAssetRemovals(
+    const plannedAssets = withoutAlreadyArchivedAssetRemovals(
       planDocsAssetsSync({
         deleteBehavior: effectiveDeleteBehavior,
         desired: validation.data,
         existing: existingAssets,
       }),
     )
-    const warnings = [...validation.warnings, ...plan.warnings, ...assetPlan.warnings]
+    // Assets have no draft versions. In a draft-enabled install a non-publish sync must
+    // not change what is served, so asset creates/updates wait for the next --publish
+    // sync; removals still apply, like doc removals (DOCS-4).
+    const deferAssetWrites =
+      options.docsEnableDrafts && !validation.data.publish && options.applyAssetsOnDraftSync !== true
+    const deferredAssetCount = deferAssetWrites
+      ? plannedAssets.create.length + plannedAssets.update.length
+      : 0
+    const assetPlan =
+      deferredAssetCount > 0 ? { ...plannedAssets, create: [], update: [] } : plannedAssets
+    const warnings: SyncWarning[] = [
+      ...validation.warnings,
+      ...plan.warnings,
+      ...assetPlan.warnings,
+      ...(deferredAssetCount > 0
+        ? [
+            {
+              code: 'assets_deferred_until_publish',
+              message: `${deferredAssetCount} asset change(s) are not applied by a non-publish sync; they are applied by the next --publish sync.`,
+            },
+          ]
+        : []),
+    ]
     const summary = {
       ...summarizePlan(plan),
       ...summarizeAssetPlan(assetPlan),

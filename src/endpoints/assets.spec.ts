@@ -827,6 +827,8 @@ describe('docs asset endpoints', () => {
 
     expect(response?.status).toBe(200)
     expect(response?.headers.get('content-type')).toContain('text/markdown')
+    expect(response?.headers.get('x-content-type-options')).toBe('nosniff')
+    expect(response?.headers.get('content-security-policy')).toContain("default-src 'none'")
     expect(await response?.text()).toBe('# Codex Skill\n')
   })
 
@@ -1321,5 +1323,27 @@ describe('docs assets storage error classification', () => {
         new Error('The following field is invalid: payload-markdown-docs-assets.route'),
       ),
     ).toBe(false)
+  })
+})
+
+describe('docs asset content-type policy (DOCS-4)', () => {
+  it('serves stored disallowed types as plain text and downloads data formats', async () => {
+    const { createSafeAssetHeaders, toServedAssetContentType } = await import(
+      './assetContentTypes.js'
+    )
+
+    expect(toServedAssetContentType('skill', 'text/html')).toBe('text/plain; charset=utf-8')
+    expect(toServedAssetContentType('skill', 'image/svg+xml')).toBe('text/plain; charset=utf-8')
+    expect(toServedAssetContentType('skill', 'text/markdown; charset=utf-8')).toBe(
+      'text/markdown; charset=utf-8',
+    )
+    expect(toServedAssetContentType('llms', 'application/json')).toBe('text/plain; charset=utf-8')
+    expect(createSafeAssetHeaders('application/json; charset=utf-8')).toMatchObject({
+      'Content-Disposition': 'attachment',
+      'X-Content-Type-Options': 'nosniff',
+    })
+    expect(createSafeAssetHeaders('text/markdown; charset=utf-8')).not.toHaveProperty(
+      'Content-Disposition',
+    )
   })
 })

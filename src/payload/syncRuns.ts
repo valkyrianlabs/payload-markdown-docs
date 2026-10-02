@@ -1,4 +1,4 @@
-import type { DocsDeleteBehavior, DocsSyncMode, DocsValidationIssue } from '../sync/index.js'
+import type { DocsDeleteBehavior, DocsSyncMode } from '../sync/index.js'
 
 export type SyncRunStatus = 'failed' | 'pending' | 'success'
 
@@ -60,7 +60,7 @@ export type CreateSyncRunAuditInput = {
   status: SyncRunStatus
   summary: SyncRunSummary
   totalBytes: number
-  warnings: DocsValidationIssue[]
+  warnings: SyncRunIssue[]
 }
 
 const issueToArrayRow = (issue: SyncRunIssue): { message: string } => ({
@@ -139,7 +139,7 @@ export const updateSyncRunAudit = async ({
   status: SyncRunStatus
   summary?: SyncRunSummary
   syncRunId: PayloadRecordId
-  warnings?: DocsValidationIssue[]
+  warnings?: SyncRunIssue[]
 }): Promise<Record<string, unknown> | undefined> => {
   if (!payload.update) {
     return undefined

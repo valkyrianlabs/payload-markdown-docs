@@ -460,6 +460,7 @@ export const payloadMarkdownDocs =
           allowHardDelete: pluginOptions.sync?.allowHardDelete,
           allowPublish: pluginOptions.sync?.allowPublish,
           allowWrites: pluginOptions.sync?.allowWrites,
+          applyAssetsOnDraftSync: pluginOptions.sync?.applyAssetsOnDraftSync,
           auditDryRuns: pluginOptions.sync?.auditDryRuns,
           auth: pluginOptions.auth,
           deleteBehavior: pluginOptions.sync?.deleteBehavior,
