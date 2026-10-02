@@ -28,10 +28,7 @@ import {
   SAFE_ASSET_HEADERS,
   toServedAssetContentType,
 } from './assetContentTypes.js'
-import {
-  DOCS_ASSETS_STORAGE_UNAVAILABLE_MESSAGE,
-  isDocsAssetsStorageUnavailableError,
-} from './assetsStorage.js'
+import { withDocsAssetsStorageGuard } from './assetsStorage.js'
 import { createLlmsResponse, generateDocsSetLlms, generateRootLlms } from './llms.js'
 
 export type CreateDocsAssetsEndpointsOptions = {
@@ -255,15 +252,6 @@ const notFoundResponse = (): Response =>
   new Response('Not found', {
     headers: createSafeAssetHeaders('text/plain; charset=utf-8'),
     status: 404,
-  })
-
-const docsAssetsStorageUnavailableResponse = (): Response =>
-  new Response(DOCS_ASSETS_STORAGE_UNAVAILABLE_MESSAGE, {
-    headers: {
-      'Cache-Control': 'no-store',
-      'Content-Type': 'text/plain; charset=utf-8',
-    },
-    status: 500,
   })
 
 const resolveAssetByRoute = async ({
@@ -672,7 +660,7 @@ const createRootAssetEndpoint = ({
 }): Endpoint =>
   createRootGetEndpoint({
     handler: async (req) => {
-      try {
+      return withDocsAssetsStorageGuard(async () => {
         const payload = req.payload as unknown as AssetEndpointPayloadOperations
 
         if (docsEnabled && docsSetsEnabled) {
@@ -700,13 +688,7 @@ const createRootAssetEndpoint = ({
         })
 
         return asset?.kind === kind ? createAssetResponse(asset) : notFoundResponse()
-      } catch (error) {
-        if (isDocsAssetsStorageUnavailableError(error)) {
-          return docsAssetsStorageUnavailableResponse()
-        }
-
-        throw error
-      }
+      })
     },
     path,
   })
@@ -737,7 +719,7 @@ const createDocsSetLlmsEndpoint = ({
       const route = getRequestPath(req)
       const payload = req.payload as unknown as AssetEndpointPayloadOperations
 
-      try {
+      return withDocsAssetsStorageGuard(async () => {
         const docsSet = await findDocsSetByRoutePrefix({
           collectionSlug: docsSetsCollectionSlug,
           docsGroupsCollectionSlug,
@@ -776,13 +758,7 @@ const createDocsSetLlmsEndpoint = ({
         })
 
         return asset ? createAssetResponse(asset) : notFoundResponse()
-      } catch (error) {
-        if (isDocsAssetsStorageUnavailableError(error)) {
-          return docsAssetsStorageUnavailableResponse()
-        }
-
-        throw error
-      }
+      })
     },
     path,
   })
@@ -804,7 +780,7 @@ const createSkillAssetEndpoint = ({
         return notFoundResponse()
       }
 
-      try {
+      return withDocsAssetsStorageGuard(async () => {
         const payload = req.payload as unknown as AssetEndpointPayloadOperations
 
         if (skillRequest.assetPath) {
@@ -841,13 +817,7 @@ const createSkillAssetEndpoint = ({
           : undefined
 
         return content ? createMarkdownResponse(content) : notFoundResponse()
-      } catch (error) {
-        if (isDocsAssetsStorageUnavailableError(error)) {
-          return docsAssetsStorageUnavailableResponse()
-        }
-
-        throw error
-      }
+      })
     },
     path: '/:routeBase*/skills/:agent/:assetPath*',
   })
@@ -869,7 +839,7 @@ const createSkillZipEndpoint = ({
         return notFoundResponse()
       }
 
-      try {
+      return withDocsAssetsStorageGuard(async () => {
         const payload = req.payload as unknown as AssetEndpointPayloadOperations
         const docsSet = await findDocsSetByRoutePrefix({
           collectionSlug: docsSetsCollectionSlug,
@@ -888,13 +858,7 @@ const createSkillZipEndpoint = ({
         const response = bundle ? buildSkillZipResponse({ bundle }) : undefined
 
         return response ?? notFoundResponse()
-      } catch (error) {
-        if (isDocsAssetsStorageUnavailableError(error)) {
-          return docsAssetsStorageUnavailableResponse()
-        }
-
-        throw error
-      }
+      })
     },
     path: '/:routeBase*/skills/:agent.zip',
   })

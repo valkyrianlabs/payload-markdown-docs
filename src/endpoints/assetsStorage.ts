@@ -41,3 +41,31 @@ export const isDocsAssetsStorageUnavailableError = (error: unknown): boolean =>
 
     return MISSING_TABLE_PATTERNS.some((pattern) => pattern.test(message))
   })
+
+/** Plain-text 500 for public asset routes when the docs assets table is missing. */
+export const docsAssetsStorageUnavailableTextResponse = (): Response =>
+  new Response(DOCS_ASSETS_STORAGE_UNAVAILABLE_MESSAGE, {
+    headers: {
+      'Cache-Control': 'no-store',
+      'Content-Type': 'text/plain; charset=utf-8',
+    },
+    status: 500,
+  })
+
+/**
+ * Runs a public asset route and answers a missing docs assets table with the
+ * migration message; every other error propagates unchanged.
+ */
+export const withDocsAssetsStorageGuard = async (
+  respond: () => Promise<Response>,
+): Promise<Response> => {
+  try {
+    return await respond()
+  } catch (error) {
+    if (isDocsAssetsStorageUnavailableError(error)) {
+      return docsAssetsStorageUnavailableTextResponse()
+    }
+
+    throw error
+  }
+}
