@@ -96,8 +96,29 @@ const getSitemapUrl = ({
 }): string => {
   const baseUrl = normalizeSiteUrl(siteUrl)
 
-  return routePath === '/' ? baseUrl : `${baseUrl}${routePath}`
+  return routePath === '/' ? baseUrl : `${baseUrl}${encodeRoutePath(routePath)}`
 }
+
+/**
+ * Percent-encodes each route segment so sitemap URLs stay valid for segments with
+ * spaces, `?`, `#`, or non-ASCII characters (DOCS-22). Plain ASCII slugs are unchanged;
+ * already-encoded segments are not encoded twice.
+ */
+export const encodeRoutePath = (routePath: string): string =>
+  routePath
+    .split('/')
+    .map((segment) => {
+      let decoded = segment
+
+      try {
+        decoded = decodeURIComponent(segment)
+      } catch {
+        // Not valid percent-encoding: encode the raw segment.
+      }
+
+      return encodeURIComponent(decoded)
+    })
+    .join('/')
 
 const normalizeLastModified = (
   lastModified?: Date | null | string,

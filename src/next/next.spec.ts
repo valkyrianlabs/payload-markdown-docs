@@ -2942,3 +2942,16 @@ describe('Payload Markdown Docs /next package export', () => {
     })
   })
 })
+
+describe('sitemap URL encoding (DOCS-22)', () => {
+  it('percent-encodes route segments and leaves plain slugs unchanged', async () => {
+    const { encodeRoutePath } = await import('./sitemap.js')
+
+    expect(encodeRoutePath('/docs/getting-started/install_v1.2')).toBe(
+      '/docs/getting-started/install_v1.2',
+    )
+    expect(encodeRoutePath('/docs/with space?#')).toBe('/docs/with%20space%3F%23')
+    expect(encodeRoutePath('/docs/café')).toBe('/docs/caf%C3%A9')
+    expect(encodeRoutePath('/docs/caf%C3%A9')).toBe('/docs/caf%C3%A9')
+  })
+})
