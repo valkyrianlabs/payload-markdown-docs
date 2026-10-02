@@ -111,6 +111,46 @@ describe('resolveDocsMarketingBlocksAfterRead', () => {
     })
   })
 
+  it('does not hydrate CTA content from draft-only docs sets or draft/archived docs pages on public reads (X-18)', async () => {
+    const draftSet = { ...docsSet, _status: 'draft', title: 'UNRELEASED SET' }
+    const draftPage = { id: 'page-1', _status: 'draft', route: '/x/secret', title: 'UNRELEASED PAGE' }
+    const archivedPage = { id: 'page-2', route: '/x/old', sync: { archived: true }, title: 'ARCHIVED PAGE' }
+    const findByID = vi.fn((args: FindByIDArgs) =>
+      Promise.resolve(
+        args.collection === 'docs-sets' ? draftSet : args.id === 'page-1' ? draftPage : archivedPage,
+      ),
+    )
+    const makeDoc = (status?: string): TestPageDoc =>
+      ({
+        id: 'host',
+        ...(status ? { _status: status } : {}),
+        layout: [
+          { actionType: 'docsLink', blockType: 'docsCTA', docsSet: 'set-1' },
+          { type: 'docsSetFullWidth', docsPage: 'page-1', skills: { enabled: false } },
+          { type: 'docsSetFullWidth', docsPage: 'page-2', skills: { enabled: false } },
+        ],
+      }) as unknown as TestPageDoc
+    const read = async (doc: TestPageDoc, query?: Record<string, unknown>) =>
+      JSON.stringify(
+        await hook({
+          doc,
+          req: { payload: { find: vi.fn(() => Promise.resolve({ docs: [] })), findByID }, query },
+        } as unknown as Parameters<typeof hook>[0]),
+      )
+
+    const publicRead = await read(makeDoc())
+    expect(publicRead).not.toContain('UNRELEASED')
+    expect(publicRead).not.toContain('ARCHIVED PAGE')
+
+    // Draft-aware reads (admin preview of a draft host document, or ?draft=true) still hydrate drafts,
+    // but never archived docs.
+    for (const preview of [await read(makeDoc('draft')), await read(makeDoc(), { draft: 'true' })]) {
+      expect(preview).toContain('UNRELEASED SET')
+      expect(preview).toContain('UNRELEASED PAGE')
+      expect(preview).not.toContain('ARCHIVED PAGE')
+    }
+  })
+
   it('resolves Docs CTA skills from selected docsSet skill assets', async () => {
     const find = vi.fn(() =>
       Promise.resolve({
