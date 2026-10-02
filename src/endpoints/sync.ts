@@ -57,10 +57,6 @@ import {
   updateDocsSetAfterSync,
   updateSyncRunAudit,
 } from '../payload/index.js'
-import {
-  withoutAlreadyArchivedAssetRemovals,
-  withoutAlreadyArchivedRemovals,
-} from '../payload/planNormalization.js'
 import { resolveDocsRouteClaims } from '../payload/routeClaims.js'
 import { runInSyncTransaction } from '../payload/transaction.js'
 import {
@@ -1721,13 +1717,11 @@ const createSyncEndpointHandler =
         })
       : []
     const existingDocs = existingPayloadDocs.map(toExistingDocsRecord)
-    const plan = withoutAlreadyArchivedRemovals(
-      planDocsSync({
+    const plan = planDocsSync({
         deleteBehavior: effectiveDeleteBehavior,
         desired: validation.data,
         existing: existingDocs,
-      }),
-    )
+      })
     const docsAssetsCollectionSlug =
       options.docsAssetsCollectionSlug ?? DEFAULT_DOCS_ASSETS_COLLECTION_SLUG
     let existingPayloadAssets: Awaited<ReturnType<typeof findExistingPayloadDocsAssetRecords>> = []
@@ -1758,13 +1752,11 @@ const createSyncEndpointHandler =
       options.docsAssetsEnabled === true &&
       (validation.data.assets.length > 0 || existingPayloadAssets.length > 0)
     const existingAssets = existingPayloadAssets.map(toExistingAssetRecord)
-    const plannedAssets = withoutAlreadyArchivedAssetRemovals(
-      planDocsAssetsSync({
+    const plannedAssets = planDocsAssetsSync({
         deleteBehavior: effectiveDeleteBehavior,
         desired: validation.data,
         existing: existingAssets,
-      }),
-    )
+      })
     // Assets have no draft versions. In a draft-enabled install a non-publish sync must
     // not change what is served, so asset creates/updates wait for the next --publish
     // sync; removals still apply, like doc removals (DOCS-4).

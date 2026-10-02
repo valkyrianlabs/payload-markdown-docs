@@ -2151,6 +2151,10 @@ Plan plan_docs_sync(const ValidationResult& desired, const std::vector<ExistingR
     }
 
     const auto current = existing_by_source_path.at(source_path);
+    // Already-archived records stay archived (DOCS-10); only hard delete applies to them.
+    if (current.archived.value_or(false) && effective_delete_behavior != "delete") {
+      continue;
+    }
     PlannedChange change = {
       .current = current,
       .reason = "Existing doc is missing from desired manifest.",
@@ -2238,6 +2242,10 @@ AssetPlan plan_docs_assets_sync(const ValidationResult& desired, const std::vect
     }
 
     const auto current = existing_by_source_path.at(source_path);
+    // Already-archived records stay archived (DOCS-10); only hard delete applies to them.
+    if (current.archived.value_or(false) && effective_delete_behavior != "delete") {
+      continue;
+    }
     PlannedAssetChange change = {
       .current = current,
       .reason = "Existing asset is missing from desired manifest.",

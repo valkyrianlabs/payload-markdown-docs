@@ -788,6 +788,21 @@ describe('docs dry sync planning', () => {
     expect(plan.unchanged).toHaveLength(0)
   })
 
+  test('does not re-archive or re-draft already-archived docs, but still hard-deletes them (DOCS-10)', () => {
+    const existing = [
+      { archived: true, route: '/docs/gone', sourcePath: 'gone.md' },
+      { route: '/docs/old', sourcePath: 'old.md' },
+    ]
+
+    expect(planDocsSync({ desired, existing }).archive.map((change) => change.sourcePath)).toEqual(['old.md'])
+    expect(
+      planDocsSync({ deleteBehavior: 'draft', desired, existing }).draft.map((change) => change.sourcePath),
+    ).toEqual(['old.md'])
+    expect(
+      planDocsSync({ deleteBehavior: 'delete', desired, existing }).delete.map((change) => change.sourcePath),
+    ).toEqual(['gone.md', 'old.md'])
+  })
+
   test('ignores missing existing docs when deleteBehavior is ignore', () => {
     const plan = planDocsSync({
       deleteBehavior: 'ignore',
@@ -901,5 +916,22 @@ describe('asset sync planning', () => {
     expect(plan.create).toHaveLength(1)
     expect(plan.unchanged).toHaveLength(1)
     expect(plan.archive).toHaveLength(1)
+  })
+})
+
+describe('asset sync planning of archived records', () => {
+  test('does not re-archive already-archived assets, but still hard-deletes them (DOCS-10)', () => {
+    const desired = expectValidManifest({ files: [{ content: '# A', path: 'a.md' }], source: { id: 'main-docs' }, version: 1 })
+    const existing = [
+      { archived: true, contentType: 'text/markdown', kind: 'skill' as const, route: '/a', sourcePath: 'skills/a.md' },
+      { contentType: 'text/markdown', kind: 'skill' as const, route: '/b', sourcePath: 'skills/b.md' },
+    ]
+
+    expect(planDocsAssetsSync({ desired, existing }).archive.map((change) => change.sourcePath)).toEqual([
+      'skills/b.md',
+    ])
+    expect(
+      planDocsAssetsSync({ deleteBehavior: 'delete', desired, existing }).delete.map((change) => change.sourcePath),
+    ).toEqual(['skills/a.md', 'skills/b.md'])
   })
 })

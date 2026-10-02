@@ -148,6 +148,12 @@ export const planDocsSync = ({
       continue
     }
 
+    // Already-archived records stay as they are (DOCS-10): re-archiving would rewrite archivedAt,
+    // add a version per sync and inflate the archive count forever. Hard delete still applies.
+    if (current.archived === true && effectiveDeleteBehavior !== 'delete') {
+      continue
+    }
+
     const change = {
       current,
       reason: 'Existing doc is missing from desired manifest.',
@@ -245,6 +251,10 @@ export const planDocsAssetsSync = ({
 
   for (const current of existingBySourcePath.values()) {
     if (desiredSourcePaths.has(current.sourcePath)) {
+      continue
+    }
+
+    if (current.archived === true && effectiveDeleteBehavior !== 'delete') {
       continue
     }
 
