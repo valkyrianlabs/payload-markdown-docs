@@ -41,6 +41,7 @@ export type CreateDocsAssetsEndpointsOptions = {
   docsSetsCollectionSlug?: string
   docsSetsEnabled?: boolean
   markdownFieldName?: string
+  trustForwardedHeaders?: boolean
 }
 
 type AssetEndpointPayloadOperations = {
@@ -690,6 +691,7 @@ const createRootAssetEndpoint = ({
   kind,
   markdownFieldName,
   path,
+  trustForwardedHeaders,
 }: {
   collectionSlug: string
   docsCollectionSlug: string
@@ -700,6 +702,7 @@ const createRootAssetEndpoint = ({
   kind: 'llms' | 'llms-full'
   markdownFieldName: string
   path: string
+  trustForwardedHeaders?: boolean
 }): Endpoint =>
   createRootGetEndpoint({
     handler: async (req) => {
@@ -716,6 +719,7 @@ const createRootAssetEndpoint = ({
             markdownFieldName,
             payload,
             req,
+            trustForwardedHeaders,
           })
 
           if (generatedContent) {
@@ -750,6 +754,7 @@ const createDocsSetLlmsEndpoint = ({
   kind,
   markdownFieldName,
   path,
+  trustForwardedHeaders,
 }: {
   collectionSlug: string
   docsCollectionSlug: string
@@ -759,6 +764,7 @@ const createDocsSetLlmsEndpoint = ({
   kind: 'llms' | 'llms-full'
   markdownFieldName: string
   path: string
+  trustForwardedHeaders?: boolean
 }): Endpoint =>
   createRootGetEndpoint({
     handler: async (req) => {
@@ -788,6 +794,7 @@ const createDocsSetLlmsEndpoint = ({
             markdownFieldName,
             payload,
             req,
+            trustForwardedHeaders,
           })
 
           if (generatedContent) {
@@ -935,6 +942,7 @@ export const createDocsAssetsEndpoints = ({
   docsSetsCollectionSlug = DEFAULT_DOCS_SETS_COLLECTION_SLUG,
   docsSetsEnabled = true,
   markdownFieldName = DEFAULT_MARKDOWN_FIELD_NAME,
+  trustForwardedHeaders = false,
 }: CreateDocsAssetsEndpointsOptions): Endpoint[] => {
   if (!docsAssetsEnabled) {
     return []
@@ -951,6 +959,7 @@ export const createDocsAssetsEndpoints = ({
       kind: 'llms',
       markdownFieldName,
       path: '/llms.txt',
+      trustForwardedHeaders,
     }),
     createRootAssetEndpoint({
       collectionSlug: docsAssetsCollectionSlug,
@@ -962,6 +971,7 @@ export const createDocsAssetsEndpoints = ({
       kind: 'llms-full',
       markdownFieldName,
       path: '/llms-full.txt',
+      trustForwardedHeaders,
     }),
     ...(docsSetsEnabled
       ? [
@@ -974,6 +984,7 @@ export const createDocsAssetsEndpoints = ({
             kind: 'llms',
             markdownFieldName,
             path: '/:routeBase*/llms.txt',
+            trustForwardedHeaders,
           }),
           createDocsSetLlmsEndpoint({
             collectionSlug: docsAssetsCollectionSlug,
@@ -984,6 +995,7 @@ export const createDocsAssetsEndpoints = ({
             kind: 'llms-full',
             markdownFieldName,
             path: '/:routeBase*/llms-full.txt',
+            trustForwardedHeaders,
           }),
           createSkillZipEndpoint({
             collectionSlug: docsAssetsCollectionSlug,

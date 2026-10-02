@@ -181,6 +181,17 @@ Disabling infrastructure collections is an advanced integration path. Normal
 apps should leave the defaults enabled; the sync endpoint needs docs sets for
 source resolution and needs audit/nonces for applied sync.
 
+## Public URLs In Generated Files
+
+Generated `llms.txt` and `llms-full.txt` files contain absolute URLs. The
+origin comes from `NEXT_PUBLIC_SERVER_URL`, `NEXT_PUBLIC_SITE_URL`, `SITE_URL`,
+the Vercel URL variables, or Payload `serverURL`, in that order. Request
+headers are used only when none of these is set: `X-Forwarded-Host` and
+`X-Forwarded-Proto` only with `endpoint.trustForwardedHeaders: true` (set it
+only behind a proxy that overwrites them), otherwise `Host`. Configure
+`serverURL` in production so a client-supplied header can never change the
+URLs.
+
 ## Collection Access
 
 Plugin collections are admin-only by default. Users of the Payload admin user

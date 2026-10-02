@@ -501,6 +501,7 @@ export const payloadMarkdownDocs =
           docsSetsCollectionSlug,
           docsSetsEnabled,
           markdownFieldName,
+          trustForwardedHeaders: pluginOptions.endpoint?.trustForwardedHeaders === true,
         }),
       ],
     }

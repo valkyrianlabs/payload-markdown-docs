@@ -37,6 +37,8 @@ export type GenerateLlmsOptions = {
   markdownFieldName: string
   payload: LlmsPayloadOperations
   req: PayloadRequest
+  /** Honor X-Forwarded-Host/-Proto when no public origin is configured (DOCS-18). */
+  trustForwardedHeaders?: boolean
 }
 
 type LlmsDocRecord = {
@@ -668,6 +670,7 @@ export const generateDocsSetLlms = async ({
   markdownFieldName,
   payload,
   req,
+  trustForwardedHeaders,
 }: GenerateLlmsOptions): Promise<string | undefined> => {
   if (!docsSet) {
     return undefined
@@ -691,7 +694,7 @@ export const generateDocsSetLlms = async ({
     return undefined
   }
 
-  const origin = getPublicRequestOrigin(req)
+  const origin = getPublicRequestOrigin(req, { trustForwardedHeaders })
 
   return kind === 'llms'
     ? renderDocsSetLlms({
@@ -715,6 +718,7 @@ export const generateRootLlms = async ({
   markdownFieldName,
   payload,
   req,
+  trustForwardedHeaders,
 }: GenerateLlmsOptions): Promise<string | undefined> => {
   const docsSets = await findAllDocsSets({
     collectionSlug: docsSetsCollectionSlug,
@@ -739,7 +743,7 @@ export const generateRootLlms = async ({
       })),
     })),
   )
-  const origin = getPublicRequestOrigin(req)
+  const origin = getPublicRequestOrigin(req, { trustForwardedHeaders })
 
   return kind === 'llms'
     ? renderRootLlms({

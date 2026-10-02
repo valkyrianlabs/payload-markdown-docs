@@ -23,6 +23,12 @@ export type PayloadMarkdownDocsConfig = {
 export type PayloadMarkdownDocsEndpointConfig = {
   maxBodyBytes?: number
   path?: string
+  /**
+   * Use `X-Forwarded-Host` / `X-Forwarded-Proto` for public URLs in generated llms
+   * files when no origin is configured (`serverURL` or NEXT_PUBLIC_SERVER_URL and
+   * friends). Enable only behind a proxy that sets these headers. Default false.
+   */
+  trustForwardedHeaders?: boolean
 }
 
 export type PayloadMarkdownDocsAuthConfig =

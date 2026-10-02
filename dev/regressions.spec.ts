@@ -679,6 +679,15 @@ describeDb('docs sync real-DB regressions', () => {
       expect(full.text).not.toContain('UNRELEASED-CONTENT-123')
       expect(full.text).not.toContain('Secret Draft')
 
+      const spoofed = await callGet({
+        headers: { host: 'docs.example.com', 'x-forwarded-host': 'evil.example' },
+        path: '/:routeBase*/llms-full.txt',
+        payload,
+        url: `http://docs.example.com/${slug}/llms-full.txt`,
+      })
+      // Forwarded headers are ignored unless endpoint.trustForwardedHeaders (DOCS-18).
+      expect(await spoofed.text()).not.toContain('evil.example')
+
       const index = await getLlms(slug, 'llms.txt')
       expect(index.text).not.toContain('Secret Draft')
 
