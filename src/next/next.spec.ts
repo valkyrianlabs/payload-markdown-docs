@@ -1999,6 +1999,40 @@ describe('Payload Markdown Docs link helpers', () => {
 })
 
 describe('Payload Markdown Docs page component', () => {
+  it('leaves code untouched and handles linked images and parenthesised paths (X-5)', () => {
+    const productNestedDocsSet = {
+      ...resolvedDocsSet,
+      productRoute: '/plugins/payload-markdown',
+      routeBase: '/plugins/payload-markdown/docs',
+      routeMode: 'product-nested' as const,
+    }
+    const rewrite = (markdown: string) =>
+      rewritePayloadMarkdownDocsLinks({
+        doc: resolvedRecord({ sourcePath: 'Index.md' }),
+        docsSet: productNestedDocsSet,
+        markdown,
+      })
+    const target = rewrite('[t](./target.md)').slice('[t]('.length, -1)
+    const parens = rewrite('[w](./a_(b).md)')
+
+    // inline code spans are displayed code
+    expect(rewrite('Write `[Install](./install.md)` and ``a `[x](./x.md)` b``')).toBe(
+      'Write `[Install](./install.md)` and ``a `[x](./x.md)` b``',
+    )
+    expect(rewrite('`[a](./a.md)` then [t](./target.md)')).toBe(`\`[a](./a.md)\` then [t](${target})`)
+    // a shorter inner fence does not close a longer outer fence
+    const nested = ['````md', '```md', '[a](./a.md)', '```', '[b](./b.md)', '````', '[t](./target.md)'].join('\n')
+    expect(rewrite(nested)).toBe(nested.replace('[t](./target.md)', `[t](${target})`))
+    // tilde fences and info strings
+    const tilde = ['~~~~ md', '[a](./a.md)', '~~~', '[b](./b.md)', '~~~~', '[t](./target.md)'].join('\n')
+    expect(rewrite(tilde)).toBe(tilde.replace('[t](./target.md)', `[t](${target})`))
+    // linked image: the outer link is rewritten, the image source is left as is
+    expect(rewrite('[![img](./i.png)](./target.md)')).toBe(`[![img](./i.png)](${target})`)
+    // balanced parentheses in the destination
+    expect(parens).not.toContain('.md')
+    expect(parens).toMatch(/^\[w\]\(\/.+\)$/)
+  })
+
   it('rewrites docs-local markdown links into the current docs set route space', () => {
     const productNestedDocsSet = {
       ...resolvedDocsSet,

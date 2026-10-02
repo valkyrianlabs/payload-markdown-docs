@@ -180,7 +180,7 @@ const rewriteMarkdownLinkDestination = ({
   return isAngleWrapped ? `<${rewrittenHref}>` : rewrittenHref
 }
 
-const rewriteMarkdownLineLinks = ({
+const rewriteMarkdownTextLinks = ({
   doc,
   docsSet,
   line,
@@ -191,7 +191,7 @@ const rewriteMarkdownLineLinks = ({
 }): string =>
   line
     .replace(
-      /(!?)\[([^\]\n]+)\]\(([^()\s]+)([ \t]+(?:"[^"\n]*"|'[^'\n]*'|\([^)\n]*\)))?\)/g,
+      /(!?)\[((?:[^[\]\n]|!\[[^\]\n]*\]\((?:[^()\s]|\([^()\s]*\))+\))+)\]\(((?:[^()\s]|\([^()\s]*\))+)([ \t]+(?:"[^"\n]*"|'[^'\n]*'|\([^)\n]*\)))?\)/g,
       (match, imagePrefix, label, href, rest) => {
         if (imagePrefix) {
           return match
@@ -228,6 +228,65 @@ const rewriteMarkdownLineLinks = ({
       return `href=${quote}${rewrittenHref}${quote}`
     })
 
+/**
+ * Rewrites links in one line of Markdown outside code spans: text inside backtick code spans
+ * (a run of N backticks closed by the next run of exactly N) is displayed code and stays as is.
+ */
+const rewriteMarkdownLineLinks = ({
+  doc,
+  docsSet,
+  line,
+}: {
+  doc?: DocsLinkSourceDoc
+  docsSet: DocsLinkDocsSet
+  line: string
+}): string => {
+  if (!line.includes('`')) {
+    return rewriteMarkdownTextLinks({ doc, docsSet, line })
+  }
+
+  let output = ''
+  let textStart = 0
+  let index = 0
+
+  while (index < line.length) {
+    if (line[index] !== '`') {
+      index++
+      continue
+    }
+
+    let runEnd = index
+    while (line[runEnd] === '`') {runEnd++}
+    const run = line.slice(index, runEnd)
+    let close = runEnd
+    let closeIndex = -1
+
+    while (close < line.length) {
+      const next = line.indexOf(run, close)
+      if (next === -1) {break}
+      let nextEnd = next + run.length
+      if (line[nextEnd] !== '`' && (next === 0 || line[next - 1] !== '`')) {
+        closeIndex = next
+        break
+      }
+      while (line[nextEnd] === '`') {nextEnd++}
+      close = nextEnd
+    }
+
+    if (closeIndex === -1) {
+      index = runEnd
+      continue
+    }
+
+    output += rewriteMarkdownTextLinks({ doc, docsSet, line: line.slice(textStart, index) })
+    output += line.slice(index, closeIndex + run.length)
+    index = closeIndex + run.length
+    textStart = index
+  }
+
+  return output + rewriteMarkdownTextLinks({ doc, docsSet, line: line.slice(textStart) })
+}
+
 export const rewritePayloadMarkdownDocsLinks = ({
   doc,
   docsSet,
@@ -237,29 +296,32 @@ export const rewritePayloadMarkdownDocsLinks = ({
   docsSet: DocsLinkDocsSet
   markdown: string
 }): string => {
-  let inFence = false
-  let fenceMarker: '```' | '~~~' | undefined
+  // CommonMark fences: an opening run of 3+ backticks or tildes; the block closes only on a run of
+  // the same character that is at least as long, with nothing but whitespace after it.
+  let fence: { char: string; length: number } | undefined
 
   return markdown
     .split('\n')
     .map((line) => {
-      const fenceMatch = line.match(/^[ \t]{0,3}(```|~~~)/)
+      const fenceMatch = /^ {0,3}(`{3,}|~{3,})/.exec(line)
+      const fenceInfo = fenceMatch ? line.slice(fenceMatch[0].length) : ''
 
-      if (fenceMatch) {
-        const marker = fenceMatch[1] as '```' | '~~~'
-
-        if (!inFence) {
-          inFence = true
-          fenceMarker = marker
-        } else if (marker === fenceMarker) {
-          inFence = false
-          fenceMarker = undefined
+      if (fence) {
+        if (
+          fenceMatch &&
+          fenceMatch[1][0] === fence.char &&
+          fenceMatch[1].length >= fence.length &&
+          fenceInfo.trim() === ''
+        ) {
+          fence = undefined
         }
 
         return line
       }
 
-      if (inFence) {
+      if (fenceMatch && !(fenceMatch[1][0] === '`' && fenceInfo.includes('`'))) {
+        fence = { char: fenceMatch[1][0], length: fenceMatch[1].length }
+
         return line
       }
 
