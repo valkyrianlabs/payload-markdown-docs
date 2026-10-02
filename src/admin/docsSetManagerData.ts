@@ -13,6 +13,7 @@ import {
   DEFAULT_DOCS_GROUPS_COLLECTION_SLUG,
   DEFAULT_DOCS_SETS_COLLECTION_SLUG,
 } from '../constants.js'
+import { getDocsRecordLifecycleStatus } from '../payload/visibility.js'
 import { indexDocsGroupsById, resolveDocsSetRoutes } from '../routing/docsSetRoutes.js'
 import { getRecordId, getRelationshipId, isRecord } from '../shared/records.js'
 
@@ -58,21 +59,8 @@ const getOverrideSummary = (overrides: RawDocsRecord['overrides']): string[] => 
   return summary
 }
 
-const getDocStatus = (doc: RawDocsRecord): DocsSetManagerDocItem['status'] => {
-  if (doc.sync?.archived === true) {
-    return 'archived'
-  }
-
-  if (doc._status === 'draft') {
-    return 'draft'
-  }
-
-  if (doc._status === 'published') {
-    return 'published'
-  }
-
-  return 'synced'
-}
+const getDocStatus = (doc: RawDocsRecord): DocsSetManagerDocItem['status'] =>
+  getDocsRecordLifecycleStatus(doc)
 
 const getSourcePathSegments = (sourcePath: string): string[] => {
   const withoutExtension = sourcePath.replace(/\.md$/i, '')

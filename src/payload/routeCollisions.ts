@@ -6,6 +6,7 @@ import {
   normalizeRoutePath,
 } from '../routing/index.js'
 import { getRecordId, getRelationshipId, isRecord } from '../shared/records.js'
+import { isArchivedPayloadRecord } from './visibility.js'
 
 export type RouteCollisionPayloadOperations = {
   find: (args: {
@@ -157,9 +158,7 @@ export const findExistingAssetRouteCollisions = async ({
       return []
     }
 
-    const sync = isRecord(doc.sync) ? doc.sync : undefined
-
-    if (sync?.archived === true) {
+    if (isArchivedPayloadRecord(doc)) {
       return []
     }
 

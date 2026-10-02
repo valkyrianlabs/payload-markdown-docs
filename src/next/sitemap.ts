@@ -14,6 +14,11 @@ import {
   DEFAULT_MARKDOWN_FIELD_NAME,
 } from '../constants.js'
 import {
+  isPublicDocsAssetRecord,
+  notArchivedWhere,
+  publishedWhere,
+} from '../payload/visibility.js'
+import {
   type DocsGroupsById,
   indexDocsGroupsById,
   resolveDocsSetRoutes,
@@ -410,9 +415,7 @@ const toAssetSitemapDocs = ({
     return []
   }
 
-  const sync = isRecord(doc.sync) ? doc.sync : undefined
-
-  if (sync?.archived === true) {
+  if (!isPublicDocsAssetRecord(doc)) {
     return []
   }
 
@@ -618,11 +621,7 @@ const getDocsForSitemapUncached = async ({
         routeMode: true,
         updatedAt: true,
       },
-      where: {
-        _status: {
-          equals: 'published',
-        },
-      },
+      where: publishedWhere(),
     }),
     payload.find({
       collection: docsGroupsCollectionSlug,
@@ -706,11 +705,7 @@ const getDocsForSitemapUncached = async ({
               sync: true,
               updatedAt: true,
             },
-            where: {
-              'sync.archived': {
-                not_equals: true,
-              },
-            },
+            where: notArchivedWhere(),
           })
 
           return assetsResult.docs.flatMap((doc) => {

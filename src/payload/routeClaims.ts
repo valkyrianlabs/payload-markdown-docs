@@ -3,6 +3,7 @@ import type { ExistingPayloadDocsRecord } from './existingDocs.js'
 import type { DocsRouteCollisionIssue } from './routeCollisions.js'
 
 import { getRecordId, isRecord } from '../shared/records.js'
+import { isArchivedPayloadRecord, isPublishedPayloadRecord } from './visibility.js'
 
 /**
  * Route lifecycle for generated docs.
@@ -171,9 +172,8 @@ export const resolveDocsRouteClaims = async ({
     }
 
     const sameOwner = existingById.has(holderId)
-    const sync = isRecord(holder.sync) ? holder.sync : undefined
-    const holderArchived = sync?.archived === true
-    const holderDraftOnly = holder._status === 'draft'
+    const holderArchived = isArchivedPayloadRecord(holder)
+    const holderDraftOnly = !isPublishedPayloadRecord(holder)
 
     if (!sameOwner) {
       collisions.push({

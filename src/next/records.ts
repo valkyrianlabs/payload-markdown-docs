@@ -11,6 +11,7 @@ import type {
   ResolvedPayloadMarkdownDocsSet,
 } from './types.js'
 
+import { getPayloadDraftStatus, isVisibleToReader } from '../payload/visibility.js'
 import {
   type DocsGroupsById,
   getDocsGroupRoutePath,
@@ -162,7 +163,7 @@ export const toResolvedDocsSet = (
     productRoute,
     routeBase,
     routeMode: routeMode satisfies PayloadMarkdownDocsRouteMode,
-    status: doc._status === 'draft' || doc._status === 'published' ? doc._status : undefined,
+    status: getPayloadDraftStatus(doc),
     title,
   }
 }
@@ -173,7 +174,7 @@ export const isVisibleDocsSet = ({
 }: {
   docsSet: ResolvedPayloadMarkdownDocsSet
   includeDrafts?: boolean
-}): boolean => !(!includeDrafts && docsSet.status === 'draft')
+}): boolean => isVisibleToReader({ includeDrafts, status: docsSet.status })
 
 /** Public projection of a raw docs group; undefined when the group has no route. */
 export const toResolvedDocsGroup = (
@@ -228,7 +229,7 @@ export const toResolvedDocsRecord = ({
   }
 
   const sync = isRecord(doc.sync) ? doc.sync : undefined
-  const status = doc._status === 'draft' || doc._status === 'published' ? doc._status : undefined
+  const status = getPayloadDraftStatus(doc)
 
   return {
     id,
@@ -256,10 +257,5 @@ export const isVisibleDocsRecord = ({
 }: {
   includeDrafts?: boolean
   record: ResolvedPayloadMarkdownDocsRecord
-}): boolean => {
-  if (record.archived) {
-    return false
-  }
-
-  return !(!includeDrafts && record.status === 'draft')
-}
+}): boolean =>
+  isVisibleToReader({ archived: record.archived, includeDrafts, status: record.status })

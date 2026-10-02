@@ -1,6 +1,7 @@
 import type { ExistingDocsRecord } from '../sync/index.js'
 
 import { getRecordId, getRelationshipId, isRecord } from '../shared/records.js'
+import { getPayloadDraftStatus } from './visibility.js'
 
 export type ExistingDocsPayloadOperations = {
   find: (args: {
@@ -56,7 +57,7 @@ const toExistingPayloadDocsRecord = ({
   }
 
   const sync = isRecord(doc.sync) ? doc.sync : undefined
-  const status = doc._status === 'draft' || doc._status === 'published' ? doc._status : undefined
+  const status = getPayloadDraftStatus(doc)
 
   return {
     id,

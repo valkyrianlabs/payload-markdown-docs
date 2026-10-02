@@ -4,7 +4,11 @@ import type { DocsSetPayloadOperations, ResolvedDocsSet } from '../payload/index
 import type { SkillBundle, SkillBundleAsset } from '../skillBundles.js'
 
 import { findAllDocsSets } from '../payload/index.js'
-import { isPublicDocsAssetRecord, isPublicDocsRecord } from '../payload/visibility.js'
+import {
+  isPublicDocsAssetRecord,
+  isPublicDocsRecord,
+  notArchivedWhere,
+} from '../payload/visibility.js'
 import { rewritePayloadMarkdownDocsLinks } from '../routing/docsLinks.js'
 import { normalizeRoutePath } from '../routing/index.js'
 import { getString, isRecord } from '../shared/records.js'
@@ -181,11 +185,7 @@ const findDocsForDocsSet = async ({
             equals: docsSet.id,
           },
         },
-        {
-          'sync.archived': {
-            not_equals: true,
-          },
-        },
+        notArchivedWhere(),
       ],
     },
   })
@@ -239,11 +239,7 @@ const findSkillAssetsForDocsSet = async ({
             },
           ],
         },
-        {
-          'sync.archived': {
-            not_equals: true,
-          },
-        },
+        notArchivedWhere(),
       ],
     },
   })

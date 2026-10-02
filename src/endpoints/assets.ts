@@ -13,6 +13,7 @@ import {
   DEFAULT_MARKDOWN_FIELD_NAME,
 } from '../constants.js'
 import { findDocsSetByRoutePrefix } from '../payload/index.js'
+import { isPublicDocsAssetRecord, notArchivedWhere } from '../payload/visibility.js'
 import { joinRouteSegments, normalizeRoutePath } from '../routing/index.js'
 import { getRecordId, getString, isRecord } from '../shared/records.js'
 import {
@@ -106,9 +107,7 @@ const toServedDocsAsset = (doc: unknown): ServedDocsAsset | undefined => {
     return undefined
   }
 
-  const sync = isRecord(doc.sync) ? doc.sync : undefined
-
-  if (sync?.archived === true) {
+  if (!isPublicDocsAssetRecord(doc)) {
     return undefined
   }
 
@@ -132,11 +131,11 @@ const toSkillDocsAsset = (doc: unknown): SkillDocsAsset | undefined => {
     return undefined
   }
 
-  const sync = isRecord(doc.sync) ? doc.sync : undefined
-
-  if (sync?.archived === true) {
+  if (!isPublicDocsAssetRecord(doc)) {
     return undefined
   }
+
+  const sync = isRecord(doc.sync) ? doc.sync : undefined
 
   return {
     id: getRecordId(doc),
@@ -288,11 +287,7 @@ const resolveAssetByRoute = async ({
             equals: normalizeRoutePath(route),
           },
         },
-        {
-          'sync.archived': {
-            not_equals: true,
-          },
-        },
+        notArchivedWhere(),
       ],
     },
   })
@@ -346,11 +341,7 @@ const resolveAssetByDocsSet = async ({
             },
           ],
         },
-        {
-          'sync.archived': {
-            not_equals: true,
-          },
-        },
+        notArchivedWhere(),
       ],
     },
   })
@@ -402,11 +393,7 @@ const findSkillAssetsForDocsSet = async ({
             },
           ],
         },
-        {
-          'sync.archived': {
-            not_equals: true,
-          },
-        },
+        notArchivedWhere(),
       ],
     },
   })
@@ -444,11 +431,7 @@ const resolveSkillAssetByRoute = async ({
             equals: normalizeRoutePath(route),
           },
         },
-        {
-          'sync.archived': {
-            not_equals: true,
-          },
-        },
+        notArchivedWhere(),
       ],
     },
   })
@@ -495,11 +478,7 @@ const findSkillAssetsBySourceId = async ({
             },
           ],
         },
-        {
-          'sync.archived': {
-            not_equals: true,
-          },
-        },
+        notArchivedWhere(),
       ],
     },
   })
