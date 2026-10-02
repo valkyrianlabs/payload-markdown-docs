@@ -658,6 +658,19 @@ describe('docs asset endpoints', () => {
           },
           title: 'Payload Markdown Docs',
         },
+        {
+          id: 'doc-2',
+          content:
+            '# Migrations\n\nSee [v1](/advanced/v1.md) and [rel](./troubleshooting.md#fix).\n\n```md\n[keep](./raw.md)\n```',
+          docsSet: 'docs-set-1',
+          order: 1,
+          route: '/plugins/payload-markdown-docs/advanced/migrations',
+          sourcePath: 'advanced/migrations.md',
+          sync: {
+            archived: false,
+          },
+          title: 'Migrations',
+        },
       ],
       docsGroups: [
         {
@@ -690,6 +703,12 @@ describe('docs asset endpoints', () => {
     expect(text).toContain('# Payload Markdown Docs Full Documentation')
     expect(text).toContain('URL: https://example.com/plugins/payload-markdown-docs')
     expect(text).toContain('# Overview\n\nGenerated content.')
+    // Links resolve like the HTML page: docs-root and relative links get the docs set
+    // route; fenced code is untouched (X-6).
+    expect(text).toContain(
+      'See [v1](/plugins/payload-markdown-docs/advanced/v1) and [rel](/plugins/payload-markdown-docs/advanced/troubleshooting#fix).',
+    )
+    expect(text).toContain('[keep](./raw.md)')
     expect(text).toContain('Root: https://example.com/plugins/payload-markdown-docs/skills/codex')
     expect(text).toContain(
       'SKILL.md: https://example.com/plugins/payload-markdown-docs/skills/codex/SKILL.md',

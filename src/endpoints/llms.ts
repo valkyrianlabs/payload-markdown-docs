@@ -5,6 +5,7 @@ import type { SkillBundle, SkillBundleAsset } from '../skillBundles.js'
 
 import { findAllDocsSets } from '../payload/index.js'
 import { isPublicDocsAssetRecord, isPublicDocsRecord } from '../payload/visibility.js'
+import { rewritePayloadMarkdownDocsLinks } from '../routing/docsLinks.js'
 import { normalizeRoutePath } from '../routing/index.js'
 import { formatSkillAgentTitle, getSkillBundles } from '../skillBundles.js'
 import { createSafeAssetHeaders } from './assetContentTypes.js'
@@ -474,7 +475,12 @@ const renderDocsSetLlmsFull = ({
       `URL: ${createPublicUrl(origin, doc.route)}`,
       `Source: ${doc.sourcePath}`,
       '',
-      doc.content.trim(),
+      // Resolve relative and docs-root links exactly like the HTML page (X-6).
+      rewritePayloadMarkdownDocsLinks({
+        doc,
+        docsSet,
+        markdown: doc.content.trim(),
+      }),
       '',
     )
   }
