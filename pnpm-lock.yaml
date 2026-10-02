@@ -58,8 +58,8 @@ importers:
         specifier: 19.2.3
         version: 19.2.3(@types/react@19.2.14)
       '@valkyrianlabs/payload-markdown':
-        specifier: ^1.5.0
-        version: 1.5.0(payload@3.90.2(graphql@16.14.2)(typescript@5.7.3))
+        specifier: ^1.6.0
+        version: 1.6.0(payload@3.90.2(graphql@16.14.2)(typescript@5.7.3))
       copyfiles:
         specifier: 2.4.1
         version: 2.4.1
@@ -2607,9 +2607,9 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@valkyrianlabs/payload-markdown@1.5.0':
-    resolution: {integrity: sha512-bNlEaF6AbU1lmqpn9lymRf+RUcruZ/CoiOWjf8NqRx1/6UXXU1sWbVeth8t0hJA/VIaig6Ou1ozTHsMhbMMYMA==}
-    engines: {node: ^18.20.2 || >=20.9.0, pnpm: ^9 || ^10}
+  '@valkyrianlabs/payload-markdown@1.6.0':
+    resolution: {integrity: sha512-XDn5zzfyGGAtSHYS8K6srWELHsZnsVG5rdvFInWbQekF7761lXNnZYgHv3/hW8BxLcRHShegmK4pWsYdSUxORw==}
+    engines: {node: '>=20.9.0', pnpm: ^9 || ^10}
     peerDependencies:
       payload: ^3.0.0
 
@@ -8633,7 +8633,7 @@ snapshots:
   '@unrs/resolver-binding-win32-x64-msvc@1.12.2':
     optional: true
 
-  '@valkyrianlabs/payload-markdown@1.5.0(payload@3.90.2(graphql@16.14.2)(typescript@5.7.3))':
+  '@valkyrianlabs/payload-markdown@1.6.0(payload@3.90.2(graphql@16.14.2)(typescript@5.7.3))':
     dependencies:
       '@codemirror/autocomplete': 6.20.3
       '@codemirror/commands': 6.11.1

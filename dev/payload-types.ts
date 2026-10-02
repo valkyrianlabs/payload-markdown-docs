@@ -156,7 +156,7 @@ export interface UserAuthOperations {
 export interface MarkdownBlock {
   'md-params'?: {
     /**
-     * Whether to enable custom parameters for markdown blocks. This is required to use any of the other block parameter fields, but can be left disabled if you only need the default styles and behavior.
+     * Override this block's rendering. When checked, the fields start from what the block currently renders with (global and collection settings), so you can change just the values you need.
      */
     enable?: boolean | null;
     config?: {
