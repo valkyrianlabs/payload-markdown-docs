@@ -179,7 +179,7 @@ jobs:
           set -euo pipefail
           meson setup build-native -Dinstall_skill_data=false
           meson compile -C build-native
-          meson test -C build-native
+          meson test -C build-native --print-errorlogs
 
       # `pmdocs doctor` reports `degraded` (exit 1) when bundled skill data is missing, so the
       # install smoke uses a build that bundles it, like the Debian and Homebrew packages do.

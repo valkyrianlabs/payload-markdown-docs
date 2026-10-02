@@ -309,7 +309,7 @@ jobs:
           set -euo pipefail
           meson setup build-native -Dinstall_skill_data=false
           meson compile -C build-native
-          meson test -C build-native
+          meson test -C build-native --print-errorlogs
           ./build-native/cli/pmdocs --version
 
       - name: Upload native pmdocs Linux artifact
@@ -463,7 +463,7 @@ jobs:
           # node_modules, so only the payload-markdown-docs skill is bundled.
           meson setup build-homebrew -Dinstall_skill_data=true -Dcompanion_skill_data=auto
           meson compile -C build-homebrew
-          meson test -C build-homebrew
+          meson test -C build-homebrew --print-errorlogs
           stage="$PWD/stage-homebrew"
           DESTDIR="$stage" meson install -C build-homebrew
           export PMDOCS_DATA_DIR="$stage/usr/local/share/pmdocs"
