@@ -1182,6 +1182,8 @@ TEST_CASE("trailing separators in path arguments are handled") {
   write_text(docs / "index.md", "# Home\n");
   const auto data_root = create_skill_fixture(temp.path());
   EnvGuard data_dir{"PMDOCS_DATA_DIR", data_root.string()};
+  // The source id prefers GITHUB_REPOSITORY, which GitHub Actions always sets.
+  EnvGuard repository{"GITHUB_REPOSITORY", ""};
   CwdGuard cwd{temp.path()};
 
   const auto validate = pmdocs::run(args({"validate", "./mydocs/", "--no-skills"}));
