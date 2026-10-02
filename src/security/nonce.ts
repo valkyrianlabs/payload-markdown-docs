@@ -188,10 +188,10 @@ export const consumeNonce = async ({
     })
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
-    try {
-      await insert()
+    let inserted: Record<string, unknown>
 
-      return true
+    try {
+      inserted = await insert()
     } catch (error) {
       const existing = await findNonceRows({
         collectionSlug,
@@ -221,7 +221,17 @@ export const consumeNonce = async ({
           ],
         },
       })
+
+      continue
     }
+
+    // The unique index can be missing (a MongoDB index build that failed on old duplicate
+    // rows, or a migration that never ran), so the insert alone does not prove the nonce
+    // is new. Another live row for the pair is a replay; concurrent requests then all fail
+    // closed instead of all passing.
+    const others = await findNonceRows({ collectionSlug, keyId, nonce, payload })
+
+    return !others.some((doc) => doc.id !== inserted.id && isUnexpired(doc, now))
   }
 
   return false
