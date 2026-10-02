@@ -9,6 +9,12 @@ import {
   joinRouteSegments,
   normalizeRoutePath,
 } from '../routing/index.js'
+import {
+  getRawRecordId,
+  getRelationshipId,
+  getString,
+  isRecord,
+} from '../shared/records.js'
 import { isPublicDocsSetRecord } from './visibility.js'
 
 export type DocsSetPayloadOperations = {
@@ -75,34 +81,6 @@ export type ResolvedDocsSet = {
   slug: string
   title: string
 }
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value)
-
-const getRecordId = (doc: Record<string, unknown>): PayloadRecordId | undefined => {
-  if (typeof doc.id === 'string' || typeof doc.id === 'number') {
-    return doc.id
-  }
-
-  return undefined
-}
-
-const getRelationshipId = (value: unknown): string | undefined => {
-  if (typeof value === 'string' || typeof value === 'number') {
-    return String(value)
-  }
-
-  if (isRecord(value)) {
-    const id = getRecordId(value)
-
-    return id === undefined ? undefined : String(id)
-  }
-
-  return undefined
-}
-
-const getString = (value: unknown): string | undefined =>
-  typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined
 
 const getRouteMode = (value: unknown): DocsSetRouteMode =>
   value === 'product-nested' || value === 'docs-root' ? value : DEFAULT_DOCS_SET_ROUTE_MODE
@@ -241,7 +219,7 @@ const toResolvedGroup = (
     return undefined
   }
 
-  const id = getRecordId(doc)
+  const id = getRawRecordId(doc)
   const slug = getString(doc.slug)
 
   if (!id || !slug) {
@@ -285,7 +263,7 @@ const toResolvedDocsSet = ({
     return undefined
   }
 
-  const id = getRecordId(doc)
+  const id = getRawRecordId(doc)
   const slug = getString(doc.slug)
 
   if (!id || !slug) {
@@ -354,7 +332,7 @@ const getGroupsById = async ({
         return []
       }
 
-      const id = getRecordId(doc)
+      const id = getRawRecordId(doc)
 
       return id === undefined ? [] : [[String(id), doc]]
     }),

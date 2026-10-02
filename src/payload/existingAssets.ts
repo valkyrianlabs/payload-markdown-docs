@@ -1,5 +1,7 @@
 import type { ExistingAssetRecord } from '../sync/index.js'
 
+import { getRecordId, getRelationshipId, isRecord } from '../shared/records.js'
+
 export type ExistingAssetsPayloadOperations = {
   find: (args: {
     collection: string
@@ -30,29 +32,6 @@ export type ExistingPayloadDocsAssetRecord = {
     sourcePath?: string
   }
 } & ExistingAssetRecord
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value)
-
-const getRecordId = (doc: Record<string, unknown>): string | undefined => {
-  if (typeof doc.id === 'string' || typeof doc.id === 'number') {
-    return String(doc.id)
-  }
-
-  return undefined
-}
-
-const getRelationshipId = (value: unknown): string | undefined => {
-  if (typeof value === 'string' || typeof value === 'number') {
-    return String(value)
-  }
-
-  if (isRecord(value)) {
-    return getRecordId(value)
-  }
-
-  return undefined
-}
 
 const toExistingPayloadDocsAssetRecord = (
   doc: unknown,

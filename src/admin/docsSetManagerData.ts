@@ -14,29 +14,7 @@ import {
   DEFAULT_DOCS_SETS_COLLECTION_SLUG,
 } from '../constants.js'
 import { deriveDocsSetRouteBase, joinRouteSegments } from '../routing/index.js'
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value)
-
-const getRecordId = (doc: unknown): string | undefined => {
-  if (!isRecord(doc)) {
-    return undefined
-  }
-
-  if (typeof doc.id === 'string' || typeof doc.id === 'number') {
-    return String(doc.id)
-  }
-
-  return undefined
-}
-
-const getRelationshipId = (value: unknown): string | undefined => {
-  if (typeof value === 'string' || typeof value === 'number') {
-    return String(value)
-  }
-
-  return getRecordId(value)
-}
+import { getRecordId, getRelationshipId, isRecord } from '../shared/records.js'
 
 const normalizeAdminRoute = (adminRoute = '/admin'): string => {
   const trimmed = adminRoute.trim()

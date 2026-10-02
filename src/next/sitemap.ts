@@ -20,7 +20,8 @@ import {
   joinRouteSegments,
   normalizeRoutePath,
 } from '../routing/index.js'
-import { getRelationshipId, isRecord, isVisibleDocsRecord, toResolvedDocsRecord } from './records.js'
+import { getRelationshipId, isRecord } from '../shared/records.js'
+import { isVisibleDocsRecord, toResolvedDocsRecord } from './records.js'
 
 export type PayloadMarkdownDocsSitemapDoc = {
   lastModified?: null | string

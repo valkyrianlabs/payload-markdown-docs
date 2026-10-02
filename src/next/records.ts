@@ -17,29 +17,7 @@ import {
   deriveDocsSetRouteBase,
   normalizeRoutePath,
 } from '../routing/index.js'
-
-export const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value)
-
-export const getRecordId = (doc: Record<string, unknown>): string | undefined => {
-  if (typeof doc.id === 'string' || typeof doc.id === 'number') {
-    return String(doc.id)
-  }
-
-  return undefined
-}
-
-export const getRelationshipId = (value: unknown): string | undefined => {
-  if (typeof value === 'string' || typeof value === 'number') {
-    return String(value)
-  }
-
-  if (isRecord(value)) {
-    return getRecordId(value)
-  }
-
-  return undefined
-}
+import { getRecordId, getRelationshipId, isRecord } from '../shared/records.js'
 
 const getOptionalString = (doc: Record<string, unknown>, key: string): string | undefined =>
   typeof doc[key] === 'string' ? doc[key] : undefined

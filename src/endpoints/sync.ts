@@ -48,7 +48,6 @@ import {
   findExistingPayloadDocsAssetRecords,
   findExistingPayloadDocsRecords,
   findTrustedGitHubSources,
-  getRecordId,
   isDocsSetInScope,
   isEd25519AuthEnabled,
   isGitHubOidcAuthEnabled,
@@ -72,6 +71,7 @@ import {
   verifyEd25519Signature,
   verifyGitHubOidcIdentity,
 } from '../security/index.js'
+import { getRawRecordId, isRecord } from '../shared/records.js'
 import {
   findManifestRouteCollisions,
   planDocsAssetsSync,
@@ -369,9 +369,6 @@ const errorResponse = (
 
 const docsAssetsStorageUnavailableResponse = (): Response =>
   errorResponse('assets_storage_unavailable', DOCS_ASSETS_STORAGE_UNAVAILABLE_MESSAGE, 500)
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value)
 
 const parseManifestBody = (rawBody: string): DocsManifest | undefined => {
   try {
@@ -1887,7 +1884,7 @@ const createSyncEndpointHandler =
         warnings,
       })
 
-      syncRunId = getRecordId(syncRun)
+      syncRunId = getRawRecordId(syncRun)
     }
 
     if (isSyncMode) {

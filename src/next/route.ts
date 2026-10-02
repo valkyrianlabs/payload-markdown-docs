@@ -20,9 +20,8 @@ import {
   joinRouteSegments,
   normalizeRoutePath,
 } from '../routing/index.js'
+import { getRelationshipId, isRecord } from '../shared/records.js'
 import {
-  getRelationshipId,
-  isRecord,
   isVisibleDocsRecord,
   isVisibleDocsSet,
   toResolvedDocsGroup,

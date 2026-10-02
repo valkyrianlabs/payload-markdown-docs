@@ -51,7 +51,7 @@ export {
   findExistingDocsRouteCollisions,
 } from './routeCollisions.js'
 export type { DocsRouteCollisionIssue, RouteCollisionPayloadOperations } from './routeCollisions.js'
-export { createSyncRunAudit, getRecordId, updateSyncRunAudit } from './syncRuns.js'
+export { createSyncRunAudit, updateSyncRunAudit } from './syncRuns.js'
 export type {
   CreateSyncRunAuditInput,
   SyncRunsPayloadOperations,

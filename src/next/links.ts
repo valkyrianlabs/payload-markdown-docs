@@ -9,9 +9,8 @@ import {
   deriveDocsSetRouteBase,
   joinRouteSegments,
 } from '../routing/index.js'
+import { getRelationshipId, isRecord } from '../shared/records.js'
 import {
-  getRelationshipId,
-  isRecord,
   isVisibleDocsSet,
   toResolvedDocsGroup,
   toResolvedDocsSet,

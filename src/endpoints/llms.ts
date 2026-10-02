@@ -7,6 +7,7 @@ import { findAllDocsSets } from '../payload/index.js'
 import { isPublicDocsAssetRecord, isPublicDocsRecord } from '../payload/visibility.js'
 import { rewritePayloadMarkdownDocsLinks } from '../routing/docsLinks.js'
 import { normalizeRoutePath } from '../routing/index.js'
+import { getString, isRecord } from '../shared/records.js'
 import { formatSkillAgentTitle, getSkillBundles } from '../skillBundles.js'
 import { createSafeAssetHeaders } from './assetContentTypes.js'
 import { createPublicUrl, getPublicRequestOrigin } from './publicOrigin.js'
@@ -72,12 +73,6 @@ type RootLlmsData = {
 } & DocsSetLlmsData
 
 const textContentType = 'text/plain; charset=utf-8'
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value)
-
-const getString = (value: unknown): string | undefined =>
-  typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined
 
 const getNumber = (value: unknown): number | undefined =>
   typeof value === 'number' && Number.isFinite(value) ? value : undefined

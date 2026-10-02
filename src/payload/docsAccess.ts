@@ -1,5 +1,7 @@
 import type { GitHubOidcTrustedSource } from '../security/index.js'
 
+import { getString, isRecord } from '../shared/records.js'
+
 export type DocsAccessPayloadOperations = {
   find: (args: {
     collection: string
@@ -55,12 +57,6 @@ const docsAccessTypes = new Set<DocsAccessType>(['ed25519', 'githubOidc'])
 
 export const isDocsAccessType = (value: string): value is DocsAccessType =>
   docsAccessTypes.has(value as DocsAccessType)
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value)
-
-const getString = (value: unknown): string | undefined =>
-  typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined
 
 const getStringArray = (value: unknown): string[] => {
   if (!Array.isArray(value)) {

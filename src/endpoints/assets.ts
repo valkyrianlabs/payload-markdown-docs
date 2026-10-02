@@ -14,6 +14,7 @@ import {
 } from '../constants.js'
 import { findDocsSetByRoutePrefix } from '../payload/index.js'
 import { joinRouteSegments, normalizeRoutePath } from '../routing/index.js'
+import { getRecordId, getString, isRecord } from '../shared/records.js'
 import {
   getSkillBundleForAgent,
   getSkillZipEntryPath,
@@ -86,9 +87,6 @@ type SkillArchiveRequest = {
   rawSkillRoute: string
 }
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value)
-
 const toStringArray = (value: unknown): string[] => {
   if (Array.isArray(value)) {
     return value.flatMap((item) => (typeof item === 'string' && item ? [item] : []))
@@ -96,17 +94,6 @@ const toStringArray = (value: unknown): string[] => {
 
   return typeof value === 'string' && value ? [value] : []
 }
-
-const getRecordId = (doc: Record<string, unknown>): string | undefined => {
-  if (typeof doc.id === 'string' || typeof doc.id === 'number') {
-    return String(doc.id)
-  }
-
-  return undefined
-}
-
-const getString = (value: unknown): string | undefined =>
-  typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined
 
 const toServedDocsAsset = (doc: unknown): ServedDocsAsset | undefined => {
   if (

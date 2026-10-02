@@ -2,6 +2,8 @@ import type { DocsDeleteBehavior, DocsSyncPlan } from '../sync/index.js'
 import type { ExistingPayloadDocsRecord } from './existingDocs.js'
 import type { DocsRouteCollisionIssue } from './routeCollisions.js'
 
+import { getRecordId, isRecord } from '../shared/records.js'
+
 /**
  * Route lifecycle for generated docs.
  *
@@ -46,12 +48,6 @@ export type DocsRouteClaimsResult = {
   collisions: DocsRouteCollisionIssue[]
   releases: DocsRouteRelease[]
 }
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value)
-
-const getRecordId = (doc: Record<string, unknown>): string | undefined =>
-  typeof doc.id === 'string' || typeof doc.id === 'number' ? String(doc.id) : undefined
 
 export const getRemovedDocIds = ({
   deleteBehavior,

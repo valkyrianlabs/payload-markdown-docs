@@ -14,12 +14,9 @@ import {
   joinRouteSegments,
   normalizeRoutePath,
 } from '../routing/index.js'
+import { getString, isRecord } from '../shared/records.js'
 
-export const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value)
-
-export const getString = (value: unknown): string | undefined =>
-  typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined
+export { getString, isRecord } from '../shared/records.js'
 
 export const getNumber = (value: unknown): number | undefined =>
   typeof value === 'number' && Number.isFinite(value) ? value : undefined

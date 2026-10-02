@@ -9,8 +9,7 @@
  * published.
  */
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value)
+import { isRecord } from '../shared/records.js'
 
 /** True unless the record is an explicit draft (`_status: 'draft'`). */
 export const isPublishedPayloadRecord = (doc: unknown): boolean =>

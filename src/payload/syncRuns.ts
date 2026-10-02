@@ -114,14 +114,6 @@ export const createSyncRunAudit = async ({
     overrideAccess: true,
   })
 
-export const getRecordId = (record: Record<string, unknown>): PayloadRecordId | undefined => {
-  if (typeof record.id === 'string' || typeof record.id === 'number') {
-    return record.id
-  }
-
-  return undefined
-}
-
 export const updateSyncRunAudit = async ({
   collectionSlug,
   completedAt,
