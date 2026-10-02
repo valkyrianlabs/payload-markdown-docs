@@ -15,6 +15,9 @@ const port = process.env.PORT ?? '3000'
  */
 export default defineConfig({
   testDir: './dev',
+  // e2e runs against `next dev`: the first request to each dynamic route compiles it (15-20s cold),
+  // and a single test touches several routes.
+  timeout: 120_000,
   testMatch: '**/e2e.spec.{ts,js}',
   /* Run tests in files in parallel */
   fullyParallel: true,
@@ -41,8 +44,15 @@ export default defineConfig({
     trace: 'on-first-retry',
   },
   webServer: {
-    command: `pnpm dev -- --port ${port}`,
+    // Call next directly: `pnpm dev -- --port` forwards a literal `--` that Next does not treat as a flag
+    // separator, so the server could ignore the port. PORT is set as well for good measure.
+    command: `pnpm exec next dev dev --turbo --port ${port}`,
+    env: {
+      PORT: port,
+    },
     reuseExistingServer: true,
+    // A cold dev compile plus the Payload schema push on an empty database can exceed the 60s default.
+    timeout: 180_000,
     url: `http://localhost:${port}/admin`,
   },
 })
