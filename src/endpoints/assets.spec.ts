@@ -11,6 +11,7 @@ import {
 } from '../constants.js'
 import { payloadMarkdownDocs } from '../plugin.js'
 import { createDocsAssetsEndpoints } from './assets.js'
+import { LLMS_DOCS_SET_BATCH_SIZE } from './llms.js'
 
 type MockPayload = {
   config?: Record<string, unknown>
@@ -52,6 +53,10 @@ const matchesConstraint = (doc: unknown, field: string, constraint: unknown): bo
 
   if ('not_equals' in constraint) {
     return value !== constraint.not_equals
+  }
+
+  if ('in' in constraint && Array.isArray(constraint.in)) {
+    return constraint.in.includes(value)
   }
 
   return true
@@ -658,6 +663,19 @@ describe('docs asset endpoints', () => {
           },
           title: 'Payload Markdown Docs',
         },
+        {
+          id: 'doc-2',
+          content:
+            '# Migrations\n\nSee [v1](/advanced/v1.md) and [rel](./troubleshooting.md#fix).\n\n```md\n[keep](./raw.md)\n```',
+          docsSet: 'docs-set-1',
+          order: 1,
+          route: '/plugins/payload-markdown-docs/advanced/migrations',
+          sourcePath: 'advanced/migrations.md',
+          sync: {
+            archived: false,
+          },
+          title: 'Migrations',
+        },
       ],
       docsGroups: [
         {
@@ -690,6 +708,12 @@ describe('docs asset endpoints', () => {
     expect(text).toContain('# Payload Markdown Docs Full Documentation')
     expect(text).toContain('URL: https://example.com/plugins/payload-markdown-docs')
     expect(text).toContain('# Overview\n\nGenerated content.')
+    // Links resolve like the HTML page: docs-root and relative links get the docs set
+    // route; fenced code is untouched (X-6).
+    expect(text).toContain(
+      'See [v1](/plugins/payload-markdown-docs/advanced/v1) and [rel](/plugins/payload-markdown-docs/advanced/troubleshooting#fix).',
+    )
+    expect(text).toContain('[keep](./raw.md)')
     expect(text).toContain('Root: https://example.com/plugins/payload-markdown-docs/skills/codex')
     expect(text).toContain(
       'SKILL.md: https://example.com/plugins/payload-markdown-docs/skills/codex/SKILL.md',
@@ -827,6 +851,8 @@ describe('docs asset endpoints', () => {
 
     expect(response?.status).toBe(200)
     expect(response?.headers.get('content-type')).toContain('text/markdown')
+    expect(response?.headers.get('x-content-type-options')).toBe('nosniff')
+    expect(response?.headers.get('content-security-policy')).toContain("default-src 'none'")
     expect(await response?.text()).toBe('# Codex Skill\n')
   })
 
@@ -1275,9 +1301,10 @@ describe('docs asset endpoints', () => {
   it('returns a friendly migration error when asset storage is missing', async () => {
     const endpoint = createDocsAssetsEndpoints({}).find((item) => item.path === '/llms.txt')
     const payload = createMockPayload({
-      assetsFindError: new Error(
-        'Failed query: select count(*) from "payload_markdown_docs_assets"',
-      ),
+      // Shape of a real drizzle error for a missing table: the driver error is the cause.
+      assetsFindError: new Error('Failed query: select count(*) from "payload_markdown_docs_assets"', {
+        cause: new Error('relation "payload_markdown_docs_assets" does not exist'),
+      }),
     })
 
     const response = await endpoint?.handler(
@@ -1291,5 +1318,175 @@ describe('docs asset endpoints', () => {
     expect(response?.status).toBe(500)
     expect(text).toContain('Docs assets schema is missing')
     expect(text).toContain('pnpm dev')
+  })
+})
+
+describe('root llms batching', () => {
+  const docsSetCount = 2 * LLMS_DOCS_SET_BATCH_SIZE + 5
+  const docsSets = Array.from({ length: docsSetCount }, (_, index) => ({
+    id: `set-${index}`,
+    slug: `pkg-${String(index).padStart(3, '0')}`,
+    _status: 'published',
+    title: `Package ${index}`,
+  }))
+  const docs = docsSets.flatMap((docsSet, index) => [
+    {
+      id: `doc-${index}-b`,
+      _status: 'published',
+      content: `# Body ${index}\n`,
+      docsSet: docsSet.id,
+      order: 1,
+      route: `/${docsSet.slug}/b`,
+      sourcePath: 'b.md',
+      title: `B ${index}`,
+    },
+    {
+      id: `doc-${index}-a`,
+      _status: 'published',
+      content: `# Body ${index}\n`,
+      docsSet: docsSet.id,
+      order: 0,
+      route: `/${docsSet.slug}`,
+      sourcePath: 'index.md',
+      title: `A ${index}`,
+    },
+  ])
+  const skillOf = (slug: string, owner: Record<string, unknown>) => ({
+    content: `# ${slug} skill\n`,
+    contentType: 'text/markdown; charset=utf-8',
+    kind: 'skill',
+    route: `/${slug}/skills/codex/SKILL.md`,
+    sourcePath: `skills/${slug}/codex/SKILL.md`,
+    ...owner,
+  })
+  const assets = [
+    { id: 'asset-rel', ...skillOf('pkg-000', { docsSet: 'set-0' }) },
+    { id: 'asset-source', ...skillOf('pkg-150', { sourceId: 'pkg-150' }) },
+    { id: 'asset-sync', ...skillOf('pkg-204', { sync: { sourceId: 'pkg-204' } }) },
+  ]
+
+  it('loads docs and skills for every docs set in bounded batches with identical output', async () => {
+    const endpoint = createDocsAssetsEndpoints({}).find((item) => item.path === '/llms-full.txt')
+    const payload = createMockPayload({ assets, docs, docsSets })
+
+    const response = await endpoint?.handler(
+      createRequest({
+        payload,
+        url: 'https://example.com/llms-full.txt',
+      }),
+    )
+    const text = (await response?.text()) ?? ''
+    const docsCalls = payload.find.mock.calls
+      .map(([args]) => args as Record<string, unknown>)
+      .filter((args) => args.collection === DEFAULT_DOCS_COLLECTION_SLUG)
+    const assetCalls = payload.find.mock.calls
+      .map(([args]) => args as Record<string, unknown>)
+      .filter((args) => args.collection === DEFAULT_DOCS_ASSETS_COLLECTION_SLUG)
+
+    expect(response?.status).toBe(200)
+    expect(docsCalls).toHaveLength(3)
+    expect(assetCalls).toHaveLength(3)
+
+    for (const call of docsCalls) {
+      const ids = (call.where as { and: Array<{ docsSet?: { in: string[] } }> }).and[0]?.docsSet?.in
+
+      expect(ids?.length).toBeLessThanOrEqual(LLMS_DOCS_SET_BATCH_SIZE)
+      // The root index renders links only: no markdown bodies are loaded.
+      expect(call.select).toBeDefined()
+      expect(call.select).not.toHaveProperty('content')
+    }
+
+    for (const [index, docsSet] of docsSets.entries()) {
+      expect(text).toContain(
+        [
+          `## Package ${index}`,
+          '',
+          `Canonical URL: https://example.com/${docsSet.slug}`,
+          '',
+          '### Documentation',
+          `- A ${index}: https://example.com/${docsSet.slug}`,
+          `- B ${index}: https://example.com/${docsSet.slug}/b`,
+        ].join('\n'),
+      )
+    }
+
+    for (const slug of ['pkg-000', 'pkg-150', 'pkg-204']) {
+      expect(text).toContain(`SKILL.md: https://example.com/${slug}/skills/codex/SKILL.md`)
+    }
+
+    expect(text.match(/Codex skill archive/g)).toHaveLength(3)
+    expect(text).not.toContain('# Body')
+  })
+
+  it('still loads markdown bodies for a docs set llms-full.txt', async () => {
+    const endpoint = createDocsAssetsEndpoints({}).find(
+      (item) => item.path === '/:routeBase*/llms-full.txt',
+    )
+    const payload = createMockPayload({ assets, docs, docsSets })
+
+    const response = await endpoint?.handler(
+      createRequest({
+        payload,
+        url: 'https://example.com/pkg-150/llms-full.txt',
+      }),
+    )
+    const text = (await response?.text()) ?? ''
+
+    expect(response?.status).toBe(200)
+    expect(text).toContain('# Body 150')
+    expect(text).not.toContain('# Body 15\n')
+    expect(text).toContain('SKILL.md: https://example.com/pkg-150/skills/codex/SKILL.md')
+    expect(text).not.toContain('pkg-000/skills')
+  })
+})
+
+describe('docs assets storage error classification', () => {
+  it('only treats a missing assets table as unavailable storage', async () => {
+    const { isDocsAssetsStorageUnavailableError } = await import('./assetsStorage.js')
+
+    expect(
+      isDocsAssetsStorageUnavailableError(
+        new Error('Failed query', {
+          cause: new Error('relation "payload_markdown_docs_assets" does not exist'),
+        }),
+      ),
+    ).toBe(true)
+    expect(
+      isDocsAssetsStorageUnavailableError(new Error('no such table: payload_markdown_docs_assets')),
+    ).toBe(true)
+    expect(
+      isDocsAssetsStorageUnavailableError(
+        new Error(
+          'duplicate key value violates unique constraint "payload_markdown_docs_assets_route_idx"',
+        ),
+      ),
+    ).toBe(false)
+    expect(
+      isDocsAssetsStorageUnavailableError(
+        new Error('The following field is invalid: payload-markdown-docs-assets.route'),
+      ),
+    ).toBe(false)
+  })
+})
+
+describe('docs asset content-type policy (DOCS-4)', () => {
+  it('serves stored disallowed types as plain text and downloads data formats', async () => {
+    const { createSafeAssetHeaders, toServedAssetContentType } = await import(
+      './assetContentTypes.js'
+    )
+
+    expect(toServedAssetContentType('text/html')).toBe('text/plain; charset=utf-8')
+    expect(toServedAssetContentType('image/svg+xml')).toBe('text/plain; charset=utf-8')
+    expect(toServedAssetContentType('text/markdown; charset=utf-8')).toBe(
+      'text/markdown; charset=utf-8',
+    )
+    expect(toServedAssetContentType('application/json')).toBe('application/json; charset=utf-8')
+    expect(createSafeAssetHeaders('application/json; charset=utf-8')).toMatchObject({
+      'Content-Disposition': 'attachment',
+      'X-Content-Type-Options': 'nosniff',
+    })
+    expect(createSafeAssetHeaders('text/markdown; charset=utf-8')).not.toHaveProperty(
+      'Content-Disposition',
+    )
   })
 })

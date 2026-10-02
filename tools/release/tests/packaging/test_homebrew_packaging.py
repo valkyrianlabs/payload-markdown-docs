@@ -54,6 +54,20 @@ class HomebrewPackagingTests(unittest.TestCase):
             ],
         )
 
+    def test_source_formula_bundles_skill_data_and_tests_skill_install(self) -> None:
+        repo_root = Path(__file__).resolve().parents[4]
+        formula = (repo_root / "homebrew" / "Formula" / "pmdocs.rb").read_text(encoding="utf-8")
+        install_block = formula.split("def install", 1)[1].split("test do", 1)[0]
+        test_block = formula.split("test do", 1)[1]
+
+        self.assertIn('"-Dinstall_skill_data=true"', install_block)
+        self.assertIn('"-Dcompanion_skill_data=auto"', install_block)
+        self.assertIn("pmdocs doctor", test_block)
+        self.assertIn("install skill --agent codex --dry-run", test_block)
+
+        options = (repo_root / "meson.options").read_text(encoding="utf-8")
+        self.assertIn("'companion_skill_data'", options)
+
     def test_prepare_formula_writes_sha_and_stages_formula(self) -> None:
         with TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir) / "repo"

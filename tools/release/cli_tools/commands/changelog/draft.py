@@ -3,10 +3,25 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from tools.release.changelog import build_ai_payload, build_semantic_ai_payload
-from tools.release.changelog.ai import run_emergency_triage_stage, render_emergency_triage_result_json, \
-    build_triage_input_from_emergency_result, run_triage_stage, generate_draft_from_payload, render_draft_markdown, \
-    AIPolishResult, run_polish_stage, run_release_notes_stage, render_polish_markdown, render_polish_result_json, \
-    render_draft_result_json, build_triage_ir_payload, render_triage_result_json
+from tools.release.changelog.ai import (
+    AIPolishResult,
+    EMERGENCY_TRIAGE_ZERO_ITEMS_ERROR,
+    build_triage_input_from_emergency_result,
+    build_triage_ir_payload,
+    generate_draft_from_payload,
+    is_non_empty_emergency_triage_source,
+    render_draft_markdown,
+    render_draft_result_json,
+    render_emergency_triage_context_json,
+    render_emergency_triage_result_json,
+    render_polish_markdown,
+    render_polish_result_json,
+    render_triage_result_json,
+    run_emergency_triage_stage,
+    run_polish_stage,
+    run_release_notes_stage,
+    run_triage_stage,
+)
 from tools.release.changelog.ai.providers import StructuredJSONProvider
 from tools.release.changelog.release_workflow import (
     DEFAULT_CHANGELOG_SCRATCH_DIR,
@@ -73,6 +88,12 @@ def cmd_changelog_ai_draft(args: argparse.Namespace) -> int:
 
     if run_triage:
         if has_empty_semantic_categories:
+            if (
+                run_emergency_triage
+                and isinstance(semantic_payload, dict)
+                and is_non_empty_emergency_triage_source(semantic_payload)
+            ):
+                raise ValueError(EMERGENCY_TRIAGE_ZERO_ITEMS_ERROR)
             print(
                 "AI triage skipped: semantic payload has no categories; "
                 "drafting directly from deterministic payload."
@@ -118,6 +139,16 @@ def cmd_changelog_ai_draft(args: argparse.Namespace) -> int:
             emergency_output = str((repo_root / DEFAULT_CHANGELOG_SCRATCH_DIR / "emergency_triage.json").resolve())
             print("Emergency triage: artifact write start")
             write_output(render_emergency_triage_result_json(emergency_result), emergency_output)
+            emergency_context_output = str(
+                (repo_root / DEFAULT_CHANGELOG_SCRATCH_DIR / "emergency_triage.context.json").resolve()
+            )
+            write_output(
+                render_emergency_triage_context_json(
+                    semantic_payload if semantic_payload is not None else payload,
+                    emergency_result,
+                ),
+                emergency_context_output,
+            )
             print("Emergency triage: artifact write end")
             if emergency_output != "-":
                 print(f"Wrote emergency triage artifact to {Path(emergency_output).resolve()}")
@@ -128,6 +159,11 @@ def cmd_changelog_ai_draft(args: argparse.Namespace) -> int:
                 )
                 triage_input_mode = "synthesized_semantic"
             else:
+                if semantic_payload is not None and is_non_empty_emergency_triage_source(semantic_payload):
+                    raise ValueError(
+                        "Emergency triage produced zero synthesized items for a non-empty release; "
+                        "refusing to fall back to raw semantic triage."
+                    )
                 print(
                     "Emergency triage produced zero synthesized items; "
                     "falling back to raw semantic triage input."

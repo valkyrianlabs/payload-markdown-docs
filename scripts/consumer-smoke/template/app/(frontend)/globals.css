@@ -1,0 +1,4 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+@source "../../node_modules/@valkyrianlabs/payload-markdown/dist";
+@source "../../node_modules/@valkyrianlabs/payload-markdown-docs/dist";

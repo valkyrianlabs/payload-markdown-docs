@@ -1,0 +1,2495 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`read-side and sync characterization (docs-b2) > admin > docs set manager data 1`] = `
+{
+  "docs": [
+    {
+      "adminURL": "/admin/collections/docs/doc:alpha:hidden.md",
+      "archived": false,
+      "draft": false,
+      "hiddenFromNav": true,
+      "id": "doc:alpha:hidden.md",
+      "kind": "doc",
+      "order": 0,
+      "overrideSummary": [
+        "Nav title override",
+        "Hidden from nav",
+      ],
+      "published": true,
+      "route": "/alpha/hidden",
+      "sourcePath": "hidden.md",
+      "status": "published",
+      "title": "Hidden",
+    },
+    {
+      "adminURL": "/admin/collections/docs/doc:alpha:index.md",
+      "archived": false,
+      "draft": false,
+      "hiddenFromNav": false,
+      "id": "doc:alpha:index.md",
+      "kind": "doc",
+      "order": 0,
+      "overrideSummary": [],
+      "published": true,
+      "route": "/alpha",
+      "sourcePath": "index.md",
+      "status": "published",
+      "title": "Alpha Home",
+    },
+    {
+      "adminURL": "/admin/collections/docs/doc:alpha:nested/index.md",
+      "archived": false,
+      "draft": false,
+      "hiddenFromNav": false,
+      "id": "doc:alpha:nested/index.md",
+      "kind": "doc",
+      "order": 0,
+      "overrideSummary": [],
+      "published": true,
+      "route": "/alpha/nested",
+      "sourcePath": "nested/index.md",
+      "status": "published",
+      "title": "Nested Index",
+    },
+    {
+      "adminURL": "/admin/collections/docs/doc:alpha:old.md",
+      "archived": true,
+      "draft": false,
+      "hiddenFromNav": false,
+      "id": "doc:alpha:old.md",
+      "kind": "doc",
+      "order": 0,
+      "overrideSummary": [],
+      "published": false,
+      "route": "archived:doc:alpha:old.md:/alpha/old",
+      "sourcePath": "old.md",
+      "status": "archived",
+      "title": "Old Page",
+    },
+    {
+      "adminURL": "/admin/collections/docs/doc:alpha:unreleased.md",
+      "archived": false,
+      "draft": true,
+      "hiddenFromNav": false,
+      "id": "doc:alpha:unreleased.md",
+      "kind": "doc",
+      "order": 0,
+      "overrideSummary": [],
+      "published": false,
+      "route": "/alpha/unreleased",
+      "sourcePath": "unreleased.md",
+      "status": "draft",
+      "title": "Unreleased",
+    },
+    {
+      "adminURL": "/admin/collections/docs/doc:alpha:guide.md",
+      "archived": false,
+      "draft": false,
+      "hiddenFromNav": false,
+      "id": "doc:alpha:guide.md",
+      "kind": "doc",
+      "order": 1,
+      "overrideSummary": [],
+      "published": true,
+      "route": "/alpha/guide",
+      "sourcePath": "guide.md",
+      "status": "published",
+      "title": "The Guide",
+    },
+    {
+      "adminURL": "/admin/collections/docs/doc:alpha:nested/deep.md",
+      "archived": false,
+      "draft": false,
+      "hiddenFromNav": false,
+      "id": "doc:alpha:nested/deep.md",
+      "kind": "doc",
+      "order": 2,
+      "overrideSummary": [],
+      "published": true,
+      "route": "/alpha/nested/deep",
+      "sourcePath": "nested/deep.md",
+      "status": "published",
+      "title": "Deep Page",
+    },
+  ],
+  "docsSet": {
+    "id": "set:alpha",
+    "routeBase": "/alpha",
+    "slug": "alpha",
+    "title": "Alpha Docs",
+  },
+  "summary": {
+    "archived": 1,
+    "drafts": 1,
+    "hiddenFromNav": 1,
+    "published": 5,
+    "total": 7,
+    "withOverrides": 1,
+  },
+  "sync": {
+    "lastStatus": "success",
+    "lastSyncedAt": "<date>",
+  },
+  "tree": [
+    {
+      "adminURL": "/admin/collections/docs/doc:alpha:hidden.md",
+      "archived": false,
+      "draft": false,
+      "hiddenFromNav": true,
+      "id": "doc:alpha:hidden.md",
+      "kind": "doc",
+      "order": 0,
+      "overrideSummary": [
+        "Nav title override",
+        "Hidden from nav",
+      ],
+      "published": true,
+      "route": "/alpha/hidden",
+      "sourcePath": "hidden.md",
+      "status": "published",
+      "title": "Hidden",
+    },
+    {
+      "adminURL": "/admin/collections/docs/doc:alpha:index.md",
+      "archived": false,
+      "draft": false,
+      "hiddenFromNav": false,
+      "id": "doc:alpha:index.md",
+      "kind": "doc",
+      "order": 0,
+      "overrideSummary": [],
+      "published": true,
+      "route": "/alpha",
+      "sourcePath": "index.md",
+      "status": "published",
+      "title": "Alpha Home",
+    },
+    {
+      "adminURL": "/admin/collections/docs/doc:alpha:nested/index.md",
+      "archived": false,
+      "draft": false,
+      "hiddenFromNav": false,
+      "id": "doc:alpha:nested/index.md",
+      "kind": "doc",
+      "order": 0,
+      "overrideSummary": [],
+      "published": true,
+      "route": "/alpha/nested",
+      "sourcePath": "nested/index.md",
+      "status": "published",
+      "title": "Nested Index",
+    },
+    {
+      "adminURL": "/admin/collections/docs/doc:alpha:old.md",
+      "archived": true,
+      "draft": false,
+      "hiddenFromNav": false,
+      "id": "doc:alpha:old.md",
+      "kind": "doc",
+      "order": 0,
+      "overrideSummary": [],
+      "published": false,
+      "route": "archived:doc:alpha:old.md:/alpha/old",
+      "sourcePath": "old.md",
+      "status": "archived",
+      "title": "Old Page",
+    },
+    {
+      "adminURL": "/admin/collections/docs/doc:alpha:unreleased.md",
+      "archived": false,
+      "draft": true,
+      "hiddenFromNav": false,
+      "id": "doc:alpha:unreleased.md",
+      "kind": "doc",
+      "order": 0,
+      "overrideSummary": [],
+      "published": false,
+      "route": "/alpha/unreleased",
+      "sourcePath": "unreleased.md",
+      "status": "draft",
+      "title": "Unreleased",
+    },
+    {
+      "adminURL": "/admin/collections/docs/doc:alpha:guide.md",
+      "archived": false,
+      "draft": false,
+      "hiddenFromNav": false,
+      "id": "doc:alpha:guide.md",
+      "kind": "doc",
+      "order": 1,
+      "overrideSummary": [],
+      "published": true,
+      "route": "/alpha/guide",
+      "sourcePath": "guide.md",
+      "status": "published",
+      "title": "The Guide",
+    },
+    {
+      "children": [
+        {
+          "adminURL": "/admin/collections/docs/doc:alpha:nested/deep.md",
+          "archived": false,
+          "draft": false,
+          "hiddenFromNav": false,
+          "id": "doc:alpha:nested/deep.md",
+          "kind": "doc",
+          "order": 2,
+          "overrideSummary": [],
+          "published": true,
+          "route": "/alpha/nested/deep",
+          "sourcePath": "nested/deep.md",
+          "status": "published",
+          "title": "Deep Page",
+        },
+      ],
+      "id": "folder:nested",
+      "kind": "folder",
+      "order": 2,
+      "overrideSummary": [],
+      "route": "",
+      "sourcePath": "nested",
+      "status": "synced",
+      "title": "Nested",
+    },
+  ],
+  "warnings": [],
+}
+`;
+
+exports[`read-side and sync characterization (docs-b2) > assets and skills > resolveDocsSetSkills 1`] = `
+{
+  "enabled": true,
+  "heading": "Skills",
+  "resolvedItems": [
+    {
+      "agent": "claude",
+      "description": undefined,
+      "href": "/alpha/skills/claude.zip",
+      "icon": "claude",
+      "label": "Claude skill",
+      "type": "claude",
+    },
+    {
+      "agent": "codex",
+      "description": undefined,
+      "href": "/alpha/skills/codex.zip",
+      "icon": "codex",
+      "label": "Codex skill",
+      "type": "codex",
+    },
+  ],
+}
+`;
+
+exports[`read-side and sync characterization (docs-b2) > assets and skills > skill archive 1`] = `
+{
+  "disposition": "attachment; filename="alpha-claude.zip"",
+  "entries": {
+    "alpha/SKILL.md": "---
+name: alpha
+description: Alpha skill.
+---
+# Alpha Claude Skill
+",
+    "alpha/reference/usage.md": "# Usage
+",
+  },
+  "status": 200,
+}
+`;
+
+exports[`read-side and sync characterization (docs-b2) > assets and skills > skill directory index 1`] = `
+{
+  "contentType": "text/markdown; charset=utf-8",
+  "status": 200,
+  "text": "# Claude Skill: Alpha
+
+Installable archive:
+- /alpha/skills/claude.zip
+
+Entry file:
+- /alpha/skills/claude/SKILL.md
+
+Directories:
+- /alpha/skills/claude/reference
+
+Files:
+- /alpha/skills/claude/SKILL.md
+- /alpha/skills/claude/reference/usage.md
+
+Tree:
+- SKILL.md
+- reference/
+  - usage.md
+",
+}
+`;
+
+exports[`read-side and sync characterization (docs-b2) > assets and skills > skill file 1`] = `
+{
+  "contentType": "text/markdown; charset=utf-8",
+  "status": 200,
+  "text": "# Usage
+",
+}
+`;
+
+exports[`read-side and sync characterization (docs-b2) > llms > docs set /alpha/llms.txt 1`] = `
+{
+  "contentType": "text/plain; charset=utf-8",
+  "status": 200,
+  "text": "# Alpha Docs
+
+The alpha product. Second line.
+
+Canonical URL: https://docs.example.com/alpha
+
+## Documentation
+- Alpha Home: https://docs.example.com/alpha - Start here.
+- Secretly Hidden: https://docs.example.com/alpha/hidden
+- Nested Index: https://docs.example.com/alpha/nested
+- Guide: https://docs.example.com/alpha/guide - A guide with spaces.
+- Deep Page: https://docs.example.com/alpha/nested/deep
+
+## Native Agent Skills
+- Claude skill: https://docs.example.com/alpha/skills/claude
+- Claude SKILL.md: https://docs.example.com/alpha/skills/claude/SKILL.md
+- Claude skill archive: https://docs.example.com/alpha/skills/claude.zip
+- Codex skill: https://docs.example.com/alpha/skills/codex
+- Codex SKILL.md: https://docs.example.com/alpha/skills/codex/SKILL.md
+- Codex skill archive: https://docs.example.com/alpha/skills/codex.zip
+
+## Related Documentation
+- Epsilon Skills: https://docs.example.com/epsilon - Skills only.
+- Beta SDK: https://docs.example.com/platform/sdk/beta/docs - Beta SDK reference.
+",
+}
+`;
+
+exports[`read-side and sync characterization (docs-b2) > llms > docs set /alpha/llms-full.txt 1`] = `
+{
+  "contentType": "text/plain; charset=utf-8",
+  "status": 200,
+  "text": "# Alpha Docs Full Documentation
+
+The alpha product. Second line.
+
+Canonical URL: https://docs.example.com/alpha
+
+## Alpha Home
+
+URL: https://docs.example.com/alpha
+Source: index.md
+
+# Alpha
+
+See [guide](/alpha/guide) and [beta](/alpha/beta).
+
+## Hidden
+
+URL: https://docs.example.com/alpha/hidden
+Source: hidden.md
+
+# Hidden
+
+## Nested Index
+
+URL: https://docs.example.com/alpha/nested
+Source: nested/index.md
+
+# Nested Index
+
+## The Guide
+
+URL: https://docs.example.com/alpha/guide
+Source: guide.md
+
+# Guide
+
+Read [deep](/alpha/nested/deep).
+
+## Deep Page
+
+URL: https://docs.example.com/alpha/nested/deep
+Source: nested/deep.md
+
+# Deep Page
+
+Back to [guide](/alpha/guide).
+
+## Native Agent Skills
+
+### Claude skill
+
+Root: https://docs.example.com/alpha/skills/claude
+SKILL.md: https://docs.example.com/alpha/skills/claude/SKILL.md
+Archive: https://docs.example.com/alpha/skills/claude.zip
+
+#### Claude SKILL.md
+
+URL: https://docs.example.com/alpha/skills/claude/SKILL.md
+Source: skills/alpha/claude/SKILL.md
+
+---
+name: alpha
+description: Alpha skill.
+---
+# Alpha Claude Skill
+
+#### Claude reference/usage.md
+
+URL: https://docs.example.com/alpha/skills/claude/reference/usage.md
+Source: skills/alpha/claude/reference/usage.md
+
+# Usage
+
+### Codex skill
+
+Root: https://docs.example.com/alpha/skills/codex
+SKILL.md: https://docs.example.com/alpha/skills/codex/SKILL.md
+Archive: https://docs.example.com/alpha/skills/codex.zip
+
+#### Codex SKILL.md
+
+URL: https://docs.example.com/alpha/skills/codex/SKILL.md
+Source: skills/alpha/codex/SKILL.md
+
+# Alpha Codex Skill
+
+## Related Documentation
+- Epsilon Skills: https://docs.example.com/epsilon - Skills only.
+- Beta SDK: https://docs.example.com/platform/sdk/beta/docs - Beta SDK reference.
+",
+}
+`;
+
+exports[`read-side and sync characterization (docs-b2) > llms > docs set /custom/gamma/llms-full.txt 1`] = `
+{
+  "contentType": "text/plain; charset=utf-8",
+  "status": 200,
+  "text": "# Gamma Full Documentation
+
+Canonical URL: https://docs.example.com/custom/gamma
+
+## Gamma Home
+
+URL: https://docs.example.com/custom/gamma
+Source: index.md
+
+# Gamma Home
+",
+}
+`;
+
+exports[`read-side and sync characterization (docs-b2) > llms > docs set /delta/llms.txt 1`] = `
+{
+  "contentType": "text/plain; charset=utf-8",
+  "status": 404,
+  "text": "Not found",
+}
+`;
+
+exports[`read-side and sync characterization (docs-b2) > llms > docs set /epsilon/llms.txt 1`] = `
+{
+  "contentType": "text/plain; charset=utf-8",
+  "status": 200,
+  "text": "# Epsilon Skills
+
+Skills only.
+
+Canonical URL: https://docs.example.com/epsilon
+
+## Native Agent Skills
+- Claude skill: https://docs.example.com/epsilon/skills/claude
+- Claude SKILL.md: https://docs.example.com/epsilon/skills/claude/SKILL.md
+- Claude skill archive: https://docs.example.com/epsilon/skills/claude.zip
+",
+}
+`;
+
+exports[`read-side and sync characterization (docs-b2) > llms > docs set /epsilon/llms-full.txt 1`] = `
+{
+  "contentType": "text/plain; charset=utf-8",
+  "status": 200,
+  "text": "# Epsilon Skills Full Documentation
+
+Skills only.
+
+Canonical URL: https://docs.example.com/epsilon
+
+## Native Agent Skills
+
+### Claude skill
+
+Root: https://docs.example.com/epsilon/skills/claude
+SKILL.md: https://docs.example.com/epsilon/skills/claude/SKILL.md
+Archive: https://docs.example.com/epsilon/skills/claude.zip
+
+#### Claude SKILL.md
+
+URL: https://docs.example.com/epsilon/skills/claude/SKILL.md
+Source: skills/epsilon/claude/SKILL.md
+
+# Epsilon Skill
+",
+}
+`;
+
+exports[`read-side and sync characterization (docs-b2) > llms > docs set /missing/llms.txt 1`] = `
+{
+  "contentType": "text/plain; charset=utf-8",
+  "status": 404,
+  "text": "Not found",
+}
+`;
+
+exports[`read-side and sync characterization (docs-b2) > llms > docs set /platform/sdk/beta/docs/llms-full.txt 1`] = `
+{
+  "contentType": "text/plain; charset=utf-8",
+  "status": 200,
+  "text": "# Beta SDK Full Documentation
+
+Beta SDK reference.
+
+Canonical URL: https://docs.example.com/platform/sdk/beta/docs
+
+## Beta Overview
+
+URL: https://docs.example.com/platform/sdk/beta/docs
+Source: index.md
+
+# Beta
+
+See [ref](/platform/sdk/beta/api/ref).
+
+## Install
+
+URL: https://docs.example.com/platform/sdk/beta/docs/install
+Source: install.md
+
+# Install
+
+## API Reference
+
+URL: https://docs.example.com/platform/sdk/beta/docs/api/ref
+Source: api/ref.md
+
+# API
+
+[Overview](/platform/sdk/beta/docs)
+",
+}
+`;
+
+exports[`read-side and sync characterization (docs-b2) > llms > docs set /platform/sdk/beta/llms.txt 1`] = `
+{
+  "contentType": "text/plain; charset=utf-8",
+  "status": 200,
+  "text": "# Beta SDK
+
+Beta SDK reference.
+
+Canonical URL: https://docs.example.com/platform/sdk/beta/docs
+
+## Documentation
+- Beta Overview: https://docs.example.com/platform/sdk/beta/docs
+- Install: https://docs.example.com/platform/sdk/beta/docs/install
+- API Reference: https://docs.example.com/platform/sdk/beta/docs/api/ref
+",
+}
+`;
+
+exports[`read-side and sync characterization (docs-b2) > llms > docs set /platform/tools/zeta/docs/llms.txt 1`] = `
+{
+  "contentType": "text/plain; charset=utf-8",
+  "status": 200,
+  "text": "# Zeta Tool
+
+Canonical URL: https://docs.example.com/platform/tools/zeta/docs
+
+## Documentation
+- Zeta: https://docs.example.com/platform/tools/zeta/docs
+- Zeta Usage: https://docs.example.com/platform/tools/zeta/docs/usage
+",
+}
+`;
+
+exports[`read-side and sync characterization (docs-b2) > llms > root /llms.txt 1`] = `
+{
+  "contentType": "text/plain; charset=utf-8",
+  "status": 200,
+  "text": "# Documentation
+
+Generated index for published documentation packages on this site.
+
+## Documentation Packages
+- Alpha Docs: https://docs.example.com/alpha - The alpha product. Second line.
+- Gamma: https://docs.example.com/custom/gamma
+- Epsilon Skills: https://docs.example.com/epsilon - Skills only.
+- Beta SDK: https://docs.example.com/platform/sdk/beta/docs - Beta SDK reference.
+- Zeta Tool: https://docs.example.com/platform/tools/zeta/docs
+
+## Native Agent Skills
+- Alpha Docs Claude skill: https://docs.example.com/alpha/skills/claude
+- Alpha Docs Claude SKILL.md: https://docs.example.com/alpha/skills/claude/SKILL.md
+- Alpha Docs Claude skill archive: https://docs.example.com/alpha/skills/claude.zip
+- Alpha Docs Codex skill: https://docs.example.com/alpha/skills/codex
+- Alpha Docs Codex SKILL.md: https://docs.example.com/alpha/skills/codex/SKILL.md
+- Alpha Docs Codex skill archive: https://docs.example.com/alpha/skills/codex.zip
+- Epsilon Skills Claude skill: https://docs.example.com/epsilon/skills/claude
+- Epsilon Skills Claude SKILL.md: https://docs.example.com/epsilon/skills/claude/SKILL.md
+- Epsilon Skills Claude skill archive: https://docs.example.com/epsilon/skills/claude.zip
+
+## Full Index
+- llms-full.txt: https://docs.example.com/llms-full.txt
+",
+}
+`;
+
+exports[`read-side and sync characterization (docs-b2) > llms > root /llms-full.txt 1`] = `
+{
+  "contentType": "text/plain; charset=utf-8",
+  "status": 200,
+  "text": "# AI Documentation Index
+
+Generated index for published documentation packages on this site.
+
+## Documentation Packages
+- Alpha Docs: https://docs.example.com/alpha - The alpha product. Second line.
+- Gamma: https://docs.example.com/custom/gamma
+- Epsilon Skills: https://docs.example.com/epsilon - Skills only.
+- Beta SDK: https://docs.example.com/platform/sdk/beta/docs - Beta SDK reference.
+- Zeta Tool: https://docs.example.com/platform/tools/zeta/docs
+
+## Alpha Docs
+
+Canonical URL: https://docs.example.com/alpha
+
+### Documentation
+- Alpha Home: https://docs.example.com/alpha - Start here.
+- Secretly Hidden: https://docs.example.com/alpha/hidden
+- Nested Index: https://docs.example.com/alpha/nested
+- Guide: https://docs.example.com/alpha/guide - A guide with spaces.
+- Deep Page: https://docs.example.com/alpha/nested/deep
+
+### Native Agent Skills
+- Claude skill: https://docs.example.com/alpha/skills/claude
+- Claude SKILL.md: https://docs.example.com/alpha/skills/claude/SKILL.md
+- Claude skill archive: https://docs.example.com/alpha/skills/claude.zip
+- Codex skill: https://docs.example.com/alpha/skills/codex
+- Codex SKILL.md: https://docs.example.com/alpha/skills/codex/SKILL.md
+- Codex skill archive: https://docs.example.com/alpha/skills/codex.zip
+
+#### Claude skill
+
+Root: https://docs.example.com/alpha/skills/claude
+SKILL.md: https://docs.example.com/alpha/skills/claude/SKILL.md
+Archive: https://docs.example.com/alpha/skills/claude.zip
+
+##### Claude SKILL.md
+
+URL: https://docs.example.com/alpha/skills/claude/SKILL.md
+Source: skills/alpha/claude/SKILL.md
+
+---
+name: alpha
+description: Alpha skill.
+---
+# Alpha Claude Skill
+
+##### Claude reference/usage.md
+
+URL: https://docs.example.com/alpha/skills/claude/reference/usage.md
+Source: skills/alpha/claude/reference/usage.md
+
+# Usage
+
+#### Codex skill
+
+Root: https://docs.example.com/alpha/skills/codex
+SKILL.md: https://docs.example.com/alpha/skills/codex/SKILL.md
+Archive: https://docs.example.com/alpha/skills/codex.zip
+
+##### Codex SKILL.md
+
+URL: https://docs.example.com/alpha/skills/codex/SKILL.md
+Source: skills/alpha/codex/SKILL.md
+
+# Alpha Codex Skill
+
+## Gamma
+
+Canonical URL: https://docs.example.com/custom/gamma
+
+### Documentation
+- Gamma Home: https://docs.example.com/custom/gamma
+
+## Epsilon Skills
+
+Canonical URL: https://docs.example.com/epsilon
+
+### Native Agent Skills
+- Claude skill: https://docs.example.com/epsilon/skills/claude
+- Claude SKILL.md: https://docs.example.com/epsilon/skills/claude/SKILL.md
+- Claude skill archive: https://docs.example.com/epsilon/skills/claude.zip
+
+#### Claude skill
+
+Root: https://docs.example.com/epsilon/skills/claude
+SKILL.md: https://docs.example.com/epsilon/skills/claude/SKILL.md
+Archive: https://docs.example.com/epsilon/skills/claude.zip
+
+##### Claude SKILL.md
+
+URL: https://docs.example.com/epsilon/skills/claude/SKILL.md
+Source: skills/epsilon/claude/SKILL.md
+
+# Epsilon Skill
+
+## Beta SDK
+
+Canonical URL: https://docs.example.com/platform/sdk/beta/docs
+
+### Documentation
+- Beta Overview: https://docs.example.com/platform/sdk/beta/docs
+- Install: https://docs.example.com/platform/sdk/beta/docs/install
+- API Reference: https://docs.example.com/platform/sdk/beta/docs/api/ref
+
+## Zeta Tool
+
+Canonical URL: https://docs.example.com/platform/tools/zeta/docs
+
+### Documentation
+- Zeta: https://docs.example.com/platform/tools/zeta/docs
+- Zeta Usage: https://docs.example.com/platform/tools/zeta/docs/usage
+",
+}
+`;
+
+exports[`read-side and sync characterization (docs-b2) > navigation > header nav items (relationship) 1`] = `
+[
+  {
+    "link": {
+      "label": "Alpha Docs",
+      "reference": {
+        "relationTo": "docs-sets",
+        "value": "set:alpha",
+      },
+      "type": "reference",
+    },
+  },
+  {
+    "link": {
+      "label": "Epsilon Skills",
+      "reference": {
+        "relationTo": "docs-sets",
+        "value": "set:epsilon",
+      },
+      "type": "reference",
+    },
+  },
+  {
+    "link": {
+      "label": "Platform",
+      "reference": {
+        "relationTo": "docs-groups",
+        "value": "group:platform",
+      },
+      "type": "reference",
+    },
+    "subItems": [
+      {
+        "childItems": [
+          {
+            "link": {
+              "label": "Zeta Tool",
+              "reference": {
+                "relationTo": "docs-sets",
+                "value": "set:zeta",
+              },
+              "type": "reference",
+            },
+          },
+        ],
+        "link": {
+          "label": "Tools",
+          "reference": {
+            "relationTo": "docs-groups",
+            "value": "group:tools",
+          },
+          "type": "reference",
+        },
+      },
+      {
+        "childItems": [
+          {
+            "link": {
+              "label": "Beta SDK",
+              "reference": {
+                "relationTo": "docs-sets",
+                "value": "set:beta",
+              },
+              "type": "reference",
+            },
+          },
+        ],
+        "link": {
+          "label": "SDKs",
+          "reference": {
+            "relationTo": "docs-groups",
+            "value": "group:sdk",
+          },
+          "type": "reference",
+        },
+      },
+    ],
+  },
+]
+`;
+
+exports[`read-side and sync characterization (docs-b2) > navigation > header nav items (url) 1`] = `
+[
+  {
+    "link": {
+      "label": "Alpha Docs",
+      "type": "custom",
+      "url": "/alpha",
+    },
+  },
+  {
+    "link": {
+      "label": "Epsilon Skills",
+      "type": "custom",
+      "url": "/epsilon",
+    },
+  },
+  {
+    "link": {
+      "label": "Platform",
+      "type": "custom",
+      "url": "/platform",
+    },
+    "subItems": [
+      {
+        "childItems": [
+          {
+            "link": {
+              "label": "Zeta Tool",
+              "type": "custom",
+              "url": "/platform/tools/zeta",
+            },
+          },
+        ],
+        "link": {
+          "label": "Tools",
+          "type": "custom",
+          "url": "/platform/tools",
+        },
+      },
+      {
+        "childItems": [
+          {
+            "link": {
+              "label": "Beta SDK",
+              "type": "custom",
+              "url": "/platform/sdk/beta",
+            },
+          },
+        ],
+        "link": {
+          "label": "SDKs",
+          "type": "custom",
+          "url": "/platform/sdk",
+        },
+      },
+    ],
+  },
+]
+`;
+
+exports[`read-side and sync characterization (docs-b2) > navigation > nav items (includeDrafts=false) 1`] = `
+[
+  {
+    "collection": "docs-sets",
+    "id": "set:alpha",
+    "label": "Alpha Docs",
+    "order": 0,
+    "route": "/alpha",
+    "type": "docsSet",
+    "url": "/alpha",
+  },
+  {
+    "collection": "docs-sets",
+    "id": "set:epsilon",
+    "label": "Epsilon Skills",
+    "order": 0,
+    "route": "/epsilon",
+    "type": "docsSet",
+    "url": "/epsilon",
+  },
+  {
+    "children": [
+      {
+        "children": [
+          {
+            "collection": "docs-sets",
+            "id": "set:zeta",
+            "label": "Zeta Tool",
+            "order": 0,
+            "route": "/platform/tools/zeta/docs",
+            "type": "docsSet",
+            "url": "/platform/tools/zeta",
+          },
+        ],
+        "collection": "docs-groups",
+        "id": "group:tools",
+        "label": "Tools",
+        "order": 1,
+        "route": "/platform/tools",
+        "type": "docsGroup",
+        "url": "/platform/tools",
+      },
+      {
+        "children": [
+          {
+            "collection": "docs-sets",
+            "id": "set:beta",
+            "label": "Beta SDK",
+            "order": 0,
+            "route": "/platform/sdk/beta/docs",
+            "type": "docsSet",
+            "url": "/platform/sdk/beta",
+          },
+        ],
+        "collection": "docs-groups",
+        "id": "group:sdk",
+        "label": "SDKs",
+        "order": 2,
+        "route": "/platform/sdk",
+        "type": "docsGroup",
+        "url": "/platform/sdk",
+      },
+    ],
+    "collection": "docs-groups",
+    "id": "group:platform",
+    "label": "Platform",
+    "order": 1,
+    "route": "/platform",
+    "type": "docsGroup",
+    "url": "/platform",
+  },
+  {
+    "children": [
+      {
+        "collection": "docs-sets",
+        "id": "set:gamma",
+        "label": "Gamma",
+        "order": 0,
+        "route": "/custom/gamma",
+        "type": "docsSet",
+        "url": "/custom/gamma",
+      },
+    ],
+    "collection": "docs-groups",
+    "id": "group:custom",
+    "label": "Custom Group",
+    "order": 3,
+    "route": "/custom",
+    "type": "docsGroup",
+    "url": "/custom",
+  },
+]
+`;
+
+exports[`read-side and sync characterization (docs-b2) > navigation > nav items (includeDrafts=true) 1`] = `
+[
+  {
+    "collection": "docs-sets",
+    "id": "set:alpha",
+    "label": "Alpha Docs",
+    "order": 0,
+    "route": "/alpha",
+    "type": "docsSet",
+    "url": "/alpha",
+  },
+  {
+    "collection": "docs-sets",
+    "id": "set:delta",
+    "label": "Delta (draft set)",
+    "order": 0,
+    "route": "/delta",
+    "type": "docsSet",
+    "url": "/delta",
+  },
+  {
+    "collection": "docs-sets",
+    "id": "set:epsilon",
+    "label": "Epsilon Skills",
+    "order": 0,
+    "route": "/epsilon",
+    "type": "docsSet",
+    "url": "/epsilon",
+  },
+  {
+    "children": [
+      {
+        "children": [
+          {
+            "collection": "docs-sets",
+            "id": "set:zeta",
+            "label": "Zeta Tool",
+            "order": 0,
+            "route": "/platform/tools/zeta/docs",
+            "type": "docsSet",
+            "url": "/platform/tools/zeta",
+          },
+        ],
+        "collection": "docs-groups",
+        "id": "group:tools",
+        "label": "Tools",
+        "order": 1,
+        "route": "/platform/tools",
+        "type": "docsGroup",
+        "url": "/platform/tools",
+      },
+      {
+        "children": [
+          {
+            "collection": "docs-sets",
+            "id": "set:beta",
+            "label": "Beta SDK",
+            "order": 0,
+            "route": "/platform/sdk/beta/docs",
+            "type": "docsSet",
+            "url": "/platform/sdk/beta",
+          },
+        ],
+        "collection": "docs-groups",
+        "id": "group:sdk",
+        "label": "SDKs",
+        "order": 2,
+        "route": "/platform/sdk",
+        "type": "docsGroup",
+        "url": "/platform/sdk",
+      },
+    ],
+    "collection": "docs-groups",
+    "id": "group:platform",
+    "label": "Platform",
+    "order": 1,
+    "route": "/platform",
+    "type": "docsGroup",
+    "url": "/platform",
+  },
+  {
+    "children": [
+      {
+        "collection": "docs-sets",
+        "id": "set:gamma",
+        "label": "Gamma",
+        "order": 0,
+        "route": "/custom/gamma",
+        "type": "docsSet",
+        "url": "/custom/gamma",
+      },
+    ],
+    "collection": "docs-groups",
+    "id": "group:custom",
+    "label": "Custom Group",
+    "order": 3,
+    "route": "/custom",
+    "type": "docsGroup",
+    "url": "/custom",
+  },
+]
+`;
+
+exports[`read-side and sync characterization (docs-b2) > route adapter > /alpha (includeDrafts=false) 1`] = `
+{
+  "doc": {
+    "archived": false,
+    "content": "# Alpha
+
+See [guide](./guide.md) and [beta](/beta).
+",
+    "dependencies": undefined,
+    "depth": 0,
+    "description": "Start here.",
+    "docsSetId": "set:alpha",
+    "heroImage": undefined,
+    "id": "doc:alpha:index.md",
+    "navTitle": undefined,
+    "order": 0,
+    "overrides": {
+      "hideFromNav": false,
+    },
+    "route": "/alpha",
+    "sourceHash": "11edc929c966c16bfae61a86fcd2910e9b260578b00a3afd72bae0523d739a48",
+    "sourcePath": "index.md",
+    "status": "published",
+    "title": "Alpha Home",
+  },
+  "docsSet": {
+    "defaults": undefined,
+    "description": "The alpha product.
+Second line.",
+    "id": "set:alpha",
+    "navTitle": undefined,
+    "openGraph": undefined,
+    "order": 0,
+    "productRoute": "/alpha",
+    "routeBase": "/alpha",
+    "routeMode": "docs-root",
+    "slug": "alpha",
+    "status": "published",
+    "title": "Alpha Docs",
+  },
+  "route": "/alpha",
+  "sidebar": [
+    {
+      "depth": 0,
+      "label": "Alpha Home",
+      "order": 0,
+      "route": "/alpha",
+      "sourcePath": "index.md",
+    },
+    {
+      "children": [
+        {
+          "depth": 1,
+          "label": "Deep Page",
+          "order": 2,
+          "route": "/alpha/nested/deep",
+          "sourcePath": "nested/deep.md",
+        },
+      ],
+      "depth": 0,
+      "label": "Nested Index",
+      "order": 0,
+      "route": "/alpha/nested",
+      "sourcePath": "nested",
+    },
+    {
+      "depth": 0,
+      "label": "Guide",
+      "order": 1,
+      "route": "/alpha/guide",
+      "sourcePath": "guide.md",
+    },
+  ],
+  "type": "docsSetIndex",
+}
+`;
+
+exports[`read-side and sync characterization (docs-b2) > route adapter > /alpha/guide (includeDrafts=false) 1`] = `
+{
+  "doc": {
+    "archived": false,
+    "content": "# Guide
+
+Read [deep](nested/deep.md).
+",
+    "dependencies": [
+      "beta",
+      "npm:@scope/epsilon@1.2.3",
+    ],
+    "depth": 0,
+    "description": "A  guide   with	 spaces.",
+    "docsSetId": "set:alpha",
+    "heroImage": undefined,
+    "id": "doc:alpha:guide.md",
+    "navTitle": "Guide",
+    "order": 1,
+    "overrides": {
+      "hideFromNav": false,
+    },
+    "route": "/alpha/guide",
+    "sourceHash": "9b4527ae7aa24b680438708fc0ae240f601e8f0b928e7b6585602035d73d7275",
+    "sourcePath": "guide.md",
+    "status": "published",
+    "title": "The Guide",
+  },
+  "docsSet": {
+    "defaults": undefined,
+    "description": "The alpha product.
+Second line.",
+    "id": "set:alpha",
+    "navTitle": undefined,
+    "openGraph": undefined,
+    "order": 0,
+    "productRoute": "/alpha",
+    "routeBase": "/alpha",
+    "routeMode": "docs-root",
+    "slug": "alpha",
+    "status": "published",
+    "title": "Alpha Docs",
+  },
+  "route": "/alpha/guide",
+  "sidebar": [
+    {
+      "depth": 0,
+      "label": "Alpha Home",
+      "order": 0,
+      "route": "/alpha",
+      "sourcePath": "index.md",
+    },
+    {
+      "children": [
+        {
+          "depth": 1,
+          "label": "Deep Page",
+          "order": 2,
+          "route": "/alpha/nested/deep",
+          "sourcePath": "nested/deep.md",
+        },
+      ],
+      "depth": 0,
+      "label": "Nested Index",
+      "order": 0,
+      "route": "/alpha/nested",
+      "sourcePath": "nested",
+    },
+    {
+      "depth": 0,
+      "label": "Guide",
+      "order": 1,
+      "route": "/alpha/guide",
+      "sourcePath": "guide.md",
+    },
+  ],
+  "type": "doc",
+}
+`;
+
+exports[`read-side and sync characterization (docs-b2) > route adapter > /alpha/nested (includeDrafts=false) 1`] = `
+{
+  "doc": {
+    "archived": false,
+    "content": "# Nested Index
+",
+    "dependencies": undefined,
+    "depth": 1,
+    "description": undefined,
+    "docsSetId": "set:alpha",
+    "heroImage": undefined,
+    "id": "doc:alpha:nested/index.md",
+    "navTitle": undefined,
+    "order": 0,
+    "overrides": {
+      "hideFromNav": false,
+    },
+    "route": "/alpha/nested",
+    "sourceHash": "421fdec84b375342342c0e955ff0d1f2677418b08f4d61d524c3015c62fe7181",
+    "sourcePath": "nested/index.md",
+    "status": "published",
+    "title": "Nested Index",
+  },
+  "docsSet": {
+    "defaults": undefined,
+    "description": "The alpha product.
+Second line.",
+    "id": "set:alpha",
+    "navTitle": undefined,
+    "openGraph": undefined,
+    "order": 0,
+    "productRoute": "/alpha",
+    "routeBase": "/alpha",
+    "routeMode": "docs-root",
+    "slug": "alpha",
+    "status": "published",
+    "title": "Alpha Docs",
+  },
+  "route": "/alpha/nested",
+  "sidebar": [
+    {
+      "depth": 0,
+      "label": "Alpha Home",
+      "order": 0,
+      "route": "/alpha",
+      "sourcePath": "index.md",
+    },
+    {
+      "children": [
+        {
+          "depth": 1,
+          "label": "Deep Page",
+          "order": 2,
+          "route": "/alpha/nested/deep",
+          "sourcePath": "nested/deep.md",
+        },
+      ],
+      "depth": 0,
+      "label": "Nested Index",
+      "order": 0,
+      "route": "/alpha/nested",
+      "sourcePath": "nested",
+    },
+    {
+      "depth": 0,
+      "label": "Guide",
+      "order": 1,
+      "route": "/alpha/guide",
+      "sourcePath": "guide.md",
+    },
+  ],
+  "type": "doc",
+}
+`;
+
+exports[`read-side and sync characterization (docs-b2) > route adapter > /alpha/nested/deep (includeDrafts=false) 1`] = `
+{
+  "doc": {
+    "archived": false,
+    "content": "# Deep Page
+
+Back to [guide](../guide.md).
+",
+    "dependencies": undefined,
+    "depth": 1,
+    "description": undefined,
+    "docsSetId": "set:alpha",
+    "heroImage": undefined,
+    "id": "doc:alpha:nested/deep.md",
+    "navTitle": undefined,
+    "order": 2,
+    "overrides": {
+      "hideFromNav": false,
+    },
+    "route": "/alpha/nested/deep",
+    "sourceHash": "045b25e0a74e4bf83fa07fa6cc6cfe2fc754053c5e9b4b161fae4b78f829f182",
+    "sourcePath": "nested/deep.md",
+    "status": "published",
+    "title": "Deep Page",
+  },
+  "docsSet": {
+    "defaults": undefined,
+    "description": "The alpha product.
+Second line.",
+    "id": "set:alpha",
+    "navTitle": undefined,
+    "openGraph": undefined,
+    "order": 0,
+    "productRoute": "/alpha",
+    "routeBase": "/alpha",
+    "routeMode": "docs-root",
+    "slug": "alpha",
+    "status": "published",
+    "title": "Alpha Docs",
+  },
+  "route": "/alpha/nested/deep",
+  "sidebar": [
+    {
+      "depth": 0,
+      "label": "Alpha Home",
+      "order": 0,
+      "route": "/alpha",
+      "sourcePath": "index.md",
+    },
+    {
+      "children": [
+        {
+          "depth": 1,
+          "label": "Deep Page",
+          "order": 2,
+          "route": "/alpha/nested/deep",
+          "sourcePath": "nested/deep.md",
+        },
+      ],
+      "depth": 0,
+      "label": "Nested Index",
+      "order": 0,
+      "route": "/alpha/nested",
+      "sourcePath": "nested",
+    },
+    {
+      "depth": 0,
+      "label": "Guide",
+      "order": 1,
+      "route": "/alpha/guide",
+      "sourcePath": "guide.md",
+    },
+  ],
+  "type": "doc",
+}
+`;
+
+exports[`read-side and sync characterization (docs-b2) > route adapter > /alpha/old (includeDrafts=false) 1`] = `null`;
+
+exports[`read-side and sync characterization (docs-b2) > route adapter > /alpha/unreleased (includeDrafts=false) 1`] = `null`;
+
+exports[`read-side and sync characterization (docs-b2) > route adapter > /alpha/unreleased (includeDrafts=true) 1`] = `
+{
+  "doc": {
+    "archived": false,
+    "content": "# Unreleased
+
+DRAFT-ONLY
+",
+    "dependencies": undefined,
+    "depth": 0,
+    "description": undefined,
+    "docsSetId": "set:alpha",
+    "heroImage": undefined,
+    "id": "doc:alpha:unreleased.md",
+    "navTitle": undefined,
+    "order": 0,
+    "overrides": {
+      "hideFromNav": false,
+    },
+    "route": "/alpha/unreleased",
+    "sourceHash": "f2414fae09833cd80882b40fea4e470d56e8bbc0861f602f0083b7c59f451ccd",
+    "sourcePath": "unreleased.md",
+    "status": "draft",
+    "title": "Unreleased",
+  },
+  "docsSet": {
+    "defaults": undefined,
+    "description": "The alpha product.
+Second line.",
+    "id": "set:alpha",
+    "navTitle": undefined,
+    "openGraph": undefined,
+    "order": 0,
+    "productRoute": "/alpha",
+    "routeBase": "/alpha",
+    "routeMode": "docs-root",
+    "slug": "alpha",
+    "status": "published",
+    "title": "Alpha Docs",
+  },
+  "route": "/alpha/unreleased",
+  "sidebar": [
+    {
+      "depth": 0,
+      "label": "Alpha Home",
+      "order": 0,
+      "route": "/alpha",
+      "sourcePath": "index.md",
+    },
+    {
+      "children": [
+        {
+          "depth": 1,
+          "label": "Deep Page",
+          "order": 2,
+          "route": "/alpha/nested/deep",
+          "sourcePath": "nested/deep.md",
+        },
+      ],
+      "depth": 0,
+      "label": "Nested Index",
+      "order": 0,
+      "route": "/alpha/nested",
+      "sourcePath": "nested",
+    },
+    {
+      "depth": 0,
+      "label": "Unreleased",
+      "order": 0,
+      "route": "/alpha/unreleased",
+      "sourcePath": "unreleased.md",
+    },
+    {
+      "depth": 0,
+      "label": "Guide",
+      "order": 1,
+      "route": "/alpha/guide",
+      "sourcePath": "guide.md",
+    },
+  ],
+  "type": "doc",
+}
+`;
+
+exports[`read-side and sync characterization (docs-b2) > route adapter > /custom (includeDrafts=false) 1`] = `null`;
+
+exports[`read-side and sync characterization (docs-b2) > route adapter > /custom/gamma (includeDrafts=false) 1`] = `
+{
+  "doc": {
+    "archived": false,
+    "content": "# Gamma Home
+",
+    "dependencies": undefined,
+    "depth": 0,
+    "description": undefined,
+    "docsSetId": "set:gamma",
+    "heroImage": undefined,
+    "id": "doc:gamma:index.md",
+    "navTitle": undefined,
+    "order": 0,
+    "overrides": {
+      "hideFromNav": false,
+    },
+    "route": "/custom/gamma",
+    "sourceHash": "8a685019a22922690daff799e2f5fb79600b418287c4dade2168c1da868ff7e5",
+    "sourcePath": "index.md",
+    "status": "published",
+    "title": "Gamma Home",
+  },
+  "docsSet": {
+    "defaults": undefined,
+    "description": undefined,
+    "id": "set:gamma",
+    "navTitle": undefined,
+    "openGraph": undefined,
+    "order": 0,
+    "productRoute": "/custom/gamma",
+    "routeBase": "/custom/gamma",
+    "routeMode": "docs-root",
+    "slug": "gamma",
+    "status": "published",
+    "title": "Gamma",
+  },
+  "route": "/custom/gamma",
+  "sidebar": [
+    {
+      "depth": 0,
+      "label": "Gamma Home",
+      "order": 0,
+      "route": "/custom/gamma",
+      "sourcePath": "index.md",
+    },
+  ],
+  "type": "docsSetIndex",
+}
+`;
+
+exports[`read-side and sync characterization (docs-b2) > route adapter > /delta (includeDrafts=false) 1`] = `null`;
+
+exports[`read-side and sync characterization (docs-b2) > route adapter > /delta (includeDrafts=true) 1`] = `
+{
+  "doc": {
+    "archived": false,
+    "content": "# Delta Draft
+
+DELTA-SECRET
+",
+    "dependencies": undefined,
+    "depth": 0,
+    "description": undefined,
+    "docsSetId": "set:delta",
+    "heroImage": undefined,
+    "id": "doc:delta:index.md",
+    "navTitle": undefined,
+    "order": 0,
+    "overrides": {
+      "hideFromNav": false,
+    },
+    "route": "/delta",
+    "sourceHash": "db45f83fafb1635c630d185a5bfdba201c3050bccd4325d0a26c67e4e7dcd1fc",
+    "sourcePath": "index.md",
+    "status": "draft",
+    "title": "Delta Draft",
+  },
+  "docsSet": {
+    "defaults": undefined,
+    "description": undefined,
+    "id": "set:delta",
+    "navTitle": undefined,
+    "openGraph": undefined,
+    "order": 0,
+    "productRoute": "/delta",
+    "routeBase": "/delta",
+    "routeMode": "docs-root",
+    "slug": "delta",
+    "status": "draft",
+    "title": "Delta (draft set)",
+  },
+  "route": "/delta",
+  "sidebar": [
+    {
+      "depth": 0,
+      "label": "Delta Draft",
+      "order": 0,
+      "route": "/delta",
+      "sourcePath": "index.md",
+    },
+  ],
+  "type": "docsSetIndex",
+}
+`;
+
+exports[`read-side and sync characterization (docs-b2) > route adapter > /epsilon (includeDrafts=false) 1`] = `
+{
+  "docsSet": {
+    "defaults": undefined,
+    "description": "Skills only.",
+    "id": "set:epsilon",
+    "navTitle": undefined,
+    "openGraph": undefined,
+    "order": 0,
+    "productRoute": "/epsilon",
+    "routeBase": "/epsilon",
+    "routeMode": "docs-root",
+    "slug": "epsilon",
+    "status": "published",
+    "title": "Epsilon Skills",
+  },
+  "route": "/epsilon",
+  "sidebar": [],
+  "type": "docsSetIndex",
+}
+`;
+
+exports[`read-side and sync characterization (docs-b2) > route adapter > /nope (includeDrafts=false) 1`] = `null`;
+
+exports[`read-side and sync characterization (docs-b2) > route adapter > /platform (includeDrafts=false) 1`] = `
+{
+  "childGroups": [
+    {
+      "description": undefined,
+      "id": "group:tools",
+      "navTitle": undefined,
+      "order": 1,
+      "pageMode": "auto",
+      "routePath": "/platform/tools",
+      "slug": "tools",
+      "title": "Tools",
+    },
+    {
+      "description": "Software development kits.",
+      "id": "group:sdk",
+      "navTitle": "SDKs",
+      "order": 2,
+      "pageMode": "auto",
+      "routePath": "/platform/sdk",
+      "slug": "sdk",
+      "title": "SDK",
+    },
+  ],
+  "docsSets": [],
+  "group": {
+    "description": undefined,
+    "id": "group:platform",
+    "navTitle": undefined,
+    "order": 1,
+    "pageMode": "auto",
+    "routePath": "/platform",
+    "slug": "platform",
+    "title": "Platform",
+  },
+  "route": "/platform",
+  "type": "docsGroupIndex",
+}
+`;
+
+exports[`read-side and sync characterization (docs-b2) > route adapter > /platform/sdk (includeDrafts=false) 1`] = `
+{
+  "childGroups": [],
+  "docsSets": [
+    {
+      "defaults": undefined,
+      "description": "Beta SDK reference.",
+      "id": "set:beta",
+      "navTitle": undefined,
+      "openGraph": undefined,
+      "order": 0,
+      "productRoute": "/platform/sdk/beta",
+      "routeBase": "/platform/sdk/beta/docs",
+      "routeMode": "product-nested",
+      "slug": "beta",
+      "status": "published",
+      "title": "Beta SDK",
+    },
+  ],
+  "group": {
+    "description": "Software development kits.",
+    "id": "group:sdk",
+    "navTitle": "SDKs",
+    "order": 2,
+    "pageMode": "auto",
+    "routePath": "/platform/sdk",
+    "slug": "sdk",
+    "title": "SDK",
+  },
+  "route": "/platform/sdk",
+  "type": "docsGroupIndex",
+}
+`;
+
+exports[`read-side and sync characterization (docs-b2) > route adapter > /platform/sdk/beta (includeDrafts=false) 1`] = `null`;
+
+exports[`read-side and sync characterization (docs-b2) > route adapter > /platform/sdk/beta/api/ref (includeDrafts=false) 1`] = `
+{
+  "doc": {
+    "archived": false,
+    "content": "# API
+
+[Overview](../index.md)
+",
+    "dependencies": undefined,
+    "depth": 1,
+    "description": undefined,
+    "docsSetId": "set:beta",
+    "heroImage": undefined,
+    "id": "doc:beta:api/ref.md",
+    "navTitle": undefined,
+    "order": 5,
+    "overrides": {
+      "hideFromNav": false,
+    },
+    "route": "/platform/sdk/beta/docs/api/ref",
+    "sourceHash": "949e74cdb42bd682adc92dba7f1584f5b957188610a7d38a6d5c0e8a1f2afd33",
+    "sourcePath": "api/ref.md",
+    "status": "published",
+    "title": "API Reference",
+  },
+  "docsSet": {
+    "defaults": undefined,
+    "description": "Beta SDK reference.",
+    "id": "set:beta",
+    "navTitle": undefined,
+    "openGraph": undefined,
+    "order": 0,
+    "productRoute": "/platform/sdk/beta",
+    "routeBase": "/platform/sdk/beta/docs",
+    "routeMode": "product-nested",
+    "slug": "beta",
+    "status": "published",
+    "title": "Beta SDK",
+  },
+  "route": "/platform/sdk/beta/docs/api/ref",
+  "sidebar": [
+    {
+      "depth": 0,
+      "label": "Beta Overview",
+      "order": 0,
+      "route": "/platform/sdk/beta/docs",
+      "sourcePath": "index.md",
+    },
+    {
+      "depth": 0,
+      "label": "Install",
+      "order": 1,
+      "route": "/platform/sdk/beta/docs/install",
+      "sourcePath": "install.md",
+    },
+    {
+      "children": [
+        {
+          "depth": 1,
+          "label": "API Reference",
+          "order": 5,
+          "route": "/platform/sdk/beta/docs/api/ref",
+          "sourcePath": "api/ref.md",
+        },
+      ],
+      "depth": 0,
+      "label": "Api",
+      "order": 5,
+      "sourcePath": "api",
+    },
+  ],
+  "type": "doc",
+}
+`;
+
+exports[`read-side and sync characterization (docs-b2) > route adapter > /platform/sdk/beta/docs (includeDrafts=false) 1`] = `
+{
+  "doc": {
+    "archived": false,
+    "content": "# Beta
+
+See [ref](api/ref.md).
+",
+    "dependencies": undefined,
+    "depth": 0,
+    "description": undefined,
+    "docsSetId": "set:beta",
+    "heroImage": undefined,
+    "id": "doc:beta:index.md",
+    "navTitle": undefined,
+    "order": 0,
+    "overrides": {
+      "hideFromNav": false,
+    },
+    "route": "/platform/sdk/beta/docs",
+    "sourceHash": "7280a00efb4b36182bd2115d25f41f737510ee9ea8664367ab63705df15d4036",
+    "sourcePath": "index.md",
+    "status": "published",
+    "title": "Beta Overview",
+  },
+  "docsSet": {
+    "defaults": undefined,
+    "description": "Beta SDK reference.",
+    "id": "set:beta",
+    "navTitle": undefined,
+    "openGraph": undefined,
+    "order": 0,
+    "productRoute": "/platform/sdk/beta",
+    "routeBase": "/platform/sdk/beta/docs",
+    "routeMode": "product-nested",
+    "slug": "beta",
+    "status": "published",
+    "title": "Beta SDK",
+  },
+  "route": "/platform/sdk/beta/docs",
+  "sidebar": [
+    {
+      "depth": 0,
+      "label": "Beta Overview",
+      "order": 0,
+      "route": "/platform/sdk/beta/docs",
+      "sourcePath": "index.md",
+    },
+    {
+      "depth": 0,
+      "label": "Install",
+      "order": 1,
+      "route": "/platform/sdk/beta/docs/install",
+      "sourcePath": "install.md",
+    },
+    {
+      "children": [
+        {
+          "depth": 1,
+          "label": "API Reference",
+          "order": 5,
+          "route": "/platform/sdk/beta/docs/api/ref",
+          "sourcePath": "api/ref.md",
+        },
+      ],
+      "depth": 0,
+      "label": "Api",
+      "order": 5,
+      "sourcePath": "api",
+    },
+  ],
+  "type": "docsSetIndex",
+}
+`;
+
+exports[`read-side and sync characterization (docs-b2) > route adapter > /platform/sdk/beta/docs/api/ref (includeDrafts=false) 1`] = `
+{
+  "doc": {
+    "archived": false,
+    "content": "# API
+
+[Overview](../index.md)
+",
+    "dependencies": undefined,
+    "depth": 1,
+    "description": undefined,
+    "docsSetId": "set:beta",
+    "heroImage": undefined,
+    "id": "doc:beta:api/ref.md",
+    "navTitle": undefined,
+    "order": 5,
+    "overrides": {
+      "hideFromNav": false,
+    },
+    "route": "/platform/sdk/beta/docs/api/ref",
+    "sourceHash": "949e74cdb42bd682adc92dba7f1584f5b957188610a7d38a6d5c0e8a1f2afd33",
+    "sourcePath": "api/ref.md",
+    "status": "published",
+    "title": "API Reference",
+  },
+  "docsSet": {
+    "defaults": undefined,
+    "description": "Beta SDK reference.",
+    "id": "set:beta",
+    "navTitle": undefined,
+    "openGraph": undefined,
+    "order": 0,
+    "productRoute": "/platform/sdk/beta",
+    "routeBase": "/platform/sdk/beta/docs",
+    "routeMode": "product-nested",
+    "slug": "beta",
+    "status": "published",
+    "title": "Beta SDK",
+  },
+  "route": "/platform/sdk/beta/docs/api/ref",
+  "sidebar": [
+    {
+      "depth": 0,
+      "label": "Beta Overview",
+      "order": 0,
+      "route": "/platform/sdk/beta/docs",
+      "sourcePath": "index.md",
+    },
+    {
+      "depth": 0,
+      "label": "Install",
+      "order": 1,
+      "route": "/platform/sdk/beta/docs/install",
+      "sourcePath": "install.md",
+    },
+    {
+      "children": [
+        {
+          "depth": 1,
+          "label": "API Reference",
+          "order": 5,
+          "route": "/platform/sdk/beta/docs/api/ref",
+          "sourcePath": "api/ref.md",
+        },
+      ],
+      "depth": 0,
+      "label": "Api",
+      "order": 5,
+      "sourcePath": "api",
+    },
+  ],
+  "type": "doc",
+}
+`;
+
+exports[`read-side and sync characterization (docs-b2) > route adapter > /platform/sdk/beta/index.md (includeDrafts=false) 1`] = `
+{
+  "doc": {
+    "archived": false,
+    "content": "# Beta
+
+See [ref](api/ref.md).
+",
+    "dependencies": undefined,
+    "depth": 0,
+    "description": undefined,
+    "docsSetId": "set:beta",
+    "heroImage": undefined,
+    "id": "doc:beta:index.md",
+    "navTitle": undefined,
+    "order": 0,
+    "overrides": {
+      "hideFromNav": false,
+    },
+    "route": "/platform/sdk/beta/docs",
+    "sourceHash": "7280a00efb4b36182bd2115d25f41f737510ee9ea8664367ab63705df15d4036",
+    "sourcePath": "index.md",
+    "status": "published",
+    "title": "Beta Overview",
+  },
+  "docsSet": {
+    "defaults": undefined,
+    "description": "Beta SDK reference.",
+    "id": "set:beta",
+    "navTitle": undefined,
+    "openGraph": undefined,
+    "order": 0,
+    "productRoute": "/platform/sdk/beta",
+    "routeBase": "/platform/sdk/beta/docs",
+    "routeMode": "product-nested",
+    "slug": "beta",
+    "status": "published",
+    "title": "Beta SDK",
+  },
+  "route": "/platform/sdk/beta/docs",
+  "sidebar": [
+    {
+      "depth": 0,
+      "label": "Beta Overview",
+      "order": 0,
+      "route": "/platform/sdk/beta/docs",
+      "sourcePath": "index.md",
+    },
+    {
+      "depth": 0,
+      "label": "Install",
+      "order": 1,
+      "route": "/platform/sdk/beta/docs/install",
+      "sourcePath": "install.md",
+    },
+    {
+      "children": [
+        {
+          "depth": 1,
+          "label": "API Reference",
+          "order": 5,
+          "route": "/platform/sdk/beta/docs/api/ref",
+          "sourcePath": "api/ref.md",
+        },
+      ],
+      "depth": 0,
+      "label": "Api",
+      "order": 5,
+      "sourcePath": "api",
+    },
+  ],
+  "type": "docsSetIndex",
+}
+`;
+
+exports[`read-side and sync characterization (docs-b2) > route adapter > /platform/tools/zeta (includeDrafts=false) 1`] = `null`;
+
+exports[`read-side and sync characterization (docs-b2) > route adapter > /platform/tools/zeta/usage (includeDrafts=false) 1`] = `
+{
+  "doc": {
+    "archived": false,
+    "content": "# Zeta Usage
+",
+    "dependencies": undefined,
+    "depth": 0,
+    "description": undefined,
+    "docsSetId": "set:zeta",
+    "heroImage": undefined,
+    "id": "doc:zeta:usage.md",
+    "navTitle": undefined,
+    "order": 0,
+    "overrides": {
+      "hideFromNav": false,
+    },
+    "route": "/platform/tools/zeta/docs/usage",
+    "sourceHash": "56c31151ecfc1d0ad95a2fde719ef80f2f9c6cc6399d4e18dff1f552d63baa62",
+    "sourcePath": "usage.md",
+    "status": "published",
+    "title": "Zeta Usage",
+  },
+  "docsSet": {
+    "defaults": undefined,
+    "description": undefined,
+    "id": "set:zeta",
+    "navTitle": undefined,
+    "openGraph": undefined,
+    "order": 0,
+    "productRoute": "/platform/tools/zeta",
+    "routeBase": "/platform/tools/zeta/docs",
+    "routeMode": "product-nested",
+    "slug": "zeta",
+    "status": "published",
+    "title": "Zeta Tool",
+  },
+  "route": "/platform/tools/zeta/docs/usage",
+  "sidebar": [
+    {
+      "depth": 0,
+      "label": "Zeta",
+      "order": 0,
+      "route": "/platform/tools/zeta/docs",
+      "sourcePath": "index.md",
+    },
+    {
+      "depth": 0,
+      "label": "Zeta Usage",
+      "order": 0,
+      "route": "/platform/tools/zeta/docs/usage",
+      "sourcePath": "usage.md",
+    },
+  ],
+  "type": "doc",
+}
+`;
+
+exports[`read-side and sync characterization (docs-b2) > sitemap > defaults 1`] = `
+[
+  {
+    "lastModified": "<date>",
+    "url": "https://docs.example.com/alpha",
+  },
+  {
+    "lastModified": "<date>",
+    "url": "https://docs.example.com/alpha/guide",
+  },
+  {
+    "lastModified": "<date>",
+    "url": "https://docs.example.com/alpha/hidden",
+  },
+  {
+    "lastModified": "<date>",
+    "url": "https://docs.example.com/alpha/nested",
+  },
+  {
+    "lastModified": "<date>",
+    "url": "https://docs.example.com/alpha/nested/deep",
+  },
+  {
+    "lastModified": "<date>",
+    "url": "https://docs.example.com/custom/gamma",
+  },
+  {
+    "lastModified": "<date>",
+    "url": "https://docs.example.com/epsilon",
+  },
+  {
+    "lastModified": "<date>",
+    "url": "https://docs.example.com/platform/sdk/beta/docs",
+  },
+  {
+    "lastModified": "<date>",
+    "url": "https://docs.example.com/platform/sdk/beta/docs/api/ref",
+  },
+  {
+    "lastModified": "<date>",
+    "url": "https://docs.example.com/platform/sdk/beta/docs/install",
+  },
+  {
+    "lastModified": "<date>",
+    "url": "https://docs.example.com/platform/tools/zeta/docs",
+  },
+  {
+    "lastModified": "<date>",
+    "url": "https://docs.example.com/platform/tools/zeta/docs/usage",
+  },
+]
+`;
+
+exports[`read-side and sync characterization (docs-b2) > sitemap > everything 1`] = `
+[
+  {
+    "lastModified": "<date>",
+    "url": "https://docs.example.com/alpha",
+  },
+  {
+    "lastModified": "<date>",
+    "url": "https://docs.example.com/alpha/guide",
+  },
+  {
+    "lastModified": "<date>",
+    "url": "https://docs.example.com/alpha/hidden",
+  },
+  {
+    "lastModified": "<date>",
+    "url": "https://docs.example.com/alpha/llms-full.txt",
+  },
+  {
+    "lastModified": "<date>",
+    "url": "https://docs.example.com/alpha/llms.txt",
+  },
+  {
+    "lastModified": "<date>",
+    "url": "https://docs.example.com/alpha/nested",
+  },
+  {
+    "lastModified": "<date>",
+    "url": "https://docs.example.com/alpha/nested/deep",
+  },
+  {
+    "lastModified": "<date>",
+    "url": "https://docs.example.com/alpha/skills/claude",
+  },
+  {
+    "lastModified": "<date>",
+    "url": "https://docs.example.com/alpha/skills/claude/reference/usage.md",
+  },
+  {
+    "lastModified": "<date>",
+    "url": "https://docs.example.com/alpha/skills/claude/SKILL.md",
+  },
+  {
+    "lastModified": "<date>",
+    "url": "https://docs.example.com/alpha/skills/codex",
+  },
+  {
+    "lastModified": "<date>",
+    "url": "https://docs.example.com/alpha/skills/codex/SKILL.md",
+  },
+  {
+    "lastModified": "<date>",
+    "url": "https://docs.example.com/custom/gamma",
+  },
+  {
+    "lastModified": "<date>",
+    "url": "https://docs.example.com/custom/gamma/llms-full.txt",
+  },
+  {
+    "lastModified": "<date>",
+    "url": "https://docs.example.com/custom/gamma/llms.txt",
+  },
+  {
+    "lastModified": "<date>",
+    "url": "https://docs.example.com/epsilon",
+  },
+  {
+    "lastModified": "<date>",
+    "url": "https://docs.example.com/epsilon/llms-full.txt",
+  },
+  {
+    "lastModified": "<date>",
+    "url": "https://docs.example.com/epsilon/llms.txt",
+  },
+  {
+    "lastModified": "<date>",
+    "url": "https://docs.example.com/epsilon/skills/claude",
+  },
+  {
+    "lastModified": "<date>",
+    "url": "https://docs.example.com/epsilon/skills/claude/SKILL.md",
+  },
+  {
+    "lastModified": "<date>",
+    "url": "https://docs.example.com/llms-full.txt",
+  },
+  {
+    "lastModified": "<date>",
+    "url": "https://docs.example.com/llms.txt",
+  },
+  {
+    "lastModified": "<date>",
+    "url": "https://docs.example.com/platform/sdk/beta/docs",
+  },
+  {
+    "lastModified": "<date>",
+    "url": "https://docs.example.com/platform/sdk/beta/docs/api/ref",
+  },
+  {
+    "lastModified": "<date>",
+    "url": "https://docs.example.com/platform/sdk/beta/docs/install",
+  },
+  {
+    "lastModified": "<date>",
+    "url": "https://docs.example.com/platform/sdk/beta/docs/llms-full.txt",
+  },
+  {
+    "lastModified": "<date>",
+    "url": "https://docs.example.com/platform/sdk/beta/docs/llms.txt",
+  },
+  {
+    "lastModified": "<date>",
+    "url": "https://docs.example.com/platform/tools/zeta/docs",
+  },
+  {
+    "lastModified": "<date>",
+    "url": "https://docs.example.com/platform/tools/zeta/docs/llms-full.txt",
+  },
+  {
+    "lastModified": "<date>",
+    "url": "https://docs.example.com/platform/tools/zeta/docs/llms.txt",
+  },
+  {
+    "lastModified": "<date>",
+    "url": "https://docs.example.com/platform/tools/zeta/docs/usage",
+  },
+]
+`;
+
+exports[`read-side and sync characterization (docs-b2) > sitemap > non-recursive 1`] = `
+[
+  {
+    "lastModified": "<date>",
+    "url": "https://docs.example.com/alpha",
+  },
+  {
+    "lastModified": "<date>",
+    "url": "https://docs.example.com/custom/gamma",
+  },
+  {
+    "lastModified": "<date>",
+    "url": "https://docs.example.com/epsilon",
+  },
+  {
+    "lastModified": "<date>",
+    "url": "https://docs.example.com/platform/sdk/beta/docs",
+  },
+  {
+    "lastModified": "<date>",
+    "url": "https://docs.example.com/platform/tools/zeta/docs",
+  },
+]
+`;
+
+exports[`read-side and sync characterization (docs-b2) > sync responses > dry-run plan 1`] = `
+{
+  "json": {
+    "assetChanges": {
+      "archive": [],
+      "create": [],
+      "delete": [],
+      "unchanged": [],
+      "update": [],
+    },
+    "changes": {
+      "archive": [
+        {
+          "current": {
+            "archived": false,
+            "route": "/platform/sdk/beta/docs/api/ref",
+            "sourceHash": "949e74cdb42bd682adc92dba7f1584f5b957188610a7d38a6d5c0e8a1f2afd33",
+            "title": "API Reference",
+          },
+          "reason": "Existing doc is missing from desired manifest.",
+          "sourcePath": "api/ref.md",
+        },
+      ],
+      "create": [
+        {
+          "desired": {
+            "route": "/platform/sdk/beta/docs/new",
+            "sha256": "f676b43bd55f91451babc1663739064abb7e11e2b5f4a7efe62c29e4eeb0d117",
+            "title": "New",
+          },
+          "reason": "No existing doc has this sourcePath.",
+          "sourcePath": "new.md",
+        },
+      ],
+      "delete": [],
+      "draft": [],
+      "unchanged": [
+        {
+          "current": {
+            "archived": false,
+            "route": "/platform/sdk/beta/docs",
+            "sourceHash": "7280a00efb4b36182bd2115d25f41f737510ee9ea8664367ab63705df15d4036",
+            "title": "Beta Overview",
+          },
+          "desired": {
+            "route": "/platform/sdk/beta/docs",
+            "sha256": "7280a00efb4b36182bd2115d25f41f737510ee9ea8664367ab63705df15d4036",
+            "title": "Beta Overview",
+          },
+          "reason": "Existing source hash matches desired source hash.",
+          "sourcePath": "index.md",
+        },
+      ],
+      "update": [
+        {
+          "current": {
+            "archived": false,
+            "route": "/platform/sdk/beta/docs/install",
+            "sourceHash": "4b38c8367c65b7dd69a9710d62dab65f82bf7934b1905a3f7f69584b6ef9c65f",
+            "title": "Install",
+          },
+          "desired": {
+            "route": "/platform/sdk/beta/docs/install",
+            "sha256": "2bf14fe2e80d9f6fed738325a685ff4428dae7e61f5a04f19dc3801fcc60c18d",
+            "title": "Install v2",
+          },
+          "reason": "Existing source hash differs from desired source hash.",
+          "sourcePath": "install.md",
+        },
+      ],
+    },
+    "deleteBehavior": "archive",
+    "dryRun": true,
+    "ok": true,
+    "publishRequested": true,
+    "summary": {
+      "archive": 1,
+      "assetArchive": 0,
+      "assetCreate": 0,
+      "assetDelete": 0,
+      "assetUnchanged": 0,
+      "assetUpdate": 0,
+      "create": 1,
+      "delete": 0,
+      "draft": 0,
+      "unchanged": 1,
+      "update": 1,
+      "warnings": 0,
+    },
+    "syncRunId": "<sync-run>",
+    "warnings": [],
+  },
+  "status": 200,
+}
+`;
+
+exports[`read-side and sync characterization (docs-b2) > sync responses > invalid manifest 1`] = `
+{
+  "json": {
+    "error": {
+      "code": "invalid_manifest",
+      "issues": [
+        {
+          "code": "path_traversal",
+          "message": "Docs path must not contain path traversal segments.",
+          "path": "../escape.md",
+          "severity": "error",
+        },
+        {
+          "code": "non_markdown_file",
+          "message": "Docs path must end in .md.",
+          "path": "b.txt",
+          "severity": "error",
+        },
+      ],
+      "message": "Sync manifest is invalid.",
+    },
+    "ok": false,
+  },
+  "status": 400,
+}
+`;
+
+exports[`read-side and sync characterization (docs-b2) > sync responses > raw dry-run and error bodies 1`] = `
+{
+  "contentType": "application/json",
+  "status": 200,
+  "text": "{"assetChanges":{"archive":[{"current":{"archived":false,"contentType":"text/plain; charset=utf-8","kind":"static","sourceHash":"19fdf3233b2af546c93079d9fcceafb47e58ff92e59e12097c687962456444c1"},"reason":"Existing asset is missing from desired manifest.","sourcePath":"static/notes.txt"},{"current":{"archived":false,"contentType":"text/markdown; charset=utf-8","kind":"skill","route":"/alpha/skills/codex/SKILL.md","sourceHash":"3ad22f6aefd9409c3e176611866a3d44f4c14a61e664af9c209d204f1fef9301"},"reason":"Existing asset is missing from desired manifest.","sourcePath":"skills/alpha/codex/SKILL.md"},{"current":{"archived":false,"contentType":"text/markdown; charset=utf-8","kind":"skill","route":"/alpha/skills/claude/reference/usage.md","sourceHash":"0bcac04f01dfe9368765a69759b8d64349548630d606a4f14cb5e1c784454c27"},"reason":"Existing asset is missing from desired manifest.","sourcePath":"skills/alpha/claude/reference/usage.md"},{"current":{"archived":false,"contentType":"text/markdown; charset=utf-8","kind":"skill","route":"/alpha/skills/claude/SKILL.md","sourceHash":"3d96f67068171a20d4ac9f3e782a963fe1cee92512d8b8362c433787f0984384"},"reason":"Existing asset is missing from desired manifest.","sourcePath":"skills/alpha/claude/SKILL.md"}],"create":[],"delete":[],"unchanged":[],"update":[]},"changes":{"archive":[{"current":{"archived":false,"route":"/alpha/unreleased","sourceHash":"f2414fae09833cd80882b40fea4e470d56e8bbc0861f602f0083b7c59f451ccd","title":"Unreleased"},"reason":"Existing doc is missing from desired manifest.","sourcePath":"unreleased.md"},{"current":{"archived":false,"route":"/alpha/hidden","sourceHash":"8c1577691b2544fb49c37b7c83ff2d74aee3667af4b45be83b07e221232567fc","title":"Hidden"},"reason":"Existing doc is missing from desired manifest.","sourcePath":"hidden.md"},{"current":{"archived":false,"route":"/alpha/nested","sourceHash":"421fdec84b375342342c0e955ff0d1f2677418b08f4d61d524c3015c62fe7181","title":"Nested Index"},"reason":"Existing doc is missing from desired manifest.","sourcePath":"nested/index.md"},{"current":{"archived":false,"route":"/alpha/nested/deep","sourceHash":"045b25e0a74e4bf83fa07fa6cc6cfe2fc754053c5e9b4b161fae4b78f829f182","title":"Deep Page"},"reason":"Existing doc is missing from desired manifest.","sourcePath":"nested/deep.md"},{"current":{"archived":false,"route":"/alpha/guide","sourceHash":"9b4527ae7aa24b680438708fc0ae240f601e8f0b928e7b6585602035d73d7275","title":"The Guide"},"reason":"Existing doc is missing from desired manifest.","sourcePath":"guide.md"}],"create":[{"desired":{"route":"/alpha/new","sha256":"f676b43bd55f91451babc1663739064abb7e11e2b5f4a7efe62c29e4eeb0d117","title":"New"},"reason":"No existing doc has this sourcePath.","sourcePath":"new.md"}],"delete":[],"draft":[],"unchanged":[],"update":[{"current":{"archived":false,"route":"/alpha","sourceHash":"11edc929c966c16bfae61a86fcd2910e9b260578b00a3afd72bae0523d739a48","title":"Alpha Home"},"desired":{"route":"/alpha","sha256":"017b70af1737a855266fc9eb9b3f88917dc972f20d2a1c7d6baa03b85260e8b8","title":"Alpha"},"reason":"Existing source hash differs from desired source hash.","sourcePath":"index.md"}]},"deleteBehavior":"archive","dryRun":true,"ok":true,"publishRequested":false,"summary":{"archive":5,"create":1,"delete":0,"draft":0,"unchanged":0,"update":1,"warnings":0,"assetArchive":4,"assetCreate":0,"assetDelete":0,"assetUnchanged":0,"assetUpdate":0},"syncRunId":"<sync-run>","warnings":[]}",
+}
+`;
+
+exports[`read-side and sync characterization (docs-b2) > sync responses > raw dry-run and error bodies 2`] = `
+{
+  "contentType": "application/json",
+  "status": 409,
+  "text": "{"routeCollisions":[{"paths":["a.md","a/index.md"],"reason":"exact_route_collision","route":"/custom/gamma/a"}],"error":{"code":"route_collision","issues":[{"code":"exact_route_collision","message":"Route /custom/gamma/a is produced by a.md, a/index.md.","path":"a.md","severity":"error"}],"message":"Two or more manifest files resolve to the same route."},"ok":false}",
+}
+`;
+
+exports[`read-side and sync characterization (docs-b2) > sync responses > raw dry-run and error bodies 3`] = `
+{
+  "contentType": "application/json",
+  "status": 400,
+  "text": "{"error":{"code":"source_not_allowed","message":"Manifest source.id is required and must be a docs set slug."},"ok":false}",
+}
+`;
+
+exports[`read-side and sync characterization (docs-b2) > sync responses > route collision inside the manifest 1`] = `
+{
+  "json": {
+    "error": {
+      "code": "route_collision",
+      "issues": [
+        {
+          "code": "exact_route_collision",
+          "message": "Route /custom/gamma/a is produced by a.md, a/index.md.",
+          "path": "a.md",
+          "severity": "error",
+        },
+      ],
+      "message": "Two or more manifest files resolve to the same route.",
+    },
+    "ok": false,
+    "routeCollisions": [
+      {
+        "paths": [
+          "a.md",
+          "a/index.md",
+        ],
+        "reason": "exact_route_collision",
+        "route": "/custom/gamma/a",
+      },
+    ],
+  },
+  "status": 409,
+}
+`;
+
+exports[`read-side and sync characterization (docs-b2) > sync responses > route collision with another docs set 1`] = `
+{
+  "json": {
+    "error": {
+      "code": "route_collision",
+      "issues": [
+        {
+          "code": "existing_doc_route_collision",
+          "message": "Route /platform/sdk/beta/docs/install is already used by a doc of another docs set.",
+          "path": "sdk/beta/docs/install.md",
+          "severity": "error",
+        },
+      ],
+      "message": "One or more docs routes collide with an existing route reservation.",
+    },
+    "ok": false,
+    "routeCollisions": [
+      {
+        "reason": "existing_doc_route_collision",
+        "route": "/platform/sdk/beta/docs/install",
+      },
+    ],
+  },
+  "status": 409,
+}
+`;
+
+exports[`read-side and sync characterization (docs-b2) > sync responses > unknown docs set 1`] = `
+{
+  "json": {
+    "error": {
+      "code": "source_not_allowed",
+      "message": "No docs set exists for source "no-such-set". Create a docs set with slug "no-such-set" in Payload Admin before syncing this source.",
+    },
+    "ok": false,
+  },
+  "status": 400,
+}
+`;

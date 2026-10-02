@@ -8,6 +8,8 @@ import {
 } from '../payload/docsAccess.js'
 
 export type CreateDocsAccessCollectionOptions = {
+  /** Docs sets collection for optional per-docs-set scoping (DOCS-5). */
+  docsSetsCollectionSlug?: string
   slug: string
 }
 
@@ -71,6 +73,7 @@ const populateIdentityKey: CollectionBeforeValidateHook<DocsAccessData> = ({
 
 export const createDocsAccessCollection = ({
   slug,
+  docsSetsCollectionSlug,
 }: CreateDocsAccessCollectionOptions): CollectionConfig => ({
   slug,
   admin: {
@@ -169,6 +172,21 @@ export const createDocsAccessCollection = ({
         },
       ],
     },
+    ...(docsSetsCollectionSlug
+      ? [
+          {
+            name: 'docsSets',
+            type: 'relationship' as const,
+            admin: {
+              description:
+                'Docs sets this credential may sync. Leave empty to allow every docs set (not recommended; logs a warning when used).',
+            },
+            hasMany: true as const,
+            label: 'Allowed docs sets',
+            relationTo: docsSetsCollectionSlug,
+          },
+        ]
+      : []),
   ],
   hooks: {
     beforeValidate: [populateIdentityKey],

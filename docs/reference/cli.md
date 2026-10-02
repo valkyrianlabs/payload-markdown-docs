@@ -62,6 +62,12 @@ pmdocs doctor
 Prints local native CLI diagnostics. It does not check networking, Payload
 server configuration, auth, OIDC, or signing.
 
+`doctor` exits `0` with `status: ok` when the bundled skill data is present and
+`1` with `status: degraded` when it is missing, because `pmdocs install skill`
+cannot work without it. Homebrew builds bundle the `payload-markdown-docs` skill
+but not the npm companion `payload-markdown` skill; `doctor` notes this and
+`install skill` installs the bundled skill only.
+
 ## validate
 
 ```bash
@@ -75,6 +81,41 @@ from `./skills/<source>` when that directory exists, and optional custom
 `llms.txt` / `llms-full.txt` fallback assets when present. The default
 `./skills` directory is optional; only an explicitly supplied missing
 `--skills <path>` fails validation.
+
+What the docs walk includes:
+
+- every lowercase `.md` file below the docs root, at any depth
+- hidden files and directories (names starting with `.`), each reported as a
+  warning; pass `--skip-hidden` to leave them out
+
+What it leaves out, always reported as a `skipped_path` warning:
+
+- `.git` and `node_modules` directories at any depth
+- `build`, `dist`, and `.next` directories directly below the docs root (the
+  same names deeper in the tree are ordinary docs sections)
+- symbolic links (not followed)
+- Markdown-like files that are not lowercase `.md`, such as `README.MD` or
+  `notes.markdown`
+
+Files that are not valid UTF-8 fail validation with an `invalid_encoding`
+error that names the file.
+
+Two files that derive the same route (`index.md` and `Index.md`, or
+`guide.md` and `guide/index.md`) fail validation with a `route_collision` error
+on each file; the sync endpoint would reject them. Routes that differ only in
+letter case produce a `route_case_collision` warning. `push` reports local
+collisions as warnings and leaves the decision to the server, which knows the
+docs set's real route base.
+
+Size limits: `--max-file-bytes` (500,000) applies to each docs file and asset,
+`--max-total-bytes` (5,000,000) to the sum of all docs and asset contents, and
+`--max-body-bytes` (5,000,000) to the serialized JSON request body. The body
+limit is the one the server enforces first (`maxBodyBytes`, HTTP 413), and JSON
+escaping can make the body noticeably larger than the content, so `validate`,
+`manifest`, and `plan` check the largest body `push` could send and `push`
+checks the exact body. Pass `--max-body-bytes` when the server is configured
+with a different `maxBodyBytes`. Skill packages follow the same walk rules and report
+files other than `.md`, `.txt`, `.json`, `.yaml`, and `.yml`.
 
 ## manifest
 
@@ -93,8 +134,26 @@ pmdocs plan --source main-docs
 pmdocs plan ./docs --source main-docs
 ```
 
-Plans against an optional local existing-records JSON file. Without
-`--existing`, all valid docs are planned as creates.
+Plans against optional local existing-records JSON files. Without
+`--existing`, all valid docs are planned as creates; without
+`--existing-assets`, all assets are planned as creates.
+
+The plan is a local approximation of the server's dry-run. To match it:
+
+- pass `--publish` when the push will use `--publish` (otherwise existing
+  published records are planned as status updates)
+- pass `--route-base` for docs sets that are not served at `/<source>`: a
+  grouped docs set uses `/<group-route>/<source>`, a product-nested one
+  `/<group-route>/<source>/docs` (also pass
+  `--asset-route-base /<group-route>/<source>` so skill asset routes match)
+- export current records with the `--existing` (docs) and `--existing-assets`
+  (assets) shapes: arrays of `{ "sourcePath", "route", "sourceHash", "status",
+  "archived" }` and `{ "sourcePath", "kind", "contentType", "route",
+  "sourceHash", "archived" }`
+
+`pmdocs push --dry-run` asks the server for the authoritative plan.
+`validate` accepts `--route-base` and `--asset-route-base` too, so route
+collision checks use the same routes.
 
 ## keygen
 
@@ -102,8 +161,11 @@ Plans against an optional local existing-records JSON file. Without
 pmdocs keygen --out .docs-sync
 ```
 
-Generates Ed25519 PEM keys for signed sync. Add the public key to an Ed25519
-record in `Docs Globals > Access`. `push` also accepts unencrypted OpenSSH
+Generates Ed25519 PEM keys for signed sync. The private key file is created
+with mode `0600` (and a newly created `--out` directory with `0700`), whatever
+the current umask, including when `--force` replaces an existing key. `push`
+warns when `--private-key-file` is readable by group or other users. Add the
+public key to an Ed25519 record in `Docs Globals > Access`. `push` also accepts unencrypted OpenSSH
 Ed25519 private keys when the matching `ssh-ed25519 ...` public key is stored in
 Access.
 
@@ -152,8 +214,20 @@ pmdocs push \
 ```
 
 `push` defaults to sync mode. `--dry-run` submits a validation-only request.
+
+`--endpoint` must use `https://`. Plain `http://` is accepted only for loopback
+hosts (`localhost`, `127.x.x.x`, `::1`) so a GitHub OIDC bearer token or a
+signed manifest never crosses a network in clear text; pass
+`--allow-insecure-http` only for a trusted private network.
 `--publish` is separate from sync mode and requests published output. Publishing
 and writes remain server-owned.
+
+When the server rejects a push, `pmdocs` prints the error message followed by
+every detail the server returns: validation `issues` (with path, code, and
+severity), `routeCollisions`, and manual-edit `conflicts`. With `--json`, the
+output adds a normalized `failure` object with `code`, `message`, `issues`,
+`routeCollisions`, and `conflicts` (empty arrays when an older server does not
+send them).
 
 If assets are included and public Next asset route files are missing from the
 current working tree, `push` prints a warning. Add `--strict-routes` in CI to
@@ -162,6 +236,7 @@ turn that warning into a failure.
 Common push flags:
 
 - `--endpoint <url>`
+- `--allow-insecure-http`
 - `--source <id>`
 - `--docs <path>`
 - `--skills <path>`
@@ -171,6 +246,7 @@ Common push flags:
 - `--no-skills`
 - `--no-llms`
 - `--no-llms-full`
+- `--skip-hidden`
 - `--dry-run`
 - `--strict-routes`
 - `--publish`
@@ -260,14 +336,21 @@ guidance.
 - `--no-skills`
 - `--no-llms`
 - `--no-llms-full`
+- `--skip-hidden`
 - `--repository <repo>`
 - `--branch <branch>`
 - `--commit <sha>`
-- `--strict-routes`
 - `--json`
 - `--pretty`
 - `--max-files <number>`
 - `--max-file-bytes <number>`
 - `--max-total-bytes <number>`
+- `--max-body-bytes <number>`
+- `--route-base <path>` and `--asset-route-base <path>` (`validate` and `plan`)
+
+`--strict-routes` is a `push` flag only. Without `--source`, the docs set slug
+comes from `GITHUB_REPOSITORY` (the repository name) when it is set, otherwise
+from the docs root directory name, or `local-docs` when that directory is named
+`docs`.
 
 :::

@@ -11,7 +11,7 @@ tags:
 
 # GitHub Actions
 
-The recommended CI workflow validates docs on every docs change, dry-runs signed syncs on pull requests, and syncs or publishes from `main`.
+The recommended CI workflow validates and plans docs on every docs change, can optionally dry-run syncs on pull requests, and syncs or publishes from `main`.
 
 :::toc {title="On this page" depth="3" theme="compact"}
 :::
@@ -68,7 +68,8 @@ pmdocs push \
   --github-oidc
 ```
 
-Pull request dry-run is explicit:
+Pull requests always run `pmdocs validate` and `pmdocs plan` locally. A
+server-side dry-run is explicit and opt-in:
 
 ```bash
 pmdocs push \
@@ -77,6 +78,17 @@ pmdocs push \
   --github-oidc \
   --dry-run
 ```
+
+GitHub issues pull request OIDC tokens with `ref: refs/pull/<number>/merge`, not
+the docs set branch, and never issues them to pull requests from forks. The
+example workflow therefore runs the dry-run only when the repository variable
+`DOCS_SYNC_PR_DRY_RUN` is `true` and the pull request comes from the same
+repository. Enable it only after allowing pull requests on the docs set and
+confirming that your Payload server accepts pull request tokens for the docs
+set branch; otherwise the dry-run fails with `oidc_ref_not_allowed`.
+
+Never run pull request code on self-hosted runners that also hold release or
+deployment credentials: use GitHub-hosted runners for `pull_request` jobs.
 
 ```bash
 pmdocs push \

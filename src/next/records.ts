@@ -11,35 +11,14 @@ import type {
   ResolvedPayloadMarkdownDocsSet,
 } from './types.js'
 
+import { getPayloadDraftStatus, isVisibleToReader } from '../payload/visibility.js'
 import {
-  DEFAULT_DOCS_SET_ROUTE_MODE,
-  deriveDocsSetProductRoutePath,
-  deriveDocsSetRouteBase,
-  normalizeRoutePath,
-} from '../routing/index.js'
-
-export const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value)
-
-export const getRecordId = (doc: Record<string, unknown>): string | undefined => {
-  if (typeof doc.id === 'string' || typeof doc.id === 'number') {
-    return String(doc.id)
-  }
-
-  return undefined
-}
-
-export const getRelationshipId = (value: unknown): string | undefined => {
-  if (typeof value === 'string' || typeof value === 'number') {
-    return String(value)
-  }
-
-  if (isRecord(value)) {
-    return getRecordId(value)
-  }
-
-  return undefined
-}
+  type DocsGroupsById,
+  getDocsGroupRoutePath,
+  resolveDocsSetRoutes,
+} from '../routing/docsSetRoutes.js'
+import { normalizeRoutePath } from '../routing/index.js'
+import { getRecordId, getRelationshipId, isRecord } from '../shared/records.js'
 
 const getOptionalString = (doc: Record<string, unknown>, key: string): string | undefined =>
   typeof doc[key] === 'string' ? doc[key] : undefined
@@ -144,13 +123,20 @@ const toOpenGraph = (value: unknown): PayloadMarkdownDocsOpenGraph | undefined =
   return Object.keys(openGraph).length > 0 ? (openGraph as PayloadMarkdownDocsOpenGraph) : undefined
 }
 
-const getRouteMode = (value: unknown): PayloadMarkdownDocsRouteMode =>
-  value === 'product-nested' || value === 'docs-root' ? value : DEFAULT_DOCS_SET_ROUTE_MODE
-
 const getPageMode = (pageMode: unknown): PayloadMarkdownDocsGroupPageMode =>
   pageMode === 'custom' ? 'custom' : 'auto'
 
-export const toResolvedDocsSet = (doc: unknown): ResolvedPayloadMarkdownDocsSet | undefined => {
+const NO_GROUPS: DocsGroupsById = new Map()
+
+/**
+ * Public projection of a raw docs set record. Routes come from the shared derivation in
+ * routing/docsSetRoutes (the same one the sync endpoint validates against); pass the
+ * docs groups so grouped docs sets get their group route.
+ */
+export const toResolvedDocsSet = (
+  doc: unknown,
+  groupsById: DocsGroupsById = NO_GROUPS,
+): ResolvedPayloadMarkdownDocsSet | undefined => {
   if (!isRecord(doc)) {
     return undefined
   }
@@ -158,15 +144,13 @@ export const toResolvedDocsSet = (doc: unknown): ResolvedPayloadMarkdownDocsSet 
   const id = getRecordId(doc)
   const title = getOptionalString(doc, 'title')
   const slug = getOptionalString(doc, 'slug')
+  const routes = resolveDocsSetRoutes({ doc, groupsById })
 
-  if (!id || !title || !slug) {
+  if (!id || !title || !slug || !routes) {
     return undefined
   }
 
-  const routeMode = getRouteMode(doc.routeMode)
-  const productRoute = deriveDocsSetProductRoutePath({
-    docsSetSlug: slug,
-  })
+  const { productRoute, routeBase, routeMode } = routes
 
   return {
     id,
@@ -177,14 +161,9 @@ export const toResolvedDocsSet = (doc: unknown): ResolvedPayloadMarkdownDocsSet 
     openGraph: toOpenGraph(doc.meta) ?? toOpenGraph(doc.openGraph),
     order: getOptionalNumber(doc, 'order') ?? 0,
     productRoute,
-    routeBase: normalizeRoutePath(
-      deriveDocsSetRouteBase({
-        docsSetSlug: slug,
-        routeMode,
-      }),
-    ),
-    routeMode,
-    status: doc._status === 'draft' || doc._status === 'published' ? doc._status : undefined,
+    routeBase,
+    routeMode: routeMode satisfies PayloadMarkdownDocsRouteMode,
+    status: getPayloadDraftStatus(doc),
     title,
   }
 }
@@ -195,9 +174,13 @@ export const isVisibleDocsSet = ({
 }: {
   docsSet: ResolvedPayloadMarkdownDocsSet
   includeDrafts?: boolean
-}): boolean => !(!includeDrafts && docsSet.status === 'draft')
+}): boolean => isVisibleToReader({ includeDrafts, status: docsSet.status })
 
-export const toResolvedDocsGroup = (doc: unknown): ResolvedPayloadMarkdownDocsGroup | undefined => {
+/** Public projection of a raw docs group; undefined when the group has no route. */
+export const toResolvedDocsGroup = (
+  doc: unknown,
+  groupsById: DocsGroupsById,
+): ResolvedPayloadMarkdownDocsGroup | undefined => {
   if (!isRecord(doc)) {
     return undefined
   }
@@ -205,8 +188,9 @@ export const toResolvedDocsGroup = (doc: unknown): ResolvedPayloadMarkdownDocsGr
   const id = getRecordId(doc)
   const title = getOptionalString(doc, 'title')
   const slug = getOptionalString(doc, 'slug')
+  const routePath = id ? getDocsGroupRoutePath({ group: id, groupsById }) : undefined
 
-  if (!id || !title || !slug) {
+  if (!id || !title || !slug || !routePath) {
     return undefined
   }
 
@@ -219,7 +203,7 @@ export const toResolvedDocsGroup = (doc: unknown): ResolvedPayloadMarkdownDocsGr
     navTitle: getOptionalString(doc, 'navTitle'),
     order: getOptionalNumber(doc, 'order') ?? 0,
     pageMode,
-    routePath: normalizeRoutePath(`/${slug}`),
+    routePath,
     title,
   }
 }
@@ -245,7 +229,7 @@ export const toResolvedDocsRecord = ({
   }
 
   const sync = isRecord(doc.sync) ? doc.sync : undefined
-  const status = doc._status === 'draft' || doc._status === 'published' ? doc._status : undefined
+  const status = getPayloadDraftStatus(doc)
 
   return {
     id,
@@ -273,10 +257,5 @@ export const isVisibleDocsRecord = ({
 }: {
   includeDrafts?: boolean
   record: ResolvedPayloadMarkdownDocsRecord
-}): boolean => {
-  if (record.archived) {
-    return false
-  }
-
-  return !(!includeDrafts && record.status === 'draft')
-}
+}): boolean =>
+  isVisibleToReader({ archived: record.archived, includeDrafts, status: record.status })

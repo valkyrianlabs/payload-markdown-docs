@@ -1,4 +1,4 @@
-import type { Payload } from 'payload'
+import type { CollectionSlug, Payload } from 'payload'
 
 import { sha256Hex } from '../src/sync/hash'
 import { devUser } from './helpers/credentials'
@@ -63,7 +63,7 @@ const upsertByEquals = async ({
   payload,
   value,
 }: {
-  collection: string
+  collection: CollectionSlug
   data: Record<string, unknown>
   field: string
   payload: Payload

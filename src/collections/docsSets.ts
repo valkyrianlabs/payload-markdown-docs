@@ -10,19 +10,25 @@ export type CreateDocsSetsCollectionOptions = {
   docsCollectionSlug?: string
   docsGroupsCollectionSlug: string
   seoEnabled: boolean
-  seoUploadCollectionSlug: string
+  /** Upload collection for the SEO meta image; omitted when the app has none. */
+  seoUploadCollectionSlug?: string
   slug: string
 }
 
-const createSEOField = (uploadsCollection: string): Field => ({
+const createSEOField = (uploadsCollection: string | undefined): Field => ({
   name: 'meta',
   type: 'group',
   fields: [
     MetaTitleField({}),
     MetaDescriptionField({}),
-    MetaImageField({
-      relationTo: uploadsCollection,
-    }),
+    // Without an upload collection the meta image field cannot be created (X-17).
+    ...(uploadsCollection
+      ? [
+          MetaImageField({
+            relationTo: uploadsCollection,
+          }),
+        ]
+      : []),
   ],
   label: 'SEO',
 })
@@ -123,6 +129,32 @@ export const createDocsSetsCollection = ({
           : []),
         {
           fields: [
+            {
+              name: 'repositories',
+              type: 'array',
+              admin: {
+                description:
+                  'GitHub OIDC only: repositories allowed to publish this docs set (owner/repo, or repo under the trusted owner). Leave empty to accept any repository trusted in Access.',
+              },
+              fields: [
+                {
+                  name: 'value',
+                  type: 'text',
+                  required: true,
+                },
+              ],
+              label: 'Allowed repositories',
+            },
+            {
+              name: 'allowTagRefs',
+              type: 'checkbox',
+              admin: {
+                description:
+                  'GitHub OIDC only: accept any refs/tags/* ref (for example release-triggered publishing) in addition to the docs set branch. Turn off to accept only the branch.',
+              },
+              defaultValue: true,
+              label: 'Allow tag refs',
+            },
             {
               name: 'advancedSecurity',
               type: 'group',

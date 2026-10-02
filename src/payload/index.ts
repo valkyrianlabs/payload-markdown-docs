@@ -12,15 +12,20 @@ export {
   findDocsKeyById,
   findTrustedGitHubSources,
   isDocsAccessType,
+  isDocsSetInScope,
 } from './docsAccess.js'
-export type { DocsAccessPayloadOperations, DocsAccessType, ResolvedDocsKey } from './docsAccess.js'
+export type {
+  DocsAccessPayloadOperations,
+  DocsAccessType,
+  ResolvedDocsKey,
+  ScopedGitHubOidcTrustedSource,
+} from './docsAccess.js'
 export { findDocsSyncConflicts } from './docsConflicts.js'
 export type { DocsSyncConflict, DocsSyncConflictReason } from './docsConflicts.js'
 export { buildArchiveData, buildDocsData, getDocsDepth } from './docsData.js'
 export type { BuildDocsDataInput, DocsDraftStatus } from './docsData.js'
 export {
   findAllDocsSets,
-  findDocsSetByRouteBase,
   findDocsSetByRoutePrefix,
   findDocsSetBySlug,
   isEd25519AuthEnabled,
@@ -45,7 +50,7 @@ export {
   findExistingDocsRouteCollisions,
 } from './routeCollisions.js'
 export type { DocsRouteCollisionIssue, RouteCollisionPayloadOperations } from './routeCollisions.js'
-export { createSyncRunAudit, getRecordId, updateSyncRunAudit } from './syncRuns.js'
+export { createSyncRunAudit, updateSyncRunAudit } from './syncRuns.js'
 export type {
   CreateSyncRunAuditInput,
   SyncRunsPayloadOperations,

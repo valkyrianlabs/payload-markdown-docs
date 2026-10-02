@@ -26,3 +26,32 @@ profiles:
       release_notes:
         model: gpt-5.4
         reasoning_effort: xhigh
+
+  # DeepSeek over the OpenAI-compatible Responses API (key: DEEPSEEK_API_KEY; select with RELEASE_AI_PROFILE=ds-flash,
+  # or the legacy RELEASE_AI_PROFILE_OPENAI). Ported from vaulthalla's ai.yml.
+  # `model` is the profile default for every stage; a stage may still set its own `model`, and also
+  # `provider` (+ `base_url`) to mix providers, e.g. `provider: openai` + `model: gpt-5.5` for one stage.
+  # Budgets run above the OpenAI profile because DeepSeek reasoning tokens count toward output.
+  ds-flash:
+    provider: deepseek
+    model: deepseek-flash
+
+    default_max_output_tokens:
+      emergency_triage: 60000
+      triage: 36000
+      draft: 24000
+      polish: 28000
+      release_notes: 32000
+
+    stages:
+      emergency_triage:
+        reasoning_effort: medium
+      triage:
+        reasoning_effort: medium
+      draft:
+        reasoning_effort: medium
+        structured_mode: strict_json_schema
+      polish:
+        reasoning_effort: max
+      release_notes:
+        reasoning_effort: max

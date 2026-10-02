@@ -9,11 +9,14 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 
+#include <algorithm>
 #include <array>
 #include <cctype>
 #include <cstdlib>
 #include <filesystem>
+#include <map>
 #include <fstream>
 #include <sstream>
 #include <stdexcept>
@@ -1049,4 +1052,459 @@ TEST_CASE("plan supports existing records and delete behavior") {
   const auto plan = nlohmann::json::parse(json_result.stdout_text);
   CHECK(plan["docs"]["create"].size() == 1);
   CHECK(plan["assets"]["create"].size() == 0);
+}
+
+namespace {
+
+bool has_issue(const nlohmann::json& issues, std::string_view code, std::string_view path) {
+  for (const auto& issue : issues) {
+    if (issue["code"] == code && issue.contains("path") && issue["path"] == path) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+std::vector<std::string> manifest_paths(const nlohmann::json& manifest) {
+  std::vector<std::string> paths;
+
+  for (const auto& file : manifest["files"]) {
+    paths.push_back(file["path"].get<std::string>());
+  }
+
+  return paths;
+}
+
+bool contains_path(const std::vector<std::string>& paths, std::string_view path) {
+  return std::find(paths.begin(), paths.end(), path) != paths.end();
+}
+
+} // namespace
+
+TEST_CASE("docs walk applies build exclusions only at the root and reports every skipped path") {
+  TempDir temp{"pmdocs-test-walk"};
+  const auto root = temp.path() / "docs";
+  const auto root_string = root.string();
+  write_text(root / "index.md", "# Home\n");
+  write_text(root / "guides" / "build" / "index.md", "# Build guide\n");
+  write_text(root / "guides" / "dist" / "page.md", "# Dist guide\n");
+  write_text(root / "dist" / "generated.md", "# Generated\n");
+  write_text(root / "build" / "out.md", "# Out\n");
+  write_text(root / "guides" / "node_modules" / "pkg" / "readme.md", "# Dependency\n");
+  write_text(root / "README.MD", "# Upper\n");
+  write_text(root / "notes.markdown", "# Notes\n");
+  write_text(root / ".draft.md", "# Draft\n");
+  write_text(root / ".hidden" / "secret.md", "# Secret\n");
+  write_text(root / "image.png", "png");
+  std::filesystem::create_symlink(root / "index.md", root / "link.md");
+
+  const auto result = pmdocs::run(args({"validate", root_string, "--source", "main-docs", "--json", "--no-skills", "--no-llms", "--no-llms-full"}));
+  REQUIRE(result.exit_code == 0);
+  const auto output = nlohmann::json::parse(result.stdout_text);
+  const auto& warnings = output["validation"]["warnings"];
+  std::vector<std::string> paths;
+  for (const auto& file : output["validation"]["data"]["files"]) {
+    paths.push_back(file["path"].get<std::string>());
+  }
+
+  CHECK(contains_path(paths, "guides/build/index.md"));
+  CHECK(contains_path(paths, "guides/dist/page.md"));
+  CHECK(contains_path(paths, ".draft.md"));
+  CHECK(contains_path(paths, ".hidden/secret.md"));
+  CHECK_FALSE(contains_path(paths, "dist/generated.md"));
+  CHECK_FALSE(contains_path(paths, "build/out.md"));
+  CHECK_FALSE(contains_path(paths, "guides/node_modules/pkg/readme.md"));
+  CHECK_FALSE(contains_path(paths, "link.md"));
+  CHECK(has_issue(warnings, "skipped_path", "dist"));
+  CHECK(has_issue(warnings, "skipped_path", "build"));
+  CHECK(has_issue(warnings, "skipped_path", "guides/node_modules"));
+  CHECK(has_issue(warnings, "skipped_path", "README.MD"));
+  CHECK(has_issue(warnings, "skipped_path", "notes.markdown"));
+  CHECK(has_issue(warnings, "skipped_path", "link.md"));
+  CHECK(has_issue(warnings, "hidden_path", ".draft.md"));
+  CHECK(has_issue(warnings, "hidden_path", ".hidden/secret.md"));
+  CHECK_FALSE(has_issue(warnings, "skipped_path", "image.png"));
+
+  const auto skip_hidden = pmdocs::run(args({"manifest", root_string, "--source", "main-docs", "--skip-hidden", "--no-skills", "--no-llms", "--no-llms-full"}));
+  REQUIRE(skip_hidden.exit_code == 0);
+  const auto manifest_without_hidden = manifest_paths(nlohmann::json::parse(skip_hidden.stdout_text));
+  CHECK_FALSE(contains_path(manifest_without_hidden, ".draft.md"));
+  CHECK_FALSE(contains_path(manifest_without_hidden, ".hidden/secret.md"));
+  CHECK(skip_hidden.stderr_text.find(".hidden: Skipped hidden directory (--skip-hidden).") != std::string::npos);
+
+  const auto text = pmdocs::run(args({"validate", root_string, "--source", "main-docs", "--no-skills", "--no-llms", "--no-llms-full"}));
+  CHECK(text.stdout_text.find("- README.MD: Skipped Markdown file with extension \".MD\"") != std::string::npos);
+}
+
+TEST_CASE("non-UTF-8 docs are reported with their path instead of crashing") {
+  TempDir temp{"pmdocs-test-encoding"};
+  const auto root = temp.path() / "docs";
+  const auto root_string = root.string();
+  write_text(root / "index.md", "# Home\n");
+  write_text(root / "latin1.md", std::string{"# Caf\xe9\n"});
+
+  const auto validate = pmdocs::run(args({"validate", root_string, "--source", "main-docs", "--no-skills", "--no-llms", "--no-llms-full"}));
+  CHECK(validate.exit_code == 1);
+  CHECK(validate.stdout_text.find("- latin1.md: File content is not valid UTF-8") != std::string::npos);
+
+  const auto json_result = pmdocs::run(args({"validate", root_string, "--source", "main-docs", "--json", "--no-skills", "--no-llms", "--no-llms-full"}));
+  CHECK(json_result.exit_code == 1);
+  const auto output = nlohmann::json::parse(json_result.stdout_text);
+  CHECK(has_issue(output["validation"]["issues"], "invalid_encoding", "latin1.md"));
+
+  const auto manifest = pmdocs::run(args({"manifest", root_string, "--source", "main-docs", "--no-skills", "--no-llms", "--no-llms-full"}));
+  CHECK(manifest.exit_code == 1);
+  CHECK(manifest.stderr_text.find("latin1.md: File content is not valid UTF-8") != std::string::npos);
+  CHECK(manifest.stderr_text.find("type_error") == std::string::npos);
+
+  const auto push = pmdocs::run(args({
+    "push",
+    root_string,
+    "--source",
+    "main-docs",
+    "--endpoint",
+    "https://example.invalid/api/documentation/sync",
+    "--github-oidc",
+    "--oidc-token-env",
+    "PMDOCS_TEST_UNUSED_TOKEN",
+    "--no-skills",
+    "--no-llms",
+    "--no-llms-full",
+  }));
+  CHECK(push.exit_code == 1);
+  CHECK(push.stderr_text.find("latin1.md: File content is not valid UTF-8") != std::string::npos);
+}
+
+TEST_CASE("trailing separators in path arguments are handled") {
+  TempDir temp{"pmdocs-test-trailing"};
+  const auto docs = temp.path() / "mydocs";
+  write_text(docs / "index.md", "# Home\n");
+  const auto data_root = create_skill_fixture(temp.path());
+  EnvGuard data_dir{"PMDOCS_DATA_DIR", data_root.string()};
+  // The source id prefers GITHUB_REPOSITORY, which GitHub Actions always sets.
+  EnvGuard repository{"GITHUB_REPOSITORY", ""};
+  CwdGuard cwd{temp.path()};
+
+  const auto validate = pmdocs::run(args({"validate", "./mydocs/", "--no-skills"}));
+  CHECK(validate.exit_code == 0);
+  CHECK(validate.stdout_text.find("Source: mydocs\n") != std::string::npos);
+
+  const auto skill = pmdocs::run(args({"install", "skill", "--codex", "--out", "skillsout/", "--dry-run"}));
+  CHECK(skill.exit_code == 0);
+  CHECK(skill.stdout_text.find("payload-markdown: " + (temp.path() / "payload-markdown").lexically_normal().string()) != std::string::npos);
+
+  std::filesystem::create_directories(temp.path() / "app" / "(payload)");
+  const auto routes = pmdocs::run(args({"install", "routes", "--payload-app", "app/(payload)/", "--dry-run"}));
+  CHECK(routes.exit_code == 0);
+  CHECK(routes.stderr_text.empty());
+}
+
+TEST_CASE("validate, plan and push check the serialized request body size") {
+  TempDir temp{"pmdocs-test-body-size"};
+  const auto root = temp.path() / "docs";
+  const auto root_string = root.string();
+  // 300 content bytes become 600+ body bytes because every quote is escaped.
+  write_text(root / "index.md", std::string(300, '"'));
+
+  const auto small = pmdocs::run(args({"validate", root_string, "--source", "main-docs", "--no-skills", "--no-llms", "--no-llms-full", "--max-total-bytes", "1000", "--max-body-bytes", "500", "--json"}));
+  CHECK(small.exit_code == 1);
+  const auto output = nlohmann::json::parse(small.stdout_text);
+  CHECK(output["requestBodyBytes"].get<std::size_t>() > 600);
+  CHECK(output["validation"]["issues"][0]["code"] == "body_too_large");
+
+  const auto plan = pmdocs::run(args({"plan", root_string, "--source", "main-docs", "--no-skills", "--no-llms", "--no-llms-full", "--max-body-bytes", "500"}));
+  CHECK(plan.exit_code == 1);
+  CHECK(plan.stderr_text.find("above the server limit of 500 bytes") != std::string::npos);
+
+  const auto push = pmdocs::run(args({
+    "push", root_string, "--source", "main-docs", "--no-skills", "--no-llms", "--no-llms-full",
+    "--endpoint", "https://example.invalid/api/documentation/sync",
+    "--github-oidc", "--oidc-token-env", "PMDOCS_TEST_UNUSED_TOKEN",
+    "--max-body-bytes", "500",
+  }));
+  CHECK(push.exit_code == 1);
+  CHECK(push.stderr_text.find("Sync request body is ") != std::string::npos);
+
+  const auto large = pmdocs::run(args({"validate", root_string, "--source", "main-docs", "--no-skills", "--no-llms", "--no-llms-full", "--max-body-bytes", "10000"}));
+  CHECK(large.exit_code == 0);
+}
+
+TEST_CASE("validate reports in-manifest route collisions per file") {
+  TempDir temp{"pmdocs-test-collisions"};
+  const auto root = temp.path() / "docs";
+  const auto root_string = root.string();
+  write_text(root / "index.md", "# Home\n");
+  write_text(root / "Index.md", "# Home again\n");
+  write_text(root / "sub.md", "# Sub\n");
+  write_text(root / "sub" / "index.md", "# Sub index\n");
+  write_text(root / "Guide.md", "# Guide\n");
+  write_text(root / "guide.md", "# guide\n");
+
+  const auto result = pmdocs::run(args({"validate", root_string, "--source", "main-docs", "--json", "--no-skills", "--no-llms", "--no-llms-full"}));
+  CHECK(result.exit_code == 1);
+  const auto output = nlohmann::json::parse(result.stdout_text);
+  const auto& issues = output["validation"]["issues"];
+  CHECK(has_issue(issues, "route_collision", "index.md"));
+  CHECK(has_issue(issues, "route_collision", "Index.md"));
+  CHECK(has_issue(issues, "route_collision", "sub.md"));
+  CHECK(has_issue(issues, "route_collision", "sub/index.md"));
+  CHECK(has_issue(output["validation"]["warnings"], "route_case_collision", "Guide.md"));
+  CHECK_FALSE(has_issue(issues, "route_collision", "Guide.md"));
+
+  const auto text = pmdocs::run(args({"validate", root_string, "--source", "main-docs", "--no-skills", "--no-llms", "--no-llms-full"}));
+  CHECK(text.stdout_text.find("- Index.md: Route \"/main-docs\" is also derived by index.md.") != std::string::npos);
+}
+
+TEST_CASE("push prints server issues, route collisions and conflicts per file") {
+  TempDir temp{"pmdocs-test-push-details"};
+  const auto root = temp.path() / "docs";
+  const auto root_string = root.string();
+  write_text(root / "index.md", "# Home\n");
+  EnvGuard oidc{"PMDOCS_TEST_OIDC_TOKEN", "oidc-token"};
+  const auto push = [&](const std::string& endpoint, bool json_output) {
+    std::vector<std::string_view> arguments = {
+      "push", root_string, "--endpoint", endpoint, "--source", "main-docs",
+      "--github-oidc", "--oidc-token-env", "PMDOCS_TEST_OIDC_TOKEN", "--dry-run",
+      "--no-skills", "--no-llms", "--no-llms-full",
+    };
+    if (json_output) {
+      arguments.emplace_back("--json");
+    }
+    return pmdocs::run(arguments);
+  };
+
+  {
+    SingleRequestServer server{
+      400,
+      R"({"ok":false,"error":{"code":"invalid_manifest","message":"Sync manifest is invalid.","issues":[{"code":"invalid_frontmatter","message":"Frontmatter field \"order\" must be a number.","path":"bad.md","severity":"error"},{"code":"route_whitespace","message":"Route segment has whitespace.","path":"a b.md","severity":"warning"}]}})",
+    };
+    const auto result = push(server.url(), false);
+    CHECK(result.exit_code == 1);
+    CHECK(result.stderr_text.find("Sync manifest is invalid.\n") != std::string::npos);
+    CHECK(result.stderr_text.find("- bad.md: Frontmatter field \"order\" must be a number. [invalid_frontmatter]") != std::string::npos);
+    CHECK(result.stderr_text.find("- a b.md: Route segment has whitespace. [warning: route_whitespace]") != std::string::npos);
+    (void)server.captured_request();
+  }
+
+  {
+    SingleRequestServer server{
+      409,
+      R"({"ok":false,"error":{"code":"route_collision","message":"One or more docs routes collide with an existing route reservation."},"routeCollisions":[{"reason":"exact_route_collision","route":"/main-docs/sub"},{"reason":"existing_doc_route_collision","route":"/main-docs","paths":["index.md"]}]})",
+    };
+    const auto result = push(server.url(), false);
+    CHECK(result.exit_code == 1);
+    CHECK(result.stderr_text.find("- /main-docs/sub (exact_route_collision)") != std::string::npos);
+    CHECK(result.stderr_text.find("- /main-docs (existing_doc_route_collision): index.md") != std::string::npos);
+    (void)server.captured_request();
+  }
+
+  {
+    SingleRequestServer server{
+      409,
+      R"({"ok":false,"error":{"code":"manual_edit_conflict","message":"One or more docs were modified outside the docs sync workflow."},"conflicts":[{"reason":"manual_edit","route":"/main-docs","sourcePath":"index.md"}]})",
+    };
+    const auto result = push(server.url(), true);
+    CHECK(result.exit_code == 1);
+    const auto output = nlohmann::json::parse(result.stdout_text);
+    CHECK(output["failure"]["code"] == "manual_edit_conflict");
+    CHECK(output["failure"]["conflicts"][0]["sourcePath"] == "index.md");
+    CHECK(output["failure"]["issues"].empty());
+    CHECK(output["failure"]["routeCollisions"].empty());
+    (void)server.captured_request();
+  }
+}
+
+TEST_CASE("push refuses plain http endpoints on non-loopback hosts") {
+  TempDir temp{"pmdocs-test-insecure-http"};
+  const auto root = temp.path() / "docs";
+  const auto root_string = root.string();
+  const auto keys = pmdocs::generate_ed25519_key_pair("pem");
+  const auto key_path = temp.path() / "key.pem";
+  const auto key_path_string = key_path.string();
+  write_text(root / "index.md", "# Home\n");
+  write_text(key_path, keys.private_key);
+  EnvGuard oidc{"PMDOCS_TEST_OIDC_TOKEN", "oidc-token"};
+
+  for (const auto* endpoint : {"http://docs.example.invalid/api/documentation/sync", "http://127.example.invalid/api/documentation/sync", "http://10.0.0.5/api/documentation/sync"}) {
+    INFO(endpoint);
+    const auto oidc = pmdocs::run(args({"push", root_string, "--endpoint", endpoint, "--source", "main-docs", "--github-oidc", "--oidc-token-env", "PMDOCS_TEST_OIDC_TOKEN", "--no-skills", "--no-llms", "--no-llms-full"}));
+    CHECK(oidc.exit_code == 1);
+    CHECK(oidc.stderr_text.find("Refusing to send docs sync credentials over plain http://") != std::string::npos);
+
+    const auto signed_push = pmdocs::run(args({"push", root_string, "--endpoint", endpoint, "--source", "main-docs", "--key-id", "k", "--private-key-file", key_path_string, "--no-skills", "--no-llms", "--no-llms-full"}));
+    CHECK(signed_push.exit_code == 1);
+    CHECK(signed_push.stderr_text.find("Refusing to send docs sync credentials over plain http://") != std::string::npos);
+  }
+
+  // The explicit override reaches the network layer (and fails to resolve).
+  const auto allowed = pmdocs::run(args({"push", root_string, "--endpoint", "http://docs.example.invalid/api/documentation/sync", "--source", "main-docs", "--github-oidc", "--oidc-token-env", "PMDOCS_TEST_OIDC_TOKEN", "--allow-insecure-http", "--no-skills", "--no-llms", "--no-llms-full"}));
+  CHECK(allowed.exit_code == 1);
+  CHECK(allowed.stderr_text.find("Refusing") == std::string::npos);
+  CHECK(allowed.stderr_text.find("HTTP request failed") != std::string::npos);
+
+  // Loopback stays allowed without the flag.
+  SingleRequestServer server{200, R"({"ok":true,"summary":{}})"};
+  const auto loopback = pmdocs::run(args({"push", root_string, "--endpoint", server.url(), "--source", "main-docs", "--github-oidc", "--oidc-token-env", "PMDOCS_TEST_OIDC_TOKEN", "--dry-run", "--no-skills", "--no-llms", "--no-llms-full"}));
+  CHECK(loopback.exit_code == 0);
+  (void)server.captured_request();
+}
+
+namespace {
+
+class UmaskGuard {
+public:
+  explicit UmaskGuard(mode_t mask)
+    : previous_{::umask(mask)}
+  {}
+
+  UmaskGuard(const UmaskGuard&) = delete;
+  UmaskGuard& operator=(const UmaskGuard&) = delete;
+
+  ~UmaskGuard() {
+    ::umask(previous_);
+  }
+
+private:
+  mode_t previous_;
+};
+
+mode_t file_mode(const std::filesystem::path& path) {
+  struct stat info {};
+  REQUIRE(::stat(path.c_str(), &info) == 0);
+  return info.st_mode & 0777;
+}
+
+} // namespace
+
+TEST_CASE("keygen creates the private key 0600 regardless of umask and on --force") {
+  TempDir temp{"pmdocs-test-keygen-mode"};
+  const auto out = temp.path() / "nested" / "keys";
+  const auto out_string = out.string();
+  UmaskGuard umask{0};
+
+  const auto first = pmdocs::run(args({"keygen", "--out", out_string}));
+  REQUIRE(first.exit_code == 0);
+  CHECK(file_mode(out / "docs-sync-private.pem") == 0600);
+  CHECK(file_mode(out) == 0700);
+  CHECK(read_text(out / "docs-sync-private.pem").find("BEGIN PRIVATE KEY") != std::string::npos);
+
+  std::filesystem::permissions(out / "docs-sync-private.pem", std::filesystem::perms::owner_read | std::filesystem::perms::owner_write | std::filesystem::perms::group_read | std::filesystem::perms::others_read);
+  REQUIRE(file_mode(out / "docs-sync-private.pem") == 0644);
+  const auto forced = pmdocs::run(args({"keygen", "--out", out_string, "--force"}));
+  REQUIRE(forced.exit_code == 0);
+  CHECK(file_mode(out / "docs-sync-private.pem") == 0600);
+
+  for (const auto& entry : std::filesystem::directory_iterator{out}) {
+    CHECK(entry.path().filename().string().find(".tmp-") == std::string::npos);
+  }
+}
+
+TEST_CASE("push warns when the private key file is readable by other users") {
+  TempDir temp{"pmdocs-test-key-mode-warning"};
+  const auto root = temp.path() / "docs";
+  const auto root_string = root.string();
+  const auto keys = pmdocs::generate_ed25519_key_pair("pem");
+  const auto key_path = temp.path() / "key.pem";
+  const auto key_path_string = key_path.string();
+  write_text(root / "index.md", "# Home\n");
+  write_text(key_path, keys.private_key);
+  std::filesystem::permissions(key_path, std::filesystem::perms::owner_read | std::filesystem::perms::owner_write | std::filesystem::perms::group_read | std::filesystem::perms::others_read);
+
+  SingleRequestServer server{200, R"({"ok":true,"summary":{}})"};
+  const auto result = pmdocs::run(args({"push", root_string, "--endpoint", server.url(), "--source", "main-docs", "--key-id", "k", "--private-key-file", key_path_string, "--dry-run", "--no-skills", "--no-llms", "--no-llms-full"}));
+  CHECK(result.exit_code == 0);
+  CHECK(result.stderr_text.find("is accessible by other users (mode 0644)") != std::string::npos);
+  (void)server.captured_request();
+
+  std::filesystem::permissions(key_path, std::filesystem::perms::owner_read | std::filesystem::perms::owner_write);
+  SingleRequestServer second{200, R"({"ok":true,"summary":{}})"};
+  const auto quiet = pmdocs::run(args({"push", root_string, "--endpoint", second.url(), "--source", "main-docs", "--key-id", "k", "--private-key-file", key_path_string, "--dry-run", "--no-skills", "--no-llms", "--no-llms-full"}));
+  CHECK(quiet.exit_code == 0);
+  CHECK(quiet.stderr_text.find("accessible by other users") == std::string::npos);
+  (void)second.captured_request();
+}
+
+TEST_CASE("plan matches server route bases, publish state and existing assets") {
+  TempDir temp{"pmdocs-test-plan-server"};
+  const auto root = temp.path() / "docs";
+  const auto root_string = root.string();
+  const auto llms = temp.path() / "llms.txt";
+  const auto llms_string = llms.string();
+  write_text(root / "b.md", "# B\n");
+  write_text(root / "fx1" / "a.md", "# A\n");
+  write_text(llms, "# llms\n");
+
+  const auto routes_of = [](const nlohmann::json& plan) {
+    std::map<std::string, std::string> routes;
+    for (const auto& change : plan["docs"]["create"]) {
+      routes[change["sourcePath"].get<std::string>()] = change["desired"]["route"].get<std::string>();
+    }
+    return routes;
+  };
+
+  const auto default_plan = nlohmann::json::parse(pmdocs::run(args({"plan", root_string, "--source", "fx1", "--no-skills", "--no-llms", "--no-llms-full", "--json"})).stdout_text);
+  CHECK(default_plan["routeBase"] == "/fx1");
+  CHECK(routes_of(default_plan)["fx1/a.md"] == "/fx1/a");
+
+  const auto grouped = pmdocs::run(args({"plan", root_string, "--source", "fx1", "--route-base", "/grp/fx1", "--no-skills", "--no-llms", "--no-llms-full", "--json"}));
+  REQUIRE(grouped.exit_code == 0);
+  const auto grouped_plan = nlohmann::json::parse(grouped.stdout_text);
+  CHECK(routes_of(grouped_plan)["b.md"] == "/grp/fx1/b");
+  CHECK(routes_of(grouped_plan)["fx1/a.md"] == "/grp/fx1/fx1/a");
+
+  const auto b_hash = pmdocs::sha256_hex("# B\n");
+  const auto llms_hash = pmdocs::sha256_hex("# llms\n");
+  write_text(temp.path() / "existing.json", R"([{"route":"/fx1/b","sourcePath":"b.md","sourceHash":")" + b_hash + R"(","status":"published"}])");
+  write_text(temp.path() / "existing-assets.json", R"([{"sourcePath":"llms.txt","contentType":"text/plain; charset=utf-8","kind":"llms","route":"/llms.txt","sourceHash":")" + llms_hash + R"("},{"sourcePath":"old.txt","contentType":"text/plain; charset=utf-8","kind":"static"}])");
+  const auto existing = (temp.path() / "existing.json").string();
+  const auto existing_assets = (temp.path() / "existing-assets.json").string();
+
+  const auto draft_plan = nlohmann::json::parse(pmdocs::run(args({"plan", root_string, "--source", "fx1", "--existing", existing, "--no-skills", "--no-llms", "--no-llms-full", "--json"})).stdout_text);
+  CHECK(draft_plan["docs"]["update"].size() == 1);
+
+  const auto published = pmdocs::run(args({"plan", root_string, "--source", "fx1", "--existing", existing, "--existing-assets", existing_assets, "--publish", "--llms", llms_string, "--no-skills", "--no-llms-full", "--json"}));
+  REQUIRE(published.exit_code == 0);
+  const auto published_plan = nlohmann::json::parse(published.stdout_text);
+  CHECK(published_plan["publish"] == true);
+  CHECK(published_plan["docs"]["unchanged"].size() == 1);
+  CHECK(published_plan["docs"]["update"].empty());
+  CHECK(published_plan["assets"]["unchanged"].size() == 1);
+  CHECK(published_plan["assets"]["archive"].size() == 1);
+  CHECK(published_plan["assets"]["create"].empty());
+
+  const auto help = pmdocs::run(args({"plan", "--help"}));
+  CHECK(help.stdout_text.find("--route-base") != std::string::npos);
+  CHECK(help.stdout_text.find("--publish") != std::string::npos);
+}
+
+TEST_CASE("doctor reports missing skill data as degraded with a non-zero exit") {
+  TempDir temp{"pmdocs-test-doctor-degraded"};
+  const auto data_root = temp.path() / "empty-data";
+  std::filesystem::create_directories(data_root);
+
+  {
+    EnvGuard data_dir{"PMDOCS_DATA_DIR", data_root.string()};
+    const auto degraded = pmdocs::run(args({"doctor"}));
+    CHECK(degraded.exit_code == 1);
+    CHECK(degraded.stdout_text.find("status: degraded") != std::string::npos);
+    CHECK(degraded.stdout_text.find("cannot work") != std::string::npos);
+  }
+
+  {
+    write_text(data_root / "skills" / "payload-markdown-docs" / "codex" / "SKILL.md", "# Skill\n");
+    EnvGuard data_dir{"PMDOCS_DATA_DIR", data_root.string()};
+    const auto primary_only = pmdocs::run(args({"doctor"}));
+    CHECK(primary_only.exit_code == 0);
+    CHECK(primary_only.stdout_text.find("status: ok") != std::string::npos);
+    CHECK(primary_only.stdout_text.find("companion skill is not bundled") != std::string::npos);
+  }
+
+  {
+    const auto full_data = create_skill_fixture(temp.path());
+    EnvGuard data_dir{"PMDOCS_DATA_DIR", full_data.string()};
+    const auto full = pmdocs::run(args({"doctor"}));
+    CHECK(full.exit_code == 0);
+    CHECK(full.stdout_text.find("diagnostics:") == std::string::npos);
+  }
 }

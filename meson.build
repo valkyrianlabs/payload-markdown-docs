@@ -1,9 +1,9 @@
 project(
   'payload-markdown-docs',
   'cpp',
-  version: '1.0.5',
+  version: '1.1.0',
   license: 'MIT',
-  meson_version: '>=1.2.0',
+  meson_version: '>=1.3.0',
   default_options: [
     'buildtype=debugoptimized',
     'cpp_std=c++23,c++20',
@@ -31,12 +31,14 @@ subdir('cli')
 
 if get_option('install_skill_data')
   payload_markdown_skill_dir = 'node_modules' / '@valkyrianlabs' / 'payload-markdown' / 'skills' / 'payload-markdown'
+  companion_skill_option = get_option('companion_skill_data')
+  companion_skill_found = fs.exists(payload_markdown_skill_dir / 'codex' / 'SKILL.md')
 
-  if not fs.exists(payload_markdown_skill_dir / 'codex' / 'SKILL.md')
+  if companion_skill_option.enabled() and not companion_skill_found
     error(
       'payload-markdown companion skill data was not found at '
       + payload_markdown_skill_dir
-      + '. Run pnpm install before building the native pmdocs package.'
+      + '. Run pnpm install before building the native pmdocs package, or pass -Dcompanion_skill_data=auto.'
     )
   endif
 
@@ -45,8 +47,12 @@ if get_option('install_skill_data')
     install_dir: pmdocs_data_dir / 'skills',
   )
 
-  install_subdir(
-    payload_markdown_skill_dir,
-    install_dir: pmdocs_data_dir / 'skills',
-  )
+  if companion_skill_found and not companion_skill_option.disabled()
+    install_subdir(
+      payload_markdown_skill_dir,
+      install_dir: pmdocs_data_dir / 'skills',
+    )
+  elif not companion_skill_option.disabled()
+    warning('payload-markdown companion skill data not found; installing payload-markdown-docs skill data only.')
+  endif
 endif

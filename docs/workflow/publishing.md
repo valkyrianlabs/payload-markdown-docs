@@ -38,6 +38,12 @@ If publishing is not allowed, the endpoint returns a deterministic error.
 
 When `--publish` is not requested, synced generated docs are written as drafts.
 
+A sync records `sync.lastSyncedAt` and `sync.lastStatus` on the docs set
+without creating a docs-set version, so admin edits saved as a draft on the
+docs set stay unpublished. The only publish a sync performs on the docs set
+itself is the first `--publish` sync of a docs set that has never been
+published.
+
 ## Hard Delete Is Separate
 
 Publishing does not imply hard delete. Hard delete requires `sync.allowHardDelete: true` and `deleteBehavior: 'delete'`. Archive remains the safer default.

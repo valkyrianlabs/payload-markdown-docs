@@ -13,30 +13,9 @@ import {
   DEFAULT_DOCS_GROUPS_COLLECTION_SLUG,
   DEFAULT_DOCS_SETS_COLLECTION_SLUG,
 } from '../constants.js'
-import { deriveDocsSetRouteBase, joinRouteSegments } from '../routing/index.js'
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value)
-
-const getRecordId = (doc: unknown): string | undefined => {
-  if (!isRecord(doc)) {
-    return undefined
-  }
-
-  if (typeof doc.id === 'string' || typeof doc.id === 'number') {
-    return String(doc.id)
-  }
-
-  return undefined
-}
-
-const getRelationshipId = (value: unknown): string | undefined => {
-  if (typeof value === 'string' || typeof value === 'number') {
-    return String(value)
-  }
-
-  return getRecordId(value)
-}
+import { getDocsRecordLifecycleStatus } from '../payload/visibility.js'
+import { indexDocsGroupsById, resolveDocsSetRoutes } from '../routing/docsSetRoutes.js'
+import { getRecordId, getRelationshipId, isRecord } from '../shared/records.js'
 
 const normalizeAdminRoute = (adminRoute = '/admin'): string => {
   const trimmed = adminRoute.trim()
@@ -80,21 +59,8 @@ const getOverrideSummary = (overrides: RawDocsRecord['overrides']): string[] => 
   return summary
 }
 
-const getDocStatus = (doc: RawDocsRecord): DocsSetManagerDocItem['status'] => {
-  if (doc.sync?.archived === true) {
-    return 'archived'
-  }
-
-  if (doc._status === 'draft') {
-    return 'draft'
-  }
-
-  if (doc._status === 'published') {
-    return 'published'
-  }
-
-  return 'synced'
-}
+const getDocStatus = (doc: RawDocsRecord): DocsSetManagerDocItem['status'] =>
+  getDocsRecordLifecycleStatus(doc)
 
 const getSourcePathSegments = (sourcePath: string): string[] => {
   const withoutExtension = sourcePath.replace(/\.md$/i, '')
@@ -107,63 +73,17 @@ const getSourcePathSegments = (sourcePath: string): string[] => {
   return segments
 }
 
-const getGroupRoutePath = ({
-  groupId,
-  groupsById,
-  seen = new Set<string>(),
-}: {
-  groupId?: string
-  groupsById: Map<string, RawDocsGroupRecord>
-  seen?: Set<string>
-}): string | undefined => {
-  if (!groupId || seen.has(groupId)) {
-    return undefined
-  }
-
-  const group = groupsById.get(groupId)
-
-  if (!group?.slug) {
-    return undefined
-  }
-
-  return joinRouteSegments(
-    getGroupRoutePath({
-      groupId: getRelationshipId(group.parent),
-      groupsById,
-      seen: new Set([groupId, ...seen]),
-    }),
-    group.slug,
-  )
-}
-
 const getDocsSetRouteBase = ({
   docsGroups,
   docsSet,
 }: {
   docsGroups: RawDocsGroupRecord[]
   docsSet: RawDocsSetRecord
-}): string => {
-  if (!docsSet.slug) {
-    return ''
-  }
-
-  const groupsById = new Map(
-    docsGroups.flatMap((group) => {
-      const id = getRecordId(group)
-
-      return id ? [[id, group]] : []
-    }),
-  )
-
-  return deriveDocsSetRouteBase({
-    docsSetSlug: docsSet.slug,
-    groupRoutePath: getGroupRoutePath({
-      groupId: getRelationshipId(docsSet.group),
-      groupsById,
-    }),
-    routeMode: docsSet.routeMode,
-  })
-}
+}): string =>
+  resolveDocsSetRoutes({
+    doc: docsSet,
+    groupsById: indexDocsGroupsById(docsGroups),
+  })?.routeBase ?? ''
 
 const titleCaseSegment = (segment: string): string =>
   segment

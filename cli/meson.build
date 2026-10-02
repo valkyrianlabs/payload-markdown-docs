@@ -65,6 +65,7 @@ pmdocs_deps = [
 pmdocs_sources = files(
   'src/cli.cpp',
   'src/docs.cpp',
+  'src/sync_contract.cpp',
 )
 
 pmdocs_lib = static_library(
@@ -94,6 +95,21 @@ pmdocs_test_exe = executable(
   link_with: pmdocs_lib,
 )
 
+pmdocs_contract_test_exe = executable(
+  'pmdocs_contract_tests',
+  files('tests/contract_tests.cpp'),
+  dependencies: [
+    doctest_dep,
+    nlohmann_json_dep,
+  ],
+  include_directories: pmdocs_include_dirs,
+  link_with: pmdocs_lib,
+)
+
+pmdocs_contract_vectors_dir = meson.project_source_root() / 'contracts' / 'vectors'
+pmdocs_contract_test_env = environment()
+pmdocs_contract_test_env.set('PMDOCS_CONTRACT_VECTORS_DIR', pmdocs_contract_vectors_dir)
+
 pmdocs_test_env = environment()
 pmdocs_test_env.set('PMDOCS_DATA_DIR', meson.project_source_root())
 pmdocs_docs_fixture = meson.project_source_root() / 'dev' / 'docs-fixtures' / 'basic'
@@ -110,6 +126,7 @@ test('pmdocs validate fixture', pmdocs_exe, args: ['validate', pmdocs_docs_fixtu
 test('pmdocs manifest fixture', pmdocs_exe, args: ['manifest', pmdocs_docs_fixture, '--source', 'payload-markdown-docs'])
 test('pmdocs plan fixture', pmdocs_exe, args: ['plan', pmdocs_docs_fixture, '--source', 'payload-markdown-docs'])
 test('pmdocs unit tests', pmdocs_test_exe)
+test('pmdocs contract vectors', pmdocs_contract_test_exe, env: pmdocs_contract_test_env)
 
 summary(
   {

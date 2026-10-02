@@ -1,0 +1,108 @@
+{
+  "contractVersion": 1,
+  "description": "Strict UTF-8 validity (WHATWG decoder with fatal: true): overlong forms, surrogates, code points above U+10FFFF and truncated sequences are invalid. pmdocs reports invalid files as invalid_encoding before building a manifest.",
+  "cases": [
+    {
+      "hex": "",
+      "expect": {
+        "valid": true
+      }
+    },
+    {
+      "hex": "41",
+      "expect": {
+        "valid": true
+      }
+    },
+    {
+      "hex": "436166c3a9",
+      "expect": {
+        "valid": true
+      }
+    },
+    {
+      "hex": "e29c93",
+      "expect": {
+        "valid": true
+      }
+    },
+    {
+      "hex": "f09d849e",
+      "expect": {
+        "valid": true
+      }
+    },
+    {
+      "hex": "ff",
+      "expect": {
+        "valid": false
+      }
+    },
+    {
+      "hex": "436166e9",
+      "expect": {
+        "valid": false
+      }
+    },
+    {
+      "hex": "c0af",
+      "expect": {
+        "valid": false
+      }
+    },
+    {
+      "hex": "e080af",
+      "expect": {
+        "valid": false
+      }
+    },
+    {
+      "hex": "eda080",
+      "expect": {
+        "valid": false
+      }
+    },
+    {
+      "hex": "f4908080",
+      "expect": {
+        "valid": false
+      }
+    },
+    {
+      "hex": "c3",
+      "expect": {
+        "valid": false
+      }
+    },
+    {
+      "hex": "e29c",
+      "expect": {
+        "valid": false
+      }
+    },
+    {
+      "hex": "80",
+      "expect": {
+        "valid": false
+      }
+    },
+    {
+      "hex": "efbbbf23",
+      "expect": {
+        "valid": true
+      }
+    },
+    {
+      "hex": "f8888080",
+      "expect": {
+        "valid": false
+      }
+    },
+    {
+      "hex": "c2a0",
+      "expect": {
+        "valid": true
+      }
+    }
+  ]
+}

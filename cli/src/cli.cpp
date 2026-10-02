@@ -83,6 +83,18 @@ void write_file(const std::filesystem::path& path, std::string_view content) {
   }
 }
 
+// Absolute, lexically normal, and without a trailing separator, so "dir/",
+// "dir/." and "." compare equal to "dir" in containment checks.
+std::filesystem::path absolute_normalized(const std::filesystem::path& path) {
+  auto normalized = std::filesystem::absolute(path).lexically_normal();
+
+  if (!normalized.has_filename() && normalized.has_relative_path()) {
+    normalized = normalized.parent_path();
+  }
+
+  return normalized;
+}
+
 std::string replace_all(std::string input, std::string_view needle, std::string_view replacement) {
   std::size_t offset = 0;
 
@@ -119,10 +131,6 @@ bool is_safe_relative_path(const std::filesystem::path& path) {
   }
 
   return true;
-}
-
-std::filesystem::path absolute_normalized(const std::filesystem::path& path) {
-  return std::filesystem::absolute(path).lexically_normal();
 }
 
 bool is_supported_agent(std::string_view agent) {
@@ -279,11 +287,13 @@ std::filesystem::path project_skill_dir_for_package(
   const InstallSkillOptions& options,
   std::string_view package_slug
 ) {
+  const auto out_dir = absolute_normalized(options.out_dir);
+
   if (package_slug == kPrimarySkillName) {
-    return options.out_dir;
+    return out_dir;
   }
 
-  return options.out_dir.parent_path() / std::string{package_slug};
+  return out_dir.parent_path() / std::string{package_slug};
 }
 
 std::vector<SkillInstallTarget> skill_install_targets(const InstallSkillOptions& options) {
@@ -638,21 +648,35 @@ std::string docs_command_help_text(std::string_view command) {
   out << "  --no-skills               Exclude skill artifacts.\n";
   out << "  --no-llms                 Exclude llms.txt.\n";
   out << "  --no-llms-full            Exclude llms-full.txt.\n";
+  out << "  --skip-hidden             Skip hidden files and directories (names starting with a dot).\n";
+
+  if (command == "validate" || command == "plan") {
+    out << "  --route-base <path>        Docs route base for local routes. Defaults to /<source>; use the docs\n";
+    out << "                             set's route for grouped (/<group>/<source>) or product-nested\n";
+    out << "                             (/<group>/<source>/docs) docs sets.\n";
+    out << "  --asset-route-base <path>  Asset route base. Defaults to --route-base; use /<group>/<source>\n";
+    out << "                             for product-nested docs sets.\n";
+  }
 
   if (command == "plan") {
     out << "  --existing <path>          JSON array of existing docs records.\n";
+    out << "  --existing-assets <path>   JSON array of existing asset records.\n";
+    out << "  --publish                  Plan published output, like push --publish.\n";
     out << "  --delete-behavior <value>  archive, delete, draft, or ignore.\n";
   }
 
   out << "  --json                     Print JSON output.\n";
   out << "  --pretty                   Pretty-print JSON output.\n";
-  out << "  --source <id>              Docs set slug. Defaults to the GitHub repository name in GitHub Actions, otherwise local-docs.\n";
+  out << "  --source <id>              Docs set slug. Defaults to the repository name from GITHUB_REPOSITORY,\n";
+  out << "                             otherwise the docs root directory name (local-docs when it is \"docs\").\n";
   out << "  --repository <repo>        Source repository metadata.\n";
   out << "  --branch <branch>          Source branch metadata.\n";
   out << "  --commit <sha>             Source commit metadata.\n";
-  out << "  --max-files <number>       Maximum file count.\n";
-  out << "  --max-file-bytes <number>  Maximum single file size.\n";
-  out << "  --max-total-bytes <number> Maximum total Markdown bytes.\n";
+  out << "  --max-files <number>       Maximum docs file count and asset count. Defaults to 500.\n";
+  out << "  --max-file-bytes <number>  Maximum size of a single docs file or asset. Defaults to 500000.\n";
+  out << "  --max-total-bytes <number> Maximum total bytes of docs and asset contents. Defaults to 5000000.\n";
+  out << "  --max-body-bytes <number>  Maximum serialized sync request body bytes; match the server's sync\n";
+  out << "                             maxBodyBytes. Defaults to 5000000.\n";
   out << "  --help                     Show this help.\n";
 
   return out.str();
@@ -681,7 +705,10 @@ Options:
   --no-skills               Exclude skill artifacts.
   --no-llms                 Exclude llms.txt.
   --no-llms-full            Exclude llms-full.txt.
-  --endpoint <url>          Full Payload sync endpoint URL.
+  --skip-hidden             Skip hidden files and directories (names starting with a dot).
+  --endpoint <url>          Full Payload sync endpoint URL. Must be https:// unless the host is
+                            localhost, 127.x.x.x or ::1.
+  --allow-insecure-http     Allow a plain http:// endpoint on any host (trusted networks only).
   --key-id <id>             Server-configured Ed25519 key id.
   --private-key-file <path> Private key file from keygen, or an unencrypted OpenSSH Ed25519 key.
   --private-key-env <name>  Environment variable containing the private key.
@@ -693,13 +720,17 @@ Options:
   --delete-behavior <value> archive, delete, draft, or ignore. Defaults to archive.
   --json                    Print structured JSON output.
   --pretty                  Pretty-print JSON output with --json.
-  --source <id>             Docs set slug. Defaults to the GitHub repository name in GitHub Actions, otherwise local-docs.
+  --source <id>             Docs set slug. Defaults to the repository name from GITHUB_REPOSITORY,
+                            otherwise the docs root directory name (local-docs when it is "docs").
+                            Pass it explicitly in CI.
   --repository <repo>       Source repository metadata.
   --branch <branch>         Source branch metadata.
   --commit <sha>            Source commit metadata.
-  --max-files <number>      Maximum file count.
-  --max-file-bytes <number> Maximum single file size.
-  --max-total-bytes <number> Maximum total Markdown bytes.
+  --max-files <number>      Maximum docs file count and asset count. Defaults to 500.
+  --max-file-bytes <number> Maximum size of a single docs file or asset. Defaults to 500000.
+  --max-total-bytes <number> Maximum total bytes of docs and asset contents. Defaults to 5000000.
+  --max-body-bytes <number> Maximum serialized request body bytes; match the server's sync
+                            maxBodyBytes. Defaults to 5000000.
   --help                    Show this help.
 
 GitHub OIDC requires workflow permissions: id-token: write and contents: read.
@@ -715,6 +746,9 @@ Usage:
 
 Reports local native CLI diagnostics only. It does not check networking,
 Payload server configuration, auth, OIDC, or signing.
+
+Exits 0 with "status: ok" when bundled skill data is present, and 1 with
+"status: degraded" when it is missing (pmdocs install skill cannot work).
 )";
 }
 
@@ -889,14 +923,36 @@ CommandResult doctor_result() {
   out << "\n";
   out << "project_skill_path: " << diagnostics["project_skill_path"].get<std::string>() << "\n";
 
+  const auto companion_found = std::ranges::find(found_skill_packages, std::string{"payload-markdown"}) != found_skill_packages.end();
+  std::vector<std::string> notes;
+
   if (!skill_found) {
-    out << "diagnostics:\n";
-    out << "- Bundled payload-markdown-docs skill data was not found. Run meson install or set PMDOCS_DATA_DIR for local tests.\n";
+    notes.push_back(
+      "Bundled payload-markdown-docs skill data was not found, so `pmdocs install skill` cannot work. "
+      "Reinstall pmdocs from a package that bundles skill data (the Debian package or the Homebrew formula), build with "
+      "-Dinstall_skill_data=true, or set PMDOCS_DATA_DIR."
+    );
+  } else if (!companion_found) {
+    notes.push_back(
+      "The payload-markdown companion skill is not bundled; `pmdocs install skill` installs payload-markdown-docs only."
+    );
   }
 
-  out << "status: ok\n";
+  if (!notes.empty()) {
+    out << "diagnostics:\n";
+    for (const auto& note : notes) {
+      out << "- " << note << "\n";
+    }
+  }
 
-  return make_stdout(out.str());
+  // Missing primary skill data breaks a documented command: report it as
+  // degraded with a non-zero exit so scripts and package tests notice.
+  out << "status: " << (skill_found ? "ok" : "degraded") << "\n";
+
+  return {
+    .exit_code = skill_found ? 0 : 1,
+    .stdout_text = out.str(),
+  };
 }
 
 struct ArgvBuffer {
@@ -1148,13 +1204,19 @@ CommandResult run(std::vector<std::string_view> args) {
     command->add_flag("--no-skills", options.no_skills, "Exclude skill artifacts.");
     command->add_flag("--no-llms", options.no_llms, "Exclude llms.txt.");
     command->add_flag("--no-llms-full", options.no_llms_full, "Exclude llms-full.txt.");
+    command->add_flag("--skip-hidden", options.skip_hidden, "Skip hidden files and directories (names starting with a dot).");
     command->add_option("--source", options.source_id, "Docs set/source id.");
+    if (command->get_name() == "validate" || command->get_name() == "plan") {
+      command->add_option("--route-base", options.route_base, "Docs route base used for local route derivation.");
+      command->add_option("--asset-route-base", options.asset_route_base, "Asset route base used for local asset routes.");
+    }
     command->add_option("--repository", options.repository, "Source repository metadata.");
     command->add_option("--branch", options.branch, "Source branch metadata.");
     command->add_option("--commit", options.commit, "Source commit metadata.");
-    command->add_option("--max-files", options.max_files, "Maximum file count.");
-    command->add_option("--max-file-bytes", options.max_file_bytes, "Maximum single file size.");
-    command->add_option("--max-total-bytes", options.max_total_bytes, "Maximum total Markdown bytes.");
+    command->add_option("--max-files", options.max_files, "Maximum docs file count and asset count.");
+    command->add_option("--max-file-bytes", options.max_file_bytes, "Maximum size of a single docs file or asset.");
+    command->add_option("--max-total-bytes", options.max_total_bytes, "Maximum total bytes of docs and asset contents.");
+    command->add_option("--max-body-bytes", options.max_body_bytes, "Maximum serialized sync request body bytes (server maxBodyBytes).");
     command->add_flag("--json", options.print_json, "Print JSON output.");
     command->add_flag("--pretty", options.pretty, "Pretty-print JSON output.");
     return refs;
@@ -1175,6 +1237,8 @@ CommandResult run(std::vector<std::string_view> args) {
   auto* plan = app.add_subcommand("plan", "Build a dry sync plan against optional existing docs records.");
   plan_options_refs = add_docs_options(plan, plan_options);
   plan->add_option("--existing", plan_options.existing_path, "JSON array of existing docs records.");
+  plan->add_option("--existing-assets", plan_options.existing_assets_path, "JSON array of existing asset records.");
+  plan->add_flag("--publish", plan_options.publish, "Plan published output (like push --publish).");
   plan->add_option("--delete-behavior", plan_options.delete_behavior, "archive, delete, draft, or ignore.");
   plan->callback([&plan_requested]() {
     plan_requested = true;
@@ -1183,6 +1247,7 @@ CommandResult run(std::vector<std::string_view> args) {
   auto* push = app.add_subcommand("push", "Sign and upload a docs package manifest to a Payload sync endpoint.");
   push_options_refs = add_docs_options(push, push_options);
   push->add_option("--endpoint", push_options.endpoint, "Full Payload sync endpoint URL.");
+  push->add_flag("--allow-insecure-http", push_options.allow_insecure_http, "Allow a plain http:// endpoint on a non-loopback host.");
   push->add_option("--key-id", push_options.key_id, "Server-configured Ed25519 key id.");
   push->add_option("--private-key-file", push_options.private_key_file, "Private key file.");
   push->add_option("--private-key-env", push_options.private_key_env, "Private key environment variable.");

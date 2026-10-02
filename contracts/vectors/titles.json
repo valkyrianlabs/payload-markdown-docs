@@ -1,0 +1,468 @@
+{
+  "contractVersion": 1,
+  "description": "Title inference: inferTitleFromMarkdown (first top-level H1, ATX or setext, inline markup stripped), titleFromSourcePath (filename fallback) and resolveDocsTitle (frontmatter title, then H1, then path). See contracts/README.md.",
+  "infer": [
+    {
+      "name": "ATX h1",
+      "markdown": "# Title",
+      "expect": "Title"
+    },
+    {
+      "name": "ATX h1 with extra spaces",
+      "markdown": "#    Spaced Title   ",
+      "expect": "Spaced Title"
+    },
+    {
+      "name": "closing sequence removed",
+      "markdown": "# Title ##",
+      "expect": "Title"
+    },
+    {
+      "name": "closing sequence needs a space",
+      "markdown": "# C#",
+      "expect": "C#"
+    },
+    {
+      "name": "escaped closing hash",
+      "markdown": "# Foo #\\#",
+      "expect": "Foo ##"
+    },
+    {
+      "name": "only closing sequence is empty",
+      "markdown": "# #\n\n# Real",
+      "expect": "Real"
+    },
+    {
+      "name": "tab after hash",
+      "markdown": "#\tTab Title",
+      "expect": "Tab Title"
+    },
+    {
+      "name": "no space after hash is not a heading",
+      "markdown": "#NoSpace\n\n# Real",
+      "expect": "Real"
+    },
+    {
+      "name": "seven hashes is not a heading",
+      "markdown": "####### Seven\n\n# Real",
+      "expect": "Real"
+    },
+    {
+      "name": "h2 only",
+      "markdown": "## Subheading\n\nText",
+      "expect": null
+    },
+    {
+      "name": "h2 before h1",
+      "markdown": "## Sub\n\n# Later Title",
+      "expect": "Later Title"
+    },
+    {
+      "name": "three-space indent",
+      "markdown": "   # Indented Three",
+      "expect": "Indented Three"
+    },
+    {
+      "name": "four-space indent is code",
+      "markdown": "    # indented code\n\n# Real",
+      "expect": "Real"
+    },
+    {
+      "name": "tab indent is code",
+      "markdown": "\t# tab code\n\n# Real",
+      "expect": "Real"
+    },
+    {
+      "name": "backtick fence",
+      "markdown": "```bash\n# install deps\n```\n\n# Real Title",
+      "expect": "Real Title"
+    },
+    {
+      "name": "tilde fence",
+      "markdown": "~~~\n# not a title\n~~~\n# Real",
+      "expect": "Real"
+    },
+    {
+      "name": "longer closing fence",
+      "markdown": "````\n# inside\n```\n# still inside\n`````\n# After",
+      "expect": "After"
+    },
+    {
+      "name": "unclosed fence hides the rest",
+      "markdown": "```\n# inside\n# also inside",
+      "expect": null
+    },
+    {
+      "name": "backtick in info string is not a fence",
+      "markdown": "```a`b\n# Title After",
+      "expect": "Title After"
+    },
+    {
+      "name": "setext h1",
+      "markdown": "Setext Title\n====",
+      "expect": "Setext Title"
+    },
+    {
+      "name": "setext h1 multi-line paragraph",
+      "markdown": "First line\nsecond line\n===",
+      "expect": "First line second line"
+    },
+    {
+      "name": "setext h1 with indented underline",
+      "markdown": "Setext\n   ===",
+      "expect": "Setext"
+    },
+    {
+      "name": "setext h2 is ignored",
+      "markdown": "Not h1\n---\n\nDone",
+      "expect": null
+    },
+    {
+      "name": "underline without paragraph",
+      "markdown": "===\n\nText",
+      "expect": null
+    },
+    {
+      "name": "setext after blank line",
+      "markdown": "Para\n\n===",
+      "expect": null
+    },
+    {
+      "name": "blockquote heading ignored",
+      "markdown": "> # Quoted\n\n# Real",
+      "expect": "Real"
+    },
+    {
+      "name": "list item heading ignored",
+      "markdown": "- # Item\n\n# Real",
+      "expect": "Real"
+    },
+    {
+      "name": "ordered list heading ignored",
+      "markdown": "1. # Item\n\n# Real",
+      "expect": "Real"
+    },
+    {
+      "name": "paragraph continuation of indented line",
+      "markdown": "Para\n    # continuation\n===\n",
+      "expect": "Para # continuation"
+    },
+    {
+      "name": "inline code",
+      "markdown": "# The `foo()` API",
+      "expect": "The foo() API"
+    },
+    {
+      "name": "double backtick code with padding",
+      "markdown": "# Use `` `tick` `` here",
+      "expect": "Use `tick` here"
+    },
+    {
+      "name": "unmatched backtick",
+      "markdown": "# Half `open",
+      "expect": "Half `open"
+    },
+    {
+      "name": "bold and link",
+      "markdown": "# **Bold** and [link](./x.md)",
+      "expect": "Bold and link"
+    },
+    {
+      "name": "italic underscore",
+      "markdown": "# _Italic_ words",
+      "expect": "Italic words"
+    },
+    {
+      "name": "bold italic",
+      "markdown": "# ***Both*** styles",
+      "expect": "Both styles"
+    },
+    {
+      "name": "strikethrough",
+      "markdown": "# ~~Old~~ New",
+      "expect": "Old New"
+    },
+    {
+      "name": "image alt",
+      "markdown": "# ![Logo](logo.png) Brand",
+      "expect": "Logo Brand"
+    },
+    {
+      "name": "nested link label",
+      "markdown": "# [a [b] c](x)",
+      "expect": "a [b] c"
+    },
+    {
+      "name": "link with title",
+      "markdown": "# [Docs](https://example.com \"Title\") home",
+      "expect": "Docs home"
+    },
+    {
+      "name": "reference link",
+      "markdown": "# [Ref][id] text",
+      "expect": "Ref text"
+    },
+    {
+      "name": "shortcut reference stays literal",
+      "markdown": "# [Shortcut] text",
+      "expect": "[Shortcut] text"
+    },
+    {
+      "name": "autolink",
+      "markdown": "# See <https://example.com/x>",
+      "expect": "See https://example.com/x"
+    },
+    {
+      "name": "email autolink",
+      "markdown": "# Mail <hi@example.com>",
+      "expect": "Mail hi@example.com"
+    },
+    {
+      "name": "raw HTML is kept",
+      "markdown": "# Hello <b>world</b>",
+      "expect": "Hello <b>world</b>"
+    },
+    {
+      "name": "entities are kept",
+      "markdown": "# Q&amp;A",
+      "expect": "Q&amp;A"
+    },
+    {
+      "name": "escapes",
+      "markdown": "# \\*not emphasis\\* and \\_x\\_",
+      "expect": "*not emphasis* and _x_"
+    },
+    {
+      "name": "backslash before non-punctuation",
+      "markdown": "# a\\b",
+      "expect": "a\\b"
+    },
+    {
+      "name": "intraword underscore",
+      "markdown": "# snake_case_name",
+      "expect": "snake_case_name"
+    },
+    {
+      "name": "intraword star emphasis",
+      "markdown": "# 2*3*4",
+      "expect": "234"
+    },
+    {
+      "name": "unbalanced bold",
+      "markdown": "# **unbalanced",
+      "expect": "**unbalanced"
+    },
+    {
+      "name": "mismatched run lengths",
+      "markdown": "# **foo*",
+      "expect": "**foo*"
+    },
+    {
+      "name": "dunder",
+      "markdown": "# __init__ method",
+      "expect": "init method"
+    },
+    {
+      "name": "trailing underscore",
+      "markdown": "# a_b_",
+      "expect": "a_b_"
+    },
+    {
+      "name": "non-ASCII",
+      "markdown": "# Über uns",
+      "expect": "Über uns"
+    },
+    {
+      "name": "emphasis around non-ASCII",
+      "markdown": "# *Café*",
+      "expect": "Café"
+    },
+    {
+      "name": "empty h1 then real",
+      "markdown": "#\n\n# Real",
+      "expect": "Real"
+    },
+    {
+      "name": "CRLF",
+      "markdown": "# Windows\r\n\r\nBody",
+      "expect": "Windows"
+    },
+    {
+      "name": "lone CR line endings",
+      "markdown": "old mac\rline2",
+      "expect": null
+    },
+    {
+      "name": "lone CR after heading",
+      "markdown": "# Mac Title\rbody",
+      "expect": "Mac Title"
+    },
+    {
+      "name": "BOM is not stripped by inference",
+      "markdown": "﻿# Title",
+      "expect": null
+    },
+    {
+      "name": "no heading",
+      "markdown": "Just text.",
+      "expect": null
+    },
+    {
+      "name": "empty",
+      "markdown": "",
+      "expect": null
+    }
+  ],
+  "sourcePath": [
+    {
+      "sourcePath": "getting-started.md",
+      "expect": "Getting Started"
+    },
+    {
+      "sourcePath": "snake_case_file.md",
+      "expect": "Snake Case File"
+    },
+    {
+      "sourcePath": "a--b__c.md",
+      "expect": "A B C"
+    },
+    {
+      "sourcePath": "with space.md",
+      "expect": "With Space"
+    },
+    {
+      "sourcePath": "a b.md",
+      "expect": "A B"
+    },
+    {
+      "sourcePath": "1-intro.md",
+      "expect": "1 Intro"
+    },
+    {
+      "sourcePath": "index.md",
+      "expect": "Index"
+    },
+    {
+      "sourcePath": "Index.md",
+      "expect": "Index"
+    },
+    {
+      "sourcePath": "sub/Index.md",
+      "expect": "Sub"
+    },
+    {
+      "sourcePath": "guide/INDEX.md",
+      "expect": "Guide"
+    },
+    {
+      "sourcePath": "über-uns.md",
+      "expect": "Über Uns"
+    },
+    {
+      "sourcePath": "éa.md",
+      "expect": "Éa"
+    },
+    {
+      "sourcePath": "ßeta.md",
+      "expect": "SSeta"
+    },
+    {
+      "sourcePath": "ǆungla.md",
+      "expect": "Ǆungla"
+    },
+    {
+      "sourcePath": "ıx.md",
+      "expect": "Ix"
+    },
+    {
+      "sourcePath": "ŉa.md",
+      "expect": "ʼNa"
+    },
+    {
+      "sourcePath": "αβ.md",
+      "expect": "Αβ"
+    },
+    {
+      "sourcePath": "мир.md",
+      "expect": "Мир"
+    },
+    {
+      "sourcePath": "𐐨x.md",
+      "expect": "𐐨x"
+    },
+    {
+      "sourcePath": "---.md",
+      "expect": "Untitled"
+    },
+    {
+      "sourcePath": "UPPER.md",
+      "expect": "UPPER"
+    },
+    {
+      "sourcePath": "../bad.md",
+      "expect": "Untitled"
+    }
+  ],
+  "resolve": [
+    {
+      "name": "frontmatter title wins",
+      "sourcePath": "page.md",
+      "markdown": "---\ntitle: From Frontmatter\n---\n# From H1",
+      "expect": "From Frontmatter"
+    },
+    {
+      "name": "empty frontmatter title falls back to H1",
+      "sourcePath": "page.md",
+      "markdown": "---\ntitle:\n---\n# From H1",
+      "expect": "From H1"
+    },
+    {
+      "name": "quoted empty title falls back to path",
+      "sourcePath": "my-page.md",
+      "markdown": "---\ntitle: \"\"\n---\nNo heading",
+      "expect": "My Page"
+    },
+    {
+      "name": "lone quote title is literal",
+      "sourcePath": "page.md",
+      "markdown": "---\ntitle: \"\n---\n# H1",
+      "expect": "\""
+    },
+    {
+      "name": "BOM before frontmatter",
+      "sourcePath": "bom.md",
+      "markdown": "﻿---\ntitle: BOM title\nslug: bom\n---\n# BOM body",
+      "expect": "BOM title"
+    },
+    {
+      "name": "BOM without frontmatter",
+      "sourcePath": "bom.md",
+      "markdown": "﻿# BOM Heading\n",
+      "expect": "BOM Heading"
+    },
+    {
+      "name": "nested key does not override title",
+      "sourcePath": "page.md",
+      "markdown": "---\ntitle: Real Title\nseo:\n  title: SEO Override\n---\n",
+      "expect": "Real Title"
+    },
+    {
+      "name": "H1 after frontmatter",
+      "sourcePath": "page.md",
+      "markdown": "---\norder: 1\n---\n\n# Heading",
+      "expect": "Heading"
+    },
+    {
+      "name": "path fallback",
+      "sourcePath": "getting-started/first-steps.md",
+      "markdown": "---\norder: 1\n---\nText only",
+      "expect": "First Steps"
+    },
+    {
+      "name": "index path fallback",
+      "sourcePath": "getting-started/index.md",
+      "markdown": "Text only",
+      "expect": "Getting Started"
+    }
+  ]
+}

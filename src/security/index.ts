@@ -9,7 +9,12 @@ export {
   getEd25519PrivateKeyInput,
   getEd25519PublicKeyInput,
 } from './ed25519Keys.js'
-export { verifyGitHubOidcToken } from './githubOidc.js'
+export {
+  checkGitHubOidcPolicy,
+  githubOidcSourceMatches,
+  verifyGitHubOidcIdentity,
+  verifyGitHubOidcToken,
+} from './githubOidc.js'
 export type {
   GitHubOidcClaims,
   GitHubOidcErrorCode,
@@ -31,6 +36,8 @@ export {
 export type { DecodedJwt } from './jwt.js'
 export {
   assertNonceNotReplayed,
+  consumeNonce,
+  pruneExpiredNonces,
   storeAcceptedNonce,
 } from './nonce.js'
 export type { NoncePayloadOperations } from './nonce.js'

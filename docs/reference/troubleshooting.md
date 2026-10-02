@@ -13,6 +13,35 @@ tags:
 :::toc {title="On this page" depth="3" theme="compact"}
 :::
 
+## Error Response Shape
+
+Every rejected sync returns JSON like:
+
+```json
+{
+  "ok": false,
+  "error": {
+    "code": "invalid_manifest",
+    "message": "Sync manifest is invalid.",
+    "issues": [
+      {
+        "code": "path_traversal",
+        "message": "Docs path must not contain path traversal segments.",
+        "path": "../escape.md",
+        "severity": "error"
+      }
+    ]
+  }
+}
+```
+
+`error.issues` is present when there is per-file detail: manifest validation
+issues and warnings, route collisions, and manual edit conflicts. Entries with
+`severity: "warning"` are informational. `route_collision` responses also keep
+the `routeCollisions` array and `manual_edit_conflict` responses keep the
+`conflicts` array. Unexpected server failures return a generic message; the
+details are in the Payload server log.
+
 ## `invalid_signature`
 
 The signature does not match the canonical request string. Check the key id, private key, endpoint URL pathname, timestamp, nonce, and exact JSON body.
@@ -68,11 +97,22 @@ The effective delete behavior is `delete`, but the server does not have `sync.al
 
 ## `route_collision`
 
-The generated docs route conflicts with another docs route or an opt-in Pages collision check.
+The generated docs route conflicts with another docs route or an opt-in Pages
+collision check. `error.issues` names the route and, when it comes from the
+manifest itself (for example `guide.md` and `guide/index.md`), the files that
+produce it. A route still served by a published doc of the same docs set that
+the sync does not publish is reported as `route_retained_by_published_doc`;
+run the change as a `--publish` sync.
 
 ## `manual_edit_conflict`
 
 A generated docs record changed outside the docs sync workflow. The sync aborts before writes to avoid overwriting human edits.
+
+Protection covers the Markdown content (`current_content_hash_mismatch`) and
+the synced `title`, `description`, `navTitle`, and `order`
+(`current_fields_hash_mismatch`). Docs last synced before field tracking was
+added are checked for content only until their next successful sync. CMS-only
+fields such as hero images and nav overrides are never overwritten by a sync.
 
 ## Public `/llms.txt` Or Skill Route 404
 

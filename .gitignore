@@ -27,6 +27,10 @@
 /build
 /dist
 
+# release tooling outputs (local runs of python -m tools.release)
+/.changelog_scratch/
+/release/
+
 # misc
 .DS_Store
 *.pem
@@ -56,3 +60,6 @@ dev/.env
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+
+# Repository-local shell environment (maps host variables; never commit)
+/.bashrc

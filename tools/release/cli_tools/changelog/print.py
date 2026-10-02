@@ -23,8 +23,14 @@ def log_release_ai_preflight(settings) -> None:
     print_status("Release AI preflight")
     print_status("--------------------")
     print_status(f"RELEASE_AI_MODE:               {settings.mode}")
-    print_status(f"RELEASE_AI_PROFILE_OPENAI:     {settings.openai_profile}")
+    print_status(f"Release AI profile:            {settings.openai_profile}")
+    print_status("  (from VL_AI_RELEASE_PROFILE, RELEASE_AI_PROFILE or RELEASE_AI_PROFILE_OPENAI)")
     print_status(f"OPENAI_API_KEY configured:     {'yes' if settings.openai_api_key_present else 'no'}")
+    print_status(
+        "DeepSeek key configured:       "
+        f"{'yes' if getattr(settings, 'deepseek_api_key_present', False) else 'no'}"
+        " (VL_DEEPSEEK_API_KEY or DEEPSEEK_API_KEY)"
+    )
     print_status(f"RELEASE_LOCAL_LLM_ENABLED:     {'true' if settings.local_enabled else 'false'}")
     print_status(
         f"RELEASE_LOCAL_LLM_PROFILE:     "
@@ -34,8 +40,13 @@ def log_release_ai_preflight(settings) -> None:
         f"RELEASE_LOCAL_LLM_BASE_URL:    "
         f"{settings.local_base_url_override if settings.local_base_url_override else '<unset>'}"
     )
-    if settings.mode == "openai-only" and not settings.openai_api_key_present:
-        print_status("Preflight note: openai-only requested but OPENAI_API_KEY is missing; manual fallback may be used.")
+    if settings.mode == "openai-only" and not (
+        settings.openai_api_key_present or getattr(settings, "deepseek_api_key_present", False)
+    ):
+        print_status(
+            "Preflight note: openai-only (hosted AI) requested but no hosted provider key is set; "
+            "manual fallback may be used."
+        )
     if settings.mode == "local-only" and (not settings.local_enabled or not settings.local_profile):
         print_status(
             "Preflight note: local-only requested but local fallback is not fully configured; "

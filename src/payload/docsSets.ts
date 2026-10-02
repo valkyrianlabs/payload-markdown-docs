@@ -1,22 +1,33 @@
+import type { DocsGroupsById } from '../routing/docsSetRoutes.js'
 import type { DocsSetRouteMode } from '../routing/index.js'
 import type { PayloadMarkdownDocsAuthToggle } from '../types.js'
 
+import { indexDocsGroupsById, resolveDocsSetRoutes } from '../routing/docsSetRoutes.js'
+import { isRouteDescendant, normalizeRoutePath } from '../routing/index.js'
 import {
-  DEFAULT_DOCS_SET_ROUTE_MODE,
-  deriveDocsSetProductRoutePath,
-  deriveDocsSetRouteBase,
-  isRouteDescendant,
-  joinRouteSegments,
-  normalizeRoutePath,
-} from '../routing/index.js'
+  getRawRecordId,
+  getString,
+  isRecord,
+} from '../shared/records.js'
+import { isPublicDocsSetRecord } from './visibility.js'
 
 export type DocsSetPayloadOperations = {
+  db?: {
+    updateOne?: (args: {
+      collection: string
+      data: Record<string, unknown>
+      id: number | string
+      req?: unknown
+    }) => Promise<unknown>
+  }
   find: (args: {
     collection: string
     depth?: number
     draft?: boolean
     limit?: number
     overrideAccess?: boolean
+    pagination?: boolean
+    req?: unknown
     sort?: string
     where?: unknown
   }) => Promise<{
@@ -28,18 +39,11 @@ export type DocsSetPayloadOperations = {
     draft?: boolean
     id: string
     overrideAccess?: boolean
+    req?: unknown
   }) => Promise<Record<string, unknown>>
 }
 
 export type PayloadRecordId = number | string
-
-export type ResolvedDocsGroup = {
-  id: PayloadRecordId
-  pageMode: 'auto' | 'custom'
-  parentId?: string
-  routePath: string
-  slug: string
-}
 
 export type ResolvedDocsSet = {
   advancedSecurity?: {
@@ -47,6 +51,8 @@ export type ResolvedDocsSet = {
     enabled: boolean
   }
   allowPullRequests: boolean
+  /** Accept `refs/tags/*` OIDC refs. Missing (pre-existing records) means true. */
+  allowTagRefs: boolean
   branch: string
   description?: string
   groupId?: string
@@ -54,50 +60,16 @@ export type ResolvedDocsSet = {
   groupRoutePath?: string
   id: PayloadRecordId
   productRoute: string
+  /** OIDC repository binding; empty = any repository trusted in Access. */
+  repositories: string[]
   routeBase: string
   routeMode: DocsSetRouteMode
   slug: string
   title: string
 }
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value)
-
-const getRecordId = (doc: Record<string, unknown>): PayloadRecordId | undefined => {
-  if (typeof doc.id === 'string' || typeof doc.id === 'number') {
-    return doc.id
-  }
-
-  return undefined
-}
-
-const getRelationshipId = (value: unknown): string | undefined => {
-  if (typeof value === 'string' || typeof value === 'number') {
-    return String(value)
-  }
-
-  if (isRecord(value)) {
-    const id = getRecordId(value)
-
-    return id === undefined ? undefined : String(id)
-  }
-
-  return undefined
-}
-
-const getString = (value: unknown): string | undefined =>
-  typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined
-
-const getRouteMode = (value: unknown): DocsSetRouteMode =>
-  value === 'product-nested' || value === 'docs-root' ? value : DEFAULT_DOCS_SET_ROUTE_MODE
-
-const getGroupPageMode = (doc: Record<string, unknown>): 'auto' | 'custom' => {
-  if (doc.pageMode === 'custom') {
-    return 'custom'
-  }
-
-  return 'auto'
-}
+const getGroupPageMode = (doc: Record<string, unknown> | undefined): 'auto' | 'custom' =>
+  doc?.pageMode === 'custom' ? 'custom' : 'auto'
 
 const getStringArray = (value: unknown): string[] => {
   if (!Array.isArray(value)) {
@@ -142,77 +114,77 @@ export const isEd25519AuthEnabled = (
   auth: { ed25519?: boolean | PayloadMarkdownDocsAuthToggle; mode?: 'disabled' } | undefined,
 ): boolean => auth?.mode !== 'disabled' && authToggleEnabled(auth?.ed25519, false)
 
+/**
+ * Records sync bookkeeping on the docs set without publishing admin work in progress
+ * (DOCS-11).
+ *
+ * Payload's update merges onto the latest version, so `update({ draft: false })` on a
+ * docs set with an unpublished admin draft publishes that draft. Bookkeeping is
+ * therefore written to the main record only (no new version, `_status` untouched).
+ * The one exception is a `--publish` sync of a docs set that has never been published:
+ * publishing it is what makes the synced docs reachable, as before.
+ */
 export const updateDocsSetAfterSync = async ({
   collectionSlug,
   docsSetId,
   now,
   payload,
   publish,
+  req,
 }: {
   collectionSlug: string
   docsSetId: PayloadRecordId
   now: Date
   payload: DocsSetPayloadOperations
   publish: boolean
+  req?: unknown
 }): Promise<void> => {
-  if (!payload.update) {
+  const sync = {
+    lastStatus: 'success',
+    lastSyncedAt: now.toISOString(),
+  }
+  const mainRecord = (
+    await payload.find({
+      collection: collectionSlug,
+      depth: 0,
+      draft: false,
+      limit: 1,
+      overrideAccess: true,
+      req,
+      where: {
+        id: {
+          equals: docsSetId,
+        },
+      },
+    })
+  ).docs[0]
+  const isPublished = isRecord(mainRecord) && mainRecord._status === 'published'
+
+  if (publish && !isPublished) {
+    await payload.update?.({
+      id: String(docsSetId),
+      collection: collectionSlug,
+      data: {
+        _status: 'published',
+        sync,
+      },
+      draft: false,
+      overrideAccess: true,
+      req,
+    })
+
     return
   }
 
-  await payload.update({
-    id: String(docsSetId),
-    collection: collectionSlug,
-    data: {
-      _status: publish ? 'published' : 'draft',
-      sync: {
-        lastStatus: 'success',
-        lastSyncedAt: now.toISOString(),
+  if (typeof payload.db?.updateOne === 'function') {
+    await payload.db.updateOne({
+      id: docsSetId,
+      collection: collectionSlug,
+      data: {
+        sync,
       },
-    },
-    draft: !publish,
-    overrideAccess: true,
-  })
-}
-
-const toResolvedGroup = (
-  doc: unknown,
-  groupsById: Map<string, unknown>,
-  seen = new Set<string>(),
-): ResolvedDocsGroup | undefined => {
-  if (!isRecord(doc)) {
-    return undefined
-  }
-
-  const id = getRecordId(doc)
-  const slug = getString(doc.slug)
-
-  if (!id || !slug) {
-    return undefined
-  }
-
-  const stringId = String(id)
-
-  if (seen.has(stringId)) {
-    return {
-      id,
-      slug,
-      pageMode: getGroupPageMode(doc),
-      routePath: joinRouteSegments(slug),
-    }
-  }
-
-  const parentId = getRelationshipId(doc.parent)
-  const parentDoc = parentId ? groupsById.get(parentId) : undefined
-  const parentGroup = parentDoc
-    ? toResolvedGroup(parentDoc, groupsById, new Set([stringId, ...seen]))
-    : undefined
-
-  return {
-    id,
-    slug,
-    pageMode: getGroupPageMode(doc),
-    parentId,
-    routePath: joinRouteSegments(parentGroup?.routePath, slug),
+      req,
+    })
   }
 }
 
@@ -221,28 +193,22 @@ const toResolvedDocsSet = ({
   groupsById,
 }: {
   doc: unknown
-  groupsById: Map<string, unknown>
+  groupsById: DocsGroupsById
 }): ResolvedDocsSet | undefined => {
   if (!isRecord(doc)) {
     return undefined
   }
 
-  const id = getRecordId(doc)
-  const slug = getString(doc.slug)
+  const id = getRawRecordId(doc)
+  const routes = resolveDocsSetRoutes({ doc, groupsById })
 
-  if (!id || !slug) {
+  if (!id || !routes) {
     return undefined
   }
 
-  const groupId = getRelationshipId(doc.group)
-  const group = groupId ? toResolvedGroup(groupsById.get(groupId), groupsById) : undefined
+  const { slug, groupId, groupRoutePath, productRoute, routeBase, routeMode } = routes
   const advancedSecurity = isRecord(doc.advancedSecurity) ? doc.advancedSecurity : undefined
   const advancedSecurityEnabled = advancedSecurity?.enabled === true
-  const routeMode = getRouteMode(doc.routeMode)
-  const productRoute = deriveDocsSetProductRoutePath({
-    docsSetSlug: slug,
-    groupRoutePath: group?.routePath,
-  })
 
   return {
     id,
@@ -256,19 +222,15 @@ const toResolvedDocsSet = ({
       : {}),
     slug,
     allowPullRequests: doc.allowPullRequests === true,
+    allowTagRefs: doc.allowTagRefs !== false,
     branch: getString(doc.branch) ?? 'main',
     description: getString(doc.description),
     groupId,
-    groupPageMode: group?.pageMode,
-    groupRoutePath: group?.routePath,
+    groupPageMode: groupRoutePath && groupId ? getGroupPageMode(groupsById.get(groupId)) : undefined,
+    groupRoutePath,
     productRoute,
-    routeBase: normalizeRoutePath(
-      deriveDocsSetRouteBase({
-        docsSetSlug: slug,
-        groupRoutePath: group?.routePath,
-        routeMode,
-      }),
-    ),
+    repositories: getStringArray(doc.repositories),
+    routeBase,
     routeMode,
     title: getString(doc.title) ?? slug,
   }
@@ -280,138 +242,105 @@ const getGroupsById = async ({
 }: {
   collectionSlug: string
   payload: DocsSetPayloadOperations
-}): Promise<Map<string, unknown>> => {
+}): Promise<DocsGroupsById> => {
   const result = await payload.find({
     collection: collectionSlug,
     depth: 0,
-    limit: 1000,
     overrideAccess: true,
+    pagination: false,
   })
 
-  return new Map(
-    result.docs.flatMap((doc) => {
-      if (!isRecord(doc)) {
-        return []
-      }
-
-      const id = getRecordId(doc)
-
-      return id === undefined ? [] : [[String(id), doc]]
-    }),
-  )
+  return indexDocsGroupsById(result.docs)
 }
 
+type DocsSetQuery = {
+  collectionSlug: string
+  docsGroupsCollectionSlug: string
+  payload: DocsSetPayloadOperations
+}
+
+/**
+ * The single docs-set resolver for server-side readers (sync, llms, assets): loads docs
+ * sets and groups, optionally keeps public records only, and resolves routes through
+ * routing/docsSetRoutes.
+ */
+const findResolvedDocsSets = async ({
+  collectionSlug,
+  docsGroupsCollectionSlug,
+  find,
+  payload,
+  publicOnly,
+}: {
+  find: { draft: boolean; limit?: number; where?: unknown }
+  publicOnly: boolean
+} & DocsSetQuery): Promise<ResolvedDocsSet[]> => {
+  const [result, groupsById] = await Promise.all([
+    payload.find({
+      collection: collectionSlug,
+      depth: 0,
+      overrideAccess: true,
+      ...(find.limit === undefined ? { pagination: false } : { limit: find.limit }),
+      draft: find.draft,
+      ...(find.where === undefined ? {} : { where: find.where }),
+    }),
+    getGroupsById({
+      collectionSlug: docsGroupsCollectionSlug,
+      payload,
+    }),
+  ])
+
+  return result.docs.flatMap((doc) => {
+    const docsSet =
+      !publicOnly || isPublicDocsSetRecord(doc) ? toResolvedDocsSet({ doc, groupsById }) : undefined
+
+    return docsSet ? [docsSet] : []
+  })
+}
+
+/** Published docs sets (the list every public surface serves). */
+const findPublicDocsSets = (query: DocsSetQuery): Promise<ResolvedDocsSet[]> =>
+  findResolvedDocsSets({
+    ...query,
+    find: { draft: false },
+    publicOnly: true,
+  })
+
+/** Sync source lookup: the docs set (draft or published) whose slug is the source id. */
 export const findDocsSetBySlug = async ({
   slug,
-  collectionSlug,
-  docsGroupsCollectionSlug,
   includeDrafts = false,
-  payload,
+  ...query
 }: {
-  collectionSlug: string
-  docsGroupsCollectionSlug: string
   includeDrafts?: boolean
-  payload: DocsSetPayloadOperations
   slug: string
-}): Promise<ResolvedDocsSet | undefined> => {
-  const [result, groupsById] = await Promise.all([
-    payload.find({
-      collection: collectionSlug,
-      depth: 0,
-      draft: includeDrafts,
-      limit: 1,
-      overrideAccess: true,
-      where: {
-        slug: {
-          equals: slug,
+} & DocsSetQuery): Promise<ResolvedDocsSet | undefined> =>
+  (
+    await findResolvedDocsSets({
+      ...query,
+      find: {
+        draft: includeDrafts,
+        limit: 1,
+        where: {
+          slug: {
+            equals: slug,
+          },
         },
       },
-    }),
-    getGroupsById({
-      collectionSlug: docsGroupsCollectionSlug,
-      payload,
-    }),
-  ])
+      publicOnly: false,
+    })
+  )[0]
 
-  return toResolvedDocsSet({
-    doc: result.docs[0],
-    groupsById,
-  })
-}
-
-export const findDocsSetByRouteBase = async ({
-  collectionSlug,
-  docsGroupsCollectionSlug,
-  payload,
-  routeBase,
-}: {
-  collectionSlug: string
-  docsGroupsCollectionSlug: string
-  payload: DocsSetPayloadOperations
-  routeBase: string
-}): Promise<ResolvedDocsSet | undefined> => {
-  const [result, groupsById] = await Promise.all([
-    payload.find({
-      collection: collectionSlug,
-      depth: 0,
-      limit: 1000,
-      overrideAccess: true,
-    }),
-    getGroupsById({
-      collectionSlug: docsGroupsCollectionSlug,
-      payload,
-    }),
-  ])
-  const normalizedRouteBase = normalizeRoutePath(routeBase)
-
-  return result.docs
-    .map((doc) =>
-      toResolvedDocsSet({
-        doc,
-        groupsById,
-      }),
-    )
-    .find((docsSet) => docsSet?.routeBase === normalizedRouteBase)
-}
-
+/** The published docs set whose docs route or product route is the longest prefix of `route`. */
 export const findDocsSetByRoutePrefix = async ({
-  collectionSlug,
-  docsGroupsCollectionSlug,
-  payload,
   route,
+  ...query
 }: {
-  collectionSlug: string
-  docsGroupsCollectionSlug: string
-  payload: DocsSetPayloadOperations
   route: string
-}): Promise<ResolvedDocsSet | undefined> => {
-  const [result, groupsById] = await Promise.all([
-    payload.find({
-      collection: collectionSlug,
-      depth: 0,
-      draft: false,
-      limit: 1000,
-      overrideAccess: true,
-    }),
-    getGroupsById({
-      collectionSlug: docsGroupsCollectionSlug,
-      payload,
-    }),
-  ])
+} & DocsSetQuery): Promise<ResolvedDocsSet | undefined> => {
   const normalizedRoute = normalizeRoutePath(route)
 
-  return result.docs
-    .map((doc) =>
-      toResolvedDocsSet({
-        doc,
-        groupsById,
-      }),
-    )
+  return (await findPublicDocsSets(query))
     .flatMap((docsSet) => {
-      if (!docsSet) {
-        return []
-      }
-
       const matchedRoutePrefix =
         docsSet.routeBase === normalizedRoute ||
         isRouteDescendant(docsSet.routeBase, normalizedRoute)
@@ -434,37 +363,8 @@ export const findDocsSetByRoutePrefix = async ({
     ?.docsSet
 }
 
-export const findAllDocsSets = async ({
-  collectionSlug,
-  docsGroupsCollectionSlug,
-  payload,
-}: {
-  collectionSlug: string
-  docsGroupsCollectionSlug: string
-  payload: DocsSetPayloadOperations
-}): Promise<ResolvedDocsSet[]> => {
-  const [result, groupsById] = await Promise.all([
-    payload.find({
-      collection: collectionSlug,
-      depth: 0,
-      draft: false,
-      limit: 1000,
-      overrideAccess: true,
-    }),
-    getGroupsById({
-      collectionSlug: docsGroupsCollectionSlug,
-      payload,
-    }),
-  ])
-
-  return result.docs
-    .flatMap((doc) => {
-      const docsSet = toResolvedDocsSet({
-        doc,
-        groupsById,
-      })
-
-      return docsSet ? [docsSet] : []
-    })
-    .sort((first, second) => first.routeBase.localeCompare(second.routeBase))
-}
+/** Published docs sets sorted by docs route. */
+export const findAllDocsSets = async (query: DocsSetQuery): Promise<ResolvedDocsSet[]> =>
+  (await findPublicDocsSets(query)).sort((first, second) =>
+    first.routeBase.localeCompare(second.routeBase),
+  )

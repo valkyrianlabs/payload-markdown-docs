@@ -46,7 +46,11 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
         self.assertIn("python -m tools.release prepare-homebrew-formula", workflow)
         self.assertIn("meson setup build-native -Dinstall_skill_data=false", workflow)
         self.assertNotIn("native_cli_parity_tests=true", workflow)
-        self.assertIn("meson setup build-homebrew -Dinstall_skill_data=false", workflow)
+        self.assertIn(
+            "meson setup build-homebrew -Dinstall_skill_data=true -Dcompanion_skill_data=auto",
+            workflow,
+        )
+        self.assertIn('"$stage/usr/local/bin/pmdocs" doctor', workflow)
 
     def test_release_workflow_validates_and_smoke_tests_native_artifacts(self) -> None:
         workflow = self._workflow()
@@ -78,7 +82,14 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
         self.assertLess(native_job.index("Generate release changelog"), native_job.index("Build Debian package"))
         self.assertIn("python -m tools.release changelog release", native_job)
         self.assertIn("RELEASE_AI_MODE: ${{ vars.RELEASE_AI_MODE || 'auto' }}", native_job)
-        self.assertIn("RELEASE_AI_PROFILE_OPENAI: ${{ vars.RELEASE_AI_PROFILE_OPENAI || 'openai-balanced' }}", native_job)
+        # Org-level (valkyrianlabs) profile variable and DeepSeek secret, plus repo/legacy fallbacks.
+        self.assertIn("VL_AI_RELEASE_PROFILE: ${{ vars.VL_AI_RELEASE_PROFILE || '' }}", native_job)
+        self.assertIn("RELEASE_AI_PROFILE: ${{ vars.RELEASE_AI_PROFILE || '' }}", native_job)
+        self.assertIn("RELEASE_AI_PROFILE_OPENAI: ${{ vars.RELEASE_AI_PROFILE_OPENAI || '' }}", native_job)
+        self.assertIn("VL_DEEPSEEK_API_KEY: ${{ secrets.VL_DEEPSEEK_API_KEY || '' }}", native_job)
+        self.assertIn("DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY || '' }}", native_job)
+        # No hard-coded profile fallback that ai.yml does not define.
+        self.assertNotIn("openai-balanced", native_job)
         self.assertIn("OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY || '' }}", native_job)
         self.assertIn("RELEASE_LOCAL_LLM_API_KEY: ${{ secrets.RELEASE_LOCAL_LLM_API_KEY || '' }}", native_job)
         self.assertIn("--output release/changelog.release.md", native_job)
@@ -117,6 +128,55 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
         self.assertIn("publish-npm:\n    name: Publish npm package\n    runs-on: ubuntu-latest", workflow)
         self.assertNotIn("NPM_TOKEN", workflow)
 
+    def test_release_workflow_scopes_permissions_per_job(self) -> None:
+        workflow = self._workflow()
+        header = workflow.split("\njobs:\n", 1)[0]
+
+        self.assertIn("permissions:\n  contents: read\n", header)
+        self.assertNotIn("contents: write", header)
+        self.assertNotIn("id-token: write", header)
+
+        def job(name: str) -> str:
+            return workflow.split(f"\n  {name}:\n", 1)[1].split("\n    steps:", 1)[0]
+
+        self.assertIn("permissions:\n      contents: write", job("assemble-release-artifacts"))
+        self.assertIn("id-token: write", job("publish-npm"))
+        self.assertIn("id-token: write", job("publish-docs"))
+        self.assertEqual(workflow.count("id-token: write"), 2)
+        self.assertEqual(workflow.count("contents: write"), 1)
+
+        # Org-level AI release wiring stays intact.
+        self.assertIn("VL_DEEPSEEK_API_KEY: ${{ secrets.VL_DEEPSEEK_API_KEY || '' }}", workflow)
+        self.assertIn("VL_AI_RELEASE_PROFILE", workflow)
+
+    def test_workflows_pin_actions_to_commit_shas(self) -> None:
+        import re
+
+        workflows_dir = self._repo_root() / ".github" / "workflows"
+        paths = sorted(workflows_dir.glob("*.yml")) + [
+            self._repo_root() / "examples" / "github-actions" / "publish-docs.yml"
+        ]
+
+        for path in paths:
+            for line in path.read_text(encoding="utf-8").splitlines():
+                stripped = line.strip().removeprefix("- ")
+                if not stripped.startswith("uses:"):
+                    continue
+                with self.subTest(path=path.name, line=stripped):
+                    self.assertRegex(stripped, re.compile(r"^uses: [\w.-]+/[\w.-]+@[0-9a-f]{40} # v\d+\.\d+\.\d+$"))
+
+    def test_pull_requests_never_run_on_self_hosted_runners(self) -> None:
+        workflow = (self._repo_root() / ".github" / "workflows" / "deploy.yml").read_text(encoding="utf-8")
+        runner = (
+            "runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || "
+            "fromJSON('[\"self-hosted\",\"Linux\",\"X64\",\"ubuntu-latest-lts\"]') }}"
+        )
+
+        self.assertIn("pull_request:", workflow)
+        self.assertIn("permissions:\n  contents: read\n", workflow)
+        self.assertEqual(workflow.count("runs-on:"), workflow.count(runner))
+        self.assertNotIn("runs-on: [self-hosted", workflow)
+
     def test_npm_package_name_is_guarded_from_package_json_or_env_var(self) -> None:
         workflow = self._workflow()
 
@@ -147,7 +207,7 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
         self.assertIn("## What's changed", workflow)
         self.assertIn("release/release_notes.md", workflow)
         self.assertIn("release/changelog.release.md", workflow)
-        self.assertIn("uses: softprops/action-gh-release@v2", workflow)
+        self.assertIn("uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2", workflow)
         self.assertIn("body_path: ${{ steps.gh_release_body.outputs.body_path }}", workflow)
         self.assertIn("append_body: true", workflow)
         self.assertIn("files: ${{ steps.gh_release_assets.outputs.assets }}", workflow)

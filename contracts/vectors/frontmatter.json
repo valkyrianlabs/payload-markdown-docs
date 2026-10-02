@@ -1,0 +1,1154 @@
+{
+  "contractVersion": 1,
+  "description": "Frontmatter parsing (src/sync/frontmatter.ts parseDocsFrontmatter; cli/src/docs.cpp parse_frontmatter). Issues and warnings are compared by code and exact message. Inputs carry no path, so issues have no path.",
+  "cases": [
+    {
+      "name": "supported scalars",
+      "markdown": "---\ntitle: Installation\nnavTitle: Install\ndescription: Install payload-markdown.\norder: 10\ndraft: false\nstatus: published\nslug: installation\n---\n# Body\n",
+      "expect": {
+        "content": "# Body\n",
+        "frontmatter": {
+          "title": "Installation",
+          "navTitle": "Install",
+          "description": "Install payload-markdown.",
+          "order": 10,
+          "draft": false,
+          "status": "published",
+          "slug": "installation"
+        },
+        "issues": [],
+        "warnings": []
+      }
+    },
+    {
+      "name": "list fields",
+      "markdown": "---\nredirectFrom:\n  - /docs/install\ntags:\n- getting-started\n-   spaced\ndependencies:\n  - \"@valkyrianlabs/payload-markdown\"\n  - 'single'\n---\n# Body\n",
+      "expect": {
+        "content": "# Body\n",
+        "frontmatter": {
+          "redirectFrom": [
+            "/docs/install"
+          ],
+          "tags": [
+            "getting-started",
+            "spaced"
+          ],
+          "dependencies": [
+            "@valkyrianlabs/payload-markdown",
+            "single"
+          ]
+        },
+        "issues": [],
+        "warnings": []
+      }
+    },
+    {
+      "name": "empty list field",
+      "markdown": "---\ntags:\n---\n# Body\n",
+      "expect": {
+        "content": "# Body\n",
+        "frontmatter": {
+          "tags": []
+        },
+        "issues": [],
+        "warnings": []
+      }
+    },
+    {
+      "name": "flow lists",
+      "markdown": "---\ntags: [a, \"b, c\", 'd']\nredirectFrom: []\ndependencies: [x, y,]\n---\n# Body\n",
+      "expect": {
+        "content": "# Body\n",
+        "frontmatter": {
+          "tags": [
+            "a",
+            "b, c",
+            "d"
+          ],
+          "redirectFrom": [],
+          "dependencies": [
+            "x",
+            "y"
+          ]
+        },
+        "issues": [],
+        "warnings": []
+      }
+    },
+    {
+      "name": "invalid flow list (nested)",
+      "markdown": "---\ntags: [a, [b]]\n---\n# Body\n",
+      "expect": {
+        "content": "# Body\n",
+        "frontmatter": {},
+        "issues": [
+          {
+            "code": "invalid_frontmatter",
+            "message": "Frontmatter field \"tags\" has an invalid flow list; use [a, b] or \"- item\" lines."
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "invalid flow list (unclosed)",
+      "markdown": "---\ntags: [a, b\n---\n# Body\n",
+      "expect": {
+        "content": "# Body\n",
+        "frontmatter": {},
+        "issues": [
+          {
+            "code": "invalid_frontmatter",
+            "message": "Frontmatter field \"tags\" has an invalid flow list; use [a, b] or \"- item\" lines."
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "invalid flow list (empty item)",
+      "markdown": "---\ntags: [a, , b]\n---\n# Body\n",
+      "expect": {
+        "content": "# Body\n",
+        "frontmatter": {},
+        "issues": [
+          {
+            "code": "invalid_frontmatter",
+            "message": "Frontmatter field \"tags\" has an invalid flow list; use [a, b] or \"- item\" lines."
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "scalar value on a list field",
+      "markdown": "---\ntags: one\n---\n# Body\n",
+      "expect": {
+        "content": "# Body\n",
+        "frontmatter": {},
+        "issues": [
+          {
+            "code": "invalid_frontmatter",
+            "message": "Frontmatter field \"tags\" must use list item syntax."
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "nested mapping under unknown key is ignored",
+      "markdown": "---\ntitle: Real Title\nseo:\n  title: SEO Override\n  slug: other\n---\n# Body\n",
+      "expect": {
+        "content": "# Body\n",
+        "frontmatter": {
+          "title": "Real Title"
+        },
+        "issues": [],
+        "warnings": [
+          {
+            "code": "invalid_frontmatter",
+            "message": "Unknown frontmatter field \"seo\" was ignored."
+          }
+        ]
+      }
+    },
+    {
+      "name": "nested value under known scalar",
+      "markdown": "---\ntitle:\n  en: Hello\n  de: Hallo\nslug: ok\n---\n# Body\n",
+      "expect": {
+        "content": "# Body\n",
+        "frontmatter": {
+          "title": "",
+          "slug": "ok"
+        },
+        "issues": [
+          {
+            "code": "invalid_frontmatter",
+            "message": "Frontmatter field \"title\" does not support nested or multi-line values."
+          }
+        ],
+        "warnings": [
+          {
+            "code": "invalid_frontmatter",
+            "message": "Frontmatter field \"title\" is empty; the title is inferred instead."
+          }
+        ]
+      }
+    },
+    {
+      "name": "multi-line plain scalar continuation",
+      "markdown": "---\ndescription: first line\n  second line\n---\n# Body\n",
+      "expect": {
+        "content": "# Body\n",
+        "frontmatter": {
+          "description": "first line"
+        },
+        "issues": [
+          {
+            "code": "invalid_frontmatter",
+            "message": "Frontmatter field \"description\" does not support nested or multi-line values."
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "indented line without context",
+      "markdown": "---\n  title: Indented\n---\n# Body\n",
+      "expect": {
+        "content": "# Body\n",
+        "frontmatter": {},
+        "issues": [
+          {
+            "code": "invalid_frontmatter",
+            "message": "Unsupported indented frontmatter line:   title: Indented"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "non-list line under list field",
+      "markdown": "---\ntags:\n  key: value\n---\n# Body\n",
+      "expect": {
+        "content": "# Body\n",
+        "frontmatter": {
+          "tags": []
+        },
+        "issues": [
+          {
+            "code": "invalid_frontmatter",
+            "message": "Frontmatter field \"tags\" only supports \"- item\" list entries."
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "list item without list field",
+      "markdown": "---\n- stray\n---\n# Body\n",
+      "expect": {
+        "content": "# Body\n",
+        "frontmatter": {},
+        "issues": [
+          {
+            "code": "invalid_frontmatter",
+            "message": "Frontmatter array item does not belong to a supported array field."
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "list items under unknown key are ignored",
+      "markdown": "---\naliases:\n  - a\n  - b\ntitle: T\n---\n# Body\n",
+      "expect": {
+        "content": "# Body\n",
+        "frontmatter": {
+          "title": "T"
+        },
+        "issues": [],
+        "warnings": [
+          {
+            "code": "invalid_frontmatter",
+            "message": "Unknown frontmatter field \"aliases\" was ignored."
+          }
+        ]
+      }
+    },
+    {
+      "name": "block scalar on known field",
+      "markdown": "---\ndescription: >\n  long text\n  more\ntitle: After\n---\n# Body\n",
+      "expect": {
+        "content": "# Body\n",
+        "frontmatter": {
+          "title": "After"
+        },
+        "issues": [
+          {
+            "code": "invalid_frontmatter",
+            "message": "Frontmatter field \"description\" uses a YAML block scalar (>), which is not supported; use a single-line value."
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "block scalar with chomping",
+      "markdown": "---\ntitle: |-\n  Multi\n---\n# Body\n",
+      "expect": {
+        "content": "# Body\n",
+        "frontmatter": {},
+        "issues": [
+          {
+            "code": "invalid_frontmatter",
+            "message": "Frontmatter field \"title\" uses a YAML block scalar (|-), which is not supported; use a single-line value."
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "block scalar on unknown key",
+      "markdown": "---\nnotes: |\n  anything: here\n  - and lists\n---\n# Body\n",
+      "expect": {
+        "content": "# Body\n",
+        "frontmatter": {},
+        "issues": [],
+        "warnings": [
+          {
+            "code": "invalid_frontmatter",
+            "message": "Unknown frontmatter field \"notes\" was ignored."
+          }
+        ]
+      }
+    },
+    {
+      "name": "full-line comments",
+      "markdown": "---\n# comment\ntitle: T\n  # indented comment\norder: 2\n---\n# Body\n",
+      "expect": {
+        "content": "# Body\n",
+        "frontmatter": {
+          "title": "T",
+          "order": 2
+        },
+        "issues": [],
+        "warnings": []
+      }
+    },
+    {
+      "name": "trailing comment is literal",
+      "markdown": "---\ntitle: Hello # not a comment\n---\n# Body\n",
+      "expect": {
+        "content": "# Body\n",
+        "frontmatter": {
+          "title": "Hello # not a comment"
+        },
+        "issues": [],
+        "warnings": []
+      }
+    },
+    {
+      "name": "double quotes",
+      "markdown": "---\ntitle: \"Quoted: value\"\n---\n# Body\n",
+      "expect": {
+        "content": "# Body\n",
+        "frontmatter": {
+          "title": "Quoted: value"
+        },
+        "issues": [],
+        "warnings": []
+      }
+    },
+    {
+      "name": "single quotes",
+      "markdown": "---\ntitle: 'Single'\n---\n# Body\n",
+      "expect": {
+        "content": "# Body\n",
+        "frontmatter": {
+          "title": "Single"
+        },
+        "issues": [],
+        "warnings": []
+      }
+    },
+    {
+      "name": "lone double quote",
+      "markdown": "---\ntitle: \"\n---\n# Body\n",
+      "expect": {
+        "content": "# Body\n",
+        "frontmatter": {
+          "title": "\""
+        },
+        "issues": [],
+        "warnings": []
+      }
+    },
+    {
+      "name": "mismatched quotes",
+      "markdown": "---\ntitle: \"abc'\n---\n# Body\n",
+      "expect": {
+        "content": "# Body\n",
+        "frontmatter": {
+          "title": "\"abc'"
+        },
+        "issues": [],
+        "warnings": []
+      }
+    },
+    {
+      "name": "inner quotes kept",
+      "markdown": "---\ntitle: say \"hi\" now\n---\n# Body\n",
+      "expect": {
+        "content": "# Body\n",
+        "frontmatter": {
+          "title": "say \"hi\" now"
+        },
+        "issues": [],
+        "warnings": []
+      }
+    },
+    {
+      "name": "escapes are not interpreted",
+      "markdown": "---\ntitle: \"a \\\"b\\\"\"\n---\n# Body\n",
+      "expect": {
+        "content": "# Body\n",
+        "frontmatter": {
+          "title": "a \\\"b\\\""
+        },
+        "issues": [],
+        "warnings": []
+      }
+    },
+    {
+      "name": "value with colon",
+      "markdown": "---\ntitle: Foo: Bar\n---\n# Body\n",
+      "expect": {
+        "content": "# Body\n",
+        "frontmatter": {
+          "title": "Foo: Bar"
+        },
+        "issues": [],
+        "warnings": []
+      }
+    },
+    {
+      "name": "NBSP trimmed like String.prototype.trim",
+      "markdown": "---\ntitle:  Hi \n---\n# Body\n",
+      "expect": {
+        "content": "# Body\n",
+        "frontmatter": {
+          "title": "Hi"
+        },
+        "issues": [],
+        "warnings": []
+      }
+    },
+    {
+      "name": "order integer",
+      "markdown": "---\norder: 10\n---\n# Body\n",
+      "expect": {
+        "content": "# Body\n",
+        "frontmatter": {
+          "order": 10
+        },
+        "issues": [],
+        "warnings": []
+      }
+    },
+    {
+      "name": "order negative float",
+      "markdown": "---\norder: -2.5\n---\n# Body\n",
+      "expect": {
+        "content": "# Body\n",
+        "frontmatter": {
+          "order": -2.5
+        },
+        "issues": [],
+        "warnings": []
+      }
+    },
+    {
+      "name": "order leading dot",
+      "markdown": "---\norder: .5\n---\n# Body\n",
+      "expect": {
+        "content": "# Body\n",
+        "frontmatter": {
+          "order": 0.5
+        },
+        "issues": [],
+        "warnings": []
+      }
+    },
+    {
+      "name": "order trailing dot",
+      "markdown": "---\norder: 5.\n---\n# Body\n",
+      "expect": {
+        "content": "# Body\n",
+        "frontmatter": {
+          "order": 5
+        },
+        "issues": [],
+        "warnings": []
+      }
+    },
+    {
+      "name": "order exponent",
+      "markdown": "---\norder: 1e3\n---\n# Body\n",
+      "expect": {
+        "content": "# Body\n",
+        "frontmatter": {
+          "order": 1000
+        },
+        "issues": [],
+        "warnings": []
+      }
+    },
+    {
+      "name": "order plus sign",
+      "markdown": "---\norder: +5\n---\n# Body\n",
+      "expect": {
+        "content": "# Body\n",
+        "frontmatter": {
+          "order": 5
+        },
+        "issues": [],
+        "warnings": []
+      }
+    },
+    {
+      "name": "order leading zeros",
+      "markdown": "---\norder: 007\n---\n# Body\n",
+      "expect": {
+        "content": "# Body\n",
+        "frontmatter": {
+          "order": 7
+        },
+        "issues": [],
+        "warnings": []
+      }
+    },
+    {
+      "name": "order negative zero",
+      "markdown": "---\norder: -0\n---\n# Body\n",
+      "expect": {
+        "content": "# Body\n",
+        "frontmatter": {
+          "order": 0
+        },
+        "issues": [],
+        "warnings": []
+      }
+    },
+    {
+      "name": "order quoted",
+      "markdown": "---\norder: \"12\"\n---\n# Body\n",
+      "expect": {
+        "content": "# Body\n",
+        "frontmatter": {
+          "order": 12
+        },
+        "issues": [],
+        "warnings": []
+      }
+    },
+    {
+      "name": "order quoted with spaces",
+      "markdown": "---\norder: \" 3 \"\n---\n# Body\n",
+      "expect": {
+        "content": "# Body\n",
+        "frontmatter": {
+          "order": 3
+        },
+        "issues": [],
+        "warnings": []
+      }
+    },
+    {
+      "name": "order hex",
+      "markdown": "---\norder: 0x10\n---\n# Body\n",
+      "expect": {
+        "content": "# Body\n",
+        "frontmatter": {
+          "order": 16
+        },
+        "issues": [],
+        "warnings": []
+      }
+    },
+    {
+      "name": "order uppercase hex",
+      "markdown": "---\norder: 0X1f\n---\n# Body\n",
+      "expect": {
+        "content": "# Body\n",
+        "frontmatter": {
+          "order": 31
+        },
+        "issues": [],
+        "warnings": []
+      }
+    },
+    {
+      "name": "order binary",
+      "markdown": "---\norder: 0b101\n---\n# Body\n",
+      "expect": {
+        "content": "# Body\n",
+        "frontmatter": {
+          "order": 5
+        },
+        "issues": [],
+        "warnings": []
+      }
+    },
+    {
+      "name": "order octal",
+      "markdown": "---\norder: 0o17\n---\n# Body\n",
+      "expect": {
+        "content": "# Body\n",
+        "frontmatter": {
+          "order": 15
+        },
+        "issues": [],
+        "warnings": []
+      }
+    },
+    {
+      "name": "order empty",
+      "markdown": "---\norder:\n---\n# Body\n",
+      "expect": {
+        "content": "# Body\n",
+        "frontmatter": {
+          "order": 0
+        },
+        "issues": [],
+        "warnings": [
+          {
+            "code": "invalid_frontmatter",
+            "message": "Frontmatter field \"order\" is empty and was treated as 0."
+          }
+        ]
+      }
+    },
+    {
+      "name": "order blank quoted",
+      "markdown": "---\norder: \"  \"\n---\n# Body\n",
+      "expect": {
+        "content": "# Body\n",
+        "frontmatter": {
+          "order": 0
+        },
+        "issues": [],
+        "warnings": [
+          {
+            "code": "invalid_frontmatter",
+            "message": "Frontmatter field \"order\" is empty and was treated as 0."
+          }
+        ]
+      }
+    },
+    {
+      "name": "order hex float is invalid",
+      "markdown": "---\norder: 0x1p3\n---\n# Body\n",
+      "expect": {
+        "content": "# Body\n",
+        "frontmatter": {},
+        "issues": [
+          {
+            "code": "invalid_frontmatter",
+            "message": "Frontmatter field \"order\" must be a number."
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "order signed hex is invalid",
+      "markdown": "---\norder: -0x10\n---\n# Body\n",
+      "expect": {
+        "content": "# Body\n",
+        "frontmatter": {},
+        "issues": [
+          {
+            "code": "invalid_frontmatter",
+            "message": "Frontmatter field \"order\" must be a number."
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "order separator is invalid",
+      "markdown": "---\norder: 1_000\n---\n# Body\n",
+      "expect": {
+        "content": "# Body\n",
+        "frontmatter": {},
+        "issues": [
+          {
+            "code": "invalid_frontmatter",
+            "message": "Frontmatter field \"order\" must be a number."
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "order Infinity is invalid",
+      "markdown": "---\norder: Infinity\n---\n# Body\n",
+      "expect": {
+        "content": "# Body\n",
+        "frontmatter": {},
+        "issues": [
+          {
+            "code": "invalid_frontmatter",
+            "message": "Frontmatter field \"order\" must be a number."
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "order overflow is invalid",
+      "markdown": "---\norder: 1e999\n---\n# Body\n",
+      "expect": {
+        "content": "# Body\n",
+        "frontmatter": {},
+        "issues": [
+          {
+            "code": "invalid_frontmatter",
+            "message": "Frontmatter field \"order\" must be a number."
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "order word is invalid",
+      "markdown": "---\norder: first\n---\n# Body\n",
+      "expect": {
+        "content": "# Body\n",
+        "frontmatter": {},
+        "issues": [
+          {
+            "code": "invalid_frontmatter",
+            "message": "Frontmatter field \"order\" must be a number."
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "order trailing garbage is invalid",
+      "markdown": "---\norder: 5px\n---\n# Body\n",
+      "expect": {
+        "content": "# Body\n",
+        "frontmatter": {},
+        "issues": [
+          {
+            "code": "invalid_frontmatter",
+            "message": "Frontmatter field \"order\" must be a number."
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "order bare exponent is invalid",
+      "markdown": "---\norder: 1e\n---\n# Body\n",
+      "expect": {
+        "content": "# Body\n",
+        "frontmatter": {},
+        "issues": [
+          {
+            "code": "invalid_frontmatter",
+            "message": "Frontmatter field \"order\" must be a number."
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "slug valid",
+      "markdown": "---\nslug: My-Page-2\n---\n# Body\n",
+      "expect": {
+        "content": "# Body\n",
+        "frontmatter": {
+          "slug": "My-Page-2"
+        },
+        "issues": [],
+        "warnings": []
+      }
+    },
+    {
+      "name": "slug empty quoted",
+      "markdown": "---\nslug: \"\"\n---\n# Body\n",
+      "expect": {
+        "content": "# Body\n",
+        "frontmatter": {
+          "slug": ""
+        },
+        "issues": [],
+        "warnings": [
+          {
+            "code": "invalid_frontmatter",
+            "message": "Frontmatter field \"slug\" is empty and was ignored."
+          }
+        ]
+      }
+    },
+    {
+      "name": "slug empty",
+      "markdown": "---\nslug:\n---\n# Body\n",
+      "expect": {
+        "content": "# Body\n",
+        "frontmatter": {
+          "slug": ""
+        },
+        "issues": [],
+        "warnings": [
+          {
+            "code": "invalid_frontmatter",
+            "message": "Frontmatter field \"slug\" is empty and was ignored."
+          }
+        ]
+      }
+    },
+    {
+      "name": "slug with slash is invalid",
+      "markdown": "---\nslug: a/b\n---\n# Body\n",
+      "expect": {
+        "content": "# Body\n",
+        "frontmatter": {
+          "slug": "a/b"
+        },
+        "issues": [
+          {
+            "code": "invalid_frontmatter",
+            "message": "Frontmatter field \"slug\" must contain only letters, numbers, and hyphens."
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "slug leading hyphen is invalid",
+      "markdown": "---\nslug: -x\n---\n# Body\n",
+      "expect": {
+        "content": "# Body\n",
+        "frontmatter": {
+          "slug": "-x"
+        },
+        "issues": [
+          {
+            "code": "invalid_frontmatter",
+            "message": "Frontmatter field \"slug\" must contain only letters, numbers, and hyphens."
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "slug non-ASCII is invalid",
+      "markdown": "---\nslug: café\n---\n# Body\n",
+      "expect": {
+        "content": "# Body\n",
+        "frontmatter": {
+          "slug": "café"
+        },
+        "issues": [
+          {
+            "code": "invalid_frontmatter",
+            "message": "Frontmatter field \"slug\" must contain only letters, numbers, and hyphens."
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "draft true",
+      "markdown": "---\ndraft: true\n---\n# Body\n",
+      "expect": {
+        "content": "# Body\n",
+        "frontmatter": {
+          "draft": true
+        },
+        "issues": [],
+        "warnings": []
+      }
+    },
+    {
+      "name": "draft yes is invalid",
+      "markdown": "---\ndraft: yes\n---\n# Body\n",
+      "expect": {
+        "content": "# Body\n",
+        "frontmatter": {},
+        "issues": [
+          {
+            "code": "invalid_frontmatter",
+            "message": "Frontmatter field \"draft\" must be a boolean."
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "status invalid",
+      "markdown": "---\nstatus: live\norder: first\n---\n# Body\n",
+      "expect": {
+        "content": "# Body\n",
+        "frontmatter": {},
+        "issues": [
+          {
+            "code": "invalid_frontmatter",
+            "message": "Frontmatter field \"status\" must be \"draft\" or \"published\"."
+          },
+          {
+            "code": "invalid_frontmatter",
+            "message": "Frontmatter field \"order\" must be a number."
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "title empty",
+      "markdown": "---\ntitle:\n---\n# Body\n",
+      "expect": {
+        "content": "# Body\n",
+        "frontmatter": {
+          "title": ""
+        },
+        "issues": [],
+        "warnings": [
+          {
+            "code": "invalid_frontmatter",
+            "message": "Frontmatter field \"title\" is empty; the title is inferred instead."
+          }
+        ]
+      }
+    },
+    {
+      "name": "description empty",
+      "markdown": "---\ndescription:\n---\n# Body\n",
+      "expect": {
+        "content": "# Body\n",
+        "frontmatter": {
+          "description": ""
+        },
+        "issues": [],
+        "warnings": []
+      }
+    },
+    {
+      "name": "unknown keys (snake and kebab case)",
+      "markdown": "---\nog_image: x.png\nlast-updated: 2026-01-01\nTitle: Capital\n---\n# Body\n",
+      "expect": {
+        "content": "# Body\n",
+        "frontmatter": {},
+        "issues": [],
+        "warnings": [
+          {
+            "code": "invalid_frontmatter",
+            "message": "Unknown frontmatter field \"og_image\" was ignored."
+          },
+          {
+            "code": "invalid_frontmatter",
+            "message": "Unknown frontmatter field \"last-updated\" was ignored."
+          },
+          {
+            "code": "invalid_frontmatter",
+            "message": "Unknown frontmatter field \"Title\" was ignored."
+          }
+        ]
+      }
+    },
+    {
+      "name": "quoted key is unsupported",
+      "markdown": "---\n\"title\": x\n---\n# Body\n",
+      "expect": {
+        "content": "# Body\n",
+        "frontmatter": {},
+        "issues": [
+          {
+            "code": "invalid_frontmatter",
+            "message": "Unsupported frontmatter line: \"title\": x"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "key starting with digit is unsupported",
+      "markdown": "---\n1st: x\n---\n# Body\n",
+      "expect": {
+        "content": "# Body\n",
+        "frontmatter": {},
+        "issues": [
+          {
+            "code": "invalid_frontmatter",
+            "message": "Unsupported frontmatter line: 1st: x"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "line without colon",
+      "markdown": "---\njust text\n---\n# Body\n",
+      "expect": {
+        "content": "# Body\n",
+        "frontmatter": {},
+        "issues": [
+          {
+            "code": "invalid_frontmatter",
+            "message": "Unsupported frontmatter line: just text"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "duplicate keys: last wins",
+      "markdown": "---\ntitle: First\ntitle: Second\n---\n# Body\n",
+      "expect": {
+        "content": "# Body\n",
+        "frontmatter": {
+          "title": "Second"
+        },
+        "issues": [],
+        "warnings": []
+      }
+    },
+    {
+      "name": "no frontmatter",
+      "markdown": "# Installation\n\nBody",
+      "expect": {
+        "content": "# Installation\n\nBody",
+        "frontmatter": {},
+        "issues": [],
+        "warnings": []
+      }
+    },
+    {
+      "name": "missing closing delimiter",
+      "markdown": "---\ntitle: Open\n# Body\n",
+      "expect": {
+        "content": "---\ntitle: Open\n# Body\n",
+        "frontmatter": {},
+        "issues": [
+          {
+            "code": "invalid_frontmatter",
+            "message": "Frontmatter block is missing a closing delimiter."
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "only opening delimiter",
+      "markdown": "---\n",
+      "expect": {
+        "content": "---\n",
+        "frontmatter": {},
+        "issues": [
+          {
+            "code": "invalid_frontmatter",
+            "message": "Frontmatter block is missing a closing delimiter."
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "delimiter without newline",
+      "markdown": "---",
+      "expect": {
+        "content": "---",
+        "frontmatter": {},
+        "issues": [],
+        "warnings": []
+      }
+    },
+    {
+      "name": "opening delimiter with trailing space is not frontmatter",
+      "markdown": "--- \ntitle: X\n---\n",
+      "expect": {
+        "content": "--- \ntitle: X\n---\n",
+        "frontmatter": {},
+        "issues": [],
+        "warnings": []
+      }
+    },
+    {
+      "name": "closing delimiter may have surrounding spaces",
+      "markdown": "---\ntitle: X\n  ---  \nBody",
+      "expect": {
+        "content": "Body",
+        "frontmatter": {
+          "title": "X"
+        },
+        "issues": [],
+        "warnings": []
+      }
+    },
+    {
+      "name": "empty frontmatter",
+      "markdown": "---\n---\n# Body",
+      "expect": {
+        "content": "# Body",
+        "frontmatter": {},
+        "issues": [],
+        "warnings": []
+      }
+    },
+    {
+      "name": "BOM before frontmatter",
+      "markdown": "﻿---\ntitle: BOM title\nslug: bom\n---\n# BOM body",
+      "expect": {
+        "content": "# BOM body",
+        "frontmatter": {
+          "title": "BOM title",
+          "slug": "bom"
+        },
+        "issues": [],
+        "warnings": []
+      }
+    },
+    {
+      "name": "BOM without frontmatter",
+      "markdown": "﻿# Heading",
+      "expect": {
+        "content": "# Heading",
+        "frontmatter": {},
+        "issues": [],
+        "warnings": []
+      }
+    },
+    {
+      "name": "CRLF frontmatter and body",
+      "markdown": "---\r\ntitle: CRLF\r\norder: 2\r\n---\r\n\r\n# Body\r\nline\r\n",
+      "expect": {
+        "content": "# Body\nline\n",
+        "frontmatter": {
+          "title": "CRLF",
+          "order": 2
+        },
+        "issues": [],
+        "warnings": []
+      }
+    },
+    {
+      "name": "lone CR frontmatter",
+      "markdown": "---\rtitle: Old Mac\r---\rBody",
+      "expect": {
+        "content": "Body",
+        "frontmatter": {
+          "title": "Old Mac"
+        },
+        "issues": [],
+        "warnings": []
+      }
+    },
+    {
+      "name": "body keeps content after one leading newline",
+      "markdown": "---\ntitle: T\n---\n\n\nBody",
+      "expect": {
+        "content": "\nBody",
+        "frontmatter": {
+          "title": "T"
+        },
+        "issues": [],
+        "warnings": []
+      }
+    },
+    {
+      "name": "thematic break later is not frontmatter",
+      "markdown": "# Title\n\n---\n\ntext\n",
+      "expect": {
+        "content": "# Title\n\n---\n\ntext\n",
+        "frontmatter": {},
+        "issues": [],
+        "warnings": []
+      }
+    }
+  ]
+}

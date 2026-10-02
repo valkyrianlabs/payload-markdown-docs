@@ -12,6 +12,7 @@ import type {
 import type { SkillBundleAsset } from '../skillBundles.js'
 
 import { DEFAULT_DOCS_ASSETS_COLLECTION_SLUG } from '../constants.js'
+import { isArchivedPayloadRecord, notArchivedWhere } from '../payload/visibility.js'
 import { formatSkillAgentTitle, getSkillBundles } from '../skillBundles.js'
 import {
   getBoolean,
@@ -95,7 +96,7 @@ export const normalizeSkillAssetItems = (
   const assets = input.flatMap((asset): SkillBundleAsset[] => {
     if (
       asset.kind !== 'skill' ||
-      asset.sync?.archived === true ||
+      isArchivedPayloadRecord(asset) ||
       (options.docsSetId && getRelationshipId(asset.docsSet) !== options.docsSetId)
     ) {
       return []
@@ -169,11 +170,7 @@ export const resolveDocsSetSkills = async ({
             equals: 'skill',
           },
         },
-        {
-          'sync.archived': {
-            not_equals: true,
-          },
-        },
+        notArchivedWhere(),
       ],
     },
   })

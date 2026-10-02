@@ -33,9 +33,12 @@ Without `allowWrites: true`, `mode: "sync"` is rejected.
 
 Supported auth modes:
 
-- `ed25519` for signed requests with docs-set public keys.
-- `github-oidc` for GitHub Actions workflows with docs-set repository/ref
-  allowlists.
+- `ed25519` for signed requests with public keys stored in Access records.
+  A key can sync every docs set unless its Access record lists
+  `Allowed docs sets`; unscoped keys log a warning on use.
+- `github-oidc` for GitHub Actions workflows trusted through Access owner or
+  repository records, with per-docs-set branch, repository, tag-ref, workflow
+  ref, and pull-request rules.
 
 See [GitHub OIDC](/configuration/github-oidc) and [signed push](/workflow/signed-push).
 
@@ -77,6 +80,31 @@ sync: {
 Use `revalidate: false` only when the app handles docs cache invalidation
 elsewhere.
 
+## Assets
+
+Manifest assets (skills, stored `llms.txt` files, static text files) are
+served from the site origin, so the server accepts only the content types
+`pmdocs` emits: `text/markdown`, `text/plain`, `application/json`, and
+`application/yaml`, optionally with `charset=utf-8`.
+
+Other types (for example `text/html` or `image/svg+xml`) reject the sync with
+`invalid_manifest`. Every asset, llms, and skill response is sent with
+`X-Content-Type-Options: nosniff` and
+`Content-Security-Policy: default-src 'none'; sandbox`; JSON, YAML, and CSV are
+sent as attachments. Rows stored before this policy with another type are
+served as `text/plain`.
+
+Assets have no draft state. When the docs collection has drafts, a sync
+without `--publish` reports asset creates and updates but does not apply them
+(warning `assets_deferred_until_publish`); the next `--publish` sync applies
+them. Asset removals always apply. Set `sync.applyAssetsOnDraftSync: true` to
+apply asset changes in non-publish syncs as earlier versions did.
+
+## Dry-Run Audit Records
+
+Every dry run records a sync run by default. Set `sync.auditDryRuns: false` to
+record applied syncs only. Dry runs still consume their nonce.
+
 ## Delete Behavior
 
 `deleteBehavior` can be:
@@ -87,6 +115,27 @@ elsewhere.
 - `delete`
 
 Hard delete requires `allowHardDelete: true`.
+
+Removals take effect on the public site in every sync, including syncs without
+`--publish`: `archive` and `draft` write the published record so a doc removed
+from Git stops being served immediately. `draft` additionally unpublishes it.
+
+An archived doc releases its route. Its stored route becomes
+`archived:<id>:<route>`, so another file can take over the URL (for example
+`guide.md` becoming `guide/index.md`, or two docs swapping `slug:` values).
+When the file comes back, the archived record is reactivated on its real route.
+
+A sync is applied in a single database transaction when the Payload database
+adapter supports transactions (Postgres, SQLite, MongoDB replica sets). If any
+write fails, no docs, assets, or docs-set changes from that sync are kept, and
+the sync run is recorded as `failed`.
+
+A sync is rejected with `409 route_collision` before any write when a route it
+needs is still held by a doc it cannot release: a doc owned by another docs
+set, or a published doc of the same set whose published version this sync does
+not update (for example a non-`--publish` sync that moves `guide.md` away from
+`/guide` while a new file claims `/guide`). Run the change as a `--publish`
+sync instead.
 
 :::details {title="Recommended default"}
 Use `deleteBehavior: 'archive'` and `allowHardDelete: false`. Archive keeps records available for review and avoids accidental destructive syncs.

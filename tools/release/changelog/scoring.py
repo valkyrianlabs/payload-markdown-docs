@@ -199,6 +199,7 @@ def is_semantic_noise_path(path: str) -> bool:
         "changelog.payload.json",
         "changelog.semantic_payload.json",
         "changelog.draft.md",
+        "claude.md",
     }
     if normalized in derived_exact_paths:
         return True
@@ -216,15 +217,18 @@ def is_semantic_noise_path(path: str) -> bool:
 
     derived_exact_dirs = {
         ".changelog_scratch",
-        ".codex/context",
-        ".codex/scratch",
+        # Agent tooling/context is never user-facing release content.
+        ".claude",
+        ".codex",
+        ".agents",
     }
     if normalized in derived_exact_dirs:
         return True
 
     derived_prefixes = (
         ".changelog_scratch/",
-        ".codex/context/",
-        ".codex/scratch/",
+        ".claude/",
+        ".codex/",
+        ".agents/",
     )
     return any(normalized.startswith(prefix) for prefix in derived_prefixes)

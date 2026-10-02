@@ -1,3 +1,4 @@
+import { MarkdownBlockParamsEnableField as MarkdownBlockParamsEnableField_1979c58d51b79af2f94b485a60a7f365 } from '@valkyrianlabs/payload-markdown/client'
 import { PayloadMarkdownField as PayloadMarkdownField_192075c28305aaf2a6d83acda5157143 } from '@valkyrianlabs/payload-markdown/server'
 import { SlugField as SlugField_2b8867833a34864a02ddf429b0728a40 } from '@payloadcms/next/client'
 import { MetaTitleComponent as MetaTitleComponent_a8a977ebc872c5d5ea7ee689724c0860 } from '@payloadcms/plugin-seo/client'
@@ -9,6 +10,7 @@ import { CollectionCards as CollectionCards_f9c02e79a4aed9a3924487c0cd4cafb1 } f
 
 /** @type import('payload').ImportMap */
 export const importMap = {
+  "@valkyrianlabs/payload-markdown/client#MarkdownBlockParamsEnableField": MarkdownBlockParamsEnableField_1979c58d51b79af2f94b485a60a7f365,
   "@valkyrianlabs/payload-markdown/server#PayloadMarkdownField": PayloadMarkdownField_192075c28305aaf2a6d83acda5157143,
   "@payloadcms/next/client#SlugField": SlugField_2b8867833a34864a02ddf429b0728a40,
   "@payloadcms/plugin-seo/client#MetaTitleComponent": MetaTitleComponent_a8a977ebc872c5d5ea7ee689724c0860,

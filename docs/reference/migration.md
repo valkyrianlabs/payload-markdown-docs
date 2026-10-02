@@ -11,6 +11,9 @@ tags:
 
 # V1 Migration Notes
 
+Upgrading an existing 1.0.x install? See
+[Upgrading to 1.1](/reference/upgrade-1-1).
+
 The v1 package surface uses docs sets, slug-derived routes, server-owned sync
 authority, native agent skill assets, and a narrow public package API.
 

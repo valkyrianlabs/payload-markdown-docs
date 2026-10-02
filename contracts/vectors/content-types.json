@@ -1,0 +1,100 @@
+{
+  "contractVersion": 1,
+  "description": "Asset content types: the fixed allowlist clients emit (src/sync/assetContentTypes.ts; cli/src/docs.cpp asset_content_type) and the allowlist check servers can apply.",
+  "byPath": [
+    {
+      "path": "skills/x/codex/SKILL.md",
+      "expect": "text/markdown; charset=utf-8"
+    },
+    {
+      "path": "a/b.MD",
+      "expect": "text/markdown; charset=utf-8"
+    },
+    {
+      "path": "x.json",
+      "expect": "application/json; charset=utf-8"
+    },
+    {
+      "path": "x.JSON",
+      "expect": "application/json; charset=utf-8"
+    },
+    {
+      "path": "x.yaml",
+      "expect": "application/yaml; charset=utf-8"
+    },
+    {
+      "path": "x.yml",
+      "expect": "application/yaml; charset=utf-8"
+    },
+    {
+      "path": "x.YML",
+      "expect": "application/yaml; charset=utf-8"
+    },
+    {
+      "path": "llms.txt",
+      "expect": "text/plain; charset=utf-8"
+    },
+    {
+      "path": "llms-full.txt",
+      "expect": "text/plain; charset=utf-8"
+    },
+    {
+      "path": "x.html",
+      "expect": "text/plain; charset=utf-8"
+    },
+    {
+      "path": "noext",
+      "expect": "text/plain; charset=utf-8"
+    },
+    {
+      "path": "dir.d/noext",
+      "expect": "text/plain; charset=utf-8"
+    },
+    {
+      "path": ".yml",
+      "expect": "text/plain; charset=utf-8"
+    },
+    {
+      "path": "x.",
+      "expect": "text/plain; charset=utf-8"
+    }
+  ],
+  "allowed": [
+    {
+      "contentType": "text/markdown; charset=utf-8",
+      "expect": true
+    },
+    {
+      "contentType": "TEXT/PLAIN; Charset=UTF-8",
+      "expect": true
+    },
+    {
+      "contentType": "application/json",
+      "expect": true
+    },
+    {
+      "contentType": "application/yaml;charset=utf-8",
+      "expect": true
+    },
+    {
+      "contentType": "text/html; charset=utf-8",
+      "expect": false
+    },
+    {
+      "contentType": "image/svg+xml",
+      "expect": false
+    },
+    {
+      "contentType": "text/plain; charset=latin1",
+      "expect": false
+    },
+    {
+      "contentType": "text/plain; charset=utf-8; foo=bar",
+      "expect": false
+    },
+    {
+      "contentType": "",
+      "expect": false
+    }
+  ]
+}

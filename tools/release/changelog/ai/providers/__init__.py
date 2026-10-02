@@ -1,6 +1,12 @@
 from dataclasses import dataclass
 
-from tools.release.changelog.ai.config import AIProviderConfig, DEFAULT_OPENAI_COMPATIBLE_BASE_URL
+from tools.release.changelog.ai.config import (
+    AIProviderConfig,
+    DEFAULT_DEEPSEEK_BASE_URL,
+    DEFAULT_OPENAI_COMPATIBLE_BASE_URL,
+    OPENAI_API_KEY_ENV_VAR,
+    default_api_key_env_var,
+)
 from tools.release.changelog.ai.providers.base import ModelDiscoveryProvider, StructuredJSONProvider
 from tools.release.changelog.ai.providers.capabilities import (
     ProviderCapabilities,
@@ -26,6 +32,21 @@ def build_structured_json_provider(config: AIProviderConfig) -> StructuredJSONPr
             provider_kind="openai",
             api_key=config.api_key,
             api_key_env_var=config.api_key_env_var,
+            timeout_seconds=config.timeout_seconds,
+        )
+
+    if config.kind == "deepseek":
+        # DeepSeek serves the OpenAI Responses API (reasoning effort + strict json_schema), so it reuses the
+        # hosted transport with its own endpoint and key.
+        api_key_env_var = config.api_key_env_var
+        if api_key_env_var == OPENAI_API_KEY_ENV_VAR:
+            api_key_env_var = default_api_key_env_var("deepseek")
+        return OpenAIProvider(
+            model=model,
+            provider_kind="deepseek",
+            api_key=config.api_key,
+            api_key_env_var=api_key_env_var,
+            base_url=config.base_url or DEFAULT_DEEPSEEK_BASE_URL,
             timeout_seconds=config.timeout_seconds,
         )
 
@@ -70,7 +91,8 @@ def run_provider_preflight(
             raise ValueError(
                 f"Could not reach OpenAI-compatible endpoint at {endpoint}: {exc}"
             ) from exc
-        raise ValueError(f"OpenAI provider preflight failed: {exc}") from exc
+        label = {"openai": "OpenAI", "deepseek": "DeepSeek"}.get(config.kind, config.kind)
+        raise ValueError(f"{label} provider preflight failed: {exc}") from exc
 
     model_found = model in discovered_models if discovered_models else False
     if require_model and discovered_models and not model_found:

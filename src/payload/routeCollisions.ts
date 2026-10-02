@@ -5,6 +5,8 @@ import {
   findRouteReservationCollisions,
   normalizeRoutePath,
 } from '../routing/index.js'
+import { getRecordId, getRelationshipId, isRecord } from '../shared/records.js'
+import { isArchivedPayloadRecord } from './visibility.js'
 
 export type RouteCollisionPayloadOperations = {
   find: (args: {
@@ -13,6 +15,7 @@ export type RouteCollisionPayloadOperations = {
     draft?: boolean
     limit?: number
     overrideAccess?: boolean
+    pagination?: boolean
     where?: unknown
   }) => Promise<{
     docs: unknown[]
@@ -22,29 +25,7 @@ export type RouteCollisionPayloadOperations = {
 export type DocsRouteCollisionIssue = {
   reason: string
   route: string
-}
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value)
-
-const getRecordId = (doc: Record<string, unknown>): string | undefined => {
-  if (typeof doc.id === 'string' || typeof doc.id === 'number') {
-    return String(doc.id)
-  }
-
-  return undefined
-}
-
-const getRelationshipId = (value: unknown): string | undefined => {
-  if (typeof value === 'string' || typeof value === 'number') {
-    return String(value)
-  }
-
-  if (isRecord(value)) {
-    return getRecordId(value)
-  }
-
-  return undefined
+  sourcePath?: string
 }
 
 const getNestedString = (
@@ -107,8 +88,8 @@ export const findExistingDocsRouteCollisions = async ({
     collection: collectionSlug,
     depth: 0,
     draft: includeDrafts,
-    limit: 1000,
     overrideAccess: true,
+    pagination: false,
     where: {
       route: {
         in: normalizedRoutes,
@@ -163,8 +144,8 @@ export const findExistingAssetRouteCollisions = async ({
   const result = await payload.find({
     collection: collectionSlug,
     depth: 0,
-    limit: 1000,
     overrideAccess: true,
+    pagination: false,
     where: {
       route: {
         in: normalizedRoutes,
@@ -177,9 +158,7 @@ export const findExistingAssetRouteCollisions = async ({
       return []
     }
 
-    const sync = isRecord(doc.sync) ? doc.sync : undefined
-
-    if (sync?.archived === true) {
+    if (isArchivedPayloadRecord(doc)) {
       return []
     }
 
@@ -227,8 +206,8 @@ export const findConfiguredPagesRouteCollisions = async ({
   const result = await payload.find({
     collection: collectionSlug,
     depth: 0,
-    limit: 1000,
     overrideAccess: true,
+    pagination: false,
   })
 
   const collisions = findPageRouteCollisions({

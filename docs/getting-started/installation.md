@@ -10,13 +10,39 @@ tags:
 
 # Installation
 
-Install both the docs workflow package and the Markdown content package:
+Install the docs workflow package together with its peer packages:
 
 ```bash
-pnpm add @valkyrianlabs/payload-markdown-docs @valkyrianlabs/payload-markdown
+pnpm add @valkyrianlabs/payload-markdown-docs @valkyrianlabs/payload-markdown @payloadcms/plugin-seo
 ```
 
-`payload-markdown-docs` depends conceptually on `payload-markdown` for Markdown fields and rendering. It does not duplicate the renderer.
+`@valkyrianlabs/payload-markdown` (Markdown field and renderer) and
+`@payloadcms/plugin-seo` (docs-set SEO fields) are **peer dependencies**: the
+plugin registers admin components from both packages in your app's import map,
+so your app must install them directly. Installing them yourself also keeps a
+single copy of `payload-markdown`, so the `payloadMarkdown()` options you
+configure (themes, code highlighting, icons) apply to docs pages too. Register
+`payloadMarkdown()` in the same Payload config as `payloadMarkdownDocs()`.
+`payload`, `next`, `react` and `react-dom` are peers as well and are already
+part of every Payload app.
+
+### Styling
+
+Docs pages and components use Tailwind utility classes from both packages. With
+Tailwind v4, add both packages to your app stylesheet's sources:
+
+```css
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+@source "../node_modules/@valkyrianlabs/payload-markdown/dist";
+@source "../node_modules/@valkyrianlabs/payload-markdown-docs/dist";
+```
+
+Adjust the relative paths to where your stylesheet lives. The components expect
+`--color-foreground`, `--color-border` and `--color-background` theme tokens
+(shadcn-style `text-foreground`, `border-border`, `bg-background`).
+
+`payload-markdown-docs` uses `payload-markdown` for Markdown fields and rendering. It does not duplicate the renderer.
 
 The npm package installs the Payload plugin/runtime integration only. Install
 the native `pmdocs` CLI separately anywhere you validate, plan, install routes,

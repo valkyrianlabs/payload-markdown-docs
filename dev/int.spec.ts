@@ -112,6 +112,9 @@ const hasValidPostgresUrl = (): boolean => {
 
 const describeWithPostgres = hasValidPostgresUrl() ? describe : describe.skip
 
+// The plugin omits media upload fields when the app has no `media` collection (X-17).
+const mediaCollections = [{ slug: 'media', fields: [], upload: true }]
+
 describe('payloadMarkdownDocs collection wiring', () => {
   test('exports the plugin factory', () => {
     expect(typeof payloadMarkdownDocs).toBe('function')
@@ -319,7 +322,7 @@ describe('payloadMarkdownDocs collection wiring', () => {
 
   test('docs collection contains expected fields', () => {
     const transformedConfig = payloadMarkdownDocsSync({ enabled: true })({
-      collections: [],
+      collections: mediaCollections,
     } as unknown as Config)
     const docsCollection = getCollection(transformedConfig, DEFAULT_DOCS_COLLECTION_SLUG)
     const syncField = getGroupField(docsCollection, 'sync')
@@ -360,6 +363,7 @@ describe('payloadMarkdownDocs collection wiring', () => {
       'sourcePath',
       'sourceHashAtLastSync',
       'contentHashAtLastSync',
+      'fieldsHashAtLastSync',
       'lastSyncedAt',
       'lastSyncRunId',
       'managedBy',
@@ -377,7 +381,7 @@ describe('payloadMarkdownDocs collection wiring', () => {
         },
       },
     })({
-      collections: [],
+      collections: [...mediaCollections, { slug: 'docs-media', fields: [], upload: true }],
     } as unknown as Config)
     const docsCollection = getCollection(transformedConfig, DEFAULT_DOCS_COLLECTION_SLUG)
 
@@ -529,7 +533,7 @@ describe('payloadMarkdownDocs collection wiring', () => {
 
   test('docs sets collection contains expected fields', () => {
     const transformedConfig = payloadMarkdownDocsSync({ enabled: true })({
-      collections: [],
+      collections: mediaCollections,
     } as unknown as Config)
     const docsSetsCollection = getCollection(transformedConfig, DEFAULT_DOCS_SETS_COLLECTION_SLUG)
     const advancedSecurityField = getGroupField(docsSetsCollection, 'advancedSecurity')

@@ -1,4 +1,4 @@
-import type { DocsDeleteBehavior, DocsSyncMode, DocsValidationIssue } from '../sync/index.js'
+import type { DocsDeleteBehavior, DocsSyncMode } from '../sync/index.js'
 
 export type SyncRunStatus = 'failed' | 'pending' | 'success'
 
@@ -18,6 +18,13 @@ export type SyncRunSummary = {
 }
 
 export type PayloadRecordId = number | string
+
+/** Issue row stored on a sync run. Codes may be validation codes or endpoint codes. */
+export type SyncRunIssue = {
+  code: string
+  message: string
+  path?: string
+}
 
 export type SyncRunsPayloadOperations = {
   create: (args: {
@@ -41,7 +48,7 @@ export type CreateSyncRunAuditInput = {
   commit?: string
   completedAt: Date
   deleteBehavior: DocsDeleteBehavior
-  errors: DocsValidationIssue[]
+  errors: SyncRunIssue[]
   fileCount: number
   keyId: string
   mode: DocsSyncMode
@@ -53,10 +60,10 @@ export type CreateSyncRunAuditInput = {
   status: SyncRunStatus
   summary: SyncRunSummary
   totalBytes: number
-  warnings: DocsValidationIssue[]
+  warnings: SyncRunIssue[]
 }
 
-const issueToArrayRow = (issue: DocsValidationIssue): { message: string } => ({
+const issueToArrayRow = (issue: SyncRunIssue): { message: string } => ({
   message: issue.path ? `${issue.path}: ${issue.message}` : issue.message,
 })
 
@@ -107,14 +114,6 @@ export const createSyncRunAudit = async ({
     overrideAccess: true,
   })
 
-export const getRecordId = (record: Record<string, unknown>): PayloadRecordId | undefined => {
-  if (typeof record.id === 'string' || typeof record.id === 'number') {
-    return record.id
-  }
-
-  return undefined
-}
-
 export const updateSyncRunAudit = async ({
   collectionSlug,
   completedAt,
@@ -127,12 +126,12 @@ export const updateSyncRunAudit = async ({
 }: {
   collectionSlug: string
   completedAt: Date
-  errors?: DocsValidationIssue[]
+  errors?: SyncRunIssue[]
   payload: SyncRunsPayloadOperations
   status: SyncRunStatus
   summary?: SyncRunSummary
   syncRunId: PayloadRecordId
-  warnings?: DocsValidationIssue[]
+  warnings?: SyncRunIssue[]
 }): Promise<Record<string, unknown> | undefined> => {
   if (!payload.update) {
     return undefined

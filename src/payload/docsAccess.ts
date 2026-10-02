@@ -1,11 +1,14 @@
 import type { GitHubOidcTrustedSource } from '../security/index.js'
 
+import { getString, isRecord } from '../shared/records.js'
+
 export type DocsAccessPayloadOperations = {
   find: (args: {
     collection: string
     depth?: number
     limit?: number
     overrideAccess?: boolean
+    pagination?: boolean
     where?: unknown
   }) => Promise<{
     docs: unknown[]
@@ -15,20 +18,45 @@ export type DocsAccessPayloadOperations = {
 export type DocsAccessType = 'ed25519' | 'githubOidc'
 
 export type ResolvedDocsKey = {
+  /** Docs set ids this key may sync; empty = every docs set (deprecated). */
+  docsSetIds: string[]
   id: string
   publicKey: string
 }
+
+export type ScopedGitHubOidcTrustedSource = {
+  /** Docs set ids this owner/repository record may sync; empty = every docs set. */
+  docsSetIds: string[]
+} & GitHubOidcTrustedSource
+
+const getRelationshipIds = (value: unknown): string[] => {
+  if (!Array.isArray(value)) {
+    return []
+  }
+
+  return value.flatMap((item) => {
+    if (typeof item === 'string' || typeof item === 'number') {
+      return [String(item)]
+    }
+
+    if (isRecord(item)) {
+      const nested = isRecord(item.value) ? item.value.id : (item.value ?? item.id)
+
+      return typeof nested === 'string' || typeof nested === 'number' ? [String(nested)] : []
+    }
+
+    return []
+  })
+}
+
+/** True when a credential scoped to `docsSetIds` may sync `docsSetId`. */
+export const isDocsSetInScope = (docsSetIds: string[], docsSetId: number | string): boolean =>
+  docsSetIds.length === 0 || docsSetIds.includes(String(docsSetId))
 
 const docsAccessTypes = new Set<DocsAccessType>(['ed25519', 'githubOidc'])
 
 export const isDocsAccessType = (value: string): value is DocsAccessType =>
   docsAccessTypes.has(value as DocsAccessType)
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value)
-
-const getString = (value: unknown): string | undefined =>
-  typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined
 
 const getStringArray = (value: unknown): string[] => {
   if (!Array.isArray(value)) {
@@ -81,12 +109,13 @@ const toResolvedDocsKey = (doc: unknown): ResolvedDocsKey | undefined => {
   return id && publicKey
     ? {
         id,
+        docsSetIds: getRelationshipIds(doc.docsSets),
         publicKey,
       }
     : undefined
 }
 
-const toTrustedSource = (doc: unknown): GitHubOidcTrustedSource | undefined => {
+const toTrustedSource = (doc: unknown): ScopedGitHubOidcTrustedSource | undefined => {
   if (!isRecord(doc) || doc.accessType !== 'githubOidc') {
     return undefined
   }
@@ -100,6 +129,7 @@ const toTrustedSource = (doc: unknown): GitHubOidcTrustedSource | undefined => {
   const limitRepos = doc.limitRepos === true
 
   return {
+    docsSetIds: getRelationshipIds(doc.docsSets),
     limitRepos,
     owner,
     ...(limitRepos
@@ -149,12 +179,12 @@ export const findTrustedGitHubSources = async ({
 }: {
   collectionSlug: string
   payload: DocsAccessPayloadOperations
-}): Promise<GitHubOidcTrustedSource[]> => {
+}): Promise<ScopedGitHubOidcTrustedSource[]> => {
   const result = await payload.find({
     collection: collectionSlug,
     depth: 0,
-    limit: 1000,
     overrideAccess: true,
+    pagination: false,
     where: {
       accessType: {
         equals: 'githubOidc',
@@ -164,5 +194,5 @@ export const findTrustedGitHubSources = async ({
 
   return result.docs
     .map(toTrustedSource)
-    .filter((source): source is GitHubOidcTrustedSource => source !== undefined)
+    .filter((source): source is ScopedGitHubOidcTrustedSource => source !== undefined)
 }

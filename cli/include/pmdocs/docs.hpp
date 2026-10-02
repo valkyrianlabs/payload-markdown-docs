@@ -10,6 +10,7 @@
 namespace pmdocs {
 
 struct DocsCommandOptions {
+  std::optional<std::string> asset_route_base;
   std::optional<std::string> branch;
   std::optional<std::string> commit;
   std::optional<std::filesystem::path> docs_flag;
@@ -24,14 +25,17 @@ struct DocsCommandOptions {
   bool llms_full_path_explicit = false;
   std::filesystem::path llms_path = "./llms.txt";
   bool llms_path_explicit = false;
+  std::optional<std::size_t> max_body_bytes;
   std::optional<std::size_t> max_file_bytes;
   std::optional<std::size_t> max_files;
   std::optional<std::size_t> max_total_bytes;
   bool pretty = false;
   bool print_json = false;
   std::optional<std::string> repository;
+  std::optional<std::string> route_base;
   std::filesystem::path skills_root = "./skills";
   bool skills_root_explicit = false;
+  bool skip_hidden = false;
   std::optional<std::string> source_id;
   bool no_docs = false;
   bool no_llms = false;
@@ -41,6 +45,8 @@ struct DocsCommandOptions {
 
 struct PlanCommandOptions : DocsCommandOptions {
   std::optional<std::string> delete_behavior;
+  std::optional<std::string> existing_assets_path;
+  bool publish = false;
 };
 
 struct KeygenOptions {
@@ -60,6 +66,7 @@ struct SignedDocsRequest {
 };
 
 struct PushCommandOptions : DocsCommandOptions {
+  bool allow_insecure_http = false;
   std::optional<std::string> delete_behavior;
   bool dry_run = false;
   std::string endpoint;
@@ -73,6 +80,7 @@ struct PushCommandOptions : DocsCommandOptions {
 };
 
 std::string sha256_hex(std::string_view input);
+std::string endpoint_path(const std::string& endpoint);
 std::string build_canonical_signing_string(
   const std::string& body_sha256,
   const std::string& method,

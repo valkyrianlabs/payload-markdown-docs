@@ -7,6 +7,10 @@ export type JsonWebKeySet = {
 }
 
 const JWKS_CACHE_TTL_MS = 5 * 60 * 1000
+/** Minimum interval between forced JWKS refetches for an unknown `kid` (DOCS-16). */
+const JWKS_FORCED_REFRESH_INTERVAL_MS = 60 * 1000
+const DISCOVERY_CACHE_TTL_MS = 60 * 60 * 1000
+const FETCH_TIMEOUT_MS = 5000
 
 const jwksCache = new Map<
   string,
@@ -15,6 +19,23 @@ const jwksCache = new Map<
     jwks: JsonWebKeySet
   }
 >()
+
+const lastForcedRefreshByUrl = new Map<string, number>()
+
+const discoveryCache = new Map<
+  string,
+  {
+    expiresAt: number
+    jwksUri: string
+  }
+>()
+
+/** Test helper: clears cached discovery documents and key sets. */
+export const resetGitHubOidcKeyCaches = (): void => {
+  jwksCache.clear()
+  discoveryCache.clear()
+  lastForcedRefreshByUrl.clear()
+}
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -25,7 +46,9 @@ const isJwks = (value: unknown): value is JsonWebKeySet =>
   value.keys.every((key) => isRecord(key))
 
 export const defaultFetchJson: FetchJson = async (url: string): Promise<unknown> => {
-  const response = await fetch(url)
+  const response = await fetch(url, {
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+  })
 
   if (!response.ok) {
     throw new Error(`Could not fetch JSON from ${url}.`)
@@ -47,6 +70,15 @@ export const getGithubOidcJwksUrl = async ({
     return jwksUrl
   }
 
+  const now = Date.now()
+  const cached = discoveryCache.get(issuer)
+
+  // Discovery is cached so unauthenticated OIDC-shaped requests do not each trigger an
+  // outbound fetch (DOCS-15).
+  if (cached && cached.expiresAt > now) {
+    return cached.jwksUri
+  }
+
   const discoveryUrl = `${issuer.replace(/\/+$/g, '')}/.well-known/openid-configuration`
   const discovery = await fetchJson(discoveryUrl)
 
@@ -54,22 +86,44 @@ export const getGithubOidcJwksUrl = async ({
     throw new Error('GitHub OIDC discovery response did not include jwks_uri.')
   }
 
+  discoveryCache.set(issuer, {
+    expiresAt: now + DISCOVERY_CACHE_TTL_MS,
+    jwksUri: discovery.jwks_uri,
+  })
+
   return discovery.jwks_uri
 }
 
 export const fetchJwks = async ({
   fetchJson = defaultFetchJson,
+  forceRefresh = false,
   now = new Date(),
   url,
 }: {
   fetchJson?: FetchJson
+  /**
+   * Refetch even when cached (used once for an unknown `kid` after key rotation). Forced
+   * refetches are rate-limited per URL so unknown-kid tokens cannot hammer the issuer.
+   */
+  forceRefresh?: boolean
   now?: Date
   url: string
 }): Promise<JsonWebKeySet> => {
   const cached = jwksCache.get(url)
+  const nowMs = now.getTime()
 
-  if (cached && cached.expiresAt > now.getTime()) {
+  const lastForcedRefresh = lastForcedRefreshByUrl.get(url)
+  const forcedRefreshAllowed =
+    forceRefresh &&
+    (lastForcedRefresh === undefined ||
+      nowMs - lastForcedRefresh >= JWKS_FORCED_REFRESH_INTERVAL_MS)
+
+  if (cached && cached.expiresAt > nowMs && !forcedRefreshAllowed) {
     return cached.jwks
+  }
+
+  if (forcedRefreshAllowed) {
+    lastForcedRefreshByUrl.set(url, nowMs)
   }
 
   const jwks = await fetchJson(url)
@@ -79,7 +133,7 @@ export const fetchJwks = async ({
   }
 
   jwksCache.set(url, {
-    expiresAt: now.getTime() + JWKS_CACHE_TTL_MS,
+    expiresAt: nowMs + JWKS_CACHE_TTL_MS,
     jwks,
   })
 

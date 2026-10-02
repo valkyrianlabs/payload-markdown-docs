@@ -14,13 +14,18 @@ import {
   DEFAULT_MARKDOWN_FIELD_NAME,
 } from '../constants.js'
 import {
-  deriveDocsSetProductRoutePath,
-  deriveDocsSetRouteBase,
-  isRouteDescendant,
-  joinRouteSegments,
-  normalizeRoutePath,
-} from '../routing/index.js'
-import { getRelationshipId, isRecord, isVisibleDocsRecord, toResolvedDocsRecord } from './records.js'
+  isPublicDocsAssetRecord,
+  notArchivedWhere,
+  publishedWhere,
+} from '../payload/visibility.js'
+import {
+  type DocsGroupsById,
+  indexDocsGroupsById,
+  resolveDocsSetRoutes,
+} from '../routing/docsSetRoutes.js'
+import { isRouteDescendant, joinRouteSegments, normalizeRoutePath } from '../routing/index.js'
+import { getRelationshipId, isRecord } from '../shared/records.js'
+import { isVisibleDocsRecord, toResolvedDocsRecord } from './records.js'
 
 export type PayloadMarkdownDocsSitemapDoc = {
   lastModified?: null | string
@@ -96,8 +101,29 @@ const getSitemapUrl = ({
 }): string => {
   const baseUrl = normalizeSiteUrl(siteUrl)
 
-  return routePath === '/' ? baseUrl : `${baseUrl}${routePath}`
+  return routePath === '/' ? baseUrl : `${baseUrl}${encodeRoutePath(routePath)}`
 }
+
+/**
+ * Percent-encodes each route segment so sitemap URLs stay valid for segments with
+ * spaces, `?`, `#`, or non-ASCII characters (DOCS-22). Plain ASCII slugs are unchanged;
+ * already-encoded segments are not encoded twice.
+ */
+export const encodeRoutePath = (routePath: string): string =>
+  routePath
+    .split('/')
+    .map((segment) => {
+      let decoded = segment
+
+      try {
+        decoded = decodeURIComponent(segment)
+      } catch {
+        // Not valid percent-encoding: encode the raw segment.
+      }
+
+      return encodeURIComponent(decoded)
+    })
+    .join('/')
 
 const normalizeLastModified = (
   lastModified?: Date | null | string,
@@ -198,40 +224,6 @@ export const getPayloadMarkdownDocsAiSitemapRoutes = ({
   return routes
 }
 
-const getGroupRoutePath = ({
-  groupId,
-  groupsById,
-  seen = new Set<string>(),
-}: {
-  groupId?: string
-  groupsById: Map<string, unknown>
-  seen?: Set<string>
-}): string | undefined => {
-  if (!groupId || seen.has(groupId)) {
-    return undefined
-  }
-
-  const group = groupsById.get(groupId)
-
-  if (!isRecord(group)) {
-    return undefined
-  }
-
-  const slug = getOptionalString(group, 'slug')
-
-  if (!slug) {
-    return undefined
-  }
-
-  const parentRoutePath = getGroupRoutePath({
-    groupId: getRelationshipId(group.parent),
-    groupsById,
-    seen: new Set([groupId, ...seen]),
-  })
-
-  return joinRouteSegments(parentRoutePath, slug)
-}
-
 type DocsSetSitemapEntry = {
   docsSetId?: string
   productRoute: string
@@ -246,33 +238,16 @@ const toDocsSetSitemapEntry = ({
   siteUrl,
 }: {
   doc: unknown
-  groupsById: Map<string, unknown>
+  groupsById: DocsGroupsById
   siteUrl: string
 }): DocsSetSitemapEntry | undefined => {
-  if (!isRecord(doc)) {
+  const routes = isRecord(doc) ? resolveDocsSetRoutes({ doc, groupsById }) : undefined
+
+  if (!isRecord(doc) || !routes) {
     return undefined
   }
 
-  const slug = getOptionalString(doc, 'slug')
-
-  if (!slug) {
-    return undefined
-  }
-
-  const groupRoutePath = getGroupRoutePath({
-    groupId: getRelationshipId(doc.group),
-    groupsById,
-  })
-  const routeMode = doc.routeMode === 'product-nested' ? 'product-nested' : 'docs-root'
-  const productRoute = deriveDocsSetProductRoutePath({
-    docsSetSlug: slug,
-    groupRoutePath,
-  })
-  const routePath = deriveDocsSetRouteBase({
-    docsSetSlug: slug,
-    groupRoutePath,
-    routeMode,
-  })
+  const { productRoute, routeBase: routePath, routeMode } = routes
 
   return {
     docsSetId: getRelationshipId(doc),
@@ -440,9 +415,7 @@ const toAssetSitemapDocs = ({
     return []
   }
 
-  const sync = isRecord(doc.sync) ? doc.sync : undefined
-
-  if (sync?.archived === true) {
+  if (!isPublicDocsAssetRecord(doc)) {
     return []
   }
 
@@ -648,11 +621,7 @@ const getDocsForSitemapUncached = async ({
         routeMode: true,
         updatedAt: true,
       },
-      where: {
-        _status: {
-          equals: 'published',
-        },
-      },
+      where: publishedWhere(),
     }),
     payload.find({
       collection: docsGroupsCollectionSlug,
@@ -674,6 +643,9 @@ const getDocsForSitemapUncached = async ({
           overrideAccess,
           select: {
             id: true,
+            // `draft: false` still returns never-published docs; `_status` is required for
+            // isVisibleDocsRecord to exclude them.
+            _status: true,
             docsSet: true,
             route: true,
             sourcePath: true,
@@ -684,17 +656,7 @@ const getDocsForSitemapUncached = async ({
         })
       : Promise.resolve(undefined),
   ])
-  const groupsById = new Map(
-    docsGroupsResult.docs.flatMap((group) => {
-      if (!isRecord(group)) {
-        return []
-      }
-
-      const id = getRelationshipId(group)
-
-      return id ? [[id, group]] : []
-    }),
-  )
+  const groupsById = indexDocsGroupsById(docsGroupsResult.docs)
   const docsSetEntries = docsSetsResult.docs
     .flatMap((doc) => {
       const entry = toDocsSetSitemapEntry({
@@ -743,11 +705,7 @@ const getDocsForSitemapUncached = async ({
               sync: true,
               updatedAt: true,
             },
-            where: {
-              'sync.archived': {
-                not_equals: true,
-              },
-            },
+            where: notArchivedWhere(),
           })
 
           return assetsResult.docs.flatMap((doc) => {

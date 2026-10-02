@@ -23,6 +23,18 @@ export type GetPayloadMarkdownDocsSidebarOptions = {
   payload: PayloadMarkdownDocsReadPayload
 }
 
+/** Fields buildPayloadMarkdownDocsSidebar and its visibility check read. */
+const SIDEBAR_DOC_SELECT = {
+  _status: true,
+  navTitle: true,
+  order: true,
+  overrides: true,
+  route: true,
+  sourcePath: true,
+  sync: true,
+  title: true,
+} as const
+
 const titleCaseSegment = (segment: string): string =>
   segment
     .split(/[-_]+/)
@@ -229,6 +241,8 @@ export const getPayloadMarkdownDocsSidebar = async ({
     draft: includeDrafts,
     limit: 1000,
     overrideAccess,
+    // The sidebar never reads markdown bodies; load only nav and visibility fields.
+    select: SIDEBAR_DOC_SELECT,
     where: {
       docsSet: {
         equals: docsSet.id,

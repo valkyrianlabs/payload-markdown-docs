@@ -570,11 +570,14 @@ describe('docs sync apply helpers', () => {
       expect.objectContaining({
         data: expect.objectContaining({
           _status: 'draft',
+          route: 'archived:doc-1:/docs',
           sync: expect.objectContaining({
             archived: true,
           }),
         }),
-        draft: true,
+        // Removal must take the published record offline, so it writes the main
+        // record rather than a new draft version (DOCS-3).
+        draft: false,
       }),
     )
   })

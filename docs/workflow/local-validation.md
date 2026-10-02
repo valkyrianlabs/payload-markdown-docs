@@ -37,7 +37,11 @@ pmdocs validate ./docs --source main-docs
 ```
 
 Validation checks source paths, frontmatter, asset paths, hashes, file limits,
-docs set slug, and manifest shape.
+docs set slug, and manifest shape. It also lists every file the docs walk
+leaves out (symlinks, `README.MD`-style extensions, `node_modules`, and
+root-level `build` / `dist` / `.next` directories) and every hidden file it
+includes, so nothing is dropped silently. Pass `--skip-hidden` to exclude
+hidden files and directories.
 
 ## Manifest
 
@@ -60,7 +64,7 @@ pmdocs plan --source main-docs
 pmdocs plan ./docs --source main-docs
 ```
 
-Without `--existing`, local planning assumes an empty target and reports creates. Server-side dry-runs can plan against current Payload records.
+Without `--existing`, local planning assumes an empty target and reports creates. Pass `--publish` when the push will publish, `--existing-assets` to compare assets, and `--route-base` when the docs set lives in a group or uses product-nested routes. Server-side dry-runs (`pmdocs push --dry-run`) plan against current Payload records.
 
 The native `pmdocs` binary is the supported CLI for docs validation, planning,
 key generation, and publishing. The npm package installs the Payload plugin and

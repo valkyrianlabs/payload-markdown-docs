@@ -28,6 +28,8 @@ export const buildDevDocsSetSeedData = ({
 }: {
   groupId?: PayloadRecordId
 } = {}) => ({
+  // Public surfaces (llms.txt, docs routes) only serve published docs sets.
+  _status: 'published',
   branch: 'main',
   description: 'Local dev docs set for end-to-end dedicated docs testing.',
   ...(groupId !== undefined ? { group: groupId } : {}),

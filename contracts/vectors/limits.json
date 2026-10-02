@@ -1,0 +1,197 @@
+{
+  "contractVersion": 1,
+  "description": "Request size: the binding limit is the UTF-8 byte length of the compact JSON request body (server: 413 when bodyBytes > maxBodyBytes). Both sides must serialize a parsed manifest to byte-identical compact JSON (JSON.stringify / nlohmann dump()), so bodyBytes and sha256 are compared exactly.",
+  "defaultMaxBodyBytes": 5000000,
+  "serialization": [
+    {
+      "name": "plain ASCII",
+      "manifest": {
+        "version": 1,
+        "source": {
+          "id": "main-docs"
+        },
+        "files": [
+          {
+            "content": "# A\n\nText.\n",
+            "path": "a.md",
+            "sha256": "d6a5102338fe5cc0ddbcc30ba4cd2f8d860d13e958b5f5775f29893c7c5ac34e"
+          }
+        ]
+      },
+      "expect": {
+        "bodyBytes": 170,
+        "contentBytes": 11,
+        "sha256": "9e818c0a206909e86eba91eb924b15402a1ed323d0d00d1a088c95b0a22c929b"
+      }
+    },
+    {
+      "name": "quotes and backslashes",
+      "manifest": {
+        "version": 1,
+        "source": {
+          "id": "main-docs"
+        },
+        "files": [
+          {
+            "content": "\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\"\\path\\to \"x\"",
+            "path": "q.md",
+            "sha256": "81fd0dc49a5c90285a17090b0f3a6c6a8751f70d6d7b28f89873e080074425ce"
+          }
+        ]
+      },
+      "expect": {
+        "bodyBytes": 572,
+        "contentBytes": 212,
+        "sha256": "58dfea3db5dcbed36580a4da631ebcd37cabaeea28a941884d7e8389f6c6be98"
+      }
+    },
+    {
+      "name": "control characters",
+      "manifest": {
+        "version": 1,
+        "source": {
+          "id": "main-docs"
+        },
+        "files": [
+          {
+            "content": "tab\there\nnl\r\ncr\u0001\u001f\b\f",
+            "path": "c.md",
+            "sha256": "37b9f992739b0ba83719addeaf81385a81ef6c741beffdc846be3e767063dacb"
+          }
+        ]
+      },
+      "expect": {
+        "bodyBytes": 192,
+        "contentBytes": 20,
+        "sha256": "5a315ecd54d6048bf4d68683d5205bef0620890821559d1d0ed4cd89ea872e7d"
+      }
+    },
+    {
+      "name": "non-ASCII and astral",
+      "manifest": {
+        "version": 1,
+        "source": {
+          "id": "main-docs"
+        },
+        "files": [
+          {
+            "content": "café ü ✓ 𝄞 日本語",
+            "path": "u.md",
+            "sha256": "03a12d79810c52dece20d9f572d45df5b38e3fb98497df21b9a35c7213b16c1e"
+          }
+        ]
+      },
+      "expect": {
+        "bodyBytes": 183,
+        "contentBytes": 27,
+        "sha256": "b238950ee4fe8ac2732709138ac08c7bb2118dba483974d04a0cd07519925315"
+      }
+    },
+    {
+      "name": "line and paragraph separators",
+      "manifest": {
+        "version": 1,
+        "source": {
+          "id": "main-docs"
+        },
+        "files": [
+          {
+            "content": "a b c",
+            "path": "s.md",
+            "sha256": "f697df1f62230dd3adc456189e505808442665173789316624f2b00133b4d679"
+          }
+        ]
+      },
+      "expect": {
+        "bodyBytes": 165,
+        "contentBytes": 9,
+        "sha256": "fee8f4cdc29b7d6977715e5674f12c65bfc091fd8c35c787d8b05893c5de5df7"
+      }
+    },
+    {
+      "name": "slashes and html",
+      "manifest": {
+        "version": 1,
+        "source": {
+          "id": "main-docs"
+        },
+        "files": [
+          {
+            "content": "</script><a href=\"/x\">x</a>",
+            "path": "h.md",
+            "sha256": "f749e4fde410e8f9a4d7f3cfa2af08301a39efd70eb87f3b81408eee074af9a1"
+          }
+        ]
+      },
+      "expect": {
+        "bodyBytes": 185,
+        "contentBytes": 27,
+        "sha256": "5afcba88e142f6b34148ee6b807a3a7caa3f356a42f1f44dc2b867039929473d"
+      }
+    },
+    {
+      "name": "assets with route",
+      "manifest": {
+        "version": 1,
+        "source": {
+          "id": "main-docs"
+        },
+        "files": [
+          {
+            "content": "# Home\n",
+            "path": "index.md",
+            "sha256": "7d48eefbcff2495cc4b0cd99ea783bbc46184d78af064c56e1a7dc7ae9dba3aa"
+          }
+        ],
+        "assets": [
+          {
+            "content": "# llms\n",
+            "contentType": "text/plain; charset=utf-8",
+            "kind": "llms",
+            "path": "llms.txt",
+            "sha256": "bd2444b6b5596c97dbf17f8482fa5c47d2099e0edfb6e4f64123e9d93e73bde3",
+            "route": "/llms.txt"
+          }
+        ],
+        "mode": "dry-run",
+        "deleteBehavior": "archive",
+        "publish": false
+      },
+      "expect": {
+        "bodyBytes": 432,
+        "contentBytes": 14,
+        "sha256": "1c69200fd5eb87a2d39122d39efe4154860a99f14394a7b0b89acd5ddbc024b3"
+      }
+    }
+  ],
+  "decisions": [
+    {
+      "bodyBytes": 4999999,
+      "maxBodyBytes": 5000000,
+      "expect": {
+        "tooLarge": false
+      }
+    },
+    {
+      "bodyBytes": 5000000,
+      "maxBodyBytes": 5000000,
+      "expect": {
+        "tooLarge": false
+      }
+    },
+    {
+      "bodyBytes": 5000001,
+      "maxBodyBytes": 5000000,
+      "expect": {
+        "tooLarge": true
+      }
+    },
+    {
+      "bodyBytes": 11,
+      "maxBodyBytes": 10,
+      "expect": {
+        "tooLarge": true
+      }
+    }
+  ]
+}

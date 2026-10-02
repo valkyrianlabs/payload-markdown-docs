@@ -22,13 +22,15 @@ import {
 } from './frontmatter.js'
 import { sha256Hex } from './hash.js'
 import {
-  deriveAssetRouteFromSourcePath,
+  checkDocsRouteSegments,
   deriveRouteFromSourcePath,
   normalizeAssetPath,
   normalizeDocsPath,
+  resolveAssetRoute,
 } from './paths.js'
 
 export type DocsValidationErrorCode =
+  | 'asset_route_ignored'
   | 'asset_too_large'
   | 'duplicate_asset_path'
   | 'duplicate_existing_path'
@@ -36,17 +38,20 @@ export type DocsValidationErrorCode =
   | 'empty_manifest'
   | 'file_too_large'
   | 'invalid_asset'
+  | 'invalid_asset_route'
   | 'invalid_delete_behavior'
   | 'invalid_frontmatter'
   | 'invalid_hash'
   | 'invalid_manifest'
   | 'invalid_mode'
   | 'invalid_path'
+  | 'invalid_route'
   | 'invalid_source'
   | 'invalid_version'
   | 'manifest_too_large'
   | 'non_markdown_file'
   | 'path_traversal'
+  | 'route_whitespace'
   | 'too_many_assets'
   | 'too_many_files'
 
@@ -309,6 +314,31 @@ const validateManifestFile = ({
     routeBase,
     sourcePath: normalizedPath.path,
   })
+  const routeSegmentCheck = checkDocsRouteSegments({
+    slug: parsedFrontmatter.frontmatter.slug,
+    routeBase,
+    sourcePath: normalizedPath.path,
+  })
+
+  for (const segment of routeSegmentCheck.unservable) {
+    issues.push(
+      createIssue({
+        code: 'invalid_route',
+        message: `Route segment ${JSON.stringify(segment)} contains "?", "#", or a control character and cannot be served.`,
+        path: normalizedPath.path,
+      }),
+    )
+  }
+
+  for (const segment of routeSegmentCheck.whitespace) {
+    warnings.push(
+      createIssue({
+        code: 'route_whitespace',
+        message: `Route segment ${JSON.stringify(segment)} contains whitespace and is only reachable percent-encoded.`,
+        path: normalizedPath.path,
+      }),
+    )
+  }
 
   return {
     fileBytes,
@@ -446,6 +476,31 @@ const validateManifestAsset = ({
     )
   }
 
+  const resolvedRoute = resolveAssetRoute({
+    assetRouteBase,
+    kind,
+    route,
+    sourceId,
+    sourcePath: normalizedPath.path,
+  })
+
+  if (!resolvedRoute.ok) {
+    issues.push(
+      createIssue({
+        code: resolvedRoute.code,
+        message: resolvedRoute.message,
+        path: normalizedPath.path,
+      }),
+    )
+  } else if (resolvedRoute.warning) {
+    warnings.push(
+      createIssue({
+        ...resolvedRoute.warning,
+        path: normalizedPath.path,
+      }),
+    )
+  }
+
   return {
     assetBytes,
     issues,
@@ -455,13 +510,7 @@ const validateManifestAsset = ({
       contentType,
       kind,
       path: normalizedPath.path,
-      route: deriveAssetRouteFromSourcePath({
-        kind,
-        route,
-        routeBase: assetRouteBase,
-        sourceId,
-        sourcePath: normalizedPath.path,
-      }),
+      route: resolvedRoute.ok ? resolvedRoute.route : undefined,
       sha256: computedHash,
     },
     warnings,

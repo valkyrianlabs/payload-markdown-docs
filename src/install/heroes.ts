@@ -6,6 +6,7 @@ import type {
 } from '../types.js'
 
 import { docsHeroField } from '../fields/index.js'
+import { pruneUploadRelations } from '../fields/pruneUploadRelations.js'
 
 type DocsHeroInstallConfig = {
   enabled?: boolean
@@ -64,12 +65,28 @@ const normalizeSelection = (
 const isDocsHeroField = (field: FieldRecord): boolean =>
   field.admin?.custom?.payloadMarkdownDocsHero === true
 
+const createHeroField = (
+  options: Parameters<typeof docsHeroField>[0],
+  missingUploadCollections: Set<string>,
+): Field => {
+  const field = docsHeroField(options)
+
+  return missingUploadCollections.size === 0
+    ? field
+    : ({
+        ...field,
+        fields: pruneUploadRelations(field.fields, missingUploadCollections),
+      } as Field)
+}
+
 const installDocsHeroIntoFields = ({
   fieldName,
   fields,
+  missingUploadCollections,
 }: {
   fieldName: string
   fields: Field[]
+  missingUploadCollections: Set<string>
 }): InstallFieldsResult => {
   let changed = false
   let heroFieldFound = false
@@ -86,16 +103,20 @@ const installDocsHeroIntoFields = ({
 
       changed = true
 
-      return docsHeroField({
-        name: fieldName,
-        hero: field,
-      }) as Field
+      return createHeroField(
+        {
+          name: fieldName,
+          hero: field,
+        },
+        missingUploadCollections,
+      )
     }
 
     if (Array.isArray(fieldRecord.fields)) {
       const result = installDocsHeroIntoFields({
         fieldName,
         fields: fieldRecord.fields,
+        missingUploadCollections,
       })
       heroFieldFound = heroFieldFound || result.heroFieldFound
       changed = changed || result.changed
@@ -118,6 +139,7 @@ const installDocsHeroIntoFields = ({
         const result = installDocsHeroIntoFields({
           fieldName,
           fields: tab.fields,
+          missingUploadCollections,
         })
         heroFieldFound = heroFieldFound || result.heroFieldFound
         tabsChanged = tabsChanged || result.changed
@@ -183,12 +205,15 @@ export const installDocsHeroFields = ({
   collections,
   defaultPagesCollectionSlug,
   globalSelection,
+  missingUploadCollections = new Set(),
   pagesSelection,
 }: {
   collectionConfigs?: PayloadMarkdownDocsCollectionsConfig
   collections: CollectionConfig[]
   defaultPagesCollectionSlug: string
   globalSelection?: DocsHeroInstallSelection
+  /** Upload collections the app does not define; fields pointing only at them are omitted. */
+  missingUploadCollections?: Set<string>
   pagesSelection?: DocsHeroInstallSelection
 }): InstallDocsHeroFieldsResult => {
   const installedCollectionSlugs: string[] = []
@@ -212,6 +237,7 @@ export const installDocsHeroFields = ({
     const result = installDocsHeroIntoFields({
       fieldName,
       fields: collection.fields,
+      missingUploadCollections,
     })
 
     if (result.heroFieldFound) {
@@ -235,9 +261,12 @@ export const installDocsHeroFields = ({
       ...collection,
       fields: [
         ...collection.fields,
-        docsHeroField({
-          name: fieldName,
-        }),
+        createHeroField(
+          {
+            name: fieldName,
+          },
+          missingUploadCollections,
+        ),
       ],
     }
   })

@@ -6,13 +6,80 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
+# Pull request code (possibly from forks) runs on GitHub-hosted runners only.
+# The persistent self-hosted runners also run Production release jobs, so they
+# only run trusted code from pushes to main.
 jobs:
   build-and-test:
-    runs-on: [self-hosted, Linux, X64, ubuntu-latest-lts]
+    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || fromJSON('["self-hosted","Linux","X64","ubuntu-latest-lts"]') }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: actions/setup-node@v4
+      # Reject invalid workflow files (unknown contexts, bad expressions) before they reach main;
+      # GitHub otherwise reports them only as a failed run with no jobs.
+      - name: Lint workflows
+        run: |
+          bash <(curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/v1.7.7/scripts/download-actionlint.bash) 1.7.7
+          ./actionlint -color -shellcheck=
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: '.nvmrc'
+
+      - name: Install dependencies
+        run: |
+          corepack enable
+          pnpm install --frozen-lockfile --prefer-offline --unsafe-perm
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Build
+        run: |
+          export NEXT_CPU_COUNT=$(nproc)
+          pnpm build
+
+      - name: Typecheck dev app
+        run: pnpm exec tsc -p dev/tsconfig.json --noEmit --incremental false --composite false
+
+      - name: Run tests
+        run: |
+          set -euo pipefail
+          pnpm test:int
+
+  # The bugs that mattered (draft leaks, unique-route sync failures, access defaults) were only
+  # visible with real Payload + Postgres semantics, so the DB-backed suite runs on every change.
+  db-tests:
+    name: Postgres-backed tests
+    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || fromJSON('["self-hosted","Linux","X64","ubuntu-latest-lts"]') }}
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: docs_ci
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432/tcp
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      PAYLOAD_SECRET: ci-secret
+      PAYLOAD_MARKDOWN_DOCS_RUN_DB_TESTS: '1'
+    steps:
+      # The service port is only known at run time, and the `job` context is not available in
+      # job-level `env`, so export the connection string from a step.
+      - name: Export DATABASE_URL
+        run: echo "DATABASE_URL=postgres://postgres:postgres@localhost:${{ job.services.postgres.ports['5432'] }}/docs_ci" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version-file: '.nvmrc'
 
@@ -22,20 +89,75 @@ jobs:
           pnpm install --frozen-lockfile --prefer-offline --unsafe-perm
 
       - name: Build
-        run: |
-          export NEXT_CPU_COUNT=$(nproc)
-          pnpm build
+        run: pnpm build
 
-      - name: Run tests
+      - name: Run tests against Postgres
+        run: pnpm test:int
+
+  e2e:
+    name: Playwright e2e
+    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || fromJSON('["self-hosted","Linux","X64","ubuntu-latest-lts"]') }}
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: docs_e2e
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432/tcp
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      PAYLOAD_SECRET: ci-secret
+      DOCS_SYNC_KEY_ID: dev-local
+      PORT: '3100'
+    steps:
+      # The service port is only known at run time, and the `job` context is not available in
+      # job-level `env`, so export the connection string from a step.
+      - name: Export DATABASE_URL
+        run: echo "DATABASE_URL=postgres://postgres:postgres@localhost:${{ job.services.postgres.ports['5432'] }}/docs_e2e" >> "$GITHUB_ENV"
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: '.nvmrc'
+
+      - name: Install dependencies
+        run: |
+          corepack enable
+          pnpm install --frozen-lockfile --prefer-offline --unsafe-perm
+
+      # `playwright install --with-deps` runs `sudo -- sh -c "apt-get ..."`, which the
+      # self-hosted runner's sudoers policy (apt-get only) rightly does not allow. Ask
+      # Playwright for its package list and call the allowed apt-get commands directly.
+      - name: Install Playwright Chromium and its system dependencies
         run: |
           set -euo pipefail
-          pnpm test:int
+          deps="$(pnpm exec playwright install-deps --dry-run chromium \
+            | sed -n 's/.*--no-install-recommends \(.*\)"$/\1/p')"
+          if [ -z "$deps" ]; then
+            echo "::error::Could not read Playwright's system dependency list."
+            exit 1
+          fi
+          sudo -n apt-get update
+          sudo -n apt-get install -y --no-install-recommends $deps
+          pnpm exec playwright install chromium
+
+      - name: Build
+        run: pnpm build
+
+      - name: Run Playwright
+        run: pnpm test:e2e --reporter=line
 
   native-cli:
     name: Native CLI
-    runs-on: [self-hosted, Linux, X64, ubuntu-latest-lts]
+    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || fromJSON('["self-hosted","Linux","X64","ubuntu-latest-lts"]') }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Install native build dependencies
         run: |
@@ -57,11 +179,89 @@ jobs:
           set -euo pipefail
           meson setup build-native -Dinstall_skill_data=false
           meson compile -C build-native
-          meson test -C build-native
+          meson test -C build-native --print-errorlogs
 
+      # `pmdocs doctor` reports `degraded` (exit 1) when bundled skill data is missing, so the
+      # install smoke uses a build that bundles it, like the Debian and Homebrew packages do.
       - name: Smoke test Meson install
         run: |
           set -euo pipefail
-          meson install -C build-native --destdir "$PWD/stage-native"
+          meson setup build-install -Dinstall_skill_data=true -Dcompanion_skill_data=auto
+          meson compile -C build-install
+          meson install -C build-install --destdir "$PWD/stage-native"
           PMDOCS_DATA_DIR="$PWD/stage-native/usr/local/share/pmdocs" \
             "$PWD/stage-native/usr/local/bin/pmdocs" doctor
+
+      - name: Upload pmdocs for the consumer smoke test
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: pmdocs-ci
+          path: build-native/cli/pmdocs
+          if-no-files-found: error
+
+  release-tooling:
+    name: Release tooling
+    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || fromJSON('["self-hosted","Linux","X64","ubuntu-latest-lts"]') }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.12'
+
+      - name: Install release tooling Python dependencies
+        run: bash .github/scripts/setup-release-python.sh
+
+      - name: Run release tooling tests
+        run: python -m pytest -q -p no:cacheprovider tools/release/tests
+
+      - name: Check release versions
+        run: python -m tools.release check
+
+  # Installs the packed plugin and the current payload-markdown main branch into a fresh
+  # Next.js + Payload app the way the README instructs, syncs docs with pmdocs, and renders them
+  # through the real core renderer. Catches cross-repo contract breaks that unit tests mock away.
+  consumer-smoke:
+    name: Consumer smoke (pnpm install + next build + signed sync)
+    needs: native-cli
+    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || fromJSON('["self-hosted","Linux","X64","ubuntu-latest-lts"]') }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          repository: valkyrianlabs/payload-markdown
+          ref: main
+          path: .ci/payload-markdown
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: '.nvmrc'
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: pmdocs-ci
+          path: .ci/bin
+
+      - name: Pack payload-markdown and payload-markdown-docs
+        run: |
+          set -euo pipefail
+          corepack enable
+          mkdir -p .ci/tarballs
+          (cd .ci/payload-markdown && pnpm install --frozen-lockfile && pnpm build && npm pack --ignore-scripts --pack-destination ../tarballs)
+          pnpm install --frozen-lockfile --prefer-offline --unsafe-perm
+          pnpm build
+          npm pack --ignore-scripts --pack-destination .ci/tarballs
+          chmod +x .ci/bin/pmdocs
+          ls -l .ci/tarballs
+
+      - name: Run consumer smoke
+        run: |
+          set -euo pipefail
+          node scripts/consumer-smoke/run.mjs \
+            --core "$(ls .ci/tarballs/valkyrianlabs-payload-markdown-[0-9]*.tgz)" \
+            --docs "$(ls .ci/tarballs/valkyrianlabs-payload-markdown-docs-*.tgz)" \
+            --pmdocs .ci/bin/pmdocs \
+            --workdir "$RUNNER_TEMP/consumer-smoke"

@@ -14,17 +14,20 @@ export type ApplyDocsAssetsSyncPayloadOperations = {
     collection: string
     data: Record<string, unknown>
     overrideAccess?: boolean
+    req?: unknown
   }) => Promise<Record<string, unknown>>
   delete?: (args: {
     collection: string
     id: string
     overrideAccess?: boolean
+    req?: unknown
   }) => Promise<Record<string, unknown>>
   update: (args: {
     collection: string
     data: Record<string, unknown>
     id: string
     overrideAccess?: boolean
+    req?: unknown
   }) => Promise<Record<string, unknown>>
 }
 
@@ -52,6 +55,7 @@ export const applyDocsAssetsSync = async ({
   now,
   payload,
   plan,
+  req,
   syncRunId,
 }: {
   collectionSlug: string
@@ -62,6 +66,8 @@ export const applyDocsAssetsSync = async ({
   now: Date
   payload: ApplyDocsAssetsSyncPayloadOperations
   plan: DocsAssetsSyncPlan
+  /** Request carrying the sync transaction, passed to every Payload operation. */
+  req?: unknown
   syncRunId?: number | string
 }): Promise<ApplyDocsAssetsSyncResult> => {
   const existingBySourcePath = new Map(existing.map((record) => [record.sourcePath, record]))
@@ -99,6 +105,7 @@ export const applyDocsAssetsSync = async ({
         syncRunId,
       }),
       overrideAccess: true,
+      req,
     })
     writes.create += 1
   }
@@ -125,6 +132,7 @@ export const applyDocsAssetsSync = async ({
         syncRunId,
       }),
       overrideAccess: true,
+      req,
     })
     writes.update += 1
   }
@@ -145,6 +153,7 @@ export const applyDocsAssetsSync = async ({
           syncRunId,
         }),
         overrideAccess: true,
+        req,
       })
       writes.archive += 1
     }
@@ -166,6 +175,7 @@ export const applyDocsAssetsSync = async ({
         id: current.id,
         collection: collectionSlug,
         overrideAccess: true,
+        req,
       })
       writes.delete += 1
     }

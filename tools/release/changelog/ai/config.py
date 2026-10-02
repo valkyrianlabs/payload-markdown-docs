@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -7,6 +9,10 @@ from typing import Literal
 import yaml
 
 OPENAI_API_KEY_ENV_VAR = "OPENAI_API_KEY"
+DEEPSEEK_API_KEY_ENV_VAR = "DEEPSEEK_API_KEY"
+# Organization-level name (GitHub org secret / host shell). Checked before the generic DEEPSEEK_API_KEY.
+VL_DEEPSEEK_API_KEY_ENV_VAR = "VL_DEEPSEEK_API_KEY"
+DEFAULT_DEEPSEEK_BASE_URL = "https://api.deepseek.com/v1"
 DEFAULT_AI_DRAFT_MODEL = "gpt-5.4-mini"
 DEFAULT_AI_TRIAGE_MODEL = DEFAULT_AI_DRAFT_MODEL
 DEFAULT_AI_EMERGENCY_TRIAGE_MODEL = DEFAULT_AI_TRIAGE_MODEL
@@ -30,12 +36,49 @@ DEFAULT_STAGE_TEMPERATURES: dict["AIStageName", float] = {
     "release_notes": 0.0,
 }
 
-VALID_REASONING_EFFORTS = ("minimal", "low", "medium", "high", "xhigh")
+# `max` is DeepSeek's top level; hosted OpenAI maps it to `xhigh`.
+VALID_REASONING_EFFORTS = ("minimal", "low", "medium", "high", "xhigh", "max")
 VALID_STRUCTURED_MODES = ("strict_json_schema", "json_object", "prompt_json")
 
-AIProviderKind = Literal["openai", "openai-compatible"]
-AIReasoningEffort = Literal["minimal", "low", "medium", "high", "xhigh"]
+AIProviderKind = Literal["openai", "openai-compatible", "deepseek"]
+VALID_PROVIDER_KINDS: tuple[str, ...] = ("openai", "openai-compatible", "deepseek")
+# Hosted providers speak the Responses API and authenticate with a provider-specific key.
+HOSTED_PROVIDER_KINDS: tuple[str, ...] = ("openai", "deepseek")
+AIReasoningEffort = Literal["minimal", "low", "medium", "high", "xhigh", "max"]
 AIStructuredMode = Literal["strict_json_schema", "json_object", "prompt_json"]
+
+
+def default_api_key_env_var(provider_kind: str) -> str:
+    """Environment variable holding the API key for a provider kind."""
+    if provider_kind == "deepseek":
+        return DEEPSEEK_API_KEY_ENV_VAR
+    return OPENAI_API_KEY_ENV_VAR
+
+
+def api_key_env_var_candidates(api_key_env_var: str) -> tuple[str, ...]:
+    """Environment variables checked, in order, for a configured key variable.
+
+    DeepSeek keys resolve from the organization-level ``VL_DEEPSEEK_API_KEY`` first and fall back to
+    ``DEEPSEEK_API_KEY``. Any other variable is used as-is.
+    """
+    if api_key_env_var == DEEPSEEK_API_KEY_ENV_VAR:
+        return (VL_DEEPSEEK_API_KEY_ENV_VAR, DEEPSEEK_API_KEY_ENV_VAR)
+    return (api_key_env_var,)
+
+
+def describe_api_key_env_var(api_key_env_var: str) -> str:
+    """Human-readable list of the variables that can supply a key (never the key itself)."""
+    return " or ".join(api_key_env_var_candidates(api_key_env_var))
+
+
+def resolve_api_key_from_env(api_key_env_var: str, environ: Mapping[str, str] | None = None) -> str | None:
+    """Return the first non-blank key among the candidate variables, or ``None``."""
+    env = os.environ if environ is None else environ
+    for name in api_key_env_var_candidates(api_key_env_var):
+        value = (env.get(name) or "").strip()
+        if value:
+            return value
+    return None
 
 
 @dataclass(frozen=True)
@@ -100,6 +143,9 @@ class AIPipelineStageConfig:
     structured_mode: AIStructuredMode | None = None
     temperature: float = 0.0
     max_output_tokens: AIMaxOutputTokensPolicy = 300
+    # Per-stage provider override (mixing e.g. DeepSeek and OpenAI stages); None = profile provider.
+    provider: AIProviderKind | None = None
+    base_url: str | None = None
 
 
 @dataclass(frozen=True)
@@ -117,11 +163,30 @@ class AIPipelineConfig:
     def is_stage_enabled(self, stage: AIStageName) -> bool:
         return stage in self.enabled_stages
 
+    def stage_provider(self, stage: AIStageName) -> AIProviderKind:
+        return self.stages[stage].provider or self.provider
+
+    def stage_base_url(self, stage: AIStageName) -> str | None:
+        stage_cfg = self.stages[stage]
+        if stage_cfg.provider is not None and stage_cfg.provider != self.provider:
+            return stage_cfg.base_url
+        return stage_cfg.base_url or self.base_url
+
+    def enabled_stage_providers(self) -> tuple[AIProviderKind, ...]:
+        seen: list[AIProviderKind] = []
+        for stage in self.enabled_stages:
+            kind = self.stage_provider(stage)
+            if kind not in seen:
+                seen.append(kind)
+        return tuple(seen)
+
     def provider_config_for_stage(self, stage: AIStageName) -> AIProviderConfig:
+        kind = self.stage_provider(stage)
         return AIProviderConfig(
-            kind=self.provider,
+            kind=kind,
             model=self.stage_model(stage),
-            base_url=self.base_url,
+            base_url=self.stage_base_url(stage),
+            api_key_env_var=default_api_key_env_var(kind),
         )
 
 
@@ -159,6 +224,20 @@ def resolve_ai_pipeline_config(
         "release_notes": None,
     }
     stage_structured_modes: dict[AIStageName, AIStructuredMode | None] = {
+        "emergency_triage": None,
+        "triage": None,
+        "draft": None,
+        "polish": None,
+        "release_notes": None,
+    }
+    stage_providers: dict[AIStageName, AIProviderKind | None] = {
+        "emergency_triage": None,
+        "triage": None,
+        "draft": None,
+        "polish": None,
+        "release_notes": None,
+    }
+    stage_base_urls: dict[AIStageName, str | None] = {
         "emergency_triage": None,
         "triage": None,
         "draft": None,
@@ -221,6 +300,15 @@ def resolve_ai_pipeline_config(
                     stage_models[stage_name] = model
                     explicitly_configured_stages.add(stage_name)
                 enabled_stages.add(stage_name)
+                if stage_cfg.get("provider") is not None:
+                    stage_providers[stage_name] = _read_provider(
+                        stage_cfg.get("provider"),
+                        path=f"profiles.{profile_slug}.stages.{stage_name}.provider",
+                    )
+                stage_base_urls[stage_name] = _read_optional_non_empty_string(
+                    stage_cfg.get("base_url"),
+                    path=f"profiles.{profile_slug}.stages.{stage_name}.base_url",
+                )
                 stage_reasoning[stage_name] = _read_optional_reasoning_effort(
                     stage_cfg.get("reasoning_effort"),
                     path=f"profiles.{profile_slug}.stages.{stage_name}.reasoning_effort",
@@ -261,7 +349,11 @@ def resolve_ai_pipeline_config(
                     stage_structured_modes[stage_name] = profile_structured_mode_fallback
 
     if cli_overrides.provider is not None:
+        # An explicit CLI provider applies to every stage.
         provider = cli_overrides.provider
+        for stage_name in stage_providers:
+            stage_providers[stage_name] = None
+            stage_base_urls[stage_name] = None
 
     if cli_overrides.base_url is not None:
         base_url = _normalize_optional_string(cli_overrides.base_url)
@@ -282,6 +374,8 @@ def resolve_ai_pipeline_config(
             structured_mode=stage_structured_modes["emergency_triage"],
             temperature=stage_temperatures["emergency_triage"],
             max_output_tokens=stage_max_output_tokens["emergency_triage"],
+            provider=stage_providers["emergency_triage"],
+            base_url=stage_base_urls["emergency_triage"],
         ),
         "triage": AIPipelineStageConfig(
             model=stage_models["triage"] or fallback_model,
@@ -289,6 +383,8 @@ def resolve_ai_pipeline_config(
             structured_mode=stage_structured_modes["triage"],
             temperature=stage_temperatures["triage"],
             max_output_tokens=stage_max_output_tokens["triage"],
+            provider=stage_providers["triage"],
+            base_url=stage_base_urls["triage"],
         ),
         "draft": AIPipelineStageConfig(
             model=stage_models["draft"] or fallback_model,
@@ -296,6 +392,8 @@ def resolve_ai_pipeline_config(
             structured_mode=stage_structured_modes["draft"],
             temperature=stage_temperatures["draft"],
             max_output_tokens=stage_max_output_tokens["draft"],
+            provider=stage_providers["draft"],
+            base_url=stage_base_urls["draft"],
         ),
         "polish": AIPipelineStageConfig(
             model=stage_models["polish"] or fallback_model,
@@ -303,6 +401,8 @@ def resolve_ai_pipeline_config(
             structured_mode=stage_structured_modes["polish"],
             temperature=stage_temperatures["polish"],
             max_output_tokens=stage_max_output_tokens["polish"],
+            provider=stage_providers["polish"],
+            base_url=stage_base_urls["polish"],
         ),
         "release_notes": AIPipelineStageConfig(
             model=stage_models["release_notes"] or fallback_model,
@@ -310,6 +410,8 @@ def resolve_ai_pipeline_config(
             structured_mode=stage_structured_modes["release_notes"],
             temperature=stage_temperatures["release_notes"],
             max_output_tokens=stage_max_output_tokens["release_notes"],
+            provider=stage_providers["release_notes"],
+            base_url=stage_base_urls["release_notes"],
         ),
     }
     resolved_enabled_stages = tuple(stage for stage in STAGE_EXECUTION_ORDER if stage == "draft" or stage in enabled_stages)
@@ -378,7 +480,7 @@ def _read_provider(raw: object, *, path: str) -> AIProviderKind:
     if not isinstance(raw, str) or not raw.strip():
         raise ValueError(f"Invalid AI profile `{path}`: expected non-empty provider string.")
     provider = raw.strip()
-    if provider not in {"openai", "openai-compatible"}:
+    if provider not in VALID_PROVIDER_KINDS:
         raise ValueError(f"Invalid AI profile `{path}`: unsupported provider `{provider}`.")
     return provider  # type: ignore[return-value]
 

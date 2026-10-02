@@ -1,8 +1,11 @@
-import { deriveDocsSetRouteBase, joinRouteSegments } from '@valkyrianlabs/payload-markdown-docs'
 import Link from 'next/link'
 import React from 'react'
 
 import type { DocsGroup, DocsSet } from '../../payload-types'
+
+// Routing helpers are internal (not exported from the package root); the in-repo dev
+// app imports them from the build like dev/payload.config.ts does.
+import { deriveDocsSetRouteBase, joinRouteSegments } from '../../../dist/routing/index.js'
 
 type CMSLinkType = {
   appearance?: 'inline'

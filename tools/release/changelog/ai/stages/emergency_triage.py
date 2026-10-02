@@ -33,6 +33,11 @@ from tools.release.changelog.ai.providers.base import StructuredJSONProvider
 from tools.release.changelog.ai.providers.openai import OpenAIProvider
 
 AI_TRIAGE_SYNTHESIZED_INPUT_SCHEMA_VERSION = "payload_markdown_docs.release.triage_input.synthesized.v1"
+EMERGENCY_TRIAGE_CONTEXT_SCHEMA_VERSION = "payload_markdown_docs.release.emergency_triage_context.v1"
+EMERGENCY_TRIAGE_ZERO_ITEMS_ERROR = (
+    "Emergency triage built zero input items for a non-empty release; "
+    "this is a release-tooling coverage bug."
+)
 _ID_SLUG_RE = re.compile(r"[^a-z0-9]+")
 # Keep emergency triage bounded while avoiding oversized single-call payloads.
 _EMERGENCY_TRIAGE_BATCH_SIZE = 6
@@ -75,6 +80,8 @@ def run_emergency_triage_stage(
         f"(items={len(expected_item_ids)}, batch_size={_EMERGENCY_TRIAGE_BATCH_SIZE})",
     )
     if not expected_item_ids:
+        if is_non_empty_emergency_triage_source(semantic_payload):
+            raise ValueError(EMERGENCY_TRIAGE_ZERO_ITEMS_ERROR)
         return AIEmergencyTriageResult(
             schema_version=AI_EMERGENCY_TRIAGE_SCHEMA_VERSION,
             version=payload_version or "unknown",
@@ -181,9 +188,41 @@ def render_emergency_triage_result_json(result: AIEmergencyTriageResult) -> str:
     return json.dumps(ai_emergency_triage_result_to_dict(result), indent=2, sort_keys=False) + "\n"
 
 
+def render_emergency_triage_context_json(
+    semantic_payload: dict[str, Any],
+    result: AIEmergencyTriageResult | None = None,
+) -> str:
+    return json.dumps(
+        build_emergency_triage_context_metadata(semantic_payload, result),
+        indent=2,
+        sort_keys=False,
+    ) + "\n"
+
+
+def build_emergency_triage_context_metadata(
+    semantic_payload: dict[str, Any],
+    result: AIEmergencyTriageResult | None = None,
+) -> dict[str, Any]:
+    projection = build_emergency_triage_input_payload(semantic_payload)
+    return {
+        "schema_version": EMERGENCY_TRIAGE_CONTEXT_SCHEMA_VERSION,
+        "emergency_input_item_count": len(_as_sequence(projection.get("items"))),
+        "emergency_output_item_count": len(result.items) if result is not None else None,
+        "semantic_category_count": _read_nested_int(projection, "source_category_count") or 0,
+        "semantic_hunk_count": _read_nested_int(projection, "semantic_hunk_item_count") or 0,
+        "fallback_item_count": _read_nested_int(projection, "fallback_item_count") or 0,
+        "commit_count": _read_nested_int(projection, "commit_count") or 0,
+        "previous_tag": _read_nested_string(projection, "previous_tag"),
+        "head_sha": _read_nested_string(projection, "head_sha"),
+    }
+
+
 def build_emergency_triage_input_payload(semantic_payload: dict[str, Any]) -> dict[str, Any]:
     categories: list[dict[str, Any]] = []
     items: list[dict[str, Any]] = []
+    semantic_hunk_item_count = 0
+    fallback_item_count = 0
+    source_category_count = 0
 
     for category in _as_sequence(semantic_payload.get("categories")):
         if not isinstance(category, dict):
@@ -191,21 +230,30 @@ def build_emergency_triage_input_payload(semantic_payload: dict[str, Any]) -> di
         category_name = _read_nested_string(category, "name")
         if not category_name:
             continue
-
-        categories.append(
-            {
-                "name": category_name,
-                "signal_strength": _read_nested_string(category, "signal_strength"),
-                "summary_hint": _truncate(_read_nested_string(category, "summary_hint"), limit=260),
-                "key_commits": _normalize_string_list(category.get("key_commits"), limit=10, max_chars=220),
-                "candidate_commits": _compact_candidate_commits(
-                    category.get("candidate_commits"),
-                    limit=14,
-                ),
-                "supporting_files": _normalize_string_list(category.get("supporting_files"), limit=8, max_chars=240),
-            }
+        source_category_count += 1
+        compact_candidate_commits = _compact_candidate_commits(
+            category.get("candidate_commits"),
+            limit=14,
         )
+        supporting_files = _normalize_string_list(category.get("supporting_files"), limit=8, max_chars=240)
+        category_insertions = _read_category_int(category, "insertions")
+        category_deletions = _read_category_int(category, "deletions")
 
+        category_payload = {
+            "name": category_name,
+            "signal_strength": _read_nested_string(category, "signal_strength"),
+            "summary_hint": _truncate(_read_nested_string(category, "summary_hint"), limit=260),
+            "key_commits": _normalize_string_list(category.get("key_commits"), limit=10, max_chars=220),
+            "candidate_commits": compact_candidate_commits,
+            "supporting_files": supporting_files,
+        }
+        if category_insertions is not None:
+            category_payload["insertions"] = category_insertions
+        if category_deletions is not None:
+            category_payload["deletions"] = category_deletions
+        categories.append(category_payload)
+
+        category_hunk_item_count = 0
         for index, hunk in enumerate(_as_sequence(category.get("semantic_hunks"))):
             if not isinstance(hunk, dict):
                 continue
@@ -222,6 +270,24 @@ def build_emergency_triage_input_payload(semantic_payload: dict[str, Any]) -> di
                     "excerpt": _truncate(_read_nested_string(hunk, "excerpt"), limit=2200),
                 }
             )
+            category_hunk_item_count += 1
+            semantic_hunk_item_count += 1
+
+        if category_hunk_item_count == 0:
+            fallback_items = _build_fallback_items_for_category(
+                category_name=category_name,
+                category=category,
+                candidate_commits=compact_candidate_commits,
+                supporting_files=supporting_files,
+                insertions=category_insertions,
+                deletions=category_deletions,
+            )
+            items.extend(fallback_items)
+            fallback_item_count += len(fallback_items)
+
+    source_commit_count = _read_nested_int(semantic_payload, "commit_count")
+    if source_commit_count is None:
+        source_commit_count = len(_as_sequence(semantic_payload.get("all_commits")))
 
     return {
         "schema_version": semantic_payload.get("schema_version"),
@@ -229,6 +295,11 @@ def build_emergency_triage_input_payload(semantic_payload: dict[str, Any]) -> di
         "previous_tag": _read_nested_string(semantic_payload, "previous_tag"),
         "head_sha": _read_nested_string(semantic_payload, "head_sha"),
         "commit_count": _read_nested_int(semantic_payload, "commit_count"),
+        "semantic_hunk_item_count": semantic_hunk_item_count,
+        "fallback_item_count": fallback_item_count,
+        "source_commit_count": source_commit_count,
+        "source_category_count": source_category_count,
+        "source_all_commits_count": len(_as_sequence(semantic_payload.get("all_commits"))),
         "categories": categories,
         "items": items,
         "all_commits": _compact_candidate_commits(semantic_payload.get("all_commits"), limit=64),
@@ -349,32 +420,224 @@ def build_triage_input_from_emergency_result(
 
 
 def build_semantic_evidence_unit_id(category_name: str, category_index: int) -> str:
+    slug = _category_slug(category_name)
+    return f"{slug}:{category_index + 1}"
+
+
+def build_fallback_evidence_unit_id(category_name: str, category_index: int) -> str:
+    slug = _category_slug(category_name)
+    return f"fallback:{slug}:{category_index + 1}"
+
+
+def is_non_empty_emergency_triage_source(semantic_payload: dict[str, Any]) -> bool:
+    commit_count = _read_nested_int(semantic_payload, "commit_count")
+    if commit_count is not None and commit_count > 0:
+        return True
+    if _as_sequence(semantic_payload.get("all_commits")):
+        return True
+    for category in _as_sequence(semantic_payload.get("categories")):
+        if not isinstance(category, dict):
+            continue
+        if _as_sequence(category.get("candidate_commits")):
+            return True
+        if _as_sequence(category.get("supporting_files")):
+            return True
+        if _as_sequence(category.get("semantic_hunks")):
+            return True
+        if _read_nested_string(category, "summary_hint"):
+            return True
+    return False
+
+
+def _category_slug(category_name: str) -> str:
     slug = _ID_SLUG_RE.sub("-", category_name.strip().lower()).strip("-")
     if not slug:
         slug = "category"
-    return f"{slug}:{category_index + 1}"
+    return slug
 
 
 def _build_source_unit_lookup(semantic_payload: dict[str, Any]) -> dict[str, dict[str, Any]]:
     lookup: dict[str, dict[str, Any]] = {}
-    for category in _as_sequence(semantic_payload.get("categories")):
-        if not isinstance(category, dict):
+    projection = build_emergency_triage_input_payload(semantic_payload)
+    for item in _as_sequence(projection.get("items")):
+        if not isinstance(item, dict):
             continue
-        name = _read_nested_string(category, "name")
-        if not name:
+        evidence_id = _read_nested_string(item, "id")
+        if not evidence_id:
             continue
-        for index, hunk in enumerate(_as_sequence(category.get("semantic_hunks"))):
-            if not isinstance(hunk, dict):
-                continue
-            evidence_id = build_semantic_evidence_unit_id(name, index)
-            lookup[evidence_id] = {
-                "path": _read_nested_string(hunk, "path"),
-                "kind": _read_nested_string(hunk, "kind"),
-                "region_type": _read_nested_string(hunk, "region_type"),
-                "context_label": _read_nested_string(hunk, "context_label"),
-                "why_selected": _read_nested_string(hunk, "why_selected"),
-            }
+        lookup[evidence_id] = {
+            "path": _read_nested_string(item, "path"),
+            "kind": _read_nested_string(item, "kind"),
+            "region_type": _read_nested_string(item, "region_type"),
+            "context_label": _read_nested_string(item, "context_label"),
+            "why_selected": _read_nested_string(item, "why_selected"),
+        }
     return lookup
+
+
+def _build_fallback_items_for_category(
+    *,
+    category_name: str,
+    category: dict[str, Any],
+    candidate_commits: list[dict[str, Any]],
+    supporting_files: list[str],
+    insertions: int | None,
+    deletions: int | None,
+) -> list[dict[str, Any]]:
+    items: list[dict[str, Any]] = []
+    summary_hint = _truncate(_read_nested_string(category, "summary_hint"), limit=260)
+    signal_strength = _read_nested_string(category, "signal_strength")
+    key_commits = _normalize_string_list(category.get("key_commits"), limit=10, max_chars=220)
+
+    for index, commit in enumerate(candidate_commits):
+        item_id = build_fallback_evidence_unit_id(category_name, index)
+        sample_paths = _normalize_string_list(commit.get("sample_paths"), limit=6, max_chars=200)
+        primary_path = sample_paths[0] if sample_paths else (supporting_files[0] if supporting_files else None)
+        items.append(
+            {
+                "id": item_id,
+                "category": category_name,
+                "kind": "commit-summary",
+                "path": primary_path,
+                "region_type": "commit",
+                "context_label": _fallback_commit_context_label(commit, index=index),
+                "why_selected": (
+                    "Fallback emergency evidence from candidate commit because no semantic hunks were "
+                    "available for this category."
+                ),
+                "excerpt": _build_fallback_excerpt(
+                    commit=commit,
+                    supporting_files=supporting_files,
+                    summary_hint=summary_hint,
+                    signal_strength=signal_strength,
+                    insertions=insertions,
+                    deletions=deletions,
+                ),
+            }
+        )
+
+    if items:
+        return items
+
+    if not _category_has_fallback_evidence(
+        summary_hint=summary_hint,
+        key_commits=key_commits,
+        supporting_files=supporting_files,
+        insertions=insertions,
+        deletions=deletions,
+    ):
+        return []
+
+    items.append(
+        {
+            "id": build_fallback_evidence_unit_id(category_name, 0),
+            "category": category_name,
+            "kind": "category-summary",
+            "path": supporting_files[0] if supporting_files else None,
+            "region_type": "category",
+            "context_label": f"{category_name} fallback evidence",
+            "why_selected": (
+                "Fallback emergency evidence from category summary because no semantic hunks were "
+                "available for this category."
+            ),
+            "excerpt": _build_category_fallback_excerpt(
+                summary_hint=summary_hint,
+                key_commits=key_commits,
+                supporting_files=supporting_files,
+                insertions=insertions,
+                deletions=deletions,
+            ),
+        }
+    )
+    return items
+
+
+def _fallback_commit_context_label(commit: dict[str, Any], *, index: int) -> str:
+    sha = _read_nested_string(commit, "sha")
+    if sha:
+        return f"commit {sha}"
+    return f"candidate commit {index + 1}"
+
+
+def _build_fallback_excerpt(
+    *,
+    commit: dict[str, Any],
+    supporting_files: list[str],
+    summary_hint: str | None,
+    signal_strength: str | None,
+    insertions: int | None,
+    deletions: int | None,
+) -> str:
+    lines: list[str] = []
+    subject = _read_nested_string(commit, "subject")
+    if subject:
+        lines.append(f"Commit subject: {subject}")
+    body = _read_nested_string(commit, "body")
+    if body:
+        lines.append(f"Commit body: {_truncate(body, limit=360)}")
+    sha = _read_nested_string(commit, "sha")
+    if sha:
+        lines.append(f"Commit sha: {sha}")
+    changed_files = _read_nested_int(commit, "changed_files")
+    if changed_files is not None:
+        lines.append(f"Changed files: {changed_files}")
+    commit_insertions = _read_nested_int(commit, "insertions")
+    commit_deletions = _read_nested_int(commit, "deletions")
+    if commit_insertions is not None:
+        lines.append(f"Commit insertions: {commit_insertions}")
+    if commit_deletions is not None:
+        lines.append(f"Commit deletions: {commit_deletions}")
+    sample_paths = _normalize_string_list(commit.get("sample_paths"), limit=6, max_chars=200)
+    if sample_paths:
+        lines.append("Sample paths: " + ", ".join(sample_paths))
+    if supporting_files:
+        lines.append("Supporting files: " + ", ".join(supporting_files))
+    if summary_hint:
+        lines.append(f"Summary hint: {summary_hint}")
+    if signal_strength:
+        lines.append(f"Signal strength: {signal_strength}")
+    if insertions is not None:
+        lines.append(f"Category insertions: {insertions}")
+    if deletions is not None:
+        lines.append(f"Category deletions: {deletions}")
+    if not lines:
+        lines.append("Candidate commit fallback evidence with limited structured detail.")
+    return _truncate("\n".join(lines), limit=2200) or ""
+
+
+def _build_category_fallback_excerpt(
+    *,
+    summary_hint: str | None,
+    key_commits: list[str],
+    supporting_files: list[str],
+    insertions: int | None,
+    deletions: int | None,
+) -> str:
+    lines: list[str] = []
+    if summary_hint:
+        lines.append(f"Summary hint: {summary_hint}")
+    if key_commits:
+        lines.append("Key commits: " + ", ".join(key_commits))
+    if supporting_files:
+        lines.append("Supporting files: " + ", ".join(supporting_files))
+    if insertions is not None:
+        lines.append(f"Category insertions: {insertions}")
+    if deletions is not None:
+        lines.append(f"Category deletions: {deletions}")
+    return _truncate("\n".join(lines), limit=2200) or "Category fallback evidence with limited structured detail."
+
+
+def _category_has_fallback_evidence(
+    *,
+    summary_hint: str | None,
+    key_commits: list[str],
+    supporting_files: list[str],
+    insertions: int | None,
+    deletions: int | None,
+) -> bool:
+    if summary_hint or key_commits or supporting_files:
+        return True
+    return bool(insertions or deletions)
 
 
 def _compact_candidate_commits(raw: Any, *, limit: int) -> list[dict[str, Any]]:
@@ -436,6 +699,16 @@ def _read_nested_int(obj: Any, key: str) -> int | None:
     if isinstance(value, bool) or not isinstance(value, int):
         return None
     return value
+
+
+def _read_category_int(category: dict[str, Any], key: str) -> int | None:
+    direct = _read_nested_int(category, key)
+    if direct is not None:
+        return direct
+    summary = category.get("summary")
+    if isinstance(summary, dict):
+        return _read_nested_int(summary, key)
+    return None
 
 
 def _truncate(value: str | None, *, limit: int) -> str | None:

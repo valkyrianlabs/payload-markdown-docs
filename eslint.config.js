@@ -5,6 +5,7 @@ import payloadEsLintConfig from '@payloadcms/eslint-config'
 export const defaultESLintIgnores = [
   '**/.temp',
   '**/.*', // ignore all dotfiles
+  'scripts/consumer-smoke/template/**', // standalone consumer app; resolved only after the smoke install
   '**/.git',
   '**/.hg',
   '**/.pnp.*',
@@ -42,6 +43,7 @@ export default [
           allowDefaultProject: [
             'scripts/*.ts',
             'tools/dev/*.mjs',
+            'scripts/consumer-smoke/*.mjs',
             '*.js',
             '*.mjs',
             '*.spec.ts',

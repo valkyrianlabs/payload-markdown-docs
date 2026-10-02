@@ -42,14 +42,19 @@ Release checklist:
    `valkyrianlabs/homebrew-tap/Formula/pmdocs.rb`.
 6. Confirm the formula dependencies are available: `meson`, `ninja`, `pkgconf`,
    `cmake`, `cli11`, `curl`, `openssl@3`, `nlohmann-json`, and `doctest`.
-7. Test the formula before publishing:
+7. The formula builds with `-Dinstall_skill_data=true -Dcompanion_skill_data=auto`:
+   the tag archive contains `skills/payload-markdown-docs` but no
+   `node_modules`, so the npm companion `payload-markdown` skill is skipped and
+   `pmdocs install skill` installs the bundled skill. `brew test` runs
+   `pmdocs doctor` and `pmdocs install skill --agent codex --dry-run`.
+8. Test the formula before publishing:
 
    ```bash
    brew install --build-from-source ./release/homebrew/Formula/pmdocs.rb
    brew test pmdocs
    ```
 
-8. After copying the formula into the tap and replacing the release URL and
+9. After copying the formula into the tap and replacing the release URL and
    checksum, test the published path:
 
    ```bash
@@ -57,7 +62,7 @@ Release checklist:
    brew test pmdocs
    ```
 
-9. Commit and push the formula to the tap.
+10. Commit and push the formula to the tap.
 
 The release workflow performs formula staging, syntax validation, and tap commit
 publication when
@@ -66,9 +71,9 @@ publication when
 Production environment. Formula install smoke tests still need a runner with
 Homebrew available, preferably protected macOS CI before v1.
 
-The Homebrew formula should run native Meson tests only. The npm parity harness
-requires repository dev dependencies and should stay in repository CI, not in
-the formula build.
+The Homebrew formula should run native Meson tests only. TypeScript checks
+(including the TypeScript half of the shared `contracts/vectors/` suite) need
+repository dev dependencies and stay in repository CI, not in the formula build.
 
 References:
 

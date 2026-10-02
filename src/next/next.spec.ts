@@ -69,6 +69,25 @@ type TestFindArgs = {
   where?: unknown
 } & Parameters<PayloadMarkdownDocsReadPayload['find']>[0]
 
+// Mirrors Payload `select`: only selected top-level keys (plus `id`) come back, so a
+// reader that forgets to select `_status` sees it as undefined, exactly like real Payload.
+const applySelect = (
+  doc: Record<string, unknown>,
+  select: unknown,
+): Record<string, unknown> => {
+  if (typeof select !== 'object' || select === null || Array.isArray(select)) {
+    return doc
+  }
+
+  const selectedKeys = Object.entries(select as Record<string, unknown>)
+    .filter(([, value]) => value !== false && value !== undefined)
+    .map(([key]) => key)
+
+  return Object.fromEntries(
+    Object.entries(doc).filter(([key]) => key === 'id' || selectedKeys.includes(key)),
+  )
+}
+
 const createPaginatedDocs = (docs: Record<string, unknown>[]) => ({
   docs,
   hasNextPage: false,
@@ -190,9 +209,12 @@ const createPayloadMock = ({
   const find = vi.fn((args: TestFindArgs) =>
     Promise.resolve(
       createPaginatedDocs(
+        // Mirrors real Payload 3 semantics: `draft: false` reads the main table, which
+        // still contains never-published documents with `_status: 'draft'`. Public
+        // readers must filter `_status` themselves; the mock must not hide that bug.
         (collections[args.collection] ?? [])
-          .filter((doc) => args.draft === true || doc._status !== 'draft')
-          .filter((doc) => matchesWhere(doc, args.where)),
+          .filter((doc) => matchesWhere(doc, args.where))
+          .map((doc) => applySelect(doc, args.select)),
       ),
     ),
   ) as unknown as PayloadMarkdownDocsReadPayload['find'] & ReturnType<typeof vi.fn>
@@ -1977,6 +1999,40 @@ describe('Payload Markdown Docs link helpers', () => {
 })
 
 describe('Payload Markdown Docs page component', () => {
+  it('leaves code untouched and handles linked images and parenthesised paths (X-5)', () => {
+    const productNestedDocsSet = {
+      ...resolvedDocsSet,
+      productRoute: '/plugins/payload-markdown',
+      routeBase: '/plugins/payload-markdown/docs',
+      routeMode: 'product-nested' as const,
+    }
+    const rewrite = (markdown: string) =>
+      rewritePayloadMarkdownDocsLinks({
+        doc: resolvedRecord({ sourcePath: 'Index.md' }),
+        docsSet: productNestedDocsSet,
+        markdown,
+      })
+    const target = rewrite('[t](./target.md)').slice('[t]('.length, -1)
+    const parens = rewrite('[w](./a_(b).md)')
+
+    // inline code spans are displayed code
+    expect(rewrite('Write `[Install](./install.md)` and ``a `[x](./x.md)` b``')).toBe(
+      'Write `[Install](./install.md)` and ``a `[x](./x.md)` b``',
+    )
+    expect(rewrite('`[a](./a.md)` then [t](./target.md)')).toBe(`\`[a](./a.md)\` then [t](${target})`)
+    // a shorter inner fence does not close a longer outer fence
+    const nested = ['````md', '```md', '[a](./a.md)', '```', '[b](./b.md)', '````', '[t](./target.md)'].join('\n')
+    expect(rewrite(nested)).toBe(nested.replace('[t](./target.md)', `[t](${target})`))
+    // tilde fences and info strings
+    const tilde = ['~~~~ md', '[a](./a.md)', '~~~', '[b](./b.md)', '~~~~', '[t](./target.md)'].join('\n')
+    expect(rewrite(tilde)).toBe(tilde.replace('[t](./target.md)', `[t](${target})`))
+    // linked image: the outer link is rewritten, the image source is left as is
+    expect(rewrite('[![img](./i.png)](./target.md)')).toBe(`[![img](./i.png)](${target})`)
+    // balanced parentheses in the destination
+    expect(parens).not.toContain('.md')
+    expect(parens).toMatch(/^\[w\]\(\/.+\)$/)
+  })
+
   it('rewrites docs-local markdown links into the current docs set route space', () => {
     const productNestedDocsSet = {
       ...resolvedDocsSet,
@@ -2918,5 +2974,22 @@ describe('Payload Markdown Docs /next package export', () => {
       import: './dist/blocks/index.js',
       types: './dist/blocks/index.d.ts',
     })
+    expect(packageJson.exports['./migrations']).toMatchObject({
+      import: './dist/migrations/index.js',
+      types: './dist/migrations/index.d.ts',
+    })
+  })
+})
+
+describe('sitemap URL encoding (DOCS-22)', () => {
+  it('percent-encodes route segments and leaves plain slugs unchanged', async () => {
+    const { encodeRoutePath } = await import('./sitemap.js')
+
+    expect(encodeRoutePath('/docs/getting-started/install_v1.2')).toBe(
+      '/docs/getting-started/install_v1.2',
+    )
+    expect(encodeRoutePath('/docs/with space?#')).toBe('/docs/with%20space%3F%23')
+    expect(encodeRoutePath('/docs/café')).toBe('/docs/caf%C3%A9')
+    expect(encodeRoutePath('/docs/caf%C3%A9')).toBe('/docs/caf%C3%A9')
   })
 })

@@ -13,7 +13,9 @@ import {
   DEFAULT_MARKDOWN_FIELD_NAME,
 } from '../constants.js'
 import { findDocsSetByRoutePrefix } from '../payload/index.js'
+import { isPublicDocsAssetRecord, notArchivedWhere } from '../payload/visibility.js'
 import { joinRouteSegments, normalizeRoutePath } from '../routing/index.js'
+import { getRecordId, getString, isRecord } from '../shared/records.js'
 import {
   getSkillBundleForAgent,
   getSkillZipEntryPath,
@@ -22,9 +24,11 @@ import {
   sanitizeSkillPackageSlug,
 } from '../skillBundles.js'
 import {
-  DOCS_ASSETS_STORAGE_UNAVAILABLE_MESSAGE,
-  isDocsAssetsStorageUnavailableError,
-} from './assetsStorage.js'
+  createSafeAssetHeaders,
+  SAFE_ASSET_HEADERS,
+  toServedAssetContentType,
+} from './assetContentTypes.js'
+import { withDocsAssetsStorageGuard } from './assetsStorage.js'
 import { createLlmsResponse, generateDocsSetLlms, generateRootLlms } from './llms.js'
 
 export type CreateDocsAssetsEndpointsOptions = {
@@ -36,6 +40,7 @@ export type CreateDocsAssetsEndpointsOptions = {
   docsSetsCollectionSlug?: string
   docsSetsEnabled?: boolean
   markdownFieldName?: string
+  trustForwardedHeaders?: boolean
 }
 
 type AssetEndpointPayloadOperations = {
@@ -45,6 +50,7 @@ type AssetEndpointPayloadOperations = {
     draft?: boolean
     limit?: number
     overrideAccess?: boolean
+    pagination?: boolean
     sort?: string
     where?: unknown
   }) => Promise<{
@@ -79,9 +85,6 @@ type SkillArchiveRequest = {
   rawSkillRoute: string
 }
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value)
-
 const toStringArray = (value: unknown): string[] => {
   if (Array.isArray(value)) {
     return value.flatMap((item) => (typeof item === 'string' && item ? [item] : []))
@@ -89,17 +92,6 @@ const toStringArray = (value: unknown): string[] => {
 
   return typeof value === 'string' && value ? [value] : []
 }
-
-const getRecordId = (doc: Record<string, unknown>): string | undefined => {
-  if (typeof doc.id === 'string' || typeof doc.id === 'number') {
-    return String(doc.id)
-  }
-
-  return undefined
-}
-
-const getString = (value: unknown): string | undefined =>
-  typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined
 
 const toServedDocsAsset = (doc: unknown): ServedDocsAsset | undefined => {
   if (
@@ -112,9 +104,7 @@ const toServedDocsAsset = (doc: unknown): ServedDocsAsset | undefined => {
     return undefined
   }
 
-  const sync = isRecord(doc.sync) ? doc.sync : undefined
-
-  if (sync?.archived === true) {
+  if (!isPublicDocsAssetRecord(doc)) {
     return undefined
   }
 
@@ -138,11 +128,11 @@ const toSkillDocsAsset = (doc: unknown): SkillDocsAsset | undefined => {
     return undefined
   }
 
-  const sync = isRecord(doc.sync) ? doc.sync : undefined
-
-  if (sync?.archived === true) {
+  if (!isPublicDocsAssetRecord(doc)) {
     return undefined
   }
+
+  const sync = isRecord(doc.sync) ? doc.sync : undefined
 
   return {
     id: getRecordId(doc),
@@ -260,20 +250,8 @@ const createContentDispositionFilename = ({
 
 const notFoundResponse = (): Response =>
   new Response('Not found', {
-    headers: {
-      'Cache-Control': 'no-store',
-      'Content-Type': 'text/plain; charset=utf-8',
-    },
+    headers: createSafeAssetHeaders('text/plain; charset=utf-8'),
     status: 404,
-  })
-
-const docsAssetsStorageUnavailableResponse = (): Response =>
-  new Response(DOCS_ASSETS_STORAGE_UNAVAILABLE_MESSAGE, {
-    headers: {
-      'Cache-Control': 'no-store',
-      'Content-Type': 'text/plain; charset=utf-8',
-    },
-    status: 500,
   })
 
 const resolveAssetByRoute = async ({
@@ -297,11 +275,7 @@ const resolveAssetByRoute = async ({
             equals: normalizeRoutePath(route),
           },
         },
-        {
-          'sync.archived': {
-            not_equals: true,
-          },
-        },
+        notArchivedWhere(),
       ],
     },
   })
@@ -355,11 +329,7 @@ const resolveAssetByDocsSet = async ({
             },
           ],
         },
-        {
-          'sync.archived': {
-            not_equals: true,
-          },
-        },
+        notArchivedWhere(),
       ],
     },
   })
@@ -383,8 +353,8 @@ const findSkillAssetsForDocsSet = async ({
   const result = await payload.find({
     collection: collectionSlug,
     depth: 0,
-    limit: 1000,
     overrideAccess: true,
+    pagination: false,
     where: {
       and: [
         {
@@ -411,11 +381,7 @@ const findSkillAssetsForDocsSet = async ({
             },
           ],
         },
-        {
-          'sync.archived': {
-            not_equals: true,
-          },
-        },
+        notArchivedWhere(),
       ],
     },
   })
@@ -453,11 +419,7 @@ const resolveSkillAssetByRoute = async ({
             equals: normalizeRoutePath(route),
           },
         },
-        {
-          'sync.archived': {
-            not_equals: true,
-          },
-        },
+        notArchivedWhere(),
       ],
     },
   })
@@ -481,8 +443,8 @@ const findSkillAssetsBySourceId = async ({
   const result = await payload.find({
     collection: collectionSlug,
     depth: 0,
-    limit: 1000,
     overrideAccess: true,
+    pagination: false,
     where: {
       and: [
         {
@@ -504,11 +466,7 @@ const findSkillAssetsBySourceId = async ({
             },
           ],
         },
-        {
-          'sync.archived': {
-            not_equals: true,
-          },
-        },
+        notArchivedWhere(),
       ],
     },
   })
@@ -646,6 +604,7 @@ const buildSkillZipResponse = ({
   return new Response(new Blob([zipArchive], { type: 'application/zip' }), {
     headers: {
       'Cache-Control': 'no-store',
+      ...SAFE_ASSET_HEADERS,
       'Content-Disposition': `attachment; filename="${filename}"`,
       'Content-Type': 'application/zip',
     },
@@ -654,18 +613,12 @@ const buildSkillZipResponse = ({
 
 const createAssetResponse = (asset: ServedDocsAsset): Response =>
   new Response(asset.content, {
-    headers: {
-      'Cache-Control': 'no-store',
-      'Content-Type': asset.contentType,
-    },
+    headers: createSafeAssetHeaders(toServedAssetContentType(asset.contentType)),
   })
 
 const createMarkdownResponse = (content: string): Response =>
   new Response(content, {
-    headers: {
-      'Cache-Control': 'no-store',
-      'Content-Type': 'text/markdown; charset=utf-8',
-    },
+    headers: createSafeAssetHeaders('text/markdown; charset=utf-8'),
   })
 
 const createRootGetEndpoint = ({
@@ -692,6 +645,7 @@ const createRootAssetEndpoint = ({
   kind,
   markdownFieldName,
   path,
+  trustForwardedHeaders,
 }: {
   collectionSlug: string
   docsCollectionSlug: string
@@ -702,10 +656,11 @@ const createRootAssetEndpoint = ({
   kind: 'llms' | 'llms-full'
   markdownFieldName: string
   path: string
+  trustForwardedHeaders?: boolean
 }): Endpoint =>
   createRootGetEndpoint({
     handler: async (req) => {
-      try {
+      return withDocsAssetsStorageGuard(async () => {
         const payload = req.payload as unknown as AssetEndpointPayloadOperations
 
         if (docsEnabled && docsSetsEnabled) {
@@ -718,6 +673,7 @@ const createRootAssetEndpoint = ({
             markdownFieldName,
             payload,
             req,
+            trustForwardedHeaders,
           })
 
           if (generatedContent) {
@@ -732,13 +688,7 @@ const createRootAssetEndpoint = ({
         })
 
         return asset?.kind === kind ? createAssetResponse(asset) : notFoundResponse()
-      } catch (error) {
-        if (isDocsAssetsStorageUnavailableError(error)) {
-          return docsAssetsStorageUnavailableResponse()
-        }
-
-        throw error
-      }
+      })
     },
     path,
   })
@@ -752,6 +702,7 @@ const createDocsSetLlmsEndpoint = ({
   kind,
   markdownFieldName,
   path,
+  trustForwardedHeaders,
 }: {
   collectionSlug: string
   docsCollectionSlug: string
@@ -761,13 +712,14 @@ const createDocsSetLlmsEndpoint = ({
   kind: 'llms' | 'llms-full'
   markdownFieldName: string
   path: string
+  trustForwardedHeaders?: boolean
 }): Endpoint =>
   createRootGetEndpoint({
     handler: async (req) => {
       const route = getRequestPath(req)
       const payload = req.payload as unknown as AssetEndpointPayloadOperations
 
-      try {
+      return withDocsAssetsStorageGuard(async () => {
         const docsSet = await findDocsSetByRoutePrefix({
           collectionSlug: docsSetsCollectionSlug,
           docsGroupsCollectionSlug,
@@ -790,6 +742,7 @@ const createDocsSetLlmsEndpoint = ({
             markdownFieldName,
             payload,
             req,
+            trustForwardedHeaders,
           })
 
           if (generatedContent) {
@@ -805,13 +758,7 @@ const createDocsSetLlmsEndpoint = ({
         })
 
         return asset ? createAssetResponse(asset) : notFoundResponse()
-      } catch (error) {
-        if (isDocsAssetsStorageUnavailableError(error)) {
-          return docsAssetsStorageUnavailableResponse()
-        }
-
-        throw error
-      }
+      })
     },
     path,
   })
@@ -833,7 +780,7 @@ const createSkillAssetEndpoint = ({
         return notFoundResponse()
       }
 
-      try {
+      return withDocsAssetsStorageGuard(async () => {
         const payload = req.payload as unknown as AssetEndpointPayloadOperations
 
         if (skillRequest.assetPath) {
@@ -870,13 +817,7 @@ const createSkillAssetEndpoint = ({
           : undefined
 
         return content ? createMarkdownResponse(content) : notFoundResponse()
-      } catch (error) {
-        if (isDocsAssetsStorageUnavailableError(error)) {
-          return docsAssetsStorageUnavailableResponse()
-        }
-
-        throw error
-      }
+      })
     },
     path: '/:routeBase*/skills/:agent/:assetPath*',
   })
@@ -898,7 +839,7 @@ const createSkillZipEndpoint = ({
         return notFoundResponse()
       }
 
-      try {
+      return withDocsAssetsStorageGuard(async () => {
         const payload = req.payload as unknown as AssetEndpointPayloadOperations
         const docsSet = await findDocsSetByRoutePrefix({
           collectionSlug: docsSetsCollectionSlug,
@@ -917,13 +858,7 @@ const createSkillZipEndpoint = ({
         const response = bundle ? buildSkillZipResponse({ bundle }) : undefined
 
         return response ?? notFoundResponse()
-      } catch (error) {
-        if (isDocsAssetsStorageUnavailableError(error)) {
-          return docsAssetsStorageUnavailableResponse()
-        }
-
-        throw error
-      }
+      })
     },
     path: '/:routeBase*/skills/:agent.zip',
   })
@@ -937,6 +872,7 @@ export const createDocsAssetsEndpoints = ({
   docsSetsCollectionSlug = DEFAULT_DOCS_SETS_COLLECTION_SLUG,
   docsSetsEnabled = true,
   markdownFieldName = DEFAULT_MARKDOWN_FIELD_NAME,
+  trustForwardedHeaders = false,
 }: CreateDocsAssetsEndpointsOptions): Endpoint[] => {
   if (!docsAssetsEnabled) {
     return []
@@ -953,6 +889,7 @@ export const createDocsAssetsEndpoints = ({
       kind: 'llms',
       markdownFieldName,
       path: '/llms.txt',
+      trustForwardedHeaders,
     }),
     createRootAssetEndpoint({
       collectionSlug: docsAssetsCollectionSlug,
@@ -964,6 +901,7 @@ export const createDocsAssetsEndpoints = ({
       kind: 'llms-full',
       markdownFieldName,
       path: '/llms-full.txt',
+      trustForwardedHeaders,
     }),
     ...(docsSetsEnabled
       ? [
@@ -976,6 +914,7 @@ export const createDocsAssetsEndpoints = ({
             kind: 'llms',
             markdownFieldName,
             path: '/:routeBase*/llms.txt',
+            trustForwardedHeaders,
           }),
           createDocsSetLlmsEndpoint({
             collectionSlug: docsAssetsCollectionSlug,
@@ -986,6 +925,7 @@ export const createDocsAssetsEndpoints = ({
             kind: 'llms-full',
             markdownFieldName,
             path: '/:routeBase*/llms-full.txt',
+            trustForwardedHeaders,
           }),
           createSkillZipEndpoint({
             collectionSlug: docsAssetsCollectionSlug,

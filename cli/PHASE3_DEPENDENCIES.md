@@ -93,8 +93,8 @@ Use libcurl for:
 
 - Strict endpoint URL parsing.
 - Rejecting unsupported schemes.
-- Enforcing `https://` by default unless a local/dev flag explicitly allows
-  `http://localhost`.
+- Enforcing `https://` (implemented: plain `http://` is accepted for loopback
+  hosts only, or anywhere with the explicit `--allow-insecure-http` flag).
 - GET requests for nonce/OIDC flows if required by the current protocol.
 - POST requests for sync/push.
 - Status code handling.
@@ -132,7 +132,10 @@ a CLI that performs a few HTTP requests.
 
 ## Testing Order
 
-Before real network `push`, add test vectors in this order:
+Before real network `push`, add test vectors in this order. Items 1, 2, 4, 5
+and 6 now live in the shared `contracts/vectors/signing.json` (RFC 8032 test
+key in PEM, base64 DER and OpenSSH form, deterministic signatures), run by both
+`src/sync/contracts.spec.ts` and `cli/tests/contract_tests.cpp`:
 
 1. SHA-256 body hash vectors matching TypeScript output.
 2. Canonical signing string construction tests.

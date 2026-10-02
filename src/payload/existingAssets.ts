@@ -1,11 +1,14 @@
 import type { ExistingAssetRecord } from '../sync/index.js'
 
+import { getRecordId, getRelationshipId, isRecord } from '../shared/records.js'
+
 export type ExistingAssetsPayloadOperations = {
   find: (args: {
     collection: string
     depth?: number
     limit?: number
     overrideAccess?: boolean
+    pagination?: boolean
     select?: Record<string, boolean>
     where?: unknown
   }) => Promise<{
@@ -29,29 +32,6 @@ export type ExistingPayloadDocsAssetRecord = {
     sourcePath?: string
   }
 } & ExistingAssetRecord
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value)
-
-const getRecordId = (doc: Record<string, unknown>): string | undefined => {
-  if (typeof doc.id === 'string' || typeof doc.id === 'number') {
-    return String(doc.id)
-  }
-
-  return undefined
-}
-
-const getRelationshipId = (value: unknown): string | undefined => {
-  if (typeof value === 'string' || typeof value === 'number') {
-    return String(value)
-  }
-
-  if (isRecord(value)) {
-    return getRecordId(value)
-  }
-
-  return undefined
-}
 
 const toExistingPayloadDocsAssetRecord = (
   doc: unknown,
@@ -129,8 +109,8 @@ export const findExistingPayloadDocsAssetRecords = async ({
   const result = await payload.find({
     collection: collectionSlug,
     depth: 0,
-    limit: 1000,
     overrideAccess: true,
+    pagination: false,
     where: docsSetId
       ? {
           or: [

@@ -181,6 +181,47 @@ Disabling infrastructure collections is an advanced integration path. Normal
 apps should leave the defaults enabled; the sync endpoint needs docs sets for
 source resolution and needs audit/nonces for applied sync.
 
+## Public URLs In Generated Files
+
+Generated `llms.txt` and `llms-full.txt` files contain absolute URLs. The
+origin comes from `NEXT_PUBLIC_SERVER_URL`, `NEXT_PUBLIC_SITE_URL`, `SITE_URL`,
+the Vercel URL variables, or Payload `serverURL`, in that order. Request
+headers are used only when none of these is set: `X-Forwarded-Host` and
+`X-Forwarded-Proto` only with `endpoint.trustForwardedHeaders: true` (set it
+only behind a proxy that overwrites them), otherwise `Host`. Configure
+`serverURL` in production so a client-supplied header can never change the
+URLs.
+
+## Collection Access
+
+Plugin collections are admin-only by default. Users of the Payload admin user
+collection (`config.admin.user`) can create, read, update, and delete docs,
+docs sets, docs groups, docs assets, and Access records. Sync runs and sync
+nonces are read-only for admins; only the sync endpoint writes them. Users of
+any other auth collection (customers, members) get no access through REST,
+GraphQL, or the admin panel.
+
+The sync endpoint and the `/next` read helpers use the Local API with
+`overrideAccess: true`, so these rules do not affect syncing or public pages.
+
+Change who counts as a docs admin, or override single operations per
+collection:
+
+```ts
+payloadMarkdownDocs({
+  access: {
+    admin: ({ req }) => req.user?.collection === 'users' && req.user.role === 'admin',
+  },
+  collections: {
+    syncRuns: {
+      access: {
+        delete: ({ req }) => req.user?.role === 'admin',
+      },
+    },
+  },
+})
+```
+
 ## Hero Images
 
 Generated docs records include an optional `heroImage` upload field. It uses the
@@ -197,6 +238,14 @@ payloadMarkdownDocs({
   },
 })
 ```
+
+The docs-set SEO meta image, the docs `heroImage` field, and the media fields
+inside installed heroes and `docsCTA` blocks reference the `media` upload
+collection. If the app defines no `media` collection, the plugin omits those
+fields and logs one warning instead of failing Payload config validation. Hero
+image collections listed in `additionalMediaCollections` that do not exist are
+omitted the same way. The check sees collections defined before the plugin
+runs, so define `media` in your own config rather than in a later plugin.
 
 Set `target.heroImage: false` to omit the field.
 

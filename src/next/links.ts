@@ -4,14 +4,9 @@ import {
   DEFAULT_DOCS_GROUPS_COLLECTION_SLUG,
   DEFAULT_DOCS_SETS_COLLECTION_SLUG,
 } from '../constants.js'
+import { getDocsGroupRoutePath, indexDocsGroupsById } from '../routing/docsSetRoutes.js'
+import { getRelationshipId, isRecord } from '../shared/records.js'
 import {
-  deriveDocsSetProductRoutePath,
-  deriveDocsSetRouteBase,
-  joinRouteSegments,
-} from '../routing/index.js'
-import {
-  getRelationshipId,
-  isRecord,
   isVisibleDocsSet,
   toResolvedDocsGroup,
   toResolvedDocsSet,
@@ -101,35 +96,6 @@ const applyTopLevelCapacity = (
   return availableSlots === undefined ? items : items.slice(0, availableSlots)
 }
 
-const getGroupRoutePath = ({
-  groupId,
-  groupsById,
-  seen = new Set<string>(),
-}: {
-  groupId?: string
-  groupsById: Map<string, unknown>
-  seen?: Set<string>
-}): string | undefined => {
-  if (!groupId || seen.has(groupId)) {
-    return undefined
-  }
-
-  const group = groupsById.get(groupId)
-
-  if (!isRecord(group) || typeof group.slug !== 'string') {
-    return undefined
-  }
-
-  return joinRouteSegments(
-    getGroupRoutePath({
-      groupId: getRelationshipId(group.parent),
-      groupsById,
-      seen: new Set([groupId, ...seen]),
-    }),
-    group.slug,
-  )
-}
-
 const sortByOrderThenLabel = <T extends { label: string; order: number }>(items: T[]): T[] =>
   [...items].sort((first, second) => {
     if (first.order !== second.order) {
@@ -180,17 +146,7 @@ export const getPayloadMarkdownDocsNavItems = async ({
       overrideAccess,
     }),
   ])
-  const groupsById = new Map(
-    docsGroupsResult.docs.flatMap((group) => {
-      if (!isRecord(group)) {
-        return []
-      }
-
-      const id = getRelationshipId(group)
-
-      return id ? [[id, group]] : []
-    }),
-  )
+  const groupsById = indexDocsGroupsById(docsGroupsResult.docs)
   const childGroupIdsByParentId = new Map<string, string[]>()
   const topLevelGroupIds: string[] = []
 
@@ -211,33 +167,18 @@ export const getPayloadMarkdownDocsNavItems = async ({
   const topLevelDocsSetItems: PayloadMarkdownDocsNavItem[] = []
 
   for (const doc of docsSetsResult.docs) {
-    const docsSet = toResolvedDocsSet(doc)
+    const docsSet = toResolvedDocsSet(doc, groupsById)
 
     if (!docsSet?.slug || !isRecord(doc) || !isVisibleDocsSet({ docsSet, includeDrafts })) {
       continue
     }
 
     const groupId = getRelationshipId(doc.group)
-    const groupRoutePath = groupId
-      ? getGroupRoutePath({
-          groupId,
-          groupsById,
-        })
-      : undefined
 
-    if (groupId && !groupRoutePath) {
+    // Docs sets in a group without a route are left out of the nav.
+    if (groupId && !getDocsGroupRoutePath({ group: groupId, groupsById })) {
       continue
     }
-
-    const routeBase = deriveDocsSetRouteBase({
-      docsSetSlug: docsSet.slug,
-      groupRoutePath,
-      routeMode: docsSet.routeMode,
-    })
-    const productRoute = deriveDocsSetProductRoutePath({
-      docsSetSlug: docsSet.slug,
-      groupRoutePath,
-    })
 
     const item: PayloadMarkdownDocsNavItem = {
       id: docsSet.id,
@@ -245,8 +186,8 @@ export const getPayloadMarkdownDocsNavItems = async ({
       collection: docsSetsCollectionSlug,
       label: docsSet.navTitle ?? docsSet.title,
       order: docsSet.order,
-      route: routeBase,
-      url: docsSet.routeMode === 'product-nested' ? productRoute : routeBase,
+      route: docsSet.routeBase,
+      url: docsSet.routeMode === 'product-nested' ? docsSet.productRoute : docsSet.routeBase,
     }
 
     if (groupId) {
@@ -264,14 +205,9 @@ export const getPayloadMarkdownDocsNavItems = async ({
       return undefined
     }
 
-    const doc = groupsById.get(groupId)
-    const group = toResolvedDocsGroup(doc)
-    const routePath = getGroupRoutePath({
-      groupId,
-      groupsById,
-    })
+    const group = toResolvedDocsGroup(groupsById.get(groupId), groupsById)
 
-    if (!group || !routePath) {
+    if (!group) {
       return undefined
     }
 
@@ -291,8 +227,8 @@ export const getPayloadMarkdownDocsNavItems = async ({
       collection: docsGroupsCollectionSlug,
       label: group.navTitle ?? group.title,
       order: group.order,
-      route: routePath,
-      url: routePath,
+      route: group.routePath,
+      url: group.routePath,
     }
   }
 

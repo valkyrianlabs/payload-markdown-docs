@@ -24,6 +24,8 @@ export type GitHubOidcErrorCode =
 export type GitHubOidcClaims = {
   actor?: string
   aud: string | string[]
+  /** Target branch of a pull request (`main`), present on pull_request tokens. */
+  base_ref?: string
   environment?: string
   event_name?: string
   exp: number
@@ -49,8 +51,15 @@ export type GitHubOidcTrustedSource = {
 
 export type GitHubOidcVerifyConfig = {
   allowedRefs?: string[]
+  /** Docs-set repository binding (owner/repo or repo under the token owner). Empty = any trusted. */
+  allowedRepositories?: string[]
   allowedWorkflowRefs?: string[]
   allowPullRequests?: boolean
+  /**
+   * Accept any `refs/tags/*` ref in addition to `allowedRefs`. Defaults to true, which
+   * preserves the long-standing behavior used by release-triggered publish workflows.
+   */
+  allowTagRefs?: boolean
   audience: string
   enforceWorkflowRefs?: boolean
   issuer?: string
@@ -135,6 +144,7 @@ const toClaims = (payload: Record<string, unknown>): GitHubOidcClaims | undefine
   return {
     actor: getStringClaim(payload, 'actor'),
     aud,
+    base_ref: getStringClaim(payload, 'base_ref'),
     environment: getStringClaim(payload, 'environment'),
     event_name: getStringClaim(payload, 'event_name'),
     exp,
@@ -201,6 +211,33 @@ const repositoryMatches = ({
     : `${owner}/${normalized}`.toLowerCase() === repository.toLowerCase()
 }
 
+/** True when a trusted-source record covers the token's owner/repository. */
+export const githubOidcSourceMatches = ({
+  repository,
+  repositoryOwner,
+  source,
+}: {
+  repository: string
+  repositoryOwner: string
+  source: GitHubOidcTrustedSource
+}): boolean => {
+  if (source.owner.toLowerCase() !== repositoryOwner.toLowerCase()) {
+    return false
+  }
+
+  if (source.limitRepos !== true) {
+    return true
+  }
+
+  return (source.repositories ?? []).some((allowedRepository) =>
+    repositoryMatches({
+      allowed: allowedRepository,
+      owner: source.owner,
+      repository,
+    }),
+  )
+}
+
 const findTrustedSource = ({
   repository,
   repositoryOwner,
@@ -210,23 +247,13 @@ const findTrustedSource = ({
   repositoryOwner: string
   trustedSources: GitHubOidcTrustedSource[]
 }): GitHubOidcTrustedSource | undefined =>
-  trustedSources.find((source) => {
-    if (source.owner.toLowerCase() !== repositoryOwner.toLowerCase()) {
-      return false
-    }
-
-    if (source.limitRepos !== true) {
-      return true
-    }
-
-    return (source.repositories ?? []).some((allowedRepository) =>
-      repositoryMatches({
-        allowed: allowedRepository,
-        owner: source.owner,
-        repository,
-      }),
-    )
-  })
+  trustedSources.find((source) =>
+    githubOidcSourceMatches({
+      repository,
+      repositoryOwner,
+      source,
+    }),
+  )
 
 const verifyJwtSignature = ({
   jwk,
@@ -249,13 +276,68 @@ const verifyJwtSignature = ({
   }
 }
 
-export const verifyGitHubOidcToken = async ({
+export type GitHubOidcIdentityConfig = Pick<
+  GitHubOidcVerifyConfig,
+  'audience' | 'issuer' | 'jwksUrl' | 'maxSkewSeconds' | 'trustedSources'
+>
+
+export type GitHubOidcPolicyConfig = Pick<
+  GitHubOidcVerifyConfig,
+  | 'allowedRefs'
+  | 'allowedRepositories'
+  | 'allowedWorkflowRefs'
+  | 'allowPullRequests'
+  | 'allowTagRefs'
+  | 'enforceWorkflowRefs'
+>
+
+const findSigningKey = async ({
+  fetchJson,
+  kid,
+  now,
+  url,
+}: {
+  fetchJson?: FetchJson
+  kid: string
+  now: Date
+  url: string
+}): Promise<Record<string, unknown> | undefined> => {
+  const jwk = findJwkByKid({
+    jwks: await fetchJwks({
+      fetchJson,
+      now,
+      url,
+    }),
+    kid,
+  })
+
+  if (jwk) {
+    return jwk
+  }
+
+  // Unknown kid: the issuer may have rotated keys since the cached fetch (DOCS-16).
+  return findJwkByKid({
+    jwks: await fetchJwks({
+      fetchJson,
+      forceRefresh: true,
+      now,
+      url,
+    }),
+    kid,
+  })
+}
+
+/**
+ * Phase 1: proves the token is a valid GitHub OIDC token for `audience` from a trusted
+ * owner/repository. Needs no docs-set data, so it runs before any docs-set lookup.
+ */
+export const verifyGitHubOidcIdentity = async ({
   config,
   fetchJson,
   now = new Date(),
   token,
 }: {
-  config: GitHubOidcVerifyConfig
+  config: GitHubOidcIdentityConfig
   fetchJson?: FetchJson
   now?: Date
   token: string
@@ -275,22 +357,18 @@ export const verifyGitHubOidcToken = async ({
   }
 
   const issuer = config.issuer ?? DEFAULT_GITHUB_OIDC_ISSUER
-  let jwksUrl: string
 
   try {
-    jwksUrl = await getGithubOidcJwksUrl({
+    const jwksUrl = await getGithubOidcJwksUrl({
       fetchJson,
       issuer,
       jwksUrl: config.jwksUrl,
     })
-    const jwks = await fetchJwks({
+    const jwk = await findSigningKey({
       fetchJson,
+      kid: decoded.header.kid,
       now,
       url: jwksUrl,
-    })
-    const jwk = findJwkByKid({
-      jwks,
-      kid: decoded.header.kid,
     })
 
     if (
@@ -370,19 +448,104 @@ export const verifyGitHubOidcToken = async ({
     )
   }
 
+  return {
+    ok: true,
+    token: {
+      claims,
+      // The token stays acceptable until exp + maxSkew, so its jti must be remembered
+      // at least that long (DOCS-7).
+      expiresAt: new Date((claims.exp + maxSkewSeconds) * 1000),
+      keyId: `github-oidc:${claims.repository}`,
+    },
+  }
+}
+
+/**
+ * Phase 2: docs-set policy (branch/tag refs, repository binding, workflow refs, pull
+ * requests). Runs after the docs set is resolved.
+ */
+export type GitHubOidcPolicyResult =
+  | {
+      code: GitHubOidcErrorCode
+      message: string
+      ok: false
+    }
+  | {
+      ok: true
+    }
+
+const policyIssue = (code: GitHubOidcErrorCode, message: string): GitHubOidcPolicyResult => ({
+  code,
+  message,
+  ok: false,
+})
+
+export const checkGitHubOidcPolicy = ({
+  claims,
+  config,
+}: {
+  claims: GitHubOidcClaims
+  config: GitHubOidcPolicyConfig
+}): GitHubOidcPolicyResult => {
   const repositoryName = getRepositoryName(claims.repository)
 
-  if (!includesIfConfigured(config.allowedRefs, claims.ref) && !isTagRef(claims)) {
-    return issue(
-      'oidc_ref_not_allowed',
-      `GitHub OIDC token ref "${claims.ref}" is not allowed for "${repositoryName}".`,
+  if (
+    config.allowedRepositories &&
+    config.allowedRepositories.length > 0 &&
+    !config.allowedRepositories.some((allowed) =>
+      repositoryMatches({
+        allowed,
+        owner: claims.repository_owner,
+        repository: claims.repository,
+      }),
     )
+  ) {
+    return policyIssue(
+      'oidc_repository_not_allowed',
+      `GitHub OIDC token repository "${claims.repository}" is not allowed to publish this docs set.`,
+    )
+  }
+
+  // Real pull_request tokens carry `ref: refs/pull/<n>/merge`; the branch boundary for
+  // them is the PR's base branch (CLI-7).
+  const isPullRequest =
+    claims.event_name === 'pull_request' || /^refs\/pull\/\d+\/merge$/.test(claims.ref)
+
+  if (isPullRequest) {
+    if (config.allowPullRequests !== true) {
+      return policyIssue(
+        'oidc_pull_request_not_allowed',
+        'GitHub OIDC pull request events are not allowed.',
+      )
+    }
+
+    const baseRef = claims.base_ref
+      ? claims.base_ref.startsWith('refs/')
+        ? claims.base_ref
+        : `refs/heads/${claims.base_ref}`
+      : undefined
+
+    if (!baseRef || !includesIfConfigured(config.allowedRefs, baseRef)) {
+      return policyIssue(
+        'oidc_ref_not_allowed',
+        `GitHub OIDC pull request base ref "${claims.base_ref ?? ''}" is not allowed for "${repositoryName}".`,
+      )
+    }
+  } else {
+    const tagAllowed = config.allowTagRefs !== false && isTagRef(claims)
+
+    if (!includesIfConfigured(config.allowedRefs, claims.ref) && !tagAllowed) {
+      return policyIssue(
+        'oidc_ref_not_allowed',
+        `GitHub OIDC token ref "${claims.ref}" is not allowed for "${repositoryName}".`,
+      )
+    }
   }
 
   const workflowRef = claims.workflow_ref ?? claims.job_workflow_ref
 
   if (config.enforceWorkflowRefs === true && (config.allowedWorkflowRefs?.length ?? 0) === 0) {
-    return issue(
+    return policyIssue(
       'oidc_workflow_not_allowed',
       'Advanced workflow security is enabled but no workflow refs are trusted.',
     )
@@ -392,22 +555,41 @@ export const verifyGitHubOidcToken = async ({
     config.enforceWorkflowRefs === true &&
     !includesIfConfigured(config.allowedWorkflowRefs, workflowRef)
   ) {
-    return issue('oidc_workflow_not_allowed', 'GitHub OIDC token workflow ref is not allowed.')
-  }
-
-  if (claims.event_name === 'pull_request' && config.allowPullRequests !== true) {
-    return issue(
-      'oidc_pull_request_not_allowed',
-      'GitHub OIDC pull request events are not allowed.',
+    return policyIssue(
+      'oidc_workflow_not_allowed',
+      'GitHub OIDC token workflow ref is not allowed.',
     )
   }
 
-  return {
-    ok: true,
-    token: {
-      claims,
-      expiresAt: new Date(claims.exp * 1000),
-      keyId: `github-oidc:${claims.repository}`,
-    },
+  return { ok: true }
+}
+
+export const verifyGitHubOidcToken = async ({
+  config,
+  fetchJson,
+  now = new Date(),
+  token,
+}: {
+  config: GitHubOidcVerifyConfig
+  fetchJson?: FetchJson
+  now?: Date
+  token: string
+}): Promise<VerifyGitHubOidcTokenResult> => {
+  const identity = await verifyGitHubOidcIdentity({
+    config,
+    fetchJson,
+    now,
+    token,
+  })
+
+  if (!identity.ok) {
+    return identity
   }
+
+  const policy = checkGitHubOidcPolicy({
+    claims: identity.token.claims,
+    config,
+  })
+
+  return policy.ok ? identity : policy
 }

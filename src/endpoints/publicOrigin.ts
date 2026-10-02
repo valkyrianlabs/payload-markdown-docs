@@ -63,9 +63,25 @@ const pickBestOrigin = (candidates: OriginCandidate[]): string | undefined => {
   return origins.find((origin) => !isInternalOrigin(origin)) ?? origins[0]
 }
 
-export const getPublicRequestOrigin = (req: PayloadRequest): string | undefined => {
-  const forwardedProto = getFirstHeaderValue(req.headers.get('x-forwarded-proto'))
-  const forwardedHost = getFirstHeaderValue(req.headers.get('x-forwarded-host'))
+/**
+ * Public origin for generated URLs (llms.txt, llms-full.txt).
+ *
+ * Configured values win over request headers (DOCS-18): NEXT_PUBLIC_SERVER_URL,
+ * NEXT_PUBLIC_SITE_URL, SITE_URL, Vercel URLs, then Payload `serverURL`. Only when none
+ * is set does the request decide: `X-Forwarded-Host`/`-Proto` are used only with
+ * `trustForwardedHeaders: true` (behind a proxy that sets them), then `Host`, then the
+ * request URL.
+ */
+export const getPublicRequestOrigin = (
+  req: PayloadRequest,
+  { trustForwardedHeaders = false }: { trustForwardedHeaders?: boolean } = {},
+): string | undefined => {
+  const forwardedProto = trustForwardedHeaders
+    ? getFirstHeaderValue(req.headers.get('x-forwarded-proto'))
+    : undefined
+  const forwardedHost = trustForwardedHeaders
+    ? getFirstHeaderValue(req.headers.get('x-forwarded-host'))
+    : undefined
   const host = getFirstHeaderValue(req.headers.get('host'))
   const requestUrl = getString(req.url)
   const requestProtocol = (() => {
@@ -82,8 +98,7 @@ export const getPublicRequestOrigin = (req: PayloadRequest): string | undefined 
   const serverURL = isRecord(req.payload.config)
     ? getString((req.payload.config as Record<string, unknown>).serverURL)
     : undefined
-
-  return pickBestOrigin([
+  const configuredOrigin = pickBestOrigin([
     {
       value: process.env.NEXT_PUBLIC_SERVER_URL,
     },
@@ -102,15 +117,22 @@ export const getPublicRequestOrigin = (req: PayloadRequest): string | undefined 
       value: process.env.VERCEL_URL,
     },
     {
+      value: serverURL,
+    },
+  ])
+
+  if (configuredOrigin) {
+    return configuredOrigin
+  }
+
+  return pickBestOrigin([
+    {
       value: forwardedHost
         ? `${forwardedProto ?? requestProtocol ?? 'https'}://${forwardedHost}`
         : undefined,
     },
     {
       value: host ? `${requestProtocol ?? 'https'}://${host}` : undefined,
-    },
-    {
-      value: serverURL,
     },
     {
       value: requestUrl,

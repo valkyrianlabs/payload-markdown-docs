@@ -4,3 +4,9 @@ option(
   value: false,
   description: 'Install bundled pmdocs skill data under the system share directory. Enable only when npm dependency skills are available.',
 )
+option(
+  'companion_skill_data',
+  type: 'feature',
+  value: 'enabled',
+  description: 'With install_skill_data, also install the payload-markdown companion skill from node_modules. "enabled" fails when it is missing (Debian); "auto" installs it only when present (Homebrew source builds have no node_modules).',
+)

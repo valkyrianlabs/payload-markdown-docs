@@ -11,11 +11,61 @@ After the schema exists, re-run docs sync.`
 export const getErrorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : String(error)
 
-export const isDocsAssetsStorageUnavailableError = (error: unknown): boolean => {
-  const message = getErrorMessage(error)
+const MISSING_TABLE_PATTERNS = [
+  // Postgres: relation "payload_markdown_docs_assets" does not exist
+  /relation "?[\w.]*payload_markdown_docs_assets\w*"? does not exist/i,
+  // SQLite: no such table: payload_markdown_docs_assets
+  /no such table:?\s*"?[\w.]*payload_markdown_docs_assets/i,
+]
 
-  return (
-    message.includes('payload_markdown_docs_assets') ||
-    message.includes(DEFAULT_DOCS_ASSETS_COLLECTION_SLUG)
-  )
+const getErrorChain = (error: unknown): unknown[] => {
+  const chain: unknown[] = []
+  let current: unknown = error
+
+  while (current && chain.length < 5) {
+    chain.push(current)
+    current = (current as { cause?: unknown }).cause
+  }
+
+  return chain
+}
+
+/**
+ * True only when the docs assets table itself is missing (schema not migrated). Other
+ * errors that merely mention the collection, such as validation or unique-constraint
+ * failures on it, are not storage errors (DOCS-17).
+ */
+export const isDocsAssetsStorageUnavailableError = (error: unknown): boolean =>
+  getErrorChain(error).some((entry) => {
+    const message = getErrorMessage(entry)
+
+    return MISSING_TABLE_PATTERNS.some((pattern) => pattern.test(message))
+  })
+
+/** Plain-text 500 for public asset routes when the docs assets table is missing. */
+export const docsAssetsStorageUnavailableTextResponse = (): Response =>
+  new Response(DOCS_ASSETS_STORAGE_UNAVAILABLE_MESSAGE, {
+    headers: {
+      'Cache-Control': 'no-store',
+      'Content-Type': 'text/plain; charset=utf-8',
+    },
+    status: 500,
+  })
+
+/**
+ * Runs a public asset route and answers a missing docs assets table with the
+ * migration message; every other error propagates unchanged.
+ */
+export const withDocsAssetsStorageGuard = async (
+  respond: () => Promise<Response>,
+): Promise<Response> => {
+  try {
+    return await respond()
+  } catch (error) {
+    if (isDocsAssetsStorageUnavailableError(error)) {
+      return docsAssetsStorageUnavailableTextResponse()
+    }
+
+    throw error
+  }
 }

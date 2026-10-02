@@ -1,7 +1,9 @@
 import type { Config, Plugin } from 'payload'
 
+import type { DocsCollectionAccessProfile } from './collections/access.js'
 import type { PayloadMarkdownDocsConfig } from './types.js'
 
+import { withDocsCollectionAccess } from './collections/access.js'
 import {
   createDocsAccessCollection,
   createDocsAssetsCollection,
@@ -79,6 +81,49 @@ const resolveHeroImageMediaCollectionSlugs = (
       ...additionalMediaCollections.map((slug) => slug.trim()).filter(Boolean),
     ]),
   ]
+}
+
+/**
+ * Upload relationships to collections the app does not define make Payload config
+ * sanitization throw (`InvalidFieldRelationship`). Apps without a `media` collection
+ * get the docs-set SEO meta image and docs hero image fields omitted instead (X-17).
+ * Apps that define the collections get an unchanged config.
+ */
+const omitMissingUploadCollections = ({
+  existingSlugs,
+  heroImageMediaCollectionSlugs,
+}: {
+  existingSlugs: Set<string>
+  heroImageMediaCollectionSlugs?: string[]
+}): {
+  heroImageMediaCollectionSlugs?: string[]
+  missing: string[]
+  seoUploadCollectionSlug?: string
+} => {
+  const missing = new Set<string>()
+  const seoUploadCollectionSlug = existingSlugs.has(DEFAULT_MEDIA_COLLECTION_SLUG)
+    ? DEFAULT_MEDIA_COLLECTION_SLUG
+    : undefined
+
+  if (!seoUploadCollectionSlug) {
+    missing.add(DEFAULT_MEDIA_COLLECTION_SLUG)
+  }
+
+  const availableHeroSlugs = heroImageMediaCollectionSlugs?.filter((slug) => {
+    if (existingSlugs.has(slug)) {
+      return true
+    }
+
+    missing.add(slug)
+
+    return false
+  })
+
+  return {
+    heroImageMediaCollectionSlugs: availableHeroSlugs,
+    missing: [...missing],
+    seoUploadCollectionSlug,
+  }
 }
 
 const resolveCollectionOptions = (
@@ -271,6 +316,22 @@ export const payloadMarkdownDocs =
 
     assertNoCollectionSlugConflicts(incomingConfig, collectionSlugsToAdd)
 
+    const uploadCollections = omitMissingUploadCollections({
+      existingSlugs: new Set(
+        (incomingConfig.collections ?? []).map((collection) => collection.slug),
+      ),
+      heroImageMediaCollectionSlugs,
+    })
+
+    if (uploadCollections.missing.length > 0) {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `payloadMarkdownDocs: upload collection(s) ${uploadCollections.missing
+          .map((slug) => `"${slug}"`)
+          .join(', ')} not found; omitting the docs-set SEO meta image, docs hero image, and installed hero/block media fields that would reference them. Add a "${DEFAULT_MEDIA_COLLECTION_SLUG}" upload collection to enable them.`,
+      )
+    }
+
     const addedCollections = [
       ...(docsGroupsEnabled
         ? [
@@ -286,7 +347,7 @@ export const payloadMarkdownDocs =
               docsCollectionSlug: docsEnabled ? docsCollectionSlug : undefined,
               docsGroupsCollectionSlug,
               seoEnabled: pluginOptions.seo !== false,
-              seoUploadCollectionSlug: DEFAULT_MEDIA_COLLECTION_SLUG,
+              seoUploadCollectionSlug: uploadCollections.seoUploadCollectionSlug,
             }),
           ]
         : []),
@@ -294,6 +355,7 @@ export const payloadMarkdownDocs =
         ? [
             createDocsAccessCollection({
               slug: docsAccessCollectionSlug,
+              docsSetsCollectionSlug: docsSetsEnabled ? docsSetsCollectionSlug : undefined,
             }),
           ]
         : []),
@@ -312,7 +374,7 @@ export const payloadMarkdownDocs =
               slug: docsCollectionSlug,
               docsSetsCollectionSlug: docsSetsEnabled ? docsSetsCollectionSlug : undefined,
               enableDrafts,
-              heroImageMediaCollectionSlugs,
+              heroImageMediaCollectionSlugs: uploadCollections.heroImageMediaCollectionSlugs,
               markdownFieldName,
               syncRunsCollectionSlug: syncRunsEnabled ? syncRunsCollectionSlug : undefined,
             }),
@@ -335,16 +397,47 @@ export const payloadMarkdownDocs =
         : []),
     ]
 
+    const accessProfiles: Record<string, { key: string; profile: DocsCollectionAccessProfile }> = {
+      [docsAccessCollectionSlug]: { key: 'docsAccess', profile: 'admin' },
+      [docsAssetsCollectionSlug]: { key: 'docsAssets', profile: 'admin' },
+      [docsCollectionSlug]: { key: 'docs', profile: 'admin' },
+      [docsGroupsCollectionSlug]: { key: 'docsGroups', profile: 'admin' },
+      [docsSetsCollectionSlug]: { key: 'docsSets', profile: 'admin' },
+      [noncesCollectionSlug]: { key: 'nonces', profile: 'audit' },
+      [syncRunsCollectionSlug]: { key: 'syncRuns', profile: 'audit' },
+    }
+    const addedCollectionsWithAccess = addedCollections.map((collection) => {
+      const accessProfile = accessProfiles[collection.slug]
+
+      if (!accessProfile) {
+        return collection
+      }
+
+      const collectionOptions = pluginOptions.collections?.[accessProfile.key]
+
+      return withDocsCollectionAccess({
+        admin: pluginOptions.access?.admin,
+        collection,
+        overrides:
+          typeof collectionOptions === 'object' && collectionOptions !== null
+            ? collectionOptions.access
+            : undefined,
+        profile: accessProfile.profile,
+      })
+    })
+
     const marketingBlocksInstall = installDocsMarketingBlocks({
       collectionConfigs: pluginOptions.collections,
       collections: incomingConfig.collections ?? [],
       globalSelection: pluginOptions.blocks,
+      missingUploadCollections: new Set(uploadCollections.missing),
     })
     const docsHeroInstall = installDocsHeroFields({
       collectionConfigs: pluginOptions.collections,
       collections: marketingBlocksInstall.collections,
       defaultPagesCollectionSlug: pluginOptions.routing?.pages?.collection ?? DEFAULT_PAGES_COLLECTION_SLUG,
       globalSelection: pluginOptions.heroes,
+      missingUploadCollections: new Set(uploadCollections.missing),
       pagesSelection: pluginOptions.pages?.heroes,
     })
     const incomingCollections = addDocsMarketingAfterReadHooks({
@@ -360,13 +453,15 @@ export const payloadMarkdownDocs =
 
     return {
       ...incomingConfig,
-      collections: [...incomingCollections, ...addedCollections],
+      collections: [...incomingCollections, ...addedCollectionsWithAccess],
       endpoints: [
         ...(incomingConfig.endpoints ?? []),
         createSyncEndpoint({
           allowHardDelete: pluginOptions.sync?.allowHardDelete,
           allowPublish: pluginOptions.sync?.allowPublish,
           allowWrites: pluginOptions.sync?.allowWrites,
+          applyAssetsOnDraftSync: pluginOptions.sync?.applyAssetsOnDraftSync,
+          auditDryRuns: pluginOptions.sync?.auditDryRuns,
           auth: pluginOptions.auth,
           deleteBehavior: pluginOptions.sync?.deleteBehavior,
           docsAccessCollectionSlug,
@@ -406,6 +501,7 @@ export const payloadMarkdownDocs =
           docsSetsCollectionSlug,
           docsSetsEnabled,
           markdownFieldName,
+          trustForwardedHeaders: pluginOptions.endpoint?.trustForwardedHeaders === true,
         }),
       ],
     }

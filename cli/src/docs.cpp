@@ -1,4 +1,5 @@
 #include "pmdocs/docs.hpp"
+#include "pmdocs/contract.hpp"
 
 #include "pmdocs_config.hpp"
 
@@ -19,7 +20,9 @@
 #include <cstdio>
 #include <cstddef>
 #include <cstdint>
+#include <cerrno>
 #include <cstdlib>
+#include <cstring>
 #include <ctime>
 #include <filesystem>
 #include <fstream>
@@ -38,14 +41,15 @@
 #include <utility>
 #include <vector>
 
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
 namespace pmdocs {
 namespace {
 
 using json = nlohmann::ordered_json;
 
-constexpr std::size_t kDefaultMaxFileBytes = 500'000;
-constexpr std::size_t kDefaultMaxFiles = 500;
-constexpr std::size_t kDefaultMaxTotalBytes = 5'000'000;
 constexpr std::string_view kMissingAssetRoutesWarning =
   "Assets were included in the manifest, but public asset route files were not found.\n"
   "Run:\n"
@@ -115,50 +119,12 @@ void ensure_curl_initialized() {
   (void)initialized;
 }
 
-struct Issue {
-  std::string code;
-  std::string message;
-  std::optional<std::string> path;
-};
-
-struct NormalizedPath {
-  bool ok = false;
-  std::string path;
-  std::vector<std::string> route_segments;
-  std::string code;
-  std::string message;
-};
-
-struct NormalizedAssetPath {
-  bool ok = false;
-  std::string path;
-  std::vector<std::string> segments;
-  std::string code;
-  std::string message;
-};
-
-struct Frontmatter {
-  std::vector<std::string> dependencies;
-  bool has_dependencies = false;
-  std::optional<std::string> description;
-  std::optional<bool> draft;
-  std::optional<std::string> nav_title;
-  std::optional<double> order;
-  std::vector<std::string> redirect_from;
-  bool has_redirect_from = false;
-  std::optional<std::string> slug;
-  std::optional<std::string> status;
-  std::vector<std::string> tags;
-  bool has_tags = false;
-  std::optional<std::string> title;
-};
-
-struct ParsedFrontmatter {
-  std::string content;
-  Frontmatter frontmatter;
-  std::vector<Issue> issues;
-  std::vector<Issue> warnings;
-};
+using contract::Frontmatter;
+using contract::Issue;
+using contract::ParsedFrontmatter;
+using contract::ValidatedAsset;
+using contract::ValidatedFile;
+using contract::ValidationResult;
 
 struct WalkedDocsFile {
   std::string content;
@@ -184,40 +150,10 @@ struct PublishPackageSummary {
 struct PublishPackage {
   std::vector<PackageAsset> assets;
   std::vector<WalkedDocsFile> files;
-  PublishPackageSummary summary;
-};
-
-struct ValidatedFile {
-  std::string content;
-  Frontmatter frontmatter;
-  std::string path;
-  std::string route;
-  std::string sha256;
-  std::string title;
-};
-
-struct ValidatedAsset {
-  std::string content;
-  std::string content_type;
-  std::string kind;
-  std::string path;
-  std::optional<std::string> route;
-  std::string sha256;
-};
-
-struct ValidationResult {
-  std::vector<ValidatedAsset> assets;
-  std::string delete_behavior = "archive";
-  std::vector<ValidatedFile> files;
-  bool mode_dry_run = true;
-  bool ok = false;
-  bool publish = false;
-  std::string source_id;
-  std::optional<std::string> source_branch;
-  std::optional<std::string> source_commit;
-  std::optional<std::string> source_repository;
+  // Walk-level problems (invalid encoding) and notes (skipped, hidden paths).
   std::vector<Issue> issues;
   std::vector<Issue> warnings;
+  PublishPackageSummary summary;
 };
 
 struct ExistingRecord {
@@ -349,6 +285,72 @@ void write_file(const std::filesystem::path& path, std::string_view content) {
   }
 }
 
+// Writes a secret file that is never visible with a wider mode than 0600 (CLI-10):
+// mkstemp creates the temporary file 0600 (O_EXCL), and rename() replaces the
+// target atomically, including an existing --force target with a wider mode.
+void write_private_file(const std::filesystem::path& path, std::string_view content) {
+  auto temp_path = (path.parent_path() / ("." + path.filename().string() + ".tmp-XXXXXX")).string();
+  const int fd = ::mkstemp(temp_path.data());
+
+  if (fd < 0) {
+    throw std::runtime_error{"Could not create private key file in " + path.parent_path().string() + ": " + std::strerror(errno)};
+  }
+
+  const auto cleanup = [&]() {
+    ::close(fd);
+    ::unlink(temp_path.c_str());
+  };
+
+  if (::fchmod(fd, 0600) != 0) {
+    cleanup();
+    throw std::runtime_error{"Could not restrict private key file permissions: " + std::string{std::strerror(errno)}};
+  }
+
+  std::size_t written = 0;
+
+  while (written < content.size()) {
+    const auto result = ::write(fd, content.data() + written, content.size() - written);
+
+    if (result < 0) {
+      if (errno == EINTR) {
+        continue;
+      }
+
+      cleanup();
+      throw std::runtime_error{"Could not write private key file: " + std::string{std::strerror(errno)}};
+    }
+
+    written += static_cast<std::size_t>(result);
+  }
+
+  if (::fsync(fd) != 0 || ::close(fd) != 0) {
+    ::unlink(temp_path.c_str());
+    throw std::runtime_error{"Could not finish writing private key file: " + std::string{std::strerror(errno)}};
+  }
+
+  if (::rename(temp_path.c_str(), path.c_str()) != 0) {
+    const auto message = std::string{std::strerror(errno)};
+    ::unlink(temp_path.c_str());
+    throw std::runtime_error{"Could not write private key file " + path.string() + ": " + message};
+  }
+}
+
+// Warns (does not refuse, so existing CI key files keep working) when a private
+// key file is accessible by group or other users.
+std::string private_key_permission_warning(const std::filesystem::path& path) {
+  struct stat info {};
+
+  if (::stat(path.c_str(), &info) != 0 || (info.st_mode & 077) == 0) {
+    return {};
+  }
+
+  std::ostringstream mode;
+  mode << std::oct << (info.st_mode & 0777);
+
+  return "Warning: private key file " + path.string() + " is accessible by other users (mode 0" + mode.str()
+    + "). Restrict it with: chmod 600 " + path.string() + "\n";
+}
+
 std::string trim(std::string_view value) {
   const auto first = value.find_first_not_of(" \t\r\n");
 
@@ -359,14 +361,6 @@ std::string trim(std::string_view value) {
   const auto last = value.find_last_not_of(" \t\r\n");
 
   return std::string{value.substr(first, last - first + 1)};
-}
-
-bool starts_with(std::string_view value, std::string_view prefix) {
-  return value.substr(0, prefix.size()) == prefix;
-}
-
-bool ends_with(std::string_view value, std::string_view suffix) {
-  return value.size() >= suffix.size() && value.substr(value.size() - suffix.size()) == suffix;
 }
 
 std::string normalize_base64(std::string_view value) {
@@ -799,6 +793,86 @@ std::string validate_endpoint_url(const std::string& endpoint) {
   return output;
 }
 
+struct EndpointParts {
+  std::string scheme;
+  std::string host;
+};
+
+EndpointParts endpoint_parts(const std::string& endpoint) {
+  ensure_curl_initialized();
+  CurlUrlPtr url{curl_url()};
+  if (!url || curl_url_set(url.get(), CURLUPART_URL, endpoint.c_str(), 0) != CURLUE_OK) {
+    throw std::runtime_error{"--endpoint must be a valid full http:// or https:// URL."};
+  }
+
+  EndpointParts parts;
+  for (const auto& [part, target] : {std::pair{CURLUPART_SCHEME, &parts.scheme}, std::pair{CURLUPART_HOST, &parts.host}}) {
+    char* value = nullptr;
+    if (curl_url_get(url.get(), part, &value, 0) == CURLUE_OK && value != nullptr) {
+      *target = value;
+    }
+    if (value != nullptr) {
+      curl_free(value);
+    }
+  }
+
+  return parts;
+}
+
+bool is_loopback_host(std::string host) {
+  std::ranges::transform(host, host.begin(), [](const unsigned char ch) {
+    return static_cast<char>(std::tolower(ch));
+  });
+
+  if (host == "localhost" || host == "[::1]" || host == "::1") {
+    return true;
+  }
+
+  // 127.0.0.0/8 as an IPv4 literal only ("127.example.com" is a DNS name).
+  int octets = 0;
+  std::size_t index = 0;
+  std::string first;
+
+  while (index <= host.size()) {
+    const auto dot = host.find('.', index);
+    const auto part = host.substr(index, dot == std::string::npos ? std::string::npos : dot - index);
+
+    if (part.empty() || part.size() > 3 || !std::ranges::all_of(part, [](const char ch) { return ch >= '0' && ch <= '9'; })
+        || std::stoi(part) > 255) {
+      return false;
+    }
+
+    if (octets == 0) {
+      first = part;
+    }
+
+    ++octets;
+
+    if (dot == std::string::npos) {
+      break;
+    }
+
+    index = dot + 1;
+  }
+
+  return octets == 4 && first == "127";
+}
+
+// Credentials (an OIDC bearer token, or a signed manifest) must not cross the
+// network in clear text: the bearer token is not bound to the body and can be
+// replayed (CLI-9). Plain http:// is allowed only for loopback hosts or with
+// an explicit --allow-insecure-http.
+std::optional<std::string> insecure_endpoint_error(const std::string& endpoint, bool allow_insecure_http) {
+  const auto parts = endpoint_parts(endpoint);
+
+  if (parts.scheme != "http" || allow_insecure_http || is_loopback_host(parts.host)) {
+    return std::nullopt;
+  }
+
+  return "Refusing to send docs sync credentials over plain http:// to " + parts.host
+    + ". Use an https:// endpoint, or pass --allow-insecure-http for a trusted network.\n";
+}
+
 std::size_t append_curl_response(char* ptr, std::size_t size, std::size_t nmemb, void* userdata) {
   auto* output = static_cast<std::string*>(userdata);
   output->append(ptr, size * nmemb);
@@ -890,11 +964,117 @@ std::string trim_response_text(const std::string& text) {
   return trimmed.substr(0, 1000) + "...";
 }
 
+// Server failure details. Current servers send `routeCollisions` and
+// `conflicts` next to `error`; newer servers add `error.issues`. Accept each
+// array under `error` or at the top level, and tolerate its absence.
+const json* failure_array(const json& body, const char* key) {
+  if (body.contains("error") && body["error"].is_object() && body["error"].contains(key) && body["error"][key].is_array()) {
+    return &body["error"][key];
+  }
+
+  if (body.contains(key) && body[key].is_array()) {
+    return &body[key];
+  }
+
+  return nullptr;
+}
+
+std::string json_text(const json& value, const char* key) {
+  if (value.is_object() && value.contains(key) && value[key].is_string()) {
+    return value[key].get<std::string>();
+  }
+
+  return {};
+}
+
+json failure_details_to_json(const HttpResponse& response) {
+  json details = {
+    {"code", nullptr},
+    {"message", nullptr},
+    {"issues", json::array()},
+    {"routeCollisions", json::array()},
+    {"conflicts", json::array()},
+  };
+
+  if (!response.has_json || !response.body.is_object()) {
+    return details;
+  }
+
+  if (response.body.contains("error") && response.body["error"].is_object()) {
+    if (const auto code = json_text(response.body["error"], "code"); !code.empty()) {
+      details["code"] = code;
+    }
+    if (const auto message = json_text(response.body["error"], "message"); !message.empty()) {
+      details["message"] = message;
+    }
+  }
+
+  for (const auto* key : {"issues", "routeCollisions", "conflicts"}) {
+    if (const auto* items = failure_array(response.body, key)) {
+      details[key] = *items;
+    }
+  }
+
+  return details;
+}
+
+std::string format_failure_details(const json& details) {
+  std::ostringstream out;
+
+  if (!details["issues"].empty()) {
+    out << "\nIssues:\n";
+    for (const auto& item : details["issues"]) {
+      const auto path = json_text(item, "path");
+      const auto code = json_text(item, "code");
+      const auto severity = json_text(item, "severity");
+      std::string tag = severity == "warning" ? "warning" : "";
+      if (!code.empty()) {
+        tag += (tag.empty() ? "" : ": ") + code;
+      }
+      out << "- " << (path.empty() ? "" : path + ": ") << json_text(item, "message") << (tag.empty() ? "" : " [" + tag + "]") << "\n";
+    }
+  }
+
+  if (!details["routeCollisions"].empty()) {
+    out << "\nRoute collisions:\n";
+    for (const auto& item : details["routeCollisions"]) {
+      const auto reason = json_text(item, "reason");
+      out << "- " << json_text(item, "route") << (reason.empty() ? "" : " (" + reason + ")");
+      if (item.is_object() && item.contains("paths") && item["paths"].is_array() && !item["paths"].empty()) {
+        std::vector<std::string> paths;
+        for (const auto& path : item["paths"]) {
+          if (path.is_string()) {
+            paths.push_back(path.get<std::string>());
+          }
+        }
+        out << ": ";
+        for (std::size_t index = 0; index < paths.size(); ++index) {
+          out << (index > 0 ? ", " : "") << paths[index];
+        }
+      }
+      out << "\n";
+    }
+  }
+
+  if (!details["conflicts"].empty()) {
+    out << "\nConflicts:\n";
+    for (const auto& item : details["conflicts"]) {
+      const auto route = json_text(item, "route");
+      out << "- " << json_text(item, "sourcePath") << ": " << json_text(item, "reason")
+          << (route.empty() ? "" : " (" + route + ")") << "\n";
+    }
+  }
+
+  return out.str();
+}
+
 std::string format_server_failure(const HttpResponse& response) {
   if (response.has_json && response.body.is_object()) {
+    const auto details = format_failure_details(failure_details_to_json(response));
+
     if (response.body.contains("error") && response.body["error"].is_object()
         && response.body["error"].contains("message") && response.body["error"]["message"].is_string()) {
-      return response.body["error"]["message"].get<std::string>() + "\n";
+      return response.body["error"]["message"].get<std::string>() + "\n" + details;
     }
 
     if (response.body.contains("errors") && response.body["errors"].is_array()) {
@@ -911,7 +1091,7 @@ std::string format_server_failure(const HttpResponse& response) {
         for (const auto& message : messages) {
           out << "- " << message << "\n";
         }
-        return out.str();
+        return out.str() + details;
       }
     }
   }
@@ -1054,398 +1234,6 @@ bool has_public_asset_routes() {
   return false;
 }
 
-std::vector<std::string> split_lines(std::string_view input) {
-  std::vector<std::string> lines;
-  std::string normalized;
-  normalized.reserve(input.size());
-
-  for (std::size_t index = 0; index < input.size(); ++index) {
-    const auto ch = input[index];
-
-    if (ch == '\r') {
-      if (index + 1 < input.size() && input[index + 1] == '\n') {
-        continue;
-      }
-
-      normalized.push_back('\n');
-      continue;
-    }
-
-    normalized.push_back(ch);
-  }
-
-  std::string current;
-
-  for (const auto ch : normalized) {
-    if (ch == '\n') {
-      lines.push_back(current);
-      current.clear();
-      continue;
-    }
-
-    current.push_back(ch);
-  }
-
-  lines.push_back(current);
-
-  return lines;
-}
-
-std::string join_lines(const std::vector<std::string>& lines, std::size_t start) {
-  std::ostringstream out;
-
-  for (std::size_t index = start; index < lines.size(); ++index) {
-    if (index > start) {
-      out << '\n';
-    }
-
-    out << lines[index];
-  }
-
-  auto content = out.str();
-
-  if (starts_with(content, "\n")) {
-    content.erase(0, 1);
-  }
-
-  return content;
-}
-
-std::string strip_quotes(std::string_view value) {
-  auto stripped = trim(value);
-
-  if (stripped.size() >= 2) {
-    const auto first = stripped.front();
-    const auto last = stripped.back();
-
-    if ((first == '"' && last == '"') || (first == '\'' && last == '\'')) {
-      stripped = stripped.substr(1, stripped.size() - 2);
-    }
-  }
-
-  return stripped;
-}
-
-std::vector<std::string> split_path(std::string_view path) {
-  std::vector<std::string> segments;
-  std::string current;
-
-  for (const auto ch : path) {
-    if (ch == '/') {
-      segments.push_back(current);
-      current.clear();
-      continue;
-    }
-
-    current.push_back(ch);
-  }
-
-  segments.push_back(current);
-
-  return segments;
-}
-
-std::string normalize_slashes(std::string value) {
-  for (auto& ch : value) {
-    if (ch == '\\') {
-      ch = '/';
-    }
-  }
-
-  std::string normalized;
-  normalized.reserve(value.size());
-  bool previous_slash = false;
-
-  for (const auto ch : value) {
-    if (ch == '/') {
-      if (!previous_slash) {
-        normalized.push_back(ch);
-      }
-
-      previous_slash = true;
-      continue;
-    }
-
-    previous_slash = false;
-    normalized.push_back(ch);
-  }
-
-  return normalized;
-}
-
-NormalizedPath normalize_docs_path(std::string_view input) {
-  if (trim(input).empty()) {
-    return {
-      .code = "invalid_path",
-      .message = "Docs path must be a non-empty string.",
-    };
-  }
-
-  auto normalized = normalize_slashes(trim(input));
-
-  if (normalized.size() >= 3 && std::isalpha(static_cast<unsigned char>(normalized[0])) && normalized[1] == ':' && normalized[2] == '/') {
-    return {
-      .code = "invalid_path",
-      .message = "Docs path must not be an absolute Windows path.",
-    };
-  }
-
-  if (starts_with(normalized, "/")) {
-    return {
-      .code = "invalid_path",
-      .message = "Docs path must not be an absolute path.",
-    };
-  }
-
-  while (starts_with(normalized, "./")) {
-    normalized.erase(0, 2);
-  }
-
-  if (normalized.empty() || ends_with(normalized, "/")) {
-    return {
-      .code = "invalid_path",
-      .message = "Docs path must point to a Markdown file.",
-    };
-  }
-
-  const auto segments = split_path(normalized);
-
-  for (const auto& segment : segments) {
-    if (segment == "..") {
-      return {
-        .code = "path_traversal",
-        .message = "Docs path must not contain path traversal segments.",
-      };
-    }
-
-    if (segment.empty() || segment == ".") {
-      return {
-        .code = "invalid_path",
-        .message = "Docs path contains an invalid path segment.",
-      };
-    }
-  }
-
-  if (!ends_with(normalized, ".md")) {
-    return {
-      .code = "non_markdown_file",
-      .message = "Docs path must end in .md.",
-    };
-  }
-
-  const auto& file_name = segments.back();
-
-  if (file_name == ".md") {
-    return {
-      .code = "invalid_path",
-      .message = "Docs path must include a Markdown filename.",
-    };
-  }
-
-  auto route_segments = segments;
-  route_segments.back() = route_segments.back().substr(0, route_segments.back().size() - 3);
-
-  if (!route_segments.empty() && route_segments.back() == "index") {
-    route_segments.pop_back();
-  }
-
-  return {
-    .ok = true,
-    .path = normalized,
-    .route_segments = route_segments,
-  };
-}
-
-NormalizedAssetPath normalize_asset_path(std::string_view input) {
-  if (trim(input).empty()) {
-    return {
-      .code = "invalid_path",
-      .message = "Asset path must be a non-empty string.",
-    };
-  }
-
-  auto normalized = normalize_slashes(trim(input));
-
-  if (normalized.size() >= 3 && std::isalpha(static_cast<unsigned char>(normalized[0])) && normalized[1] == ':' && normalized[2] == '/') {
-    return {
-      .code = "invalid_path",
-      .message = "Asset path must not be an absolute Windows path.",
-    };
-  }
-
-  if (starts_with(normalized, "/")) {
-    return {
-      .code = "invalid_path",
-      .message = "Asset path must not be an absolute path.",
-    };
-  }
-
-  while (starts_with(normalized, "./")) {
-    normalized.erase(0, 2);
-  }
-
-  if (normalized.empty() || ends_with(normalized, "/")) {
-    return {
-      .code = "invalid_path",
-      .message = "Asset path must point to a file.",
-    };
-  }
-
-  const auto segments = split_path(normalized);
-
-  for (const auto& segment : segments) {
-    if (segment == "..") {
-      return {
-        .code = "path_traversal",
-        .message = "Asset path must not contain path traversal segments.",
-      };
-    }
-
-    if (segment.empty() || segment == ".") {
-      return {
-        .code = "invalid_path",
-        .message = "Asset path contains an invalid path segment.",
-      };
-    }
-  }
-
-  return {
-    .ok = true,
-    .path = normalized,
-    .segments = segments,
-  };
-}
-
-std::string normalize_route_base(std::string route_base) {
-  route_base = normalize_slashes(trim(route_base));
-  route_base = "/" + route_base;
-  route_base = normalize_slashes(route_base);
-
-  while (route_base.size() > 1 && route_base.back() == '/') {
-    route_base.pop_back();
-  }
-
-  return route_base.empty() ? "/" : route_base;
-}
-
-std::string normalize_route_path(std::string route_path) {
-  return normalize_route_base(std::move(route_path));
-}
-
-std::string join_route_paths(const std::vector<std::string>& segments) {
-  std::ostringstream joined;
-
-  for (const auto& segment : segments) {
-    if (trim(segment).empty()) {
-      continue;
-    }
-
-    if (joined.tellp() > 0) {
-      joined << '/';
-    }
-
-    joined << trim(segment);
-  }
-
-  return normalize_route_path(joined.str());
-}
-
-std::string derive_route_from_source_path(const std::string& source_path, const std::string& route_base, const std::optional<std::string>& slug) {
-  const auto normalized_path = normalize_docs_path(source_path);
-  const auto normalized_route_base = normalize_route_base(route_base);
-
-  if (!normalized_path.ok) {
-    return normalized_route_base;
-  }
-
-  auto route_segments = normalized_path.route_segments;
-  auto base_segments = split_path(normalized_route_base.substr(1));
-
-  if (base_segments.size() == 1 && base_segments.front().empty()) {
-    base_segments.clear();
-  }
-
-  if (base_segments.size() <= route_segments.size()) {
-    bool has_base_prefix = true;
-
-    for (std::size_t index = 0; index < base_segments.size(); ++index) {
-      if (route_segments[index] != base_segments[index]) {
-        has_base_prefix = false;
-        break;
-      }
-    }
-
-    if (has_base_prefix) {
-      route_segments.erase(route_segments.begin(), route_segments.begin() + static_cast<std::ptrdiff_t>(base_segments.size()));
-    }
-  }
-
-  const auto is_index_source_path = !split_path(normalized_path.path).empty() && split_path(normalized_path.path).back() == "index.md";
-  const auto should_apply_slug = slug && !slug->empty() && !(is_index_source_path && *slug == "index");
-
-  if (should_apply_slug) {
-    if (!route_segments.empty()) {
-      route_segments.back() = *slug;
-    } else {
-      route_segments.push_back(*slug);
-    }
-  }
-
-  if (route_segments.empty()) {
-    return normalized_route_base;
-  }
-
-  std::ostringstream suffix;
-
-  for (std::size_t index = 0; index < route_segments.size(); ++index) {
-    if (index > 0) {
-      suffix << '/';
-    }
-
-    suffix << route_segments[index];
-  }
-
-  return normalize_slashes(normalized_route_base + "/" + suffix.str());
-}
-
-std::optional<std::string> derive_asset_route_from_source_path(
-  const std::string& kind,
-  const std::optional<std::string>& route,
-  const std::string& route_base,
-  const std::string& source_id,
-  const std::string& source_path
-) {
-  if (route && !trim(*route).empty()) {
-    return normalize_route_path(*route);
-  }
-
-  if (kind == "llms") {
-    return "/llms.txt";
-  }
-
-  if (kind == "llms-full") {
-    return "/llms-full.txt";
-  }
-
-  if (kind != "skill" || source_id.empty()) {
-    return std::nullopt;
-  }
-
-  const auto expected_prefix = "skills/" + source_id + "/";
-
-  if (!starts_with(source_path, expected_prefix)) {
-    return std::nullopt;
-  }
-
-  const auto skill_path = source_path.substr(expected_prefix.size());
-
-  if (skill_path.empty()) {
-    return std::nullopt;
-  }
-
-  return join_route_paths({route_base, "skills", skill_path});
-}
-
 Issue issue(std::string code, std::string message, std::optional<std::string> path = std::nullopt) {
   return {
     .code = std::move(code),
@@ -1499,331 +1287,9 @@ std::string format_issues(const std::vector<Issue>& issues) {
   return out.str();
 }
 
-bool is_frontmatter_key(std::string_view value) {
-  if (value.empty() || !std::isalpha(static_cast<unsigned char>(value.front()))) {
-    return false;
-  }
-
-  return std::ranges::all_of(value, [](const auto ch) {
-    return std::isalnum(static_cast<unsigned char>(ch));
-  });
-}
-
-std::optional<Issue> assign_frontmatter_value(Frontmatter& frontmatter, const std::string& key, const std::string& raw_value, const std::optional<std::string>& path) {
-  const auto value = strip_quotes(raw_value);
-
-  if (key == "description") {
-    frontmatter.description = value;
-    return std::nullopt;
-  }
-
-  if (key == "navTitle") {
-    frontmatter.nav_title = value;
-    return std::nullopt;
-  }
-
-  if (key == "slug") {
-    frontmatter.slug = value;
-    return std::nullopt;
-  }
-
-  if (key == "title") {
-    frontmatter.title = value;
-    return std::nullopt;
-  }
-
-  if (key == "draft") {
-    if (value == "true" || value == "false") {
-      frontmatter.draft = value == "true";
-      return std::nullopt;
-    }
-
-    return issue("invalid_frontmatter", "Frontmatter field \"draft\" must be a boolean.", path);
-  }
-
-  if (key == "order") {
-    try {
-      std::size_t consumed = 0;
-      const auto parsed = std::stod(value, &consumed);
-
-      if (consumed == value.size() && std::isfinite(parsed)) {
-        frontmatter.order = parsed;
-        return std::nullopt;
-      }
-    } catch (...) {
-    }
-
-    return issue("invalid_frontmatter", "Frontmatter field \"order\" must be a number.", path);
-  }
-
-  if (key == "status") {
-    if (value == "draft" || value == "published") {
-      frontmatter.status = value;
-      return std::nullopt;
-    }
-
-    return issue("invalid_frontmatter", "Frontmatter field \"status\" must be \"draft\" or \"published\".", path);
-  }
-
-  return std::nullopt;
-}
-
-std::vector<Issue> validate_frontmatter(const Frontmatter& frontmatter, const std::optional<std::string>& path) {
-  std::vector<Issue> issues;
-
-  if (frontmatter.slug) {
-    const auto& slug = *frontmatter.slug;
-    const auto valid = !slug.empty() && std::ranges::all_of(slug, [](const auto ch) {
-      return std::isalnum(static_cast<unsigned char>(ch)) || ch == '-';
-    });
-
-    if (!valid || !std::isalnum(static_cast<unsigned char>(slug.front()))) {
-      issues.push_back(issue("invalid_frontmatter", "Frontmatter field \"slug\" must contain only letters, numbers, and hyphens.", path));
-    }
-  }
-
-  return issues;
-}
-
-ParsedFrontmatter parse_frontmatter(const std::string& markdown, std::optional<std::string> path = std::nullopt) {
-  ParsedFrontmatter result;
-  result.content = markdown;
-
-  if (!starts_with(markdown, "---\n") && !starts_with(markdown, "---\r\n")) {
-    return result;
-  }
-
-  const auto lines = split_lines(markdown);
-  std::optional<std::size_t> closing_index;
-
-  for (std::size_t index = 1; index < lines.size(); ++index) {
-    if (trim(lines[index]) == "---") {
-      closing_index = index;
-      break;
-    }
-  }
-
-  if (!closing_index) {
-    result.issues.push_back(issue("invalid_frontmatter", "Frontmatter block is missing a closing delimiter.", path));
-    return result;
-  }
-
-  std::optional<std::string> current_array_key;
-  static const std::set<std::string> known_fields = {
-    "dependencies",
-    "description",
-    "draft",
-    "navTitle",
-    "order",
-    "redirectFrom",
-    "slug",
-    "status",
-    "tags",
-    "title",
-  };
-  static const std::set<std::string> array_fields = {"dependencies", "redirectFrom", "tags"};
-
-  for (std::size_t index = 1; index < *closing_index; ++index) {
-    const auto& line = lines[index];
-
-    if (trim(line).empty()) {
-      continue;
-    }
-
-    auto trimmed_start = line;
-    trimmed_start.erase(trimmed_start.begin(), std::ranges::find_if(trimmed_start, [](const auto ch) {
-      return !std::isspace(static_cast<unsigned char>(ch));
-    }));
-
-    if (starts_with(trimmed_start, "- ")) {
-      if (!current_array_key) {
-        result.issues.push_back(issue("invalid_frontmatter", "Frontmatter array item does not belong to a supported array field.", path));
-        continue;
-      }
-
-      if (*current_array_key == "dependencies") {
-        result.frontmatter.dependencies.push_back(strip_quotes(trimmed_start.substr(2)));
-      } else if (*current_array_key == "redirectFrom") {
-        result.frontmatter.redirect_from.push_back(strip_quotes(trimmed_start.substr(2)));
-      } else if (*current_array_key == "tags") {
-        result.frontmatter.tags.push_back(strip_quotes(trimmed_start.substr(2)));
-      }
-
-      continue;
-    }
-
-    const auto separator = line.find(':');
-    const auto key = separator == std::string::npos ? std::string{} : trim(std::string_view{line}.substr(0, separator));
-    const auto raw_value = separator == std::string::npos ? std::string{} : trim(std::string_view{line}.substr(separator + 1));
-
-    if (!is_frontmatter_key(key)) {
-      result.issues.push_back(issue("invalid_frontmatter", "Unsupported frontmatter line: " + line, path));
-      current_array_key.reset();
-      continue;
-    }
-
-    current_array_key.reset();
-
-    if (!known_fields.contains(key)) {
-      result.warnings.push_back(issue("invalid_frontmatter", "Unknown frontmatter field \"" + key + "\" was ignored.", path));
-      continue;
-    }
-
-    if (array_fields.contains(key)) {
-      if (!trim(raw_value).empty()) {
-        result.issues.push_back(issue("invalid_frontmatter", "Frontmatter field \"" + key + "\" must use list item syntax.", path));
-        continue;
-      }
-
-      current_array_key = key;
-
-      if (key == "dependencies") {
-        result.frontmatter.has_dependencies = true;
-        result.frontmatter.dependencies.clear();
-      } else if (key == "redirectFrom") {
-        result.frontmatter.has_redirect_from = true;
-        result.frontmatter.redirect_from.clear();
-      } else {
-        result.frontmatter.has_tags = true;
-        result.frontmatter.tags.clear();
-      }
-
-      continue;
-    }
-
-    if (auto field_issue = assign_frontmatter_value(result.frontmatter, key, raw_value, path)) {
-      result.issues.push_back(std::move(*field_issue));
-    }
-  }
-
-  auto more_issues = validate_frontmatter(result.frontmatter, path);
-  result.issues.insert(result.issues.end(), more_issues.begin(), more_issues.end());
-  result.content = join_lines(lines, *closing_index + 1);
-
-  return result;
-}
-
-std::optional<std::string> infer_title_from_markdown(const std::string& content) {
-  for (const auto& line : split_lines(content)) {
-    const auto trimmed = trim(line);
-
-    if (starts_with(trimmed, "# ") && !starts_with(trimmed, "##")) {
-      auto title = trim(std::string_view{trimmed}.substr(2));
-
-      while (!title.empty() && title.back() == '#') {
-        title.pop_back();
-      }
-
-      title = trim(title);
-
-      if (!title.empty()) {
-        return title;
-      }
-    }
-  }
-
-  return std::nullopt;
-}
-
-std::string title_from_source_path(const std::string& source_path) {
-  const auto normalized = normalize_docs_path(source_path);
-
-  if (!normalized.ok) {
-    return "Untitled";
-  }
-
-  const auto segments = split_path(normalized.path);
-  auto base = segments.back() == "index.md" && segments.size() > 1 ? segments[segments.size() - 2] : segments.back();
-
-  if (ends_with(base, ".md")) {
-    base.resize(base.size() - 3);
-  }
-
-  std::ostringstream title;
-  std::string part;
-  bool first = true;
-
-  const auto flush = [&]() {
-    if (part.empty()) {
-      return;
-    }
-
-    if (!first) {
-      title << ' ';
-    }
-
-    part[0] = static_cast<char>(std::toupper(static_cast<unsigned char>(part[0])));
-    title << part;
-    first = false;
-    part.clear();
-  };
-
-  for (const auto ch : base) {
-    if (ch == '-' || ch == '_' || std::isspace(static_cast<unsigned char>(ch))) {
-      flush();
-      continue;
-    }
-
-    part.push_back(ch);
-  }
-
-  flush();
-
-  auto output = title.str();
-  return output.empty() ? "Untitled" : output;
-}
-
-std::string resolve_title(const ParsedFrontmatter& parsed, const std::string& source_path) {
-  if (parsed.frontmatter.title) {
-    return *parsed.frontmatter.title;
-  }
-
-  if (const auto inferred = infer_title_from_markdown(parsed.content)) {
-    return *inferred;
-  }
-
-  return title_from_source_path(source_path);
-}
-
-json frontmatter_to_json(const Frontmatter& frontmatter) {
-  json output = json::object();
-
-  if (frontmatter.has_dependencies) {
-    output["dependencies"] = frontmatter.dependencies;
-  }
-  if (frontmatter.description) {
-    output["description"] = *frontmatter.description;
-  }
-  if (frontmatter.draft) {
-    output["draft"] = *frontmatter.draft;
-  }
-  if (frontmatter.nav_title) {
-    output["navTitle"] = *frontmatter.nav_title;
-  }
-  if (frontmatter.order) {
-    output["order"] = *frontmatter.order;
-  }
-  if (frontmatter.has_redirect_from) {
-    output["redirectFrom"] = frontmatter.redirect_from;
-  }
-  if (frontmatter.slug) {
-    output["slug"] = *frontmatter.slug;
-  }
-  if (frontmatter.status) {
-    output["status"] = *frontmatter.status;
-  }
-  if (frontmatter.has_tags) {
-    output["tags"] = frontmatter.tags;
-  }
-  if (frontmatter.title) {
-    output["title"] = *frontmatter.title;
-  }
-
-  return output;
-}
-
 std::string json_string(const json& value, bool pretty) {
-  return value.dump(pretty ? 2 : -1) + "\n";
+  // Output only: replace invalid UTF-8 instead of throwing a raw type_error.
+  return value.dump(pretty ? 2 : -1, ' ', false, json::error_handler_t::replace) + "\n";
 }
 
 std::string get_repository_name() {
@@ -1843,12 +1309,23 @@ std::string get_repository_name() {
   return value.substr(slash + 1);
 }
 
+// Absolute, lexically normal, and without a trailing separator ("dir/" -> "dir").
+std::filesystem::path normalized_directory(const std::filesystem::path& path) {
+  auto normalized = std::filesystem::absolute(path).lexically_normal();
+
+  if (!normalized.has_filename() && normalized.has_relative_path()) {
+    normalized = normalized.parent_path();
+  }
+
+  return normalized;
+}
+
 std::string default_source_id(const std::filesystem::path& docs_root) {
   if (const auto repository = get_repository_name(); !repository.empty()) {
     return repository;
   }
 
-  const auto name = std::filesystem::absolute(docs_root).filename().string();
+  const auto name = normalized_directory(docs_root).filename().string();
 
   return name == "docs" ? "local-docs" : name;
 }
@@ -1866,14 +1343,145 @@ std::string source_id_for(const DocsCommandOptions& options) {
     return *options.source_id;
   }
 
-  return default_source_id(effective_docs_root(options));
+  auto source_id = default_source_id(effective_docs_root(options));
+
+  if (source_id.empty()) {
+    throw std::runtime_error{"Could not derive a docs set slug from the docs root. Pass --source <docs-set-slug>."};
+  }
+
+  return source_id;
 }
 
 std::string lower_copy(std::string value);
 
-std::vector<WalkedDocsFile> walk_docs_files(const std::filesystem::path& root) {
-  static const std::set<std::string> ignored_directories = {".git", ".next", "build", "dist", "node_modules"};
-  const auto absolute_root = std::filesystem::absolute(root).lexically_normal();
+// Directories that are never docs content, skipped at any depth.
+bool is_always_ignored_directory(const std::string& name) {
+  return name == ".git" || name == "node_modules";
+}
+
+// Build output directories, skipped only directly below the walked root.
+bool is_root_ignored_directory(const std::string& name) {
+  return name == ".next" || name == "build" || name == "dist";
+}
+
+bool is_hidden_name(const std::string& name) {
+  return name.size() > 1 && name.front() == '.' && name != "..";
+}
+
+bool is_markdown_like_extension(const std::string& extension) {
+  const auto lower = lower_copy(extension);
+  return lower == ".md" || lower == ".markdown" || lower == ".mdx" || lower == ".mdown";
+}
+
+// Path relative to the walked root for messages; always valid UTF-8.
+std::string display_relative(const std::filesystem::path& path, const std::filesystem::path& root) {
+  // Lexical, so a symlink is reported under its own name, not its target's.
+  const auto relative = path.lexically_relative(root);
+  return contract::sanitize_utf8(relative.empty() ? path.generic_string() : relative.generic_string());
+}
+
+struct WalkContext {
+  std::filesystem::path root;
+  std::string label;
+  bool skip_hidden = false;
+  std::vector<Issue>* issues = nullptr;
+  std::vector<Issue>* warnings = nullptr;
+};
+
+// Shared directory walk for docs and skills. Calls `on_file` for regular
+// files that pass the walk rules and reports everything it leaves out.
+template <typename OnFile>
+void walk_tree(const WalkContext& context, OnFile on_file) {
+  std::error_code error;
+  std::filesystem::recursive_directory_iterator iterator{context.root, error};
+  const std::filesystem::recursive_directory_iterator end;
+
+  if (error) {
+    throw std::runtime_error{"Could not read " + context.label + " root: " + error.message()};
+  }
+
+  for (; iterator != end; iterator.increment(error)) {
+    if (error) {
+      throw std::runtime_error{"Could not walk " + context.label + " root: " + error.message()};
+    }
+
+    const auto& entry = *iterator;
+    const auto status = entry.symlink_status(error);
+
+    if (error) {
+      throw std::runtime_error{"Could not inspect " + context.label + " entry: " + error.message()};
+    }
+
+    const auto name = entry.path().filename().string();
+    const auto relative = display_relative(entry.path(), context.root);
+
+    if (std::filesystem::is_symlink(status)) {
+      if (std::filesystem::is_directory(entry.path(), error)) {
+        iterator.disable_recursion_pending();
+      }
+      error.clear();
+
+      context.warnings->push_back(issue("skipped_path", "Skipped symbolic link; symlinks are not followed.", relative));
+      continue;
+    }
+
+    if (std::filesystem::is_directory(status)) {
+      if (is_always_ignored_directory(name) || (iterator.depth() == 0 && is_root_ignored_directory(name))) {
+        iterator.disable_recursion_pending();
+        context.warnings->push_back(issue("skipped_path", "Skipped directory \"" + name + "\" (build output or tooling directory).", relative));
+      } else if (context.skip_hidden && is_hidden_name(name)) {
+        iterator.disable_recursion_pending();
+        context.warnings->push_back(issue("skipped_path", "Skipped hidden directory (--skip-hidden).", relative));
+      }
+
+      continue;
+    }
+
+    if (!std::filesystem::is_regular_file(status)) {
+      continue;
+    }
+
+    const auto hidden = std::ranges::any_of(entry.path().lexically_relative(context.root), [](const std::filesystem::path& part) {
+      return is_hidden_name(part.string());
+    });
+
+    if (hidden && context.skip_hidden) {
+      context.warnings->push_back(issue("skipped_path", "Skipped hidden file (--skip-hidden).", relative));
+      continue;
+    }
+
+    on_file(entry.path(), relative, hidden);
+  }
+}
+
+std::optional<std::string> read_utf8_file(
+  const std::filesystem::path& path,
+  const std::string& display_path,
+  std::vector<Issue>& issues
+) {
+  const auto display_is_utf8 = contract::is_valid_utf8(path.generic_string());
+  auto content = read_file(path);
+
+  if (!display_is_utf8) {
+    issues.push_back(issue("invalid_encoding", "File name is not valid UTF-8; rename the file.", display_path));
+    return std::nullopt;
+  }
+
+  if (!contract::is_valid_utf8(content)) {
+    issues.push_back(issue("invalid_encoding", "File content is not valid UTF-8; re-save the file as UTF-8.", display_path));
+    return std::nullopt;
+  }
+
+  return content;
+}
+
+std::vector<WalkedDocsFile> walk_docs_files(
+  const std::filesystem::path& root,
+  bool skip_hidden,
+  std::vector<Issue>& issues,
+  std::vector<Issue>& warnings
+) {
+  const auto absolute_root = normalized_directory(root);
   std::error_code error;
 
   if (!std::filesystem::is_directory(absolute_root, error)) {
@@ -1881,62 +1489,47 @@ std::vector<WalkedDocsFile> walk_docs_files(const std::filesystem::path& root) {
   }
 
   std::vector<WalkedDocsFile> files;
-  std::filesystem::recursive_directory_iterator iterator{absolute_root, error};
-  const std::filesystem::recursive_directory_iterator end;
+  const WalkContext context{
+    .root = absolute_root,
+    .label = "docs",
+    .skip_hidden = skip_hidden,
+    .issues = &issues,
+    .warnings = &warnings,
+  };
 
-  if (error) {
-    throw std::runtime_error{"Could not read docs root: " + error.message()};
-  }
+  walk_tree(context, [&](const std::filesystem::path& file_path, const std::string& relative, bool hidden) {
+    const auto extension = file_path.extension().string();
 
-  for (; iterator != end; iterator.increment(error)) {
-    if (error) {
-      throw std::runtime_error{"Could not walk docs root: " + error.message()};
-    }
-
-    const auto& entry = *iterator;
-    const auto status = entry.symlink_status(error);
-
-    if (error) {
-      throw std::runtime_error{"Could not inspect docs entry: " + error.message()};
-    }
-
-    if (std::filesystem::is_symlink(status)) {
-      if (std::filesystem::is_directory(entry.path(), error)) {
-        iterator.disable_recursion_pending();
+    if (extension != ".md") {
+      if (is_markdown_like_extension(extension)) {
+        warnings.push_back(issue("skipped_path", "Skipped Markdown file with extension \"" + extension + "\"; docs pages must use lowercase .md.", relative));
       }
 
-      continue;
+      return;
     }
 
-    if (std::filesystem::is_directory(status)) {
-      if (ignored_directories.contains(entry.path().filename().string())) {
-        iterator.disable_recursion_pending();
-      }
+    const auto content = read_utf8_file(file_path, relative, issues);
 
-      continue;
+    if (!content) {
+      return;
     }
 
-    if (!std::filesystem::is_regular_file(status) || entry.path().extension() != ".md") {
-      continue;
-    }
-
-    auto relative = std::filesystem::relative(entry.path(), absolute_root, error);
-
-    if (error) {
-      throw std::runtime_error{"Could not compute docs relative path: " + error.message()};
-    }
-
-    const auto normalized = normalize_docs_path(relative.generic_string());
+    const auto normalized = contract::normalize_docs_path(relative);
 
     if (!normalized.ok) {
-      throw std::runtime_error{normalized.message};
+      issues.push_back(issue(normalized.code, normalized.message, relative));
+      return;
+    }
+
+    if (hidden) {
+      warnings.push_back(issue("hidden_path", "Hidden file is included in the docs package; pass --skip-hidden to exclude hidden files.", normalized.path));
     }
 
     files.push_back({
-      .content = read_file(entry.path()),
+      .content = *content,
       .path = normalized.path,
     });
-  }
+  });
 
   std::ranges::sort(files, [](const auto& left, const auto& right) {
     const auto left_path = lower_copy(left.path);
@@ -1961,98 +1554,63 @@ std::string lower_copy(std::string value) {
   return value;
 }
 
-std::string asset_content_type(const std::string& asset_path) {
-  const auto extension = lower_copy(std::filesystem::path{asset_path}.extension().string());
-
-  if (extension == ".md") {
-    return "text/markdown; charset=utf-8";
-  }
-
-  if (extension == ".json") {
-    return "application/json; charset=utf-8";
-  }
-
-  if (extension == ".yaml" || extension == ".yml") {
-    return "application/yaml; charset=utf-8";
-  }
-
-  return "text/plain; charset=utf-8";
-}
-
-std::vector<PackageAsset> walk_skill_files(const std::filesystem::path& root, const std::string& source_id) {
-  static const std::set<std::string> ignored_directories = {".git", ".next", "build", "dist", "node_modules"};
+std::vector<PackageAsset> walk_skill_files(
+  const std::filesystem::path& root,
+  const std::string& source_id,
+  bool skip_hidden,
+  std::vector<Issue>& issues,
+  std::vector<Issue>& warnings
+) {
   static const std::set<std::string> allowed_extensions = {".json", ".md", ".txt", ".yaml", ".yml"};
-  const auto absolute_root = std::filesystem::absolute(root).lexically_normal();
+  const auto absolute_root = normalized_directory(root);
   const auto skill_package_root = absolute_root / source_id;
   std::error_code error;
 
-  if (!std::filesystem::exists(skill_package_root, error)) {
-    return {};
-  }
-
-  if (!std::filesystem::is_directory(skill_package_root, error)) {
+  if (source_id.empty() || !std::filesystem::is_directory(skill_package_root, error)) {
     return {};
   }
 
   std::vector<PackageAsset> files;
-  std::filesystem::recursive_directory_iterator iterator{skill_package_root, error};
-  const std::filesystem::recursive_directory_iterator end;
+  const WalkContext context{
+    .root = skill_package_root,
+    .label = "skills",
+    .skip_hidden = skip_hidden,
+    .issues = &issues,
+    .warnings = &warnings,
+  };
 
-  if (error) {
-    throw std::runtime_error{"Could not read skills root: " + error.message()};
-  }
+  walk_tree(context, [&](const std::filesystem::path& file_path, const std::string& relative, bool hidden) {
+    const auto display = "skills/" + source_id + "/" + relative;
 
-  for (; iterator != end; iterator.increment(error)) {
-    if (error) {
-      throw std::runtime_error{"Could not walk skills root: " + error.message()};
+    if (!allowed_extensions.contains(lower_copy(file_path.extension().string()))) {
+      warnings.push_back(issue("skipped_path", "Skipped skill file type; only .md, .txt, .json, .yaml and .yml files are published.", display));
+      return;
     }
 
-    const auto& entry = *iterator;
-    const auto status = entry.symlink_status(error);
+    const auto content = read_utf8_file(file_path, display, issues);
 
-    if (error) {
-      throw std::runtime_error{"Could not inspect skill entry: " + error.message()};
+    if (!content) {
+      return;
     }
 
-    if (std::filesystem::is_symlink(status)) {
-      if (std::filesystem::is_directory(entry.path(), error)) {
-        iterator.disable_recursion_pending();
-      }
-
-      continue;
-    }
-
-    if (std::filesystem::is_directory(status)) {
-      if (ignored_directories.contains(entry.path().filename().string())) {
-        iterator.disable_recursion_pending();
-      }
-
-      continue;
-    }
-
-    if (!std::filesystem::is_regular_file(status) || !allowed_extensions.contains(lower_copy(entry.path().extension().string()))) {
-      continue;
-    }
-
-    auto relative = std::filesystem::relative(entry.path(), absolute_root, error);
-
-    if (error) {
-      throw std::runtime_error{"Could not compute skill relative path: " + error.message()};
-    }
-
-    const auto normalized = normalize_asset_path("skills/" + relative.generic_string());
+    const auto normalized = contract::normalize_asset_path(display);
 
     if (!normalized.ok) {
-      throw std::runtime_error{normalized.message};
+      issues.push_back(issue(normalized.code, normalized.message, display));
+      return;
+    }
+
+    if (hidden) {
+      warnings.push_back(issue("hidden_path", "Hidden file is included in the skill package; pass --skip-hidden to exclude hidden files.", normalized.path));
     }
 
     files.push_back({
-      .content = read_file(entry.path()),
-      .content_type = asset_content_type(normalized.path),
+      .content = *content,
+      .content_type = contract::asset_content_type(normalized.path),
       .kind = "skill",
       .path = normalized.path,
     });
-  }
+  });
 
   std::ranges::sort(files, [](const auto& left, const auto& right) {
     const auto left_path = lower_copy(left.path);
@@ -2068,23 +1626,32 @@ std::optional<PackageAsset> read_optional_asset_file(
   const std::filesystem::path& file_path,
   const std::string& asset_path,
   const std::string& kind,
-  const std::string& route
+  const std::string& route,
+  std::vector<Issue>& issues,
+  bool& present
 ) {
   const auto absolute_path = std::filesystem::absolute(file_path).lexically_normal();
+  present = path_exists(absolute_path);
 
-  if (!path_exists(absolute_path)) {
+  if (!present) {
     return std::nullopt;
   }
 
-  const auto normalized = normalize_asset_path(asset_path);
+  const auto normalized = contract::normalize_asset_path(asset_path);
 
   if (!normalized.ok) {
     throw std::runtime_error{normalized.message};
   }
 
+  const auto content = read_utf8_file(absolute_path, normalized.path, issues);
+
+  if (!content) {
+    return std::nullopt;
+  }
+
   return PackageAsset{
-    .content = read_file(absolute_path),
-    .content_type = asset_content_type(normalized.path),
+    .content = *content,
+    .content_type = contract::asset_content_type(normalized.path),
     .kind = kind,
     .path = normalized.path,
     .route = route,
@@ -2096,7 +1663,7 @@ PublishPackage collect_publish_package(const DocsCommandOptions& options, const 
   const auto docs_root = effective_docs_root(options);
 
   if (options.include_docs) {
-    const auto absolute_docs_root = std::filesystem::absolute(docs_root).lexically_normal();
+    const auto absolute_docs_root = normalized_directory(docs_root);
 
     if (!path_exists(absolute_docs_root)) {
       throw std::runtime_error{
@@ -2106,38 +1673,40 @@ PublishPackage collect_publish_package(const DocsCommandOptions& options, const 
       };
     }
 
-    package.files = walk_docs_files(docs_root);
+    package.files = walk_docs_files(docs_root, options.skip_hidden, package.issues, package.warnings);
   }
 
   std::vector<PackageAsset> skill_assets;
 
   if (options.include_skills) {
-    const auto absolute_skills_root = std::filesystem::absolute(options.skills_root).lexically_normal();
+    const auto absolute_skills_root = normalized_directory(options.skills_root);
 
     if (!path_exists(absolute_skills_root)) {
       if (options.skills_root_explicit) {
         throw std::runtime_error{"Skills root does not exist: " + options.skills_root.string()};
       }
     } else {
-      skill_assets = walk_skill_files(options.skills_root, source_id);
+      skill_assets = walk_skill_files(options.skills_root, source_id, options.skip_hidden, package.issues, package.warnings);
     }
   }
 
+  bool llms_present = false;
   const auto llms_asset =
     options.include_llms && (path_exists(std::filesystem::absolute(options.llms_path).lexically_normal()) || options.llms_path_explicit)
-      ? read_optional_asset_file(options.llms_path, "llms.txt", "llms", "/llms.txt")
+      ? read_optional_asset_file(options.llms_path, "llms.txt", "llms", "/llms.txt", package.issues, llms_present)
       : std::optional<PackageAsset>{};
 
-  if (options.include_llms && options.llms_path_explicit && !llms_asset) {
+  if (options.include_llms && options.llms_path_explicit && !llms_present) {
     throw std::runtime_error{"llms.txt file does not exist: " + options.llms_path.string()};
   }
 
+  bool llms_full_present = false;
   const auto llms_full_asset =
     options.include_llms_full && (path_exists(std::filesystem::absolute(options.llms_full_path).lexically_normal()) || options.llms_full_path_explicit)
-      ? read_optional_asset_file(options.llms_full_path, "llms-full.txt", "llms-full", "/llms-full.txt")
+      ? read_optional_asset_file(options.llms_full_path, "llms-full.txt", "llms-full", "/llms-full.txt", package.issues, llms_full_present)
       : std::optional<PackageAsset>{};
 
-  if (options.include_llms_full && options.llms_full_path_explicit && !llms_full_asset) {
+  if (options.include_llms_full && options.llms_full_path_explicit && !llms_full_present) {
     throw std::runtime_error{"llms-full.txt file does not exist: " + options.llms_full_path.string()};
   }
 
@@ -2151,15 +1720,21 @@ PublishPackage collect_publish_package(const DocsCommandOptions& options, const 
 
   package.assets.insert(package.assets.end(), skill_assets.begin(), skill_assets.end());
 
-  if (package.files.empty() && package.assets.empty()) {
+  if (package.files.empty() && package.assets.empty() && package.issues.empty()) {
     throw std::runtime_error{"Publish package is empty. Enable at least one of docs, skills, llms.txt, or llms-full.txt."};
   }
+
+  const auto by_path = [](const Issue& left, const Issue& right) {
+    return left.path.value_or("") < right.path.value_or("");
+  };
+  std::ranges::stable_sort(package.issues, by_path);
+  std::ranges::stable_sort(package.warnings, by_path);
 
   package.summary = {
     .assets = package.assets.size(),
     .docs = package.files.size(),
-    .llms = llms_asset ? "present" : "missing",
-    .llms_full = llms_full_asset ? "present" : "missing",
+    .llms = llms_present ? "present" : "missing",
+    .llms_full = llms_full_present ? "present" : "missing",
     .skills = skill_assets.size(),
   };
 
@@ -2243,245 +1818,102 @@ json build_manifest(
   return manifest;
 }
 
-bool is_valid_delete_behavior(const std::string& value) {
-  return value == "archive" || value == "delete" || value == "draft" || value == "ignore";
+using contract::is_valid_delete_behavior;
+
+// Route bases used for local route derivation. The server derives them from the
+// docs set (group route, slug, route mode); `--route-base` and
+// `--asset-route-base` let validate/plan match grouped or product-nested sets.
+std::string route_base_for(const DocsCommandOptions& options, const std::string& source_id) {
+  return contract::normalize_route_path(options.route_base.value_or("/" + source_id));
 }
 
-ValidationResult validate_manifest(const json& manifest, const DocsCommandOptions& options, const std::string& route_base) {
-  ValidationResult result;
-  const auto max_file_bytes = options.max_file_bytes.value_or(kDefaultMaxFileBytes);
-  const auto max_assets = options.max_files.value_or(kDefaultMaxFiles);
-  const auto max_files = options.max_files.value_or(kDefaultMaxFiles);
-  const auto max_total_bytes = options.max_total_bytes.value_or(kDefaultMaxTotalBytes);
+std::string asset_route_base_for(const DocsCommandOptions& options, const std::string& source_id) {
+  return contract::normalize_route_path(options.asset_route_base.value_or(route_base_for(options, source_id)));
+}
 
-  if (!manifest.is_object()) {
-    result.issues.push_back(issue("invalid_manifest", "Manifest must be an object."));
-    return result;
+ValidationResult validate_manifest(const json& manifest, const DocsCommandOptions& options, const std::string& source_id) {
+  contract::ValidationOptions validation_options;
+  validation_options.asset_route_base = asset_route_base_for(options, source_id);
+  validation_options.route_base = route_base_for(options, source_id);
+  validation_options.max_file_bytes = options.max_file_bytes.value_or(contract::kDefaultMaxFileBytes);
+  validation_options.max_files = options.max_files.value_or(contract::kDefaultMaxFiles);
+  validation_options.max_assets = options.max_files.value_or(contract::kDefaultMaxFiles);
+  validation_options.max_total_bytes = options.max_total_bytes.value_or(contract::kDefaultMaxTotalBytes);
+
+  return contract::validate_manifest(manifest, validation_options);
+}
+
+void merge_package_findings(ValidationResult& validation, const PublishPackage& package) {
+  validation.issues.insert(validation.issues.begin(), package.issues.begin(), package.issues.end());
+  validation.warnings.insert(validation.warnings.begin(), package.warnings.begin(), package.warnings.end());
+  validation.ok = validation.ok && package.issues.empty();
+}
+
+std::string format_warnings_block(const std::vector<Issue>& warnings) {
+  if (warnings.empty()) {
+    return {};
   }
 
-  if (!manifest.contains("version") || !manifest["version"].is_number_integer() || manifest["version"].get<int>() != 1) {
-    result.issues.push_back(issue("invalid_version", "Manifest version must be 1."));
+  return "Warnings:\n" + format_issues(warnings) + "\n";
+}
+
+// The server rejects request bodies above maxBodyBytes (413) before it looks at
+// the manifest, so the serialized body size is the binding limit (CLI-5).
+void check_body_size(ValidationResult& validation, std::size_t body_bytes, const DocsCommandOptions& options, bool exact) {
+  const auto max_body_bytes = options.max_body_bytes.value_or(contract::kDefaultMaxBodyBytes);
+
+  if (body_bytes <= max_body_bytes) {
+    return;
   }
 
-  if (!manifest.contains("source") || !manifest["source"].is_object() || !manifest["source"].contains("id") || !manifest["source"]["id"].is_string() || trim(manifest["source"]["id"].get<std::string>()).empty()) {
-    result.issues.push_back(issue("invalid_source", "Manifest source.id is required."));
-  } else {
-    result.source_id = manifest["source"]["id"].get<std::string>();
-    if (manifest["source"].contains("branch") && manifest["source"]["branch"].is_string()) {
-      result.source_branch = manifest["source"]["branch"].get<std::string>();
-    }
-    if (manifest["source"].contains("commit") && manifest["source"]["commit"].is_string()) {
-      result.source_commit = manifest["source"]["commit"].get<std::string>();
-    }
-    if (manifest["source"].contains("repository") && manifest["source"]["repository"].is_string()) {
-      result.source_repository = manifest["source"]["repository"].get<std::string>();
-    }
-  }
+  validation.issues.push_back(issue(
+    "body_too_large",
+    std::string{exact ? "Sync request body is " : "Sync request body would be up to "} + std::to_string(body_bytes)
+      + " bytes, above the server limit of " + std::to_string(max_body_bytes)
+      + " bytes (sync maxBodyBytes). Split the docs package, or raise the server limit and pass --max-body-bytes."
+  ));
+  validation.ok = false;
+}
 
-  if (manifest.contains("mode")) {
-    if (!manifest["mode"].is_string() || (manifest["mode"] != "dry-run" && manifest["mode"] != "sync")) {
-      result.issues.push_back(issue("invalid_mode", "Manifest mode must be \"dry-run\" or \"sync\"."));
-    } else {
-      result.mode_dry_run = manifest["mode"] == "dry-run";
-    }
-  }
+// In-manifest route collisions (X-8, CLI-6). The sync endpoint rejects exact
+// collisions with `route_collision`; `as_warnings` keeps push advisory because
+// only the server knows the docs set's real route base.
+void add_route_collision_findings(ValidationResult& validation, bool as_warnings) {
+  for (const auto& collision : contract::find_route_collisions(validation)) {
+    const auto exact = collision.reason == "exact_route_collision";
 
-  if (manifest.contains("deleteBehavior")) {
-    if (!manifest["deleteBehavior"].is_string() || !is_valid_delete_behavior(manifest["deleteBehavior"].get<std::string>())) {
-      result.issues.push_back(issue("invalid_delete_behavior", "Manifest deleteBehavior must be archive, delete, draft, or ignore."));
-    } else {
-      result.delete_behavior = manifest["deleteBehavior"].get<std::string>();
-    }
-  }
+    for (const auto& path : collision.paths) {
+      std::string others;
 
-  if (manifest.contains("publish")) {
-    if (!manifest["publish"].is_boolean()) {
-      result.issues.push_back(issue("invalid_manifest", "Manifest publish must be a boolean."));
-    } else {
-      result.publish = manifest["publish"].get<bool>();
-    }
-  }
-
-  const auto has_files_array = manifest.contains("files") && manifest["files"].is_array();
-  const auto has_assets_array = !manifest.contains("assets") || manifest["assets"].is_array();
-  const auto file_count = has_files_array ? manifest["files"].size() : 0;
-  const auto asset_count = has_assets_array && manifest.contains("assets") ? manifest["assets"].size() : 0;
-
-  if (!has_files_array) {
-    result.issues.push_back(issue("invalid_manifest", "Manifest files must be an array."));
-  }
-
-  if (!has_assets_array) {
-    result.issues.push_back(issue("invalid_manifest", "Manifest assets must be an array when provided."));
-  }
-
-  if (file_count == 0 && asset_count == 0) {
-    result.issues.push_back(issue("empty_manifest", "Manifest must include at least one docs file or asset."));
-  }
-
-  if (has_files_array && manifest["files"].size() > max_files) {
-    result.issues.push_back(issue("too_many_files", "Manifest exceeds maximum file count of " + std::to_string(max_files) + "."));
-  }
-
-  if (has_assets_array && manifest.contains("assets") && manifest["assets"].size() > max_assets) {
-    result.issues.push_back(issue("too_many_assets", "Manifest exceeds maximum asset count of " + std::to_string(max_assets) + "."));
-  }
-
-  std::set<std::string> normalized_paths;
-  std::set<std::string> normalized_asset_paths;
-  std::size_t total_bytes = 0;
-
-  if (manifest.contains("files") && manifest["files"].is_array()) {
-    for (const auto& file : manifest["files"]) {
-      if (!file.is_object() || !file.contains("path") || !file["path"].is_string() || !file.contains("content") || !file["content"].is_string()) {
-        std::optional<std::string> bad_path;
-        if (file.is_object() && file.contains("path") && file["path"].is_string()) {
-          bad_path = file["path"].get<std::string>();
-        }
-        result.issues.push_back(issue("invalid_manifest", "Manifest file entries require string path and content.", bad_path));
-        continue;
-      }
-
-      const auto path = file["path"].get<std::string>();
-      const auto content = file["content"].get<std::string>();
-      const auto normalized = normalize_docs_path(path);
-
-      if (!normalized.ok) {
-        result.issues.push_back(issue(normalized.code, normalized.message, path));
-        continue;
-      }
-
-      total_bytes += content.size();
-
-      if (content.size() > max_file_bytes) {
-        result.issues.push_back(issue("file_too_large", "File exceeds maximum size of " + std::to_string(max_file_bytes) + " bytes.", normalized.path));
-      }
-
-      const auto computed_hash = sha256_hex(content);
-
-      if (file.contains("sha256")) {
-        const auto valid_hash = file["sha256"].is_string() && file["sha256"].get<std::string>().size() == 64;
-        auto hash_value = valid_hash ? file["sha256"].get<std::string>() : std::string{};
-        std::ranges::transform(hash_value, hash_value.begin(), [](const auto ch) {
-          return static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
-        });
-
-        if (!valid_hash || !std::ranges::all_of(hash_value, [](const auto ch) {
-          return std::isxdigit(static_cast<unsigned char>(ch));
-        }) || hash_value != computed_hash) {
-          result.issues.push_back(issue("invalid_hash", "Manifest file sha256 does not match content.", normalized.path));
+      for (const auto& other : collision.paths) {
+        if (other != path) {
+          others += (others.empty() ? "" : ", ") + other;
         }
       }
 
-      const auto parsed = parse_frontmatter(content, normalized.path);
-      result.issues.insert(result.issues.end(), parsed.issues.begin(), parsed.issues.end());
-      result.warnings.insert(result.warnings.end(), parsed.warnings.begin(), parsed.warnings.end());
-
-      if (normalized_paths.contains(normalized.path)) {
-        result.issues.push_back(issue("duplicate_path", "Manifest contains duplicate normalized paths.", normalized.path));
+      std::string routes;
+      for (const auto& route : collision.routes) {
+        routes += (routes.empty() ? "" : ", ") + route;
       }
-      normalized_paths.insert(normalized.path);
 
-      result.files.push_back({
-        .content = parsed.content,
-        .frontmatter = parsed.frontmatter,
-        .path = normalized.path,
-        .route = derive_route_from_source_path(normalized.path, route_base, parsed.frontmatter.slug),
-        .sha256 = computed_hash,
-        .title = resolve_title(parsed, normalized.path),
-      });
+      auto finding = exact
+        ? issue("route_collision", "Route \"" + collision.route + "\" is also derived by " + others + ".", path)
+        : issue("route_case_collision", "Routes " + routes + " differ only in letter case (" + others + ").", path);
+
+      if (exact && !as_warnings) {
+        validation.issues.push_back(std::move(finding));
+        validation.ok = false;
+      } else {
+        validation.warnings.push_back(std::move(finding));
+      }
     }
   }
-
-  if (manifest.contains("assets") && manifest["assets"].is_array()) {
-    static const std::set<std::string> asset_kinds = {"llms", "llms-full", "skill", "static"};
-
-    for (const auto& asset : manifest["assets"]) {
-      if (
-        !asset.is_object() ||
-        !asset.contains("path") || !asset["path"].is_string() ||
-        !asset.contains("content") || !asset["content"].is_string() ||
-        !asset.contains("contentType") || !asset["contentType"].is_string() || trim(asset["contentType"].get<std::string>()).empty() ||
-        !asset.contains("kind") || !asset["kind"].is_string()
-      ) {
-        std::optional<std::string> bad_path;
-        if (asset.is_object() && asset.contains("path") && asset["path"].is_string()) {
-          bad_path = asset["path"].get<std::string>();
-        }
-        result.issues.push_back(issue("invalid_asset", "Manifest asset entries require string path, content, contentType, and kind.", bad_path));
-        continue;
-      }
-
-      const auto path = asset["path"].get<std::string>();
-      const auto content = asset["content"].get<std::string>();
-      const auto content_type = trim(asset["contentType"].get<std::string>());
-      const auto kind = asset["kind"].get<std::string>();
-      const auto route = asset.contains("route") && asset["route"].is_string() && !trim(asset["route"].get<std::string>()).empty()
-        ? std::optional<std::string>{asset["route"].get<std::string>()}
-        : std::optional<std::string>{};
-
-      if (!asset_kinds.contains(kind)) {
-        result.issues.push_back(issue("invalid_asset", "Manifest asset kind must be llms, llms-full, skill, or static.", path));
-        continue;
-      }
-
-      const auto normalized = normalize_asset_path(path);
-
-      if (!normalized.ok) {
-        result.issues.push_back(issue(normalized.code, normalized.message, path));
-        continue;
-      }
-
-      total_bytes += content.size();
-
-      if (content.size() > max_file_bytes) {
-        result.issues.push_back(issue("asset_too_large", "Asset exceeds maximum size of " + std::to_string(max_file_bytes) + " bytes.", normalized.path));
-      }
-
-      const auto computed_hash = sha256_hex(content);
-
-      if (asset.contains("sha256")) {
-        const auto valid_hash = asset["sha256"].is_string() && asset["sha256"].get<std::string>().size() == 64;
-        auto hash_value = valid_hash ? asset["sha256"].get<std::string>() : std::string{};
-        std::ranges::transform(hash_value, hash_value.begin(), [](const auto ch) {
-          return static_cast<char>(std::tolower(static_cast<unsigned char>(ch)));
-        });
-
-        if (!valid_hash || !std::ranges::all_of(hash_value, [](const auto ch) {
-          return std::isxdigit(static_cast<unsigned char>(ch));
-        }) || hash_value != computed_hash) {
-          result.issues.push_back(issue("invalid_hash", "Manifest asset sha256 does not match content.", normalized.path));
-        }
-      }
-
-      if (normalized_asset_paths.contains(normalized.path)) {
-        result.issues.push_back(issue("duplicate_asset_path", "Manifest contains duplicate normalized asset paths.", normalized.path));
-      }
-      normalized_asset_paths.insert(normalized.path);
-
-      result.assets.push_back({
-        .content = content,
-        .content_type = content_type,
-        .kind = kind,
-        .path = normalized.path,
-        .route = derive_asset_route_from_source_path(kind, route, route_base, result.source_id, normalized.path),
-        .sha256 = computed_hash,
-      });
-    }
-  }
-
-  if (total_bytes > max_total_bytes) {
-    result.issues.push_back(issue("manifest_too_large", "Manifest content exceeds maximum total size of " + std::to_string(max_total_bytes) + " bytes."));
-  }
-
-  result.ok = result.issues.empty() && !result.source_id.empty();
-  return result;
 }
 
 json validated_file_to_json(const ValidatedFile& file) {
   return {
     {"content", file.content},
-    {"frontmatter", frontmatter_to_json(file.frontmatter)},
+    {"frontmatter", contract::frontmatter_to_json(file.frontmatter)},
     {"path", file.path},
     {"route", file.route},
     {"sha256", file.sha256},
@@ -2608,6 +2040,52 @@ std::vector<ExistingRecord> load_existing_records(const std::filesystem::path& p
   return records;
 }
 
+std::vector<ExistingAssetRecord> load_existing_asset_records(const std::filesystem::path& path) {
+  json parsed;
+  try {
+    parsed = json::parse(read_file(path));
+  } catch (const std::exception& error) {
+    throw std::runtime_error{"Could not read --existing-assets file: " + std::string{error.what()}};
+  }
+
+  const auto invalid = std::runtime_error{
+    "--existing-assets must point to a JSON array of existing asset records with string sourcePath, contentType, and kind."
+  };
+
+  if (!parsed.is_array()) {
+    throw invalid;
+  }
+
+  std::vector<ExistingAssetRecord> records;
+
+  for (const auto& item : parsed) {
+    if (!item.is_object() || !item.contains("sourcePath") || !item["sourcePath"].is_string()
+        || !item.contains("contentType") || !item["contentType"].is_string() || !item.contains("kind") || !item["kind"].is_string()) {
+      throw invalid;
+    }
+
+    ExistingAssetRecord record = {
+      .content_type = item["contentType"].get<std::string>(),
+      .kind = item["kind"].get<std::string>(),
+      .source_path = item["sourcePath"].get<std::string>(),
+    };
+
+    if (item.contains("archived") && item["archived"].is_boolean()) {
+      record.archived = item["archived"].get<bool>();
+    }
+    if (item.contains("route") && item["route"].is_string()) {
+      record.route = item["route"].get<std::string>();
+    }
+    if (item.contains("sourceHash") && item["sourceHash"].is_string()) {
+      record.source_hash = item["sourceHash"].get<std::string>();
+    }
+
+    records.push_back(record);
+  }
+
+  return records;
+}
+
 Plan plan_docs_sync(const ValidationResult& desired, const std::vector<ExistingRecord>& existing, const std::optional<std::string>& delete_behavior_override) {
   Plan plan;
   const auto effective_delete_behavior = delete_behavior_override.value_or(desired.delete_behavior);
@@ -2673,6 +2151,10 @@ Plan plan_docs_sync(const ValidationResult& desired, const std::vector<ExistingR
     }
 
     const auto current = existing_by_source_path.at(source_path);
+    // Already-archived records stay archived (DOCS-10); only hard delete applies to them.
+    if (current.archived.value_or(false) && effective_delete_behavior != "delete") {
+      continue;
+    }
     PlannedChange change = {
       .current = current,
       .reason = "Existing doc is missing from desired manifest.",
@@ -2760,6 +2242,10 @@ AssetPlan plan_docs_assets_sync(const ValidationResult& desired, const std::vect
     }
 
     const auto current = existing_by_source_path.at(source_path);
+    // Already-archived records stay archived (DOCS-10); only hard delete applies to them.
+    if (current.archived.value_or(false) && effective_delete_behavior != "delete") {
+      continue;
+    }
     PlannedAssetChange change = {
       .current = current,
       .reason = "Existing asset is missing from desired manifest.",
@@ -2893,9 +2379,17 @@ json asset_plan_to_json(const AssetPlan& plan) {
   };
 }
 
-std::string format_plan_summary(const Plan& plan, const AssetPlan& asset_plan, const PublishPackageSummary& summary) {
+std::string format_plan_summary(
+  const Plan& plan,
+  const AssetPlan& asset_plan,
+  const PublishPackageSummary& summary,
+  const std::string& route_base,
+  bool publish
+) {
   std::ostringstream out;
   out << "pmdocs plan\n\n";
+  out << "Route base: " << route_base << "\n";
+  out << "Publish: " << (publish ? "yes" : "no") << "\n";
   out << "Docs: " << summary.docs << "\n";
   out << "Assets: " << summary.assets << "\n";
   out << "Skills: " << summary.skills << "\n";
@@ -2931,7 +2425,12 @@ CommandResult validate_or_manifest(const DocsCommandOptions& options, bool print
     const auto source_id = source_id_for(options);
     const auto package = collect_publish_package(options, source_id);
     const auto manifest = build_manifest(package, source_id, options);
-    auto validation = validate_manifest(manifest, options, "/" + source_id);
+    auto validation = validate_manifest(manifest, options, source_id);
+    merge_package_findings(validation, package);
+    add_route_collision_findings(validation, false);
+    // Longest push shape: mode "dry-run", deleteBehavior "archive", publish false.
+    const auto push_body_bytes = build_manifest(package, source_id, options, "archive", "dry-run", false).dump().size();
+    check_body_size(validation, push_body_bytes, options, false);
 
     if (print_manifest) {
       if (!validation.ok) {
@@ -2944,6 +2443,7 @@ CommandResult validate_or_manifest(const DocsCommandOptions& options, bool print
       return {
         .exit_code = 0,
         .stdout_text = json_string(manifest, options.pretty),
+        .stderr_text = format_warnings_block(validation.warnings),
       };
     }
 
@@ -2951,6 +2451,7 @@ CommandResult validate_or_manifest(const DocsCommandOptions& options, bool print
       json output = {
         {"fileCount", package.files.size()},
         {"package", package_summary_to_json(package.summary)},
+        {"requestBodyBytes", push_body_bytes},
         {"root", effective_docs_root(options).string()},
         {"sourceId", source_id},
         {"validation", validation_to_json(validation)},
@@ -3074,6 +2575,10 @@ std::string sha256_hex(std::string_view input) {
   return out.str();
 }
 
+std::string endpoint_path(const std::string& endpoint) {
+  return get_endpoint_path(endpoint);
+}
+
 std::string build_canonical_signing_string(
   const std::string& body_sha256,
   const std::string& method,
@@ -3168,13 +2673,14 @@ CommandResult run_keygen_command(const KeygenOptions& options) {
       };
     }
 
-    const auto out_dir = std::filesystem::absolute(*options.out_dir).lexically_normal();
+    const auto out_dir = normalized_directory(*options.out_dir);
     const auto public_key_path = out_dir / "docs-sync-public.pem";
     const auto private_key_path = out_dir / "docs-sync-private.pem";
     std::error_code error;
-    const auto public_exists = std::filesystem::exists(public_key_path, error);
+    const auto public_exists = std::filesystem::exists(std::filesystem::symlink_status(public_key_path, error));
     error.clear();
-    const auto private_exists = std::filesystem::exists(private_key_path, error);
+    const auto private_exists = std::filesystem::exists(std::filesystem::symlink_status(private_key_path, error));
+    error.clear();
 
     if (!options.force && (public_exists || private_exists)) {
       return {
@@ -3183,20 +2689,25 @@ CommandResult run_keygen_command(const KeygenOptions& options) {
       };
     }
 
-    std::filesystem::create_directories(out_dir, error);
-    if (error) {
-      return {
-        .exit_code = 1,
-        .stderr_text = "Could not create output directory: " + error.message() + "\n",
-      };
+    if (!std::filesystem::exists(out_dir, error)) {
+      error.clear();
+      std::filesystem::create_directories(out_dir.parent_path(), error);
+
+      // The key directory itself is created owner-only.
+      if (error || (::mkdir(out_dir.c_str(), 0700) != 0 && errno != EEXIST)) {
+        return {
+          .exit_code = 1,
+          .stderr_text = "Could not create output directory: " + (error ? error.message() : std::string{std::strerror(errno)}) + "\n",
+        };
+      }
     }
 
     write_file(public_key_path, trim(keys.public_key) + "\n");
-    write_file(private_key_path, trim(keys.private_key) + "\n");
+    write_private_file(private_key_path, trim(keys.private_key) + "\n");
 
     return {
       .exit_code = 0,
-      .stdout_text = "Wrote public key: " + public_key_path.string() + "\nWrote private key: " + private_key_path.string() + "\n",
+      .stdout_text = "Wrote public key: " + public_key_path.string() + "\nWrote private key: " + private_key_path.string() + " (mode 0600)\n",
     };
   } catch (const std::exception& error) {
     return {
@@ -3225,8 +2736,11 @@ CommandResult run_plan_command(const PlanCommandOptions& options) {
 
     const auto source_id = source_id_for(options);
     const auto package = collect_publish_package(options, source_id);
-    const auto manifest = build_manifest(package, source_id, options, options.delete_behavior);
-    auto validation = validate_manifest(manifest, options, "/" + source_id);
+    const auto manifest = build_manifest(package, source_id, options, options.delete_behavior, std::nullopt, options.publish);
+    auto validation = validate_manifest(manifest, options, source_id);
+    merge_package_findings(validation, package);
+    add_route_collision_findings(validation, false);
+    check_body_size(validation, build_manifest(package, source_id, options, "archive", "dry-run", false).dump().size(), options, false);
 
     if (!validation.ok) {
       return {
@@ -3240,8 +2754,14 @@ CommandResult run_plan_command(const PlanCommandOptions& options) {
       existing = load_existing_records(*options.existing_path);
     }
 
+    std::vector<ExistingAssetRecord> existing_assets;
+    if (options.existing_assets_path) {
+      existing_assets = load_existing_asset_records(*options.existing_assets_path);
+    }
+
     auto plan = plan_docs_sync(validation, existing, options.delete_behavior);
-    auto asset_plan = plan_docs_assets_sync(validation, {}, options.delete_behavior);
+    auto asset_plan = plan_docs_assets_sync(validation, existing_assets, options.delete_behavior);
+    const auto route_base = route_base_for(options, source_id);
 
     if (options.print_json) {
       return {
@@ -3250,13 +2770,17 @@ CommandResult run_plan_command(const PlanCommandOptions& options) {
           {"assets", asset_plan_to_json(asset_plan)},
           {"docs", plan_to_json(plan)},
           {"package", package_summary_to_json(package.summary)},
+          {"publish", options.publish},
+          {"routeBase", route_base},
         }, options.pretty),
+        .stderr_text = format_warnings_block(validation.warnings),
       };
     }
 
     return {
       .exit_code = 0,
-      .stdout_text = format_plan_summary(plan, asset_plan, package.summary),
+      .stdout_text = format_plan_summary(plan, asset_plan, package.summary, route_base, options.publish),
+      .stderr_text = format_warnings_block(validation.warnings),
     };
   } catch (const std::exception& error) {
     return {
@@ -3267,6 +2791,9 @@ CommandResult run_plan_command(const PlanCommandOptions& options) {
 }
 
 CommandResult run_push_command(const PushCommandOptions& options) {
+  // Warnings for stderr; kept outside the try so late failures still show them.
+  std::string notices;
+
   try {
     if (options.endpoint.empty()) {
       return {
@@ -3276,6 +2803,13 @@ CommandResult run_push_command(const PushCommandOptions& options) {
     }
 
     const auto endpoint = validate_endpoint_url(options.endpoint);
+
+    if (const auto error = insecure_endpoint_error(endpoint, options.allow_insecure_http)) {
+      return {
+        .exit_code = 1,
+        .stderr_text = *error,
+      };
+    }
 
     if (options.delete_behavior && !is_valid_delete_behavior(*options.delete_behavior)) {
       return {
@@ -3333,7 +2867,11 @@ CommandResult run_push_command(const PushCommandOptions& options) {
       mode,
       options.publish
     );
-    auto validation = validate_manifest(manifest, options, "/" + source_id);
+    auto validation = validate_manifest(manifest, options, source_id);
+    merge_package_findings(validation, package);
+    add_route_collision_findings(validation, true);
+    const auto body = manifest.dump();
+    check_body_size(validation, body.size(), options, true);
 
     if (!validation.ok) {
       return {
@@ -3342,7 +2880,7 @@ CommandResult run_push_command(const PushCommandOptions& options) {
       };
     }
 
-    std::string route_warning;
+    notices += format_warnings_block(validation.warnings);
     if (!package.assets.empty() && !has_public_asset_routes()) {
       if (options.strict_routes) {
         return {
@@ -3351,10 +2889,9 @@ CommandResult run_push_command(const PushCommandOptions& options) {
         };
       }
 
-      route_warning = kMissingAssetRoutesWarning;
+      notices += kMissingAssetRoutesWarning;
     }
 
-    const auto body = manifest.dump();
     SignedDocsRequest request;
 
     if (options.github_oidc) {
@@ -3380,11 +2917,12 @@ CommandResult run_push_command(const PushCommandOptions& options) {
         private_key = value;
       } else {
         try {
+          notices += private_key_permission_warning(*options.private_key_file);
           private_key = read_file(*options.private_key_file);
         } catch (const std::exception& error) {
           return {
             .exit_code = 1,
-            .stderr_text = std::string{"Could not read private key file: "} + error.what() + "\n",
+            .stderr_text = notices + "Could not read private key file: " + error.what() + "\n",
           };
         }
       }
@@ -3404,7 +2942,7 @@ CommandResult run_push_command(const PushCommandOptions& options) {
       && response.body.contains("ok") && response.body["ok"].is_boolean() && response.body["ok"].get<bool>();
 
     if (options.print_json) {
-      const json output = {
+      json output = {
         {"endpoint", endpoint},
         {"mode", mode},
         {"package", package_summary_to_json(package.summary)},
@@ -3413,17 +2951,22 @@ CommandResult run_push_command(const PushCommandOptions& options) {
         {"status", response.status},
       };
 
+      if (!response_ok) {
+        // Normalized failure details; arrays are empty when the server sent none.
+        output["failure"] = failure_details_to_json(response);
+      }
+
       return {
         .exit_code = response_ok ? 0 : 1,
         .stdout_text = json_string(output, options.pretty),
-        .stderr_text = route_warning,
+        .stderr_text = notices,
       };
     }
 
     if (!response_ok) {
       return {
         .exit_code = 1,
-        .stderr_text = route_warning + format_server_failure(response),
+        .stderr_text = notices + format_server_failure(response),
       };
     }
 
@@ -3472,12 +3015,12 @@ CommandResult run_push_command(const PushCommandOptions& options) {
     return {
       .exit_code = 0,
       .stdout_text = out.str(),
-      .stderr_text = route_warning,
+      .stderr_text = notices,
     };
   } catch (const std::exception& error) {
     return {
       .exit_code = 1,
-      .stderr_text = std::string{error.what()} + "\n",
+      .stderr_text = notices + std::string{error.what()} + "\n",
     };
   }
 }

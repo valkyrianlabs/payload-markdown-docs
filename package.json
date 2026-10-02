@@ -1,6 +1,6 @@
 {
   "name": "@valkyrianlabs/payload-markdown-docs",
-  "version": "1.0.5",
+  "version": "1.1.0",
   "description": "Git-backed Markdown documentation sync for Payload CMS, powered by payload-markdown.",
   "repository": {
     "type": "git",
@@ -40,6 +40,11 @@
       "types": "./dist/next/index.d.ts",
       "import": "./dist/next/index.js",
       "default": "./dist/next/index.js"
+    },
+    "./migrations": {
+      "types": "./dist/migrations/index.d.ts",
+      "import": "./dist/migrations/index.js",
+      "default": "./dist/migrations/index.js"
     }
   },
   "main": "./dist/index.js",
@@ -73,43 +78,50 @@
     "test:int": "vitest"
   },
   "devDependencies": {
-    "@eslint/eslintrc": "^3.3.5",
+    "@eslint/eslintrc": "^3.3.7",
     "@payloadcms/db-postgres": "latest",
     "@payloadcms/db-sqlite": "latest",
     "@payloadcms/eslint-config": "latest",
     "@payloadcms/next": "latest",
+    "@payloadcms/plugin-seo": "latest",
     "@payloadcms/richtext-lexical": "latest",
     "@payloadcms/ui": "latest",
     "@playwright/test": "1.58.2",
     "@swc/cli": "0.6.0",
-    "@tailwindcss/postcss": "^4.3.1",
+    "@tailwindcss/postcss": "^4.3.3",
     "@tailwindcss/typography": "^0.5.20",
     "@types/node": "22.19.9",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
+    "@valkyrianlabs/payload-markdown": "^1.6.0",
     "copyfiles": "2.4.1",
     "cross-env": "^7.0.3",
-    "eslint": "^9.39.4",
+    "eslint": "^9.39.5",
     "eslint-config-next": "latest",
     "graphql": "^16.14.2",
     "mongodb-memory-server": "10.1.4",
     "next": "latest",
     "payload": "latest",
-    "postcss": "^8.5.15",
-    "prettier": "^3.8.4",
+    "postcss": "^8.5.28",
+    "prettier": "^3.9.9",
     "qs-esm": "8.0.1",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "rimraf": "3.0.2",
     "sharp": "0.34.2",
     "sort-package-json": "^2.15.1",
-    "tailwindcss": "^4.3.1",
+    "tailwindcss": "^4.3.3",
     "typescript": "5.7.3",
     "vite-tsconfig-paths": "6.0.5",
     "vitest": "4.0.18"
   },
   "peerDependencies": {
-    "payload": ">=3.0.0"
+    "@payloadcms/plugin-seo": "^3.0.0",
+    "@valkyrianlabs/payload-markdown": "^1.6.0",
+    "next": "^15.2.0 || ^16.0.0",
+    "payload": "^3.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
   },
   "engines": {
     "node": "^18.20.2 || >=20.9.0",
@@ -129,8 +141,6 @@
   },
   "registry": "https://registry.npmjs.org/",
   "dependencies": {
-    "@payloadcms/plugin-seo": "latest",
-    "@valkyrianlabs/payload-markdown": "latest",
     "fflate": "^0.8.3"
   },
   "packageManager": "pnpm@10.33.0"

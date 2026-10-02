@@ -17,6 +17,7 @@ import {
   getCanonicalPathFromRequestUrl,
   toBase64Url,
 } from '../security/index.js'
+import { resetGitHubOidcKeyCaches } from '../security/jwks.js'
 import { buildDocsManifest, sha256Hex } from '../sync/index.js'
 import { createSyncEndpoint } from './index.js'
 
@@ -61,6 +62,8 @@ type MockPayload = {
 let currentPublicKey = ''
 
 beforeEach(() => {
+  // OIDC discovery and JWKS are cached per process; each test brings its own issuer keys.
+  resetGitHubOidcKeyCaches()
   cacheMocks.revalidatePath.mockClear()
   cacheMocks.revalidateTag.mockClear()
   cacheMocks.unstableCache.mockClear()
@@ -153,10 +156,14 @@ const createMockPayload = ({
   pages?: unknown[]
   replayNonce?: boolean
 } = {}): MockPayload => ({
+  // Mirrors the nonces collection's unique (keyId, nonce) index: a replayed nonce
+  // fails to insert, and the existing unexpired row is then found.
   create: vi.fn(({ collection }) =>
-    Promise.resolve({
-      id: `${collection}-id`,
-    }),
+    replayNonce && collection === 'docs-sync-nonces'
+      ? Promise.reject(new Error('duplicate key value violates unique constraint'))
+      : Promise.resolve({
+          id: `${collection}-id`,
+        }),
   ),
   delete: vi.fn(({ id }) =>
     Promise.resolve({
@@ -168,7 +175,7 @@ const createMockPayload = ({
 
     if (collection === 'docs-sync-nonces') {
       return Promise.resolve({
-        docs: replayNonce ? [{ id: 'nonce-id' }] : [],
+        docs: replayNonce ? [{ id: 'nonce-id', expiresAt: '2999-01-01T00:00:00.000Z' }] : [],
       })
     }
 
@@ -816,7 +823,43 @@ describe('sync endpoint dry-run handling', () => {
     expect(response.status).toBe(400)
     expect(json.error).toMatchObject({
       code: 'invalid_manifest',
+      // Validation issues are returned so the CLI can print them (CLI-6, DOCS-17).
+      issues: [expect.objectContaining({ code: 'empty_manifest', severity: 'error' })],
     })
+  })
+
+  it('names the manifest files behind duplicate routes', async () => {
+    const { privateKey, publicKey } = keyPair()
+    const body = JSON.stringify(
+      buildDocsManifest({
+        files: [
+          { content: '# Sub\n', path: 'sub.md' },
+          { content: '# Sub index\n', path: 'sub/index.md' },
+        ],
+        sourceId: 'main-docs',
+      }),
+    )
+    const { json, response } = await callEndpoint({
+      body,
+      headers: signBody({ body, privateKey }),
+      publicKey: publicKey.toString(),
+    })
+
+    expect(response.status).toBe(409)
+    expect(json.error).toMatchObject({
+      code: 'route_collision',
+      issues: [
+        expect.objectContaining({
+          code: 'exact_route_collision',
+          message: expect.stringContaining('sub.md, sub/index.md'),
+          severity: 'error',
+        }),
+      ],
+      message: 'Two or more manifest files resolve to the same route.',
+    })
+    expect(json.routeCollisions).toEqual([
+      expect.objectContaining({ paths: ['sub.md', 'sub/index.md'], reason: 'exact_route_collision' }),
+    ])
   })
 
   it('rejects unknown sources when no docs set or configured source matches', async () => {
@@ -861,8 +904,9 @@ describe('sync endpoint dry-run handling', () => {
     expect(response.status).toBe(500)
     expect(json.error).toMatchObject({
       code: 'sync_endpoint_failed',
-      message: 'Sync endpoint failed: database unavailable',
     })
+    // Raw database messages are logged server-side, never echoed to the client.
+    expect(json.error.message).not.toContain('database unavailable')
   })
 
   it('does not require docs asset storage for docs-only manifests', async () => {
@@ -884,13 +928,80 @@ describe('sync endpoint dry-run handling', () => {
       publicKey: publicKey.toString(),
     })
 
+    // Existing assets are still looked up (so `assets: []` can archive them, DOCS-9),
+    // but a missing assets table does not fail a docs-only manifest.
     expect(response.status).toBe(200)
     expect(json).toMatchObject({
       ok: true,
     })
-    expect(payload.find).not.toHaveBeenCalledWith(
+  })
+
+  it('archives every existing asset when the manifest drops all assets', async () => {
+    const { privateKey, publicKey } = keyPair()
+    const body = JSON.stringify(createManifest({ assets: [], mode: 'sync', publish: true }))
+    const payload = createMockPayload({
+      existingAssets: [
+        {
+          id: 'asset-1',
+          content: '# Skill\n',
+          contentType: 'text/markdown; charset=utf-8',
+          kind: 'skill',
+          route: '/main-docs/skills/codex/SKILL.md',
+          sourcePath: 'skills/main-docs/codex/SKILL.md',
+          sync: {
+            archived: false,
+            contentHashAtLastSync: sha256Hex('# Skill\n'),
+            managedBy: MANAGED_BY,
+            sourceId: 'main-docs',
+          },
+        },
+        {
+          id: 'asset-2',
+          content: '# Old\n',
+          contentType: 'text/markdown; charset=utf-8',
+          kind: 'skill',
+          route: '/main-docs/skills/codex/old.md',
+          sourcePath: 'skills/main-docs/codex/old.md',
+          sync: {
+            archived: true,
+            contentHashAtLastSync: sha256Hex('# Old\n'),
+            managedBy: MANAGED_BY,
+            sourceId: 'main-docs',
+          },
+        },
+      ],
+    })
+
+    const { json, response } = await callEndpoint({
+      body,
+      endpointOptions: {
+        allowPublish: true,
+        allowWrites: true,
+        docsEnableDrafts: true,
+      },
+      headers: signBody({
+        body,
+        privateKey,
+      }),
+      payload,
+      publicKey: publicKey.toString(),
+    })
+
+    expect(response.status).toBe(200)
+    // Only the live asset is archived; the already-archived one is left alone (DOCS-10).
+    expect(json.summary).toMatchObject({ assetArchive: 1 })
+    expect(payload.update).toHaveBeenCalledWith(
       expect.objectContaining({
+        id: 'asset-1',
         collection: DEFAULT_DOCS_ASSETS_COLLECTION_SLUG,
+        data: expect.objectContaining({
+          sync: expect.objectContaining({ archived: true }),
+        }),
+      }),
+    )
+    expect(payload.update).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'asset-2',
       }),
     )
   })
@@ -919,9 +1030,10 @@ describe('sync endpoint dry-run handling', () => {
       }),
     )
     const payload = createMockPayload({
-      assetsFindError: new Error(
-        'Failed query: select count(*) from "payload_markdown_docs_assets"',
-      ),
+      // Shape of a real drizzle error for a missing table: the driver error is the cause.
+      assetsFindError: new Error('Failed query: select count(*) from "payload_markdown_docs_assets"', {
+        cause: new Error('relation "payload_markdown_docs_assets" does not exist'),
+      }),
     })
 
     const { json, response } = await callEndpoint({
@@ -1234,36 +1346,280 @@ describe('sync endpoint dry-run handling', () => {
     })
   })
 
-  it('rejects unknown docs set sources before auth when no fallback source is configured', async () => {
+  it('rejects tag refs when the docs set disables them', async () => {
+    const tokenFixture = createOidcTokenFixture({
+      ref: 'refs/tags/anything',
+      repository: 'valkyrianlabs/unrelated-repo',
+      sub: 'repo:valkyrianlabs/unrelated-repo:ref:refs/tags/anything',
+    })
+    const payload = createMockPayload({
+      docsSets: [{ id: 'docs-set-1', slug: 'main-docs', allowTagRefs: false, branch: 'main' }],
+    })
+    const { json, response } = await callOidcEndpoint({ payload, tokenFixture })
+
+    expect(response.status).toBe(401)
+    expect(json.error).toMatchObject({ code: 'oidc_ref_not_allowed' })
+  })
+
+  it('binds GitHub OIDC publishing to the docs set repositories when listed', async () => {
+    const tokenFixture = createOidcTokenFixture({
+      repository: 'valkyrianlabs/unrelated-repo',
+      sub: 'repo:valkyrianlabs/unrelated-repo:ref:refs/heads/main',
+    })
+    const payload = createMockPayload({
+      docsSets: [
+        {
+          id: 'docs-set-1',
+          slug: 'main-docs',
+          branch: 'main',
+          repositories: [{ value: 'payload-markdown-docs' }],
+        },
+      ],
+    })
+    const { json, response } = await callOidcEndpoint({ payload, tokenFixture })
+
+    expect(response.status).toBe(401)
+    expect(json.error).toMatchObject({ code: 'oidc_repository_not_allowed' })
+
+    const allowed = await callOidcEndpoint({
+      payload: createMockPayload({
+        docsSets: [
+          {
+            id: 'docs-set-1',
+            slug: 'main-docs',
+            branch: 'main',
+            repositories: [{ value: 'valkyrianlabs/payload-markdown-docs' }],
+          },
+        ],
+      }),
+    })
+
+    expect(allowed.response.status).toBe(200)
+  })
+
+  it('rejects OIDC Access records scoped to other docs sets', async () => {
+    const { json, response } = await callOidcEndpoint({
+      payload: createMockPayload({
+        docsAccess: [
+          {
+            id: 'access-github-id',
+            accessType: 'githubOidc',
+            docsSets: ['some-other-set'],
+            identityKey: 'githubOidc:valkyrianlabs',
+            limitRepos: false,
+            owner: 'valkyrianlabs',
+          },
+        ],
+      }),
+    })
+
+    expect(response.status).toBe(403)
+    expect(json.error).toMatchObject({ code: 'oidc_repository_not_allowed' })
+  })
+
+  it('limits Ed25519 keys to their allowed docs sets', async () => {
+    const { privateKey, publicKey } = keyPair()
+    const body = JSON.stringify(createManifest())
+    const accessFor = (docsSets: unknown[]) => [
+      {
+        id: 'access-key-id',
+        accessType: 'ed25519',
+        docsSets,
+        identityKey: 'ed25519:test-key',
+        keyId: 'test-key',
+        publicKey: publicKey.toString(),
+      },
+    ]
+
+    const denied = await callEndpoint({
+      body,
+      headers: signBody({ body, nonce: 'scope-1', privateKey }),
+      payload: createMockPayload({ docsAccess: accessFor([{ id: 'other-set' }]) }),
+      publicKey: publicKey.toString(),
+    })
+
+    expect(denied.response.status).toBe(403)
+    expect(denied.json.error).toMatchObject({ code: 'source_not_allowed' })
+
+    const allowed = await callEndpoint({
+      body,
+      headers: signBody({ body, nonce: 'scope-2', privateKey }),
+      payload: createMockPayload({ docsAccess: accessFor(['docs-set-id']) }),
+      publicKey: publicKey.toString(),
+    })
+
+    expect(allowed.response.status).toBe(200)
+  })
+
+  it('rejects asset content types that could execute on the site origin', async () => {
+    const { privateKey, publicKey } = keyPair()
+    const body = JSON.stringify(
+      createManifest({
+        assets: [
+          {
+            content: '<script>alert(1)</script>',
+            contentType: 'text/html',
+            kind: 'skill',
+            path: 'skills/main-docs/codex/x.html',
+          },
+        ],
+      }),
+    )
+    const payload = createMockPayload()
+    const { json, response } = await callEndpoint({
+      body,
+      headers: signBody({ body, privateKey }),
+      payload,
+      publicKey: publicKey.toString(),
+    })
+
+    expect(response.status).toBe(400)
+    expect(json.error).toMatchObject({
+      code: 'invalid_manifest',
+      issues: [
+        expect.objectContaining({
+          code: 'invalid_asset',
+          path: 'skills/main-docs/codex/x.html',
+          severity: 'error',
+        }),
+      ],
+    })
+  })
+
+  it('defers asset writes in non-publish syncs when drafts are enabled', async () => {
+    const { privateKey, publicKey } = keyPair()
+    const body = JSON.stringify(
+      createManifest({
+        assets: [
+          {
+            content: '# Skill\n',
+            contentType: 'text/markdown; charset=utf-8',
+            kind: 'skill',
+            path: 'skills/main-docs/codex/SKILL.md',
+          },
+        ],
+        mode: 'sync',
+        publish: false,
+      }),
+    )
+    const payload = createMockPayload()
+    const { json, response } = await callEndpoint({
+      body,
+      endpointOptions: { allowPublish: true, allowWrites: true, docsEnableDrafts: true },
+      headers: signBody({ body, privateKey }),
+      payload,
+      publicKey: publicKey.toString(),
+    })
+
+    expect(response.status).toBe(200)
+    expect(json.summary).toMatchObject({ assetCreate: 0 })
+    expect(json.warnings).toContainEqual(
+      expect.objectContaining({ code: 'assets_deferred_until_publish' }),
+    )
+    expect(payload.create).not.toHaveBeenCalledWith(
+      expect.objectContaining({ collection: DEFAULT_DOCS_ASSETS_COLLECTION_SLUG }),
+    )
+  })
+
+  it('does not reveal whether a docs set exists before authentication', async () => {
     const endpoint = createCmsManagedEndpointForTests({
       auth: {
         ed25519: true,
       },
     })
-    const body = JSON.stringify(
-      createManifest({
-        source: {
-          id: 'unknown-docs',
-        },
-      }),
-    )
-    const response = await endpoint.handler(
-      createRequest({
-        body,
-        payload: createMockPayload(),
-      }),
-    )
-    const json = (await response.json()) as Record<string, unknown>
 
-    expect(response.status).toBe(400)
-    expect(json).toMatchObject({
-      error: {
-        code: 'source_not_allowed',
-        message:
-          'No docs set exists for source "unknown-docs". Create a docs set with slug "unknown-docs" in Payload Admin before syncing this source.',
+    for (const id of ['unknown-docs', 'main-docs']) {
+      const payload = createMockPayload()
+      const body = JSON.stringify(createManifest({ source: { id } }))
+      const response = await endpoint.handler(createRequest({ body, payload }))
+      const json = (await response.json()) as { error: { code: string } }
+
+      expect(response.status).toBe(401)
+      expect(json.error.code).toBe('missing_header')
+      // No docs-set lookup happens for unauthenticated requests (DOCS-15).
+      expect(payload.find).not.toHaveBeenCalledWith(
+        expect.objectContaining({ collection: DEFAULT_DOCS_SETS_COLLECTION_SLUG }),
+      )
+    }
+  })
+
+  it('rejects non-slug source ids before any database access', async () => {
+    const endpoint = createCmsManagedEndpointForTests({
+      auth: {
+        ed25519: true,
       },
-      ok: false,
     })
+
+    for (const id of [{ like: '%' }, ['a', 'b'], 12345, 'x'.repeat(300), '../etc']) {
+      const payload = createMockPayload()
+      const body = JSON.stringify(createManifest({ source: { id } }))
+      const response = await endpoint.handler(createRequest({ body, payload }))
+      const json = (await response.json()) as { error: { code: string; message: string } }
+
+      expect(response.status).toBe(400)
+      expect(json.error.code).toBe('source_not_allowed')
+      expect(json.error.message.length).toBeLessThan(200)
+      expect(payload.find).not.toHaveBeenCalled()
+    }
+  })
+
+  it('rejects oversized bodies from Content-Length without reading them', async () => {
+    const { privateKey, publicKey } = keyPair()
+    const body = JSON.stringify(createManifest())
+    const headers = signBody({ body, privateKey })
+    headers.set('content-length', String(10_000_000))
+    const payload = createMockPayload()
+    const endpoint = createEndpointForTests({ publicKey: publicKey.toString() })
+    const response = await endpoint.handler(createRequest({ body, headers, payload }))
+
+    expect(response.status).toBe(413)
+    expect(((await response.json()) as { error: unknown }).error).toMatchObject({
+      issues: [
+        expect.objectContaining({
+          code: 'body_too_large',
+          message: 'Body is 10000000 bytes; limit is 5000000 bytes.',
+        }),
+      ],
+    })
+    expect(payload.find).not.toHaveBeenCalled()
+  })
+
+  it('stores Ed25519 nonces until the signed timestamp leaves the skew window', async () => {
+    const { privateKey, publicKey } = keyPair()
+    const body = JSON.stringify(createManifest())
+    const payload = createMockPayload()
+    const { response } = await callEndpoint({
+      body,
+      headers: signBody({
+        body,
+        privateKey,
+        timestamp: new Date(now.getTime() + 299_000).toISOString(),
+      }),
+      payload,
+      publicKey: publicKey.toString(),
+    })
+
+    expect(response.status).toBe(200)
+    const nonceCreate = payload.create.mock.calls.find(
+      ([args]) => (args as { collection: string }).collection === 'docs-sync-nonces',
+    )?.[0] as { data: { expiresAt: string } }
+
+    // signed at now+299s, accepted until now+599s: the row must outlive that.
+    expect(Date.parse(nonceCreate.data.expiresAt)).toBeGreaterThan(now.getTime() + 599_000)
+  })
+
+  it('stores GitHub OIDC jti values until exp plus the allowed skew', async () => {
+    const tokenFixture = createOidcTokenFixture()
+    const { payload, response } = await callOidcEndpoint({ tokenFixture })
+
+    expect(response.status).toBe(200)
+    const nonceCreate = payload.create.mock.calls.find(
+      ([args]) => (args as { collection: string }).collection === 'docs-sync-nonces',
+    )?.[0] as { data: { expiresAt: string } }
+    const exp = Math.floor(now.getTime() / 1000) + 600
+
+    // Tokens stay acceptable until exp + 300s skew (DOCS-7).
+    expect(Date.parse(nonceCreate.data.expiresAt)).toBeGreaterThanOrEqual((exp + 300) * 1000)
   })
 
   it('rejects repeated GitHub OIDC jti values as replay', async () => {
@@ -1512,13 +1868,11 @@ describe('sync endpoint dry-run handling', () => {
         draft: true,
       }),
     )
-    expect(payload.update).toHaveBeenCalledWith(
+    // A non-publish sync only records bookkeeping on the docs set's main record; it
+    // never writes a docs-set version or changes its publish state (DOCS-11).
+    expect(payload.update).not.toHaveBeenCalledWith(
       expect.objectContaining({
         collection: DEFAULT_DOCS_SETS_COLLECTION_SLUG,
-        data: expect.objectContaining({
-          _status: 'draft',
-        }),
-        draft: true,
       }),
     )
   })
@@ -2436,11 +2790,13 @@ describe('sync endpoint dry-run handling', () => {
 
     expect(response.status).toBe(200)
     expect(json.summary).toMatchObject({ create: 1, delete: 1 })
-    expect(payload.delete).toHaveBeenCalledWith({
-      id: 'doc-1',
-      collection: 'docs',
-      overrideAccess: true,
-    })
+    expect(payload.delete).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'doc-1',
+        collection: 'docs',
+        overrideAccess: true,
+      }),
+    )
   })
 
   it('sets existing docs to draft when publish is not requested', async () => {
@@ -2529,7 +2885,10 @@ describe('sync endpoint dry-run handling', () => {
     })
 
     expect(response.status).toBe(409)
-    expect(json.error).toMatchObject({ code: 'manual_edit_conflict' })
+    expect(json.error).toMatchObject({
+      code: 'manual_edit_conflict',
+      issues: [expect.objectContaining({ path: expect.any(String), severity: 'error' })],
+    })
     expect(payload.create).not.toHaveBeenCalledWith(expect.objectContaining({ collection: 'docs' }))
     expect(payload.update).not.toHaveBeenCalledWith(expect.objectContaining({ collection: 'docs' }))
   })

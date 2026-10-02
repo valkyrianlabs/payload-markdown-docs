@@ -29,9 +29,10 @@ fast as the code they describe.
 Install the Payload plugin package in the Payload app:
 
 ```bash
-pnpm add @valkyrianlabs/payload-markdown-docs
+pnpm add @valkyrianlabs/payload-markdown-docs @valkyrianlabs/payload-markdown @payloadcms/plugin-seo
 ```
 
+The two companion packages are peer dependencies; see [Install](#install).
 The npm package is the Payload plugin/runtime integration only. It does not
 install a supported CLI. Install the native `pmdocs` binary separately for docs
 validation, planning, route installation, key generation, and publishing.
@@ -191,8 +192,38 @@ the output. Your site owns the final output.
 ## Install
 
 ```bash
-pnpm add @valkyrianlabs/payload-markdown-docs @valkyrianlabs/payload-markdown
+pnpm add @valkyrianlabs/payload-markdown-docs @valkyrianlabs/payload-markdown @payloadcms/plugin-seo
 ```
+
+`@valkyrianlabs/payload-markdown` (Markdown field and renderer) and
+`@payloadcms/plugin-seo` (docs-set SEO fields) are **peer dependencies**: the
+plugin registers admin components from both packages in your app's import map,
+so your app must install them directly. Installing them yourself also keeps a
+single copy of `payload-markdown`, so the `payloadMarkdown()` options you
+configure (themes, code highlighting, icons) apply to docs pages too. Register
+`payloadMarkdown()` in the same Payload config as `payloadMarkdownDocs()`.
+`payload`, `next`, `react` and `react-dom` are peers as well and are already
+part of every Payload app.
+
+Upgrading from 1.0.x: 1.1 adds database schema, including a unique index that
+needs a one-line data cleanup in your migration. Follow
+[Upgrading to 1.1](docs/reference/upgrade-1-1.md).
+
+### Styling
+
+Docs pages and components use Tailwind utility classes from both packages. With
+Tailwind v4, add both packages to your app stylesheet's sources:
+
+```css
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+@source "../node_modules/@valkyrianlabs/payload-markdown/dist";
+@source "../node_modules/@valkyrianlabs/payload-markdown-docs/dist";
+```
+
+Adjust the relative paths to where your stylesheet lives. The components expect
+`--color-foreground`, `--color-border` and `--color-background` theme tokens
+(shadcn-style `text-foreground`, `border-border`, `bg-background`).
 
 The npm package installs the Payload plugin and runtime helpers. It does not
 ship the supported operator CLI. Use the Debian/Ubuntu or Homebrew install

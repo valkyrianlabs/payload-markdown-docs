@@ -1,4 +1,12 @@
+import type { Access, CollectionConfig } from 'payload'
+
 export type PayloadMarkdownDocsConfig = {
+  /**
+   * Access control for the plugin collections. By default only users of the Payload
+   * admin user collection (`config.admin.user`) can manage docs, docs sets, groups,
+   * assets, and sync access keys; sync runs and nonces are read-only.
+   */
+  access?: PayloadMarkdownDocsAccessConfig
   auth?: PayloadMarkdownDocsAuthConfig
   blocks?: DocsBlockInstallSelection
   collections?: PayloadMarkdownDocsCollectionsConfig
@@ -15,6 +23,12 @@ export type PayloadMarkdownDocsConfig = {
 export type PayloadMarkdownDocsEndpointConfig = {
   maxBodyBytes?: number
   path?: string
+  /**
+   * Use `X-Forwarded-Host` / `X-Forwarded-Proto` for public URLs in generated llms
+   * files when no origin is configured (`serverURL` or NEXT_PUBLIC_SERVER_URL and
+   * friends). Enable only behind a proxy that sets these headers. Default false.
+   */
+  trustForwardedHeaders?: boolean
 }
 
 export type PayloadMarkdownDocsAuthConfig =
@@ -30,7 +44,21 @@ export type PayloadMarkdownDocsAuthToggle = {
   enabled?: boolean
 }
 
+export type PayloadMarkdownDocsAccessConfig = {
+  /**
+   * Decides who is a docs administrator for the plugin collections' default access.
+   * Defaults to any logged-in user of the Payload admin user collection.
+   */
+  admin?: Access
+}
+
 export type PayloadMarkdownDocsCollectionConfig = {
+  /**
+   * Per-operation access overrides for a plugin-owned collection (docs, docsSets,
+   * docsGroups, docsAssets, docsAccess, syncRuns, nonces). Replaces the default
+   * admin-only rule for the listed operations.
+   */
+  access?: CollectionConfig['access']
   blocks?: DocsBlockInstallSelection
   enabled?: boolean
   heroes?: DocsHeroInstallSelection
@@ -93,6 +121,19 @@ export type PayloadMarkdownDocsSyncConfig = {
   allowHardDelete?: boolean
   allowPublish?: boolean
   allowWrites?: boolean
+  /**
+   * Apply asset creates/updates (skills, llms, static files) in syncs without
+   * `--publish`. Defaults to false when the docs collection has drafts: assets have no
+   * draft state, so a non-publish sync defers them to the next `--publish` sync.
+   * Removals always apply.
+   */
+  applyAssetsOnDraftSync?: boolean
+  /**
+   * Record a sync-run audit row for dry-run requests. Defaults to true. Set to false
+   * to keep the sync-runs collection to applied syncs only; dry runs still consume
+   * their nonce for replay protection.
+   */
+  auditDryRuns?: boolean
   deleteBehavior?: 'archive' | 'delete' | 'draft' | 'ignore'
   revalidate?: false | PayloadMarkdownDocsSyncRevalidateConfig
 }

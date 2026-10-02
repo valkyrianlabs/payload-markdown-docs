@@ -27,6 +27,7 @@ import {
   getTypedDocsSetPublicHref,
   isRecord,
 } from '../utilities/normalizeShared.js'
+import { isArchivedPayloadRecord, isPublicDocsRecord, isPublicDocsSetRecord } from './visibility.js'
 
 type ResolveDocsMarketingBlocksOptions = {
   docsAssetsCollectionSlug: string
@@ -76,6 +77,8 @@ type DocsMarketingBlockRecord = {
 type ResolverContext = {
   docsPageById: Map<string, Promise<DocsPageReference | null>>
   docsSetById: Map<string, Promise<DocsSetReference | null>>
+  /** Draft-aware read (`?draft=true` or a draft host document): unpublished docs sets/pages may hydrate. */
+  includeDrafts: boolean
   mediaById: Map<string, Promise<DocsMediaReference | null>>
   options: ResolveDocsMarketingBlocksOptions
   payload: DocsMarketingBlocksPayloadOperations
@@ -138,12 +141,16 @@ const getCachedDocsSet = (
     return existing
   }
 
-  const promise = context.payload.findByID({
-    id,
-    collection: context.options.docsSetsCollectionSlug,
-    depth: 2,
-    overrideAccess: true,
-  }) as Promise<DocsSetReference | null>
+  // overrideAccess reads never-published (draft-only) records from the main table, so public
+  // reads must not hydrate CTA content from records that are not publicly visible (X-18).
+  const promise = (
+    context.payload.findByID({
+      id,
+      collection: context.options.docsSetsCollectionSlug,
+      depth: 2,
+      overrideAccess: true,
+    }) as Promise<DocsSetReference | null>
+  ).then((record) => (context.includeDrafts || isPublicDocsSetRecord(record) ? record : null))
 
   context.docsSetById.set(id, promise)
 
@@ -160,12 +167,16 @@ const getCachedDocsPage = (
     return existing
   }
 
-  const promise = context.payload.findByID({
-    id,
-    collection: context.options.docsCollectionSlug,
-    depth: 1,
-    overrideAccess: true,
-  }) as Promise<DocsPageReference | null>
+  const promise = (
+    context.payload.findByID({
+      id,
+      collection: context.options.docsCollectionSlug,
+      depth: 1,
+      overrideAccess: true,
+    }) as Promise<DocsPageReference | null>
+  ).then((record) =>
+    isArchivedPayloadRecord(record) || (!context.includeDrafts && !isPublicDocsRecord(record)) ? null : record,
+  )
 
   context.docsPageById.set(id, promise)
 
@@ -373,9 +384,12 @@ const traverseValue = async (value: unknown, context: ResolverContext): Promise<
 export const resolveDocsMarketingBlocksAfterRead =
   (options: ResolveDocsMarketingBlocksOptions): CollectionAfterReadHook =>
   async ({ doc, req }) => {
+    const draftQuery = (req.query as Record<string, unknown> | undefined)?.draft
     const context: ResolverContext = {
       docsPageById: new Map(),
       docsSetById: new Map(),
+      includeDrafts:
+        draftQuery === true || draftQuery === 'true' || (isRecord(doc) && doc._status === 'draft'),
       mediaById: new Map(),
       options,
       payload: req.payload,
