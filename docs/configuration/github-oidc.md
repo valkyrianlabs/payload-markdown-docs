@@ -67,6 +67,10 @@ The docs set branch is the publishing boundary only for branch refs; with
 `Allow tag refs` on, anyone who can push a tag in a trusted repository can
 publish.
 
+Pull request tokens (`event_name: pull_request`, `ref: refs/pull/<n>/merge`)
+are rejected unless the docs set enables `allowPullRequests`. When enabled,
+the pull request's base branch (`base_ref`) must be the docs set branch.
+
 ## Workflow Permissions
 
 GitHub only exposes the OIDC token request endpoint when the workflow grants

@@ -24,6 +24,8 @@ export type GitHubOidcErrorCode =
 export type GitHubOidcClaims = {
   actor?: string
   aud: string | string[]
+  /** Target branch of a pull request (`main`), present on pull_request tokens. */
+  base_ref?: string
   environment?: string
   event_name?: string
   exp: number
@@ -142,6 +144,7 @@ const toClaims = (payload: Record<string, unknown>): GitHubOidcClaims | undefine
   return {
     actor: getStringClaim(payload, 'actor'),
     aud,
+    base_ref: getStringClaim(payload, 'base_ref'),
     environment: getStringClaim(payload, 'environment'),
     event_name: getStringClaim(payload, 'event_name'),
     exp,
@@ -503,13 +506,40 @@ export const checkGitHubOidcPolicy = ({
     )
   }
 
-  const tagAllowed = config.allowTagRefs !== false && isTagRef(claims)
+  // Real pull_request tokens carry `ref: refs/pull/<n>/merge`; the branch boundary for
+  // them is the PR's base branch (CLI-7).
+  const isPullRequest =
+    claims.event_name === 'pull_request' || /^refs\/pull\/\d+\/merge$/.test(claims.ref)
 
-  if (!includesIfConfigured(config.allowedRefs, claims.ref) && !tagAllowed) {
-    return policyIssue(
-      'oidc_ref_not_allowed',
-      `GitHub OIDC token ref "${claims.ref}" is not allowed for "${repositoryName}".`,
-    )
+  if (isPullRequest) {
+    if (config.allowPullRequests !== true) {
+      return policyIssue(
+        'oidc_pull_request_not_allowed',
+        'GitHub OIDC pull request events are not allowed.',
+      )
+    }
+
+    const baseRef = claims.base_ref
+      ? claims.base_ref.startsWith('refs/')
+        ? claims.base_ref
+        : `refs/heads/${claims.base_ref}`
+      : undefined
+
+    if (!baseRef || !includesIfConfigured(config.allowedRefs, baseRef)) {
+      return policyIssue(
+        'oidc_ref_not_allowed',
+        `GitHub OIDC pull request base ref "${claims.base_ref ?? ''}" is not allowed for "${repositoryName}".`,
+      )
+    }
+  } else {
+    const tagAllowed = config.allowTagRefs !== false && isTagRef(claims)
+
+    if (!includesIfConfigured(config.allowedRefs, claims.ref) && !tagAllowed) {
+      return policyIssue(
+        'oidc_ref_not_allowed',
+        `GitHub OIDC token ref "${claims.ref}" is not allowed for "${repositoryName}".`,
+      )
+    }
   }
 
   const workflowRef = claims.workflow_ref ?? claims.job_workflow_ref
@@ -528,13 +558,6 @@ export const checkGitHubOidcPolicy = ({
     return policyIssue(
       'oidc_workflow_not_allowed',
       'GitHub OIDC token workflow ref is not allowed.',
-    )
-  }
-
-  if (claims.event_name === 'pull_request' && config.allowPullRequests !== true) {
-    return policyIssue(
-      'oidc_pull_request_not_allowed',
-      'GitHub OIDC pull request events are not allowed.',
     )
   }
 

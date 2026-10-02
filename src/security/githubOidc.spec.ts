@@ -321,8 +321,12 @@ describe('GitHub OIDC security helpers', () => {
   })
 
   it('rejects pull request events by default and allows them when configured', async () => {
+    // Real GitHub pull_request token shape: merge ref plus the PR base branch.
     const { jwk, token } = createTokenFixture({
+      base_ref: 'main',
       event_name: 'pull_request',
+      ref: 'refs/pull/7/merge',
+      sub: 'repo:valkyrianlabs/payload-markdown-docs:pull_request',
     })
 
     await expect(
@@ -336,6 +340,7 @@ describe('GitHub OIDC security helpers', () => {
     await expect(
       verifyGitHubOidcToken({
         config: config({
+          allowedRefs: ['refs/heads/main'],
           allowPullRequests: true,
         }),
         fetchJson: fetchJsonForJwk(jwk),
@@ -343,6 +348,18 @@ describe('GitHub OIDC security helpers', () => {
         token,
       }),
     ).resolves.toMatchObject({ ok: true })
+    // The base branch is the boundary: a PR into another branch is rejected.
+    await expect(
+      verifyGitHubOidcToken({
+        config: config({
+          allowedRefs: ['refs/heads/release'],
+          allowPullRequests: true,
+        }),
+        fetchJson: fetchJsonForJwk(jwk),
+        now,
+        token,
+      }),
+    ).resolves.toMatchObject({ code: 'oidc_ref_not_allowed', ok: false })
   })
 
   it('refetches the JWKS once when a token uses an unknown kid (key rotation)', async () => {
