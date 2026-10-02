@@ -14,12 +14,11 @@ import {
   DEFAULT_MARKDOWN_FIELD_NAME,
 } from '../constants.js'
 import {
-  deriveDocsSetProductRoutePath,
-  deriveDocsSetRouteBase,
-  isRouteDescendant,
-  joinRouteSegments,
-  normalizeRoutePath,
-} from '../routing/index.js'
+  type DocsGroupsById,
+  indexDocsGroupsById,
+  resolveDocsSetRoutes,
+} from '../routing/docsSetRoutes.js'
+import { isRouteDescendant, joinRouteSegments, normalizeRoutePath } from '../routing/index.js'
 import { getRelationshipId, isRecord } from '../shared/records.js'
 import { isVisibleDocsRecord, toResolvedDocsRecord } from './records.js'
 
@@ -220,40 +219,6 @@ export const getPayloadMarkdownDocsAiSitemapRoutes = ({
   return routes
 }
 
-const getGroupRoutePath = ({
-  groupId,
-  groupsById,
-  seen = new Set<string>(),
-}: {
-  groupId?: string
-  groupsById: Map<string, unknown>
-  seen?: Set<string>
-}): string | undefined => {
-  if (!groupId || seen.has(groupId)) {
-    return undefined
-  }
-
-  const group = groupsById.get(groupId)
-
-  if (!isRecord(group)) {
-    return undefined
-  }
-
-  const slug = getOptionalString(group, 'slug')
-
-  if (!slug) {
-    return undefined
-  }
-
-  const parentRoutePath = getGroupRoutePath({
-    groupId: getRelationshipId(group.parent),
-    groupsById,
-    seen: new Set([groupId, ...seen]),
-  })
-
-  return joinRouteSegments(parentRoutePath, slug)
-}
-
 type DocsSetSitemapEntry = {
   docsSetId?: string
   productRoute: string
@@ -268,33 +233,16 @@ const toDocsSetSitemapEntry = ({
   siteUrl,
 }: {
   doc: unknown
-  groupsById: Map<string, unknown>
+  groupsById: DocsGroupsById
   siteUrl: string
 }): DocsSetSitemapEntry | undefined => {
-  if (!isRecord(doc)) {
+  const routes = isRecord(doc) ? resolveDocsSetRoutes({ doc, groupsById }) : undefined
+
+  if (!isRecord(doc) || !routes) {
     return undefined
   }
 
-  const slug = getOptionalString(doc, 'slug')
-
-  if (!slug) {
-    return undefined
-  }
-
-  const groupRoutePath = getGroupRoutePath({
-    groupId: getRelationshipId(doc.group),
-    groupsById,
-  })
-  const routeMode = doc.routeMode === 'product-nested' ? 'product-nested' : 'docs-root'
-  const productRoute = deriveDocsSetProductRoutePath({
-    docsSetSlug: slug,
-    groupRoutePath,
-  })
-  const routePath = deriveDocsSetRouteBase({
-    docsSetSlug: slug,
-    groupRoutePath,
-    routeMode,
-  })
+  const { productRoute, routeBase: routePath, routeMode } = routes
 
   return {
     docsSetId: getRelationshipId(doc),
@@ -709,17 +657,7 @@ const getDocsForSitemapUncached = async ({
         })
       : Promise.resolve(undefined),
   ])
-  const groupsById = new Map(
-    docsGroupsResult.docs.flatMap((group) => {
-      if (!isRecord(group)) {
-        return []
-      }
-
-      const id = getRelationshipId(group)
-
-      return id ? [[id, group]] : []
-    }),
-  )
+  const groupsById = indexDocsGroupsById(docsGroupsResult.docs)
   const docsSetEntries = docsSetsResult.docs
     .flatMap((doc) => {
       const entry = toDocsSetSitemapEntry({

@@ -13,7 +13,7 @@ import {
   DEFAULT_DOCS_GROUPS_COLLECTION_SLUG,
   DEFAULT_DOCS_SETS_COLLECTION_SLUG,
 } from '../constants.js'
-import { deriveDocsSetRouteBase, joinRouteSegments } from '../routing/index.js'
+import { indexDocsGroupsById, resolveDocsSetRoutes } from '../routing/docsSetRoutes.js'
 import { getRecordId, getRelationshipId, isRecord } from '../shared/records.js'
 
 const normalizeAdminRoute = (adminRoute = '/admin'): string => {
@@ -85,63 +85,17 @@ const getSourcePathSegments = (sourcePath: string): string[] => {
   return segments
 }
 
-const getGroupRoutePath = ({
-  groupId,
-  groupsById,
-  seen = new Set<string>(),
-}: {
-  groupId?: string
-  groupsById: Map<string, RawDocsGroupRecord>
-  seen?: Set<string>
-}): string | undefined => {
-  if (!groupId || seen.has(groupId)) {
-    return undefined
-  }
-
-  const group = groupsById.get(groupId)
-
-  if (!group?.slug) {
-    return undefined
-  }
-
-  return joinRouteSegments(
-    getGroupRoutePath({
-      groupId: getRelationshipId(group.parent),
-      groupsById,
-      seen: new Set([groupId, ...seen]),
-    }),
-    group.slug,
-  )
-}
-
 const getDocsSetRouteBase = ({
   docsGroups,
   docsSet,
 }: {
   docsGroups: RawDocsGroupRecord[]
   docsSet: RawDocsSetRecord
-}): string => {
-  if (!docsSet.slug) {
-    return ''
-  }
-
-  const groupsById = new Map(
-    docsGroups.flatMap((group) => {
-      const id = getRecordId(group)
-
-      return id ? [[id, group]] : []
-    }),
-  )
-
-  return deriveDocsSetRouteBase({
-    docsSetSlug: docsSet.slug,
-    groupRoutePath: getGroupRoutePath({
-      groupId: getRelationshipId(docsSet.group),
-      groupsById,
-    }),
-    routeMode: docsSet.routeMode,
-  })
-}
+}): string =>
+  resolveDocsSetRoutes({
+    doc: docsSet,
+    groupsById: indexDocsGroupsById(docsGroups),
+  })?.routeBase ?? ''
 
 const titleCaseSegment = (segment: string): string =>
   segment

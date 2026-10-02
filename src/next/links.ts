@@ -5,10 +5,10 @@ import {
   DEFAULT_DOCS_SETS_COLLECTION_SLUG,
 } from '../constants.js'
 import {
-  deriveDocsSetProductRoutePath,
-  deriveDocsSetRouteBase,
-  joinRouteSegments,
-} from '../routing/index.js'
+  getDocsGroupRoutePath,
+  indexDocsGroupsById,
+  resolveDocsSetRoutes,
+} from '../routing/docsSetRoutes.js'
 import { getRelationshipId, isRecord } from '../shared/records.js'
 import {
   isVisibleDocsSet,
@@ -100,35 +100,6 @@ const applyTopLevelCapacity = (
   return availableSlots === undefined ? items : items.slice(0, availableSlots)
 }
 
-const getGroupRoutePath = ({
-  groupId,
-  groupsById,
-  seen = new Set<string>(),
-}: {
-  groupId?: string
-  groupsById: Map<string, unknown>
-  seen?: Set<string>
-}): string | undefined => {
-  if (!groupId || seen.has(groupId)) {
-    return undefined
-  }
-
-  const group = groupsById.get(groupId)
-
-  if (!isRecord(group) || typeof group.slug !== 'string') {
-    return undefined
-  }
-
-  return joinRouteSegments(
-    getGroupRoutePath({
-      groupId: getRelationshipId(group.parent),
-      groupsById,
-      seen: new Set([groupId, ...seen]),
-    }),
-    group.slug,
-  )
-}
-
 const sortByOrderThenLabel = <T extends { label: string; order: number }>(items: T[]): T[] =>
   [...items].sort((first, second) => {
     if (first.order !== second.order) {
@@ -179,17 +150,7 @@ export const getPayloadMarkdownDocsNavItems = async ({
       overrideAccess,
     }),
   ])
-  const groupsById = new Map(
-    docsGroupsResult.docs.flatMap((group) => {
-      if (!isRecord(group)) {
-        return []
-      }
-
-      const id = getRelationshipId(group)
-
-      return id ? [[id, group]] : []
-    }),
-  )
+  const groupsById = indexDocsGroupsById(docsGroupsResult.docs)
   const childGroupIdsByParentId = new Map<string, string[]>()
   const topLevelGroupIds: string[] = []
 
@@ -216,27 +177,13 @@ export const getPayloadMarkdownDocsNavItems = async ({
       continue
     }
 
-    const groupId = getRelationshipId(doc.group)
-    const groupRoutePath = groupId
-      ? getGroupRoutePath({
-          groupId,
-          groupsById,
-        })
-      : undefined
+    const routes = resolveDocsSetRoutes({ doc, groupsById })
 
-    if (groupId && !groupRoutePath) {
+    if (!routes || (routes.groupId && !routes.groupRoutePath)) {
       continue
     }
 
-    const routeBase = deriveDocsSetRouteBase({
-      docsSetSlug: docsSet.slug,
-      groupRoutePath,
-      routeMode: docsSet.routeMode,
-    })
-    const productRoute = deriveDocsSetProductRoutePath({
-      docsSetSlug: docsSet.slug,
-      groupRoutePath,
-    })
+    const { groupId, productRoute, routeBase } = routes
 
     const item: PayloadMarkdownDocsNavItem = {
       id: docsSet.id,
@@ -265,8 +212,8 @@ export const getPayloadMarkdownDocsNavItems = async ({
 
     const doc = groupsById.get(groupId)
     const group = toResolvedDocsGroup(doc)
-    const routePath = getGroupRoutePath({
-      groupId,
+    const routePath = getDocsGroupRoutePath({
+      group: groupId,
       groupsById,
     })
 

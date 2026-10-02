@@ -14,12 +14,12 @@ import {
   DEFAULT_MARKDOWN_FIELD_NAME,
 } from '../constants.js'
 import {
-  deriveDocsSetProductRoutePath,
-  deriveDocsSetRouteBase,
-  isRouteDescendant,
-  joinRouteSegments,
-  normalizeRoutePath,
-} from '../routing/index.js'
+  type DocsGroupsById,
+  getDocsGroupRoutePath,
+  indexDocsGroupsById,
+  resolveDocsSetRoutes,
+} from '../routing/docsSetRoutes.js'
+import { isRouteDescendant, joinRouteSegments, normalizeRoutePath } from '../routing/index.js'
 import { getRelationshipId, isRecord } from '../shared/records.js'
 import {
   isVisibleDocsRecord,
@@ -76,7 +76,7 @@ const getGroupsById = async ({
   collections: ResolvedCollectionSlugs
   overrideAccess: boolean
   payload: PayloadMarkdownDocsReadPayload
-}): Promise<Map<string, unknown>> => {
+}): Promise<DocsGroupsById> => {
   const result = await payload.find({
     collection: collections.docsGroups,
     depth: 0,
@@ -84,51 +84,7 @@ const getGroupsById = async ({
     overrideAccess,
   })
 
-  return new Map(
-    result.docs.flatMap((doc) => {
-      if (!isRecord(doc)) {
-        return []
-      }
-
-      const id = getRelationshipId(doc)
-
-      return id ? [[id, doc]] : []
-    }),
-  )
-}
-
-const getGroupRoutePath = ({
-  groupId,
-  groupsById,
-  seen = new Set<string>(),
-}: {
-  groupId?: string
-  groupsById: Map<string, unknown>
-  seen?: Set<string>
-}): string | undefined => {
-  if (!groupId || seen.has(groupId)) {
-    return undefined
-  }
-
-  const group = groupsById.get(groupId)
-
-  if (!isRecord(group)) {
-    return undefined
-  }
-
-  const slug = typeof group.slug === 'string' ? group.slug : undefined
-
-  if (!slug) {
-    return undefined
-  }
-
-  const parentRoutePath = getGroupRoutePath({
-    groupId: getRelationshipId(group.parent),
-    groupsById,
-    seen: new Set([groupId, ...seen]),
-  })
-
-  return joinRouteSegments(parentRoutePath, slug)
+  return indexDocsGroupsById(result.docs)
 }
 
 const withComputedDocsSetRoute = ({
@@ -138,30 +94,17 @@ const withComputedDocsSetRoute = ({
 }: {
   doc?: unknown
   docsSet?: ResolvedPayloadMarkdownDocsSet
-  groupsById: Map<string, unknown>
+  groupsById: DocsGroupsById
 }): ResolvedPayloadMarkdownDocsSet | undefined => {
-  if (!docsSet?.slug) {
-    return docsSet
-  }
+  const routes = docsSet?.slug ? resolveDocsSetRoutes({ doc, groupsById }) : undefined
 
-  const groupId = isRecord(doc) ? getRelationshipId(doc.group) : undefined
-  const groupRoutePath = getGroupRoutePath({
-    groupId,
-    groupsById,
-  })
-
-  return {
-    ...docsSet,
-    productRoute: deriveDocsSetProductRoutePath({
-      docsSetSlug: docsSet.slug,
-      groupRoutePath,
-    }),
-    routeBase: deriveDocsSetRouteBase({
-      docsSetSlug: docsSet.slug,
-      groupRoutePath,
-      routeMode: docsSet.routeMode,
-    }),
-  }
+  return docsSet && routes
+    ? {
+        ...docsSet,
+        productRoute: routes.productRoute,
+        routeBase: routes.routeBase,
+      }
+    : docsSet
 }
 
 const findDocsSetById = async ({
@@ -598,8 +541,8 @@ const findGroupIndexRoute = async ({
   const group = [...groupsById.entries()]
     .map(([groupId, doc]) => {
       const resolved = toResolvedDocsGroup(doc)
-      const routePath = getGroupRoutePath({
-        groupId,
+      const routePath = getDocsGroupRoutePath({
+        group: groupId,
         groupsById,
       })
 
@@ -620,8 +563,8 @@ const findGroupIndexRoute = async ({
     .filter(([, doc]) => isRecord(doc) && getRelationshipId(doc.parent) === group.id)
     .flatMap(([groupId, doc]) => {
       const resolved = toResolvedDocsGroup(doc)
-      const routePath = getGroupRoutePath({
-        groupId,
+      const routePath = getDocsGroupRoutePath({
+        group: groupId,
         groupsById,
       })
 

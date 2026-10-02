@@ -6,12 +6,12 @@ import type {
   DocsSetReference,
 } from '../marketing/types.js'
 
+import { parseDocsSetRouteMode, resolveDocsGroupRoutePath } from '../routing/docsSetRoutes.js'
 import {
   DEFAULT_DOCS_SET_ROUTE_MODE,
   deriveDocsSetProductRoutePath,
   deriveDocsSetRouteBase,
   type DocsSetRouteMode,
-  joinRouteSegments,
   normalizeRoutePath,
 } from '../routing/index.js'
 import { getString, isRecord } from '../shared/records.js'
@@ -118,79 +118,43 @@ export const getDocsPageDescription = (
   return getText(record?.description) ?? getText(record?.excerpt)
 }
 
-const getDocsSetRouteMode = (value: unknown): DocsSetRouteMode =>
-  value === 'product-nested' || value === 'docs-root'
-    ? value
-    : DEFAULT_DOCS_SET_ROUTE_MODE
-
 const getTypedDocsSetRouteMode = (
   value: DocsSetReference['routeMode'],
 ): DocsSetRouteMode => value ?? DEFAULT_DOCS_SET_ROUTE_MODE
 
+/** Group route from populated relationship data (a stored `routePath` wins). */
 const getTypedGroupRoutePath = (
   value: DocsRelationship<DocsGroupReference> | null | undefined,
-  seen = new Set<string>(),
-): string | undefined => {
-  const group = getDocsRelationshipRecord(value)
+): string | undefined =>
+  resolveDocsGroupRoutePath(value, (reference) => {
+    const group = getDocsRelationshipRecord(
+      reference as DocsRelationship<DocsGroupReference> | null | undefined,
+    )
 
-  if (!group) {
-    return undefined
-  }
+    return group
+      ? {
+          id: getDocsRelationshipId(group),
+          slug: getText(group.slug),
+          parent: group.parent,
+          routePath: getText(group.routePath),
+        }
+      : undefined
+  })
 
-  const explicitRoutePath = getText(group.routePath)
+/** Group route from untyped populated relationship data (a stored `routePath` wins). */
+const getGroupRoutePath = (value: unknown): string | undefined =>
+  resolveDocsGroupRoutePath(value, (reference) => {
+    const group = getRelationshipValue(reference)
 
-  if (explicitRoutePath) {
-    return normalizeRoutePath(explicitRoutePath)
-  }
-
-  const slug = getText(group.slug)
-
-  if (!slug) {
-    return undefined
-  }
-
-  const groupId = getDocsRelationshipId(group)
-
-  if (groupId && seen.has(groupId)) {
-    return joinRouteSegments(slug)
-  }
-
-  const nextSeen = groupId ? new Set([groupId, ...seen]) : seen
-  const parentRoutePath = getTypedGroupRoutePath(group.parent, nextSeen)
-
-  return joinRouteSegments(parentRoutePath, slug)
-}
-
-const getGroupRoutePath = (value: unknown, seen = new Set<string>()): string | undefined => {
-  const group = getRelationshipValue(value)
-
-  if (!isRecord(group)) {
-    return undefined
-  }
-
-  const explicitRoutePath = getRecordString(group, 'routePath')
-
-  if (explicitRoutePath) {
-    return normalizeRoutePath(explicitRoutePath)
-  }
-
-  const slug = getRecordString(group, 'slug')
-
-  if (!slug) {
-    return undefined
-  }
-
-  const groupId = getRelationshipId(group)
-
-  if (groupId && seen.has(groupId)) {
-    return joinRouteSegments(slug)
-  }
-
-  const nextSeen = groupId ? new Set([groupId, ...seen]) : seen
-  const parentRoutePath = getGroupRoutePath(group.parent, nextSeen)
-
-  return joinRouteSegments(parentRoutePath, slug)
-}
+    return isRecord(group)
+      ? {
+          id: getRelationshipId(group),
+          slug: getRecordString(group, 'slug'),
+          parent: group.parent,
+          routePath: getRecordString(group, 'routePath'),
+        }
+      : undefined
+  })
 
 const getDocsSetRoutes = (
   value: unknown,
@@ -201,7 +165,7 @@ const getDocsSetRoutes = (
     return undefined
   }
 
-  const routeMode = getDocsSetRouteMode(record.routeMode)
+  const routeMode = parseDocsSetRouteMode(record.routeMode)
   const storedProductRoute = getRecordString(record, 'productRoute')
   const storedRouteBase = getRecordString(record, 'routeBase')
   const slug = getRecordString(record, 'slug')

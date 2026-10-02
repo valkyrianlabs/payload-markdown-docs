@@ -1,17 +1,11 @@
+import type { DocsGroupsById } from '../routing/docsSetRoutes.js'
 import type { DocsSetRouteMode } from '../routing/index.js'
 import type { PayloadMarkdownDocsAuthToggle } from '../types.js'
 
-import {
-  DEFAULT_DOCS_SET_ROUTE_MODE,
-  deriveDocsSetProductRoutePath,
-  deriveDocsSetRouteBase,
-  isRouteDescendant,
-  joinRouteSegments,
-  normalizeRoutePath,
-} from '../routing/index.js'
+import { indexDocsGroupsById, resolveDocsSetRoutes } from '../routing/docsSetRoutes.js'
+import { isRouteDescendant, normalizeRoutePath } from '../routing/index.js'
 import {
   getRawRecordId,
-  getRelationshipId,
   getString,
   isRecord,
 } from '../shared/records.js'
@@ -51,14 +45,6 @@ export type DocsSetPayloadOperations = {
 
 export type PayloadRecordId = number | string
 
-export type ResolvedDocsGroup = {
-  id: PayloadRecordId
-  pageMode: 'auto' | 'custom'
-  parentId?: string
-  routePath: string
-  slug: string
-}
-
 export type ResolvedDocsSet = {
   advancedSecurity?: {
     allowedWorkflowRefs: string[]
@@ -82,16 +68,8 @@ export type ResolvedDocsSet = {
   title: string
 }
 
-const getRouteMode = (value: unknown): DocsSetRouteMode =>
-  value === 'product-nested' || value === 'docs-root' ? value : DEFAULT_DOCS_SET_ROUTE_MODE
-
-const getGroupPageMode = (doc: Record<string, unknown>): 'auto' | 'custom' => {
-  if (doc.pageMode === 'custom') {
-    return 'custom'
-  }
-
-  return 'auto'
-}
+const getGroupPageMode = (doc: Record<string, unknown> | undefined): 'auto' | 'custom' =>
+  doc?.pageMode === 'custom' ? 'custom' : 'auto'
 
 const getStringArray = (value: unknown): string[] => {
   if (!Array.isArray(value)) {
@@ -210,75 +188,27 @@ export const updateDocsSetAfterSync = async ({
   }
 }
 
-const toResolvedGroup = (
-  doc: unknown,
-  groupsById: Map<string, unknown>,
-  seen = new Set<string>(),
-): ResolvedDocsGroup | undefined => {
-  if (!isRecord(doc)) {
-    return undefined
-  }
-
-  const id = getRawRecordId(doc)
-  const slug = getString(doc.slug)
-
-  if (!id || !slug) {
-    return undefined
-  }
-
-  const stringId = String(id)
-
-  if (seen.has(stringId)) {
-    return {
-      id,
-      slug,
-      pageMode: getGroupPageMode(doc),
-      routePath: joinRouteSegments(slug),
-    }
-  }
-
-  const parentId = getRelationshipId(doc.parent)
-  const parentDoc = parentId ? groupsById.get(parentId) : undefined
-  const parentGroup = parentDoc
-    ? toResolvedGroup(parentDoc, groupsById, new Set([stringId, ...seen]))
-    : undefined
-
-  return {
-    id,
-    slug,
-    pageMode: getGroupPageMode(doc),
-    parentId,
-    routePath: joinRouteSegments(parentGroup?.routePath, slug),
-  }
-}
-
 const toResolvedDocsSet = ({
   doc,
   groupsById,
 }: {
   doc: unknown
-  groupsById: Map<string, unknown>
+  groupsById: DocsGroupsById
 }): ResolvedDocsSet | undefined => {
   if (!isRecord(doc)) {
     return undefined
   }
 
   const id = getRawRecordId(doc)
-  const slug = getString(doc.slug)
+  const routes = resolveDocsSetRoutes({ doc, groupsById })
 
-  if (!id || !slug) {
+  if (!id || !routes) {
     return undefined
   }
 
-  const groupId = getRelationshipId(doc.group)
-  const group = groupId ? toResolvedGroup(groupsById.get(groupId), groupsById) : undefined
+  const { slug, groupId, groupRoutePath, productRoute, routeBase, routeMode } = routes
   const advancedSecurity = isRecord(doc.advancedSecurity) ? doc.advancedSecurity : undefined
   const advancedSecurityEnabled = advancedSecurity?.enabled === true
-  const routeMode = getRouteMode(doc.routeMode)
-  const productRoute = deriveDocsSetProductRoutePath({
-    docsSetSlug: slug,
-    groupRoutePath: group?.routePath,
-  })
 
   return {
     id,
@@ -296,17 +226,11 @@ const toResolvedDocsSet = ({
     branch: getString(doc.branch) ?? 'main',
     description: getString(doc.description),
     groupId,
-    groupPageMode: group?.pageMode,
-    groupRoutePath: group?.routePath,
+    groupPageMode: groupRoutePath && groupId ? getGroupPageMode(groupsById.get(groupId)) : undefined,
+    groupRoutePath,
     productRoute,
     repositories: getStringArray(doc.repositories),
-    routeBase: normalizeRoutePath(
-      deriveDocsSetRouteBase({
-        docsSetSlug: slug,
-        groupRoutePath: group?.routePath,
-        routeMode,
-      }),
-    ),
+    routeBase,
     routeMode,
     title: getString(doc.title) ?? slug,
   }
@@ -318,7 +242,7 @@ const getGroupsById = async ({
 }: {
   collectionSlug: string
   payload: DocsSetPayloadOperations
-}): Promise<Map<string, unknown>> => {
+}): Promise<DocsGroupsById> => {
   const result = await payload.find({
     collection: collectionSlug,
     depth: 0,
@@ -326,17 +250,7 @@ const getGroupsById = async ({
     pagination: false,
   })
 
-  return new Map(
-    result.docs.flatMap((doc) => {
-      if (!isRecord(doc)) {
-        return []
-      }
-
-      const id = getRawRecordId(doc)
-
-      return id === undefined ? [] : [[String(id), doc]]
-    }),
-  )
+  return indexDocsGroupsById(result.docs)
 }
 
 export const findDocsSetBySlug = async ({

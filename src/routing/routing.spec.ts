@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  getDocsGroupRoutePath,
+  indexDocsGroupsById,
+  resolveDocsGroupRoutePath,
+  resolveDocsSetRoutes,
+} from './docsSetRoutes.js'
+import {
   deriveDocsSetRouteBase,
   findPageRouteCollisions,
   findRouteReservationCollisions,
@@ -153,5 +159,77 @@ describe('route reservation helpers', () => {
         ],
       }),
     ).toHaveLength(0)
+  })
+})
+
+describe('docs group and docs set route derivation', () => {
+  const groups = indexDocsGroupsById([
+    { id: 1, slug: 'platform' },
+    { id: 2, slug: 'sdk', parent: 1 },
+    { id: 3, slug: ' tools ', parent: { id: 2, slug: 'sdk' } },
+    { id: 4, slug: 'orphan', parent: 99 },
+    { id: 5, slug: 'loop-a', parent: 6 },
+    { id: 6, slug: 'loop-b', parent: 5 },
+    { id: 7, slug: 'self', parent: 7 },
+    { id: 8, slug: '   ', parent: 1 },
+  ])
+
+  it('walks parent chains through ids and populated relationships', () => {
+    expect(getDocsGroupRoutePath({ group: 1, groupsById: groups })).toBe('/platform')
+    expect(getDocsGroupRoutePath({ group: '2', groupsById: groups })).toBe('/platform/sdk')
+    expect(getDocsGroupRoutePath({ group: { id: 3 }, groupsById: groups })).toBe(
+      '/platform/sdk/tools',
+    )
+  })
+
+  it('ignores unresolvable parents and groups without a usable slug', () => {
+    expect(getDocsGroupRoutePath({ group: 4, groupsById: groups })).toBe('/orphan')
+    expect(getDocsGroupRoutePath({ group: 8, groupsById: groups })).toBeUndefined()
+    expect(getDocsGroupRoutePath({ group: 42, groupsById: groups })).toBeUndefined()
+    expect(getDocsGroupRoutePath({ group: undefined, groupsById: groups })).toBeUndefined()
+  })
+
+  it('stops a parent cycle at the first revisited group', () => {
+    expect(getDocsGroupRoutePath({ group: 5, groupsById: groups })).toBe('/loop-b/loop-a')
+    expect(getDocsGroupRoutePath({ group: 6, groupsById: groups })).toBe('/loop-a/loop-b')
+    expect(getDocsGroupRoutePath({ group: 7, groupsById: groups })).toBe('/self')
+  })
+
+  it('honors a stored routePath in populated walks', () => {
+    expect(
+      resolveDocsGroupRoutePath({ slug: 'ignored', routePath: 'stored/route/' }, (reference) =>
+        reference && typeof reference === 'object'
+          ? (reference as { routePath?: string; slug?: string })
+          : undefined,
+      ),
+    ).toBe('/stored/route')
+  })
+
+  it('derives docs set routes for both route modes', () => {
+    expect(resolveDocsSetRoutes({ doc: { slug: 'alpha' }, groupsById: groups })).toEqual({
+      slug: 'alpha',
+      groupId: undefined,
+      groupRoutePath: undefined,
+      productRoute: '/alpha',
+      routeBase: '/alpha',
+      routeMode: 'docs-root',
+    })
+    expect(
+      resolveDocsSetRoutes({
+        doc: { slug: ' beta ', group: { id: 2 }, routeMode: 'product-nested' },
+        groupsById: groups,
+      }),
+    ).toEqual({
+      slug: 'beta',
+      groupId: '2',
+      groupRoutePath: '/platform/sdk',
+      productRoute: '/platform/sdk/beta',
+      routeBase: '/platform/sdk/beta/docs',
+      routeMode: 'product-nested',
+    })
+    expect(
+      resolveDocsSetRoutes({ doc: { slug: 'x', group: 42, routeMode: 'bogus' }, groupsById: groups }),
+    ).toMatchObject({ groupId: '42', groupRoutePath: undefined, routeBase: '/x', routeMode: 'docs-root' })
+    expect(resolveDocsSetRoutes({ doc: { slug: '  ' }, groupsById: groups })).toBeUndefined()
   })
 })
