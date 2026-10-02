@@ -26,7 +26,6 @@ export { buildArchiveData, buildDocsData, getDocsDepth } from './docsData.js'
 export type { BuildDocsDataInput, DocsDraftStatus } from './docsData.js'
 export {
   findAllDocsSets,
-  findDocsSetByRouteBase,
   findDocsSetByRoutePrefix,
   findDocsSetBySlug,
   isEd25519AuthEnabled,

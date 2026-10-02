@@ -4,11 +4,7 @@ import {
   DEFAULT_DOCS_GROUPS_COLLECTION_SLUG,
   DEFAULT_DOCS_SETS_COLLECTION_SLUG,
 } from '../constants.js'
-import {
-  getDocsGroupRoutePath,
-  indexDocsGroupsById,
-  resolveDocsSetRoutes,
-} from '../routing/docsSetRoutes.js'
+import { getDocsGroupRoutePath, indexDocsGroupsById } from '../routing/docsSetRoutes.js'
 import { getRelationshipId, isRecord } from '../shared/records.js'
 import {
   isVisibleDocsSet,
@@ -171,19 +167,18 @@ export const getPayloadMarkdownDocsNavItems = async ({
   const topLevelDocsSetItems: PayloadMarkdownDocsNavItem[] = []
 
   for (const doc of docsSetsResult.docs) {
-    const docsSet = toResolvedDocsSet(doc)
+    const docsSet = toResolvedDocsSet(doc, groupsById)
 
     if (!docsSet?.slug || !isRecord(doc) || !isVisibleDocsSet({ docsSet, includeDrafts })) {
       continue
     }
 
-    const routes = resolveDocsSetRoutes({ doc, groupsById })
+    const groupId = getRelationshipId(doc.group)
 
-    if (!routes || (routes.groupId && !routes.groupRoutePath)) {
+    // Docs sets in a group without a route are left out of the nav.
+    if (groupId && !getDocsGroupRoutePath({ group: groupId, groupsById })) {
       continue
     }
-
-    const { groupId, productRoute, routeBase } = routes
 
     const item: PayloadMarkdownDocsNavItem = {
       id: docsSet.id,
@@ -191,8 +186,8 @@ export const getPayloadMarkdownDocsNavItems = async ({
       collection: docsSetsCollectionSlug,
       label: docsSet.navTitle ?? docsSet.title,
       order: docsSet.order,
-      route: routeBase,
-      url: docsSet.routeMode === 'product-nested' ? productRoute : routeBase,
+      route: docsSet.routeBase,
+      url: docsSet.routeMode === 'product-nested' ? docsSet.productRoute : docsSet.routeBase,
     }
 
     if (groupId) {
@@ -210,14 +205,9 @@ export const getPayloadMarkdownDocsNavItems = async ({
       return undefined
     }
 
-    const doc = groupsById.get(groupId)
-    const group = toResolvedDocsGroup(doc)
-    const routePath = getDocsGroupRoutePath({
-      group: groupId,
-      groupsById,
-    })
+    const group = toResolvedDocsGroup(groupsById.get(groupId), groupsById)
 
-    if (!group || !routePath) {
+    if (!group) {
       return undefined
     }
 
@@ -237,8 +227,8 @@ export const getPayloadMarkdownDocsNavItems = async ({
       collection: docsGroupsCollectionSlug,
       label: group.navTitle ?? group.title,
       order: group.order,
-      route: routePath,
-      url: routePath,
+      route: group.routePath,
+      url: group.routePath,
     }
   }
 

@@ -12,11 +12,11 @@ import type {
 } from './types.js'
 
 import {
-  DEFAULT_DOCS_SET_ROUTE_MODE,
-  deriveDocsSetProductRoutePath,
-  deriveDocsSetRouteBase,
-  normalizeRoutePath,
-} from '../routing/index.js'
+  type DocsGroupsById,
+  getDocsGroupRoutePath,
+  resolveDocsSetRoutes,
+} from '../routing/docsSetRoutes.js'
+import { normalizeRoutePath } from '../routing/index.js'
 import { getRecordId, getRelationshipId, isRecord } from '../shared/records.js'
 
 const getOptionalString = (doc: Record<string, unknown>, key: string): string | undefined =>
@@ -122,13 +122,20 @@ const toOpenGraph = (value: unknown): PayloadMarkdownDocsOpenGraph | undefined =
   return Object.keys(openGraph).length > 0 ? (openGraph as PayloadMarkdownDocsOpenGraph) : undefined
 }
 
-const getRouteMode = (value: unknown): PayloadMarkdownDocsRouteMode =>
-  value === 'product-nested' || value === 'docs-root' ? value : DEFAULT_DOCS_SET_ROUTE_MODE
-
 const getPageMode = (pageMode: unknown): PayloadMarkdownDocsGroupPageMode =>
   pageMode === 'custom' ? 'custom' : 'auto'
 
-export const toResolvedDocsSet = (doc: unknown): ResolvedPayloadMarkdownDocsSet | undefined => {
+const NO_GROUPS: DocsGroupsById = new Map()
+
+/**
+ * Public projection of a raw docs set record. Routes come from the shared derivation in
+ * routing/docsSetRoutes (the same one the sync endpoint validates against); pass the
+ * docs groups so grouped docs sets get their group route.
+ */
+export const toResolvedDocsSet = (
+  doc: unknown,
+  groupsById: DocsGroupsById = NO_GROUPS,
+): ResolvedPayloadMarkdownDocsSet | undefined => {
   if (!isRecord(doc)) {
     return undefined
   }
@@ -136,15 +143,13 @@ export const toResolvedDocsSet = (doc: unknown): ResolvedPayloadMarkdownDocsSet 
   const id = getRecordId(doc)
   const title = getOptionalString(doc, 'title')
   const slug = getOptionalString(doc, 'slug')
+  const routes = resolveDocsSetRoutes({ doc, groupsById })
 
-  if (!id || !title || !slug) {
+  if (!id || !title || !slug || !routes) {
     return undefined
   }
 
-  const routeMode = getRouteMode(doc.routeMode)
-  const productRoute = deriveDocsSetProductRoutePath({
-    docsSetSlug: slug,
-  })
+  const { productRoute, routeBase, routeMode } = routes
 
   return {
     id,
@@ -155,13 +160,8 @@ export const toResolvedDocsSet = (doc: unknown): ResolvedPayloadMarkdownDocsSet 
     openGraph: toOpenGraph(doc.meta) ?? toOpenGraph(doc.openGraph),
     order: getOptionalNumber(doc, 'order') ?? 0,
     productRoute,
-    routeBase: normalizeRoutePath(
-      deriveDocsSetRouteBase({
-        docsSetSlug: slug,
-        routeMode,
-      }),
-    ),
-    routeMode,
+    routeBase,
+    routeMode: routeMode satisfies PayloadMarkdownDocsRouteMode,
     status: doc._status === 'draft' || doc._status === 'published' ? doc._status : undefined,
     title,
   }
@@ -175,7 +175,11 @@ export const isVisibleDocsSet = ({
   includeDrafts?: boolean
 }): boolean => !(!includeDrafts && docsSet.status === 'draft')
 
-export const toResolvedDocsGroup = (doc: unknown): ResolvedPayloadMarkdownDocsGroup | undefined => {
+/** Public projection of a raw docs group; undefined when the group has no route. */
+export const toResolvedDocsGroup = (
+  doc: unknown,
+  groupsById: DocsGroupsById,
+): ResolvedPayloadMarkdownDocsGroup | undefined => {
   if (!isRecord(doc)) {
     return undefined
   }
@@ -183,8 +187,9 @@ export const toResolvedDocsGroup = (doc: unknown): ResolvedPayloadMarkdownDocsGr
   const id = getRecordId(doc)
   const title = getOptionalString(doc, 'title')
   const slug = getOptionalString(doc, 'slug')
+  const routePath = id ? getDocsGroupRoutePath({ group: id, groupsById }) : undefined
 
-  if (!id || !title || !slug) {
+  if (!id || !title || !slug || !routePath) {
     return undefined
   }
 
@@ -197,7 +202,7 @@ export const toResolvedDocsGroup = (doc: unknown): ResolvedPayloadMarkdownDocsGr
     navTitle: getOptionalString(doc, 'navTitle'),
     order: getOptionalNumber(doc, 'order') ?? 0,
     pageMode,
-    routePath: normalizeRoutePath(`/${slug}`),
+    routePath,
     title,
   }
 }
