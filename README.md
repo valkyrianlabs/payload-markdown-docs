@@ -205,6 +205,10 @@ configure (themes, code highlighting, icons) apply to docs pages too. Register
 `payload`, `next`, `react` and `react-dom` are peers as well and are already
 part of every Payload app.
 
+Upgrading from 1.0.x: 1.1 adds database schema, including a unique index that
+needs a one-line data cleanup in your migration. Follow
+[Upgrading to 1.1](docs/reference/upgrade-1-1.md).
+
 ### Styling
 
 Docs pages and components use Tailwind utility classes from both packages. With

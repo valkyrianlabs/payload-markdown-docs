@@ -83,6 +83,16 @@ The v1 in-page block registry contains only `DocsCTABlock`.
 Docs Excerpt is deferred until a first-class read-only markdown highlighter is
 available.
 
+## `/migrations`
+
+Use `/migrations` inside Payload migrations when upgrading an existing install:
+
+```ts
+import { prepareDocsSyncMigration } from '@valkyrianlabs/payload-markdown-docs/migrations'
+```
+
+See [Upgrading to 1.1](/reference/upgrade-1-1) for when to call it.
+
 Sync planning, security, routing internals, hashing, frontmatter parsing, and
 manifest builders are internal package implementation details.
 
