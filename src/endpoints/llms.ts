@@ -11,7 +11,7 @@ import {
 } from '../payload/visibility.js'
 import { rewritePayloadMarkdownDocsLinks } from '../routing/docsLinks.js'
 import { normalizeRoutePath } from '../routing/index.js'
-import { getString, isRecord } from '../shared/records.js'
+import { getRelationshipId, getString, isRecord } from '../shared/records.js'
 import { formatSkillAgentTitle, getSkillBundles } from '../skillBundles.js'
 import { createSafeAssetHeaders } from './assetContentTypes.js'
 import { createPublicUrl, getPublicRequestOrigin } from './publicOrigin.js'
@@ -26,6 +26,7 @@ export type LlmsPayloadOperations = {
     limit?: number
     overrideAccess?: boolean
     pagination?: boolean
+    select?: Record<string, boolean>
     sort?: string
     where?: unknown
   }) => Promise<{
@@ -160,97 +161,194 @@ const compareDocs = (first: LlmsDocRecord, second: LlmsDocRecord): number =>
 const compareSkills = (first: LlmsSkillAsset, second: LlmsSkillAsset): number =>
   first.sourcePath.localeCompare(second.sourcePath)
 
-const findDocsForDocsSet = async ({
+/**
+ * Docs sets per docs/assets query. Root llms.txt / llms-full.txt used to issue two
+ * queries per docs set; they are now batched with `in` constraints (bounded by this
+ * size) and partitioned per docs set in memory.
+ */
+export const LLMS_DOCS_SET_BATCH_SIZE = 100
+
+/**
+ * Runs one query per batch of at most LLMS_DOCS_SET_BATCH_SIZE docs sets (at most
+ * ceil(n / batch size) queries in flight) and returns the results in batch order.
+ */
+const findForDocsSetBatches = (
+  docsSets: readonly ResolvedDocsSet[],
+  query: (batch: ResolvedDocsSet[]) => Promise<{ docs: unknown[] }>,
+): Promise<Array<{ batch: ResolvedDocsSet[]; docs: unknown[] }>> => {
+  const batches: ResolvedDocsSet[][] = []
+
+  for (let index = 0; index < docsSets.length; index += LLMS_DOCS_SET_BATCH_SIZE) {
+    batches.push(docsSets.slice(index, index + LLMS_DOCS_SET_BATCH_SIZE))
+  }
+
+  return Promise.all(
+    batches.map(async (batch) => ({
+      batch,
+      docs: (await query(batch)).docs,
+    })),
+  )
+}
+
+/** Fields the index renderers read; leaves out the markdown body. */
+const LLMS_DOC_INDEX_SELECT = {
+  _status: true,
+  dependencies: true,
+  depth: true,
+  description: true,
+  docsSet: true,
+  navTitle: true,
+  order: true,
+  overrides: true,
+  route: true,
+  sourcePath: true,
+  sync: true,
+  title: true,
+}
+
+/**
+ * Public docs of each docs set (keyed by docs set id), sorted for rendering. Without
+ * `includeContent` the markdown body is not loaded (index renderers do not use it).
+ */
+const findDocsByDocsSet = async ({
   docsCollectionSlug,
-  docsSet,
+  docsSets,
+  includeContent,
   markdownFieldName,
   payload,
 }: {
   docsCollectionSlug: string
-  docsSet: ResolvedDocsSet
+  docsSets: readonly ResolvedDocsSet[]
+  includeContent: boolean
   markdownFieldName: string
   payload: LlmsPayloadOperations
-}): Promise<LlmsDocRecord[]> => {
-  const result = await payload.find({
-    collection: docsCollectionSlug,
-    depth: 0,
-    draft: false,
-    overrideAccess: true,
-    pagination: false,
-    sort: 'order',
-    where: {
-      and: [
-        {
-          docsSet: {
-            equals: docsSet.id,
+}): Promise<Map<string, LlmsDocRecord[]>> => {
+  const docsByDocsSet = new Map(
+    docsSets.map((docsSet) => [String(docsSet.id), [] as LlmsDocRecord[]]),
+  )
+
+  const results = await findForDocsSetBatches(docsSets, (batch) =>
+    payload.find({
+      collection: docsCollectionSlug,
+      depth: 0,
+      draft: false,
+      overrideAccess: true,
+      pagination: false,
+      ...(includeContent ? {} : { select: LLMS_DOC_INDEX_SELECT }),
+      sort: 'order',
+      where: {
+        and: [
+          {
+            docsSet: {
+              in: batch.map((docsSet) => docsSet.id),
+            },
           },
-        },
-        notArchivedWhere(),
-      ],
-    },
-  })
+          notArchivedWhere(),
+        ],
+      },
+    }),
+  )
 
-  return result.docs
-    .flatMap((doc) => {
-      const record = toLlmsDocRecord(doc, markdownFieldName)
+  for (const { docs: batchDocs } of results) {
+    for (const doc of batchDocs) {
+      const docsSetId = isRecord(doc) ? getRelationshipId(doc.docsSet) : undefined
+      const docs = docsSetId === undefined ? undefined : docsByDocsSet.get(docsSetId)
+      const record = docs ? toLlmsDocRecord(doc, markdownFieldName) : undefined
 
-      return record ? [record] : []
-    })
-    .sort(compareDocs)
+      if (docs && record) {
+        docs.push(record)
+      }
+    }
+  }
+
+  for (const docs of docsByDocsSet.values()) {
+    docs.sort(compareDocs)
+  }
+
+  return docsByDocsSet
 }
 
-const findSkillAssetsForDocsSet = async ({
+/** Same ownership rule as the per-docs-set asset query: relationship, source id, or sync source id. */
+const isSkillAssetOfDocsSet = (asset: Record<string, unknown>, docsSet: ResolvedDocsSet): boolean =>
+  getRelationshipId(asset.docsSet) === String(docsSet.id) ||
+  asset.sourceId === docsSet.slug ||
+  (isRecord(asset.sync) && asset.sync.sourceId === docsSet.slug)
+
+/** Public skill assets of each docs set (keyed by docs set id), sorted by source path. */
+const findSkillAssetsByDocsSet = async ({
   docsAssetsCollectionSlug,
-  docsSet,
+  docsSets,
   payload,
 }: {
   docsAssetsCollectionSlug: string
-  docsSet: ResolvedDocsSet
+  docsSets: readonly ResolvedDocsSet[]
   payload: LlmsPayloadOperations
-}): Promise<LlmsSkillAsset[]> => {
-  const result = await payload.find({
-    collection: docsAssetsCollectionSlug,
-    depth: 0,
-    overrideAccess: true,
-    pagination: false,
-    where: {
-      and: [
-        {
-          kind: {
-            equals: 'skill',
+}): Promise<Map<string, LlmsSkillAsset[]>> => {
+  const assetsByDocsSet = new Map(
+    docsSets.map((docsSet) => [String(docsSet.id), [] as LlmsSkillAsset[]]),
+  )
+
+  const results = await findForDocsSetBatches(docsSets, (batch) => {
+    const slugs = batch.map((docsSet) => docsSet.slug)
+
+    return payload.find({
+      collection: docsAssetsCollectionSlug,
+      depth: 0,
+      overrideAccess: true,
+      pagination: false,
+      where: {
+        and: [
+          {
+            kind: {
+              equals: 'skill',
+            },
           },
-        },
-        {
-          or: [
-            {
-              docsSet: {
-                equals: docsSet.id,
+          {
+            or: [
+              {
+                docsSet: {
+                  in: batch.map((docsSet) => docsSet.id),
+                },
               },
-            },
-            {
-              sourceId: {
-                equals: docsSet.slug,
+              {
+                sourceId: {
+                  in: slugs,
+                },
               },
-            },
-            {
-              'sync.sourceId': {
-                equals: docsSet.slug,
+              {
+                'sync.sourceId': {
+                  in: slugs,
+                },
               },
-            },
-          ],
-        },
-        notArchivedWhere(),
-      ],
-    },
+            ],
+          },
+          notArchivedWhere(),
+        ],
+      },
+    })
   })
 
-  return result.docs
-    .flatMap((asset) => {
-      const record = toLlmsSkillAsset(asset)
+  for (const { batch, docs: assets } of results) {
+    for (const asset of assets) {
+      const record = isRecord(asset) ? toLlmsSkillAsset(asset) : undefined
 
-      return record ? [record] : []
-    })
-    .sort(compareSkills)
+      if (!record || !isRecord(asset)) {
+        continue
+      }
+
+      for (const docsSet of batch) {
+        if (isSkillAssetOfDocsSet(asset, docsSet)) {
+          assetsByDocsSet.get(String(docsSet.id))?.push(record)
+        }
+      }
+    }
+  }
+
+  for (const assets of assetsByDocsSet.values()) {
+    assets.sort(compareSkills)
+  }
+
+  return assetsByDocsSet
 }
 
 const normalizeDependencySlug = (dependency: string): string | undefined => {
@@ -300,44 +398,53 @@ const findRelatedDocsSets = ({
   )
 }
 
-const loadDocsSetLlmsData = async ({
+/** Llms data for each of `docsSets`, in the same order, from batched queries. */
+const loadLlmsData = async ({
   allDocsSets,
   docsAssetsCollectionSlug,
   docsCollectionSlug,
-  docsSet,
+  docsSets,
+  includeContent,
   markdownFieldName,
   payload,
 }: {
   allDocsSets: ResolvedDocsSet[]
   docsAssetsCollectionSlug: string
   docsCollectionSlug: string
-  docsSet: ResolvedDocsSet
+  docsSets: ResolvedDocsSet[]
+  includeContent: boolean
   markdownFieldName: string
   payload: LlmsPayloadOperations
-}): Promise<DocsSetLlmsData> => {
-  const [docs, skillAssets] = await Promise.all([
-    findDocsForDocsSet({
+}): Promise<RootLlmsData[]> => {
+  const [docsByDocsSet, skillAssetsByDocsSet] = await Promise.all([
+    findDocsByDocsSet({
       docsCollectionSlug,
-      docsSet,
+      docsSets,
+      includeContent,
       markdownFieldName,
       payload,
     }),
-    findSkillAssetsForDocsSet({
+    findSkillAssetsByDocsSet({
       docsAssetsCollectionSlug,
-      docsSet,
+      docsSets,
       payload,
     }),
   ])
 
-  return {
-    docs,
-    relatedDocsSets: findRelatedDocsSets({
-      allDocsSets,
-      currentDocsSet: docsSet,
+  return docsSets.map((docsSet) => {
+    const docs = docsByDocsSet.get(String(docsSet.id)) ?? []
+
+    return {
       docs,
-    }),
-    skills: getSkillBundles(skillAssets),
-  }
+      docsSet,
+      relatedDocsSets: findRelatedDocsSets({
+        allDocsSets,
+        currentDocsSet: docsSet,
+        docs,
+      }),
+      skills: getSkillBundles(skillAssetsByDocsSet.get(String(docsSet.id)) ?? []),
+    }
+  })
 }
 
 const renderLinkList = (
@@ -678,14 +785,19 @@ export const generateDocsSetLlms = async ({
     docsGroupsCollectionSlug,
     payload,
   })
-  const data = await loadDocsSetLlmsData({
+  const [data] = await loadLlmsData({
     allDocsSets,
     docsAssetsCollectionSlug,
     docsCollectionSlug,
-    docsSet,
+    docsSets: [docsSet],
+    includeContent: true,
     markdownFieldName,
     payload,
   })
+
+  if (!data) {
+    return undefined
+  }
 
   if (data.docs.length === 0 && data.skills.length === 0) {
     return undefined
@@ -727,19 +839,16 @@ export const generateRootLlms = async ({
     return undefined
   }
 
-  const rootData = await Promise.all(
-    docsSets.map(async (docsSet) => ({
-      docsSet,
-      ...(await loadDocsSetLlmsData({
-        allDocsSets: docsSets,
-        docsAssetsCollectionSlug,
-        docsCollectionSlug,
-        docsSet,
-        markdownFieldName,
-        payload,
-      })),
-    })),
-  )
+  // The root index renders links only, so doc bodies are not loaded.
+  const rootData = await loadLlmsData({
+    allDocsSets: docsSets,
+    docsAssetsCollectionSlug,
+    docsCollectionSlug,
+    docsSets,
+    includeContent: false,
+    markdownFieldName,
+    payload,
+  })
   const origin = getPublicRequestOrigin(req, { trustForwardedHeaders })
 
   return kind === 'llms'
