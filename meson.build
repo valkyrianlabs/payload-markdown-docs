@@ -1,7 +1,7 @@
 project(
   'payload-markdown-docs',
   'cpp',
-  version: '1.0.5',
+  version: '1.1.0',
   license: 'MIT',
   meson_version: '>=1.3.0',
   default_options: [
