@@ -611,9 +611,9 @@ jobs:
           apt-get install -y pmdocs
           pmdocs --version
 
+  # No checkout of this repository (only the tap), and nothing privileged: plain host shell.
   publish-homebrew-tap:
     name: Publish Homebrew tap formula
-    # No checkout of this repository (only the tap), and nothing privileged: plain host shell.
     runs-on: [self-hosted, Linux, X64, ubuntu-latest-lts]
     needs:
       - validate-release-state

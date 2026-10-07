@@ -68,10 +68,10 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
         self.assertNotIn("--skip-changelog", native_job)
         self.assertNotIn("--skip-changelog", assemble_job)
         self.assertIn("Smoke install Debian package in container", workflow)
-        self.assertIn("docker run --rm", workflow)
-        self.assertIn("apt-get install -y /release/*.deb", workflow)
+        self.assertIn("./ci/run-ci --image docker.io/library/ubuntu:24.04@sha256:", native_job)
+        self.assertIn("apt-get install -y ./release/*.deb", native_job)
         self.assertIn("pmdocs doctor", workflow)
-        self.assertIn("pmdocs validate /fixtures/basic --source payload-markdown-docs", workflow)
+        self.assertIn("pmdocs validate dev/docs-fixtures/basic --source payload-markdown-docs", workflow)
         self.assertIn("ruby -c release/homebrew/Formula/pmdocs.rb", workflow)
         self.assertIn("Build and test native CLI for formula source build parity", workflow)
 
@@ -165,10 +165,11 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
                 with self.subTest(path=path.name, line=stripped):
                     self.assertRegex(stripped, re.compile(r"^uses: [\w.-]+/[\w.-]+@[0-9a-f]{40} # v\d+\.\d+\.\d+$"))
 
-    def test_pull_requests_never_run_on_self_hosted_runners(self) -> None:
+    def test_fork_pull_requests_never_run_on_self_hosted_runners(self) -> None:
         workflow = (self._repo_root() / ".github" / "workflows" / "deploy.yml").read_text(encoding="utf-8")
         runner = (
-            "runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || "
+            "runs-on: ${{ github.event_name == 'pull_request' && "
+            "github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-latest' || "
             "fromJSON('[\"self-hosted\",\"Linux\",\"X64\",\"ubuntu-latest-lts\"]') }}"
         )
 
@@ -176,6 +177,28 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
         self.assertIn("permissions:\n  contents: read\n", workflow)
         self.assertEqual(workflow.count("runs-on:"), workflow.count(runner))
         self.assertNotIn("runs-on: [self-hosted", workflow)
+
+    def test_ci_steps_run_in_the_container_not_on_the_host(self) -> None:
+        container_shell = "shell: bash ./ci/run-ci bash -euo pipefail {0}"
+        deploy = (self._repo_root() / ".github" / "workflows" / "deploy.yml").read_text(encoding="utf-8")
+        release = self._workflow()
+
+        self.assertEqual(deploy.count("runs-on:"), deploy.count(container_shell))
+        for job in (
+            "validate-release-state",
+            "npm-package",
+            "native-debian",
+            "homebrew-formula",
+            "assemble-release-artifacts",
+            "publish-debian",
+            "publish-docs",
+        ):
+            section = release.split(f"\n  {job}:\n", 1)[1].split("\n  # ", 1)[0].split("\n\n  ", 1)[0]
+            self.assertIn(container_shell, section, job)
+        for name, workflow in (("deploy.yml", deploy), ("release.yml", release)):
+            code = "\n".join(line for line in workflow.splitlines() if not line.lstrip().startswith("#"))
+            for forbidden in ("sudo", "docker run", "services:", "setup-python", "install-apt-deps"):
+                self.assertNotIn(forbidden, code, f"{name}: {forbidden}")
 
     def test_npm_package_name_is_guarded_from_package_json_or_env_var(self) -> None:
         workflow = self._workflow()
@@ -250,9 +273,12 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
         self.assertIn("Smoke install published APT package", publish_debian_job)
         self.assertIn("python -m tools.release publish-deb --output-dir release --require-enabled", publish_debian_job)
         self.assertIn("https://apt.valkyrianlabs.com/pubkey.gpg", publish_debian_job)
-        self.assertIn("sudo -n apt update", publish_debian_job)
-        self.assertIn("sudo -n apt install -y pmdocs", publish_debian_job)
+        # In a clean, digest-pinned stock Ubuntu container (as container root), never on the host.
+        self.assertIn("./ci/run-ci --image docker.io/library/ubuntu:24.04@sha256:", publish_debian_job)
+        self.assertIn("--root bash -euo pipefail {0}", publish_debian_job)
+        self.assertIn("apt-get install -y pmdocs", publish_debian_job)
         self.assertIn("pmdocs --version", publish_debian_job)
+        self.assertNotIn("sudo", publish_debian_job)
 
 
 if __name__ == "__main__":
