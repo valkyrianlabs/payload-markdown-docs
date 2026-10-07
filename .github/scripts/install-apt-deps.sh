@@ -29,13 +29,27 @@ if ! command -v sudo >/dev/null 2>&1; then
   exit 1
 fi
 
-if ! sudo -n apt update; then
-  echo "::error::Missing apt packages: ${missing[*]}"
-  echo "::error::The runner could not run 'apt update' through non-interactive sudo."
-  exit 1
+# Refresh the package lists only when a missing package has no install candidate in them: the
+# self-hosted runner keeps its lists, and a slow upstream mirror should not be waited on for
+# nothing. apt-get (not apt) matches the runner's sudoers policy.
+unknown=()
+for package in "${missing[@]}"; do
+  candidate="$(apt-cache policy "$package" 2>/dev/null | sed -n 's/^ *Candidate: //p')"
+  if [ -z "$candidate" ] || [ "$candidate" = "(none)" ]; then
+    unknown+=("$package")
+  fi
+done
+
+if [ "${#unknown[@]}" -gt 0 ]; then
+  echo "No install candidate for ${unknown[*]}; refreshing the package lists."
+  if ! sudo -n apt-get update; then
+    echo "::error::Missing apt packages: ${missing[*]}"
+    echo "::error::The runner could not run 'apt-get update' through non-interactive sudo."
+    exit 1
+  fi
 fi
 
-if ! sudo -n apt install -y "${missing[@]}"; then
+if ! sudo -n apt-get install -y --no-install-recommends "${missing[@]}"; then
   echo "::error::The runner could not install missing apt packages through non-interactive sudo: ${missing[*]}"
   exit 1
 fi

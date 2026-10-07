@@ -171,7 +171,7 @@ jobs:
 
   npm-package:
     name: npm package
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, ubuntu-latest-lts]
     needs:
       - validate-release-state
       - native-debian
@@ -735,6 +735,8 @@ jobs:
           git -C homebrew-tap commit -m "Update pmdocs ${VERSION}"
           git -C homebrew-tap push origin "HEAD:${HOMEBREW_TAP_BRANCH}"
 
+  # npm trusted publishing (OIDC) works only on GitHub-hosted runners, so this job stays there;
+  # every other job runs on the self-hosted runner.
   publish-npm:
     name: Publish npm package
     runs-on: ubuntu-latest
