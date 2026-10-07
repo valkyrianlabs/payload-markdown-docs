@@ -1,0 +1,50 @@
+# CI build/test environment for payload-markdown-docs (plugin, Playwright, native pmdocs CLI and
+# Debian/Homebrew release tooling).
+#
+# Playwright's own image (Ubuntu 24.04 with Chromium and its OS dependencies for the Playwright
+# version in pnpm-lock.yaml), plus Node (.nvmrc), pnpm (packageManager), the native CLI's
+# Meson/CMake toolchain and libraries, Debian packaging tools and Python for tools/release.
+# Built and run by ci/run-ci (same script as payload-markdown); nothing here touches the host.
+FROM mcr.microsoft.com/playwright:v1.58.2-noble@sha256:6446946a1d9fd62d9ae501312a2d76a43ee688542b21622056a372959b65d63d
+
+ARG NODE_VERSION=24.13.1
+ARG PNPM_VERSION=10.33.0
+# Passed by ci/run-ci; unused here.
+ARG VALKYRIANLABS_TOOLS=""
+
+# The release tooling's virtualenv (.github/scripts/setup-release-python.sh) lives in the
+# workspace; it comes first on PATH whenever it exists.
+ENV DEBIAN_FRONTEND=noninteractive \
+    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
+    COREPACK_HOME=/usr/local/share/corepack \
+    COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
+    HOME=/home/ci \
+    CI=true \
+    PATH=/workspace/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+      ca-certificates curl git gnupg jq sudo xz-utils \
+      python3 python3-venv python3-pip python3-yaml \
+      build-essential cmake doctest-dev libcli11-dev libcurl4-openssl-dev libssl-dev \
+      meson ninja-build nlohmann-json3-dev pkgconf \
+      debhelper devscripts dpkg-dev fakeroot ruby \
+ && echo 'ALL ALL=(ALL:ALL) NOPASSWD: ALL' > /etc/sudoers.d/ci \
+ && chmod 0440 /etc/sudoers.d/ci \
+ && rm -rf /var/lib/apt/lists/*
+
+RUN set -eux; \
+    cd /tmp; \
+    file="node-v${NODE_VERSION}-linux-x64.tar.xz"; \
+    curl -fsSLO "https://nodejs.org/dist/v${NODE_VERSION}/${file}"; \
+    curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/SHASUMS256.txt" | grep " ${file}\$" | sha256sum -c -; \
+    tar -xJf "$file" -C /usr/local --strip-components=1 --no-same-owner; \
+    rm -f "$file"; \
+    corepack enable; \
+    corepack prepare "pnpm@${PNPM_VERSION}" --activate; \
+    chmod -R a+rX "$COREPACK_HOME"; \
+    node --version; pnpm --version
+
+RUN install -d -m 1777 /home/ci
+
+WORKDIR /workspace

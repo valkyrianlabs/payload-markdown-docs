@@ -9,12 +9,20 @@ on:
 permissions:
   contents: read
 
-# Pull request code (possibly from forks) runs on GitHub-hosted runners only.
-# The persistent self-hosted runners also run Production release jobs, so they
-# only run trusted code from pushes to main.
+# Every run step executes inside the disposable CI container: each job's default shell is
+# `./ci/run-ci` (rootless Podman; see ci/README.md and payload-markdown's ci/README.md), so no
+# job needs host sudo, host packages, Docker service containers or setup-* actions. Node, pnpm,
+# Playwright with Chromium, the native toolchain and Python come with ci/Containerfile.
+#
+# Runners: pushes and pull requests from branches of this repository run on the self-hosted
+# runner; pull requests from forks (untrusted code that could also rewrite this file) run on
+# GitHub-hosted runners, which build the same container.
 jobs:
   build-and-test:
-    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || fromJSON('["self-hosted","Linux","X64","ubuntu-latest-lts"]') }}
+    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-latest' || fromJSON('["self-hosted","Linux","X64","ubuntu-latest-lts"]') }}
+    defaults:
+      run:
+        shell: bash ./ci/run-ci bash -euo pipefail {0}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
@@ -25,13 +33,8 @@ jobs:
           bash <(curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/v1.7.7/scripts/download-actionlint.bash) 1.7.7
           ./actionlint -color -shellcheck=
 
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        with:
-          node-version-file: '.nvmrc'
-
       - name: Install dependencies
         run: |
-          corepack enable
           pnpm install --frozen-lockfile --prefer-offline --unsafe-perm
 
       - name: Lint
@@ -54,137 +57,61 @@ jobs:
   # visible with real Payload + Postgres semantics, so the DB-backed suite runs on every change.
   db-tests:
     name: Postgres-backed tests
-    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || fromJSON('["self-hosted","Linux","X64","ubuntu-latest-lts"]') }}
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_DB: docs_ci
-          POSTGRES_PASSWORD: postgres
-        ports:
-          - 5432/tcp
-        options: >-
-          --health-cmd "pg_isready -U postgres"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 20
+    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-latest' || fromJSON('["self-hosted","Linux","X64","ubuntu-latest-lts"]') }}
+    defaults:
+      run:
+        shell: bash ./ci/run-ci bash -euo pipefail {0}
     env:
       PAYLOAD_SECRET: ci-secret
       PAYLOAD_MARKDOWN_DOCS_RUN_DB_TESTS: '1'
     steps:
-      # The service port is only known at run time, and the `job` context is not available in
-      # job-level `env`, so export the connection string from a step.
-      - name: Export DATABASE_URL
-        run: echo "DATABASE_URL=postgres://postgres:postgres@localhost:${{ job.services.postgres.ports['5432'] }}/docs_ci" >> "$GITHUB_ENV"
-
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        with:
-          node-version-file: '.nvmrc'
 
       - name: Install dependencies
         run: |
-          corepack enable
           pnpm install --frozen-lockfile --prefer-offline --unsafe-perm
 
       - name: Build
         run: pnpm build
 
       - name: Run tests against Postgres
+        shell: bash ./ci/run-ci --postgres bash -euo pipefail {0}
         run: pnpm test:int
 
   e2e:
     name: Playwright e2e
-    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || fromJSON('["self-hosted","Linux","X64","ubuntu-latest-lts"]') }}
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_DB: docs_e2e
-          POSTGRES_PASSWORD: postgres
-        ports:
-          - 5432/tcp
-        options: >-
-          --health-cmd "pg_isready -U postgres"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 20
+    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-latest' || fromJSON('["self-hosted","Linux","X64","ubuntu-latest-lts"]') }}
+    defaults:
+      run:
+        shell: bash ./ci/run-ci bash -euo pipefail {0}
     env:
       PAYLOAD_SECRET: ci-secret
       DOCS_SYNC_KEY_ID: dev-local
       PORT: '3100'
     steps:
-      # The service port is only known at run time, and the `job` context is not available in
-      # job-level `env`, so export the connection string from a step.
-      - name: Export DATABASE_URL
-        run: echo "DATABASE_URL=postgres://postgres:postgres@localhost:${{ job.services.postgres.ports['5432'] }}/docs_e2e" >> "$GITHUB_ENV"
-
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        with:
-          node-version-file: '.nvmrc'
 
       - name: Install dependencies
         run: |
-          corepack enable
           pnpm install --frozen-lockfile --prefer-offline --unsafe-perm
-
-      # `playwright install --with-deps` runs `sudo -- sh -c "apt-get ..."`, which the
-      # self-hosted runner's sudoers policy (apt-get only) rightly does not allow. Ask
-      # Playwright for its package list and call the allowed apt-get commands directly.
-      - name: Install Playwright Chromium and its system dependencies
-        run: |
-          set -euo pipefail
-          deps="$(pnpm exec playwright install-deps --dry-run chromium \
-            | sed -n 's/.*--no-install-recommends \(.*\)"$/\1/p')"
-          if [ -z "$deps" ]; then
-            echo "::error::Could not read Playwright's system dependency list."
-            exit 1
-          fi
-          # Only the missing packages; the package lists are refreshed only if installing
-          # from the current ones fails (the self-hosted runner keeps its packages).
-          missing=""
-          for dep in $deps; do
-            dpkg-query -W -f='${Status}' "$dep" 2>/dev/null | grep -q "install ok installed" || missing="$missing $dep"
-          done
-          if [ -n "$missing" ]; then
-            if ! sudo -n apt-get install -y --no-install-recommends $missing; then
-              sudo -n apt-get update
-              sudo -n apt-get install -y --no-install-recommends $missing
-            fi
-          else
-            echo "Playwright system dependencies already installed"
-          fi
-          pnpm exec playwright install chromium
 
       - name: Build
         run: pnpm build
 
+      # Chromium and its OS dependencies come with the container image; the step gets its own
+      # throwaway Postgres (tmpfs) in the same pod.
       - name: Run Playwright
+        shell: bash ./ci/run-ci --postgres bash -euo pipefail {0}
         run: pnpm test:e2e --reporter=line
 
   native-cli:
     name: Native CLI
-    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || fromJSON('["self-hosted","Linux","X64","ubuntu-latest-lts"]') }}
+    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-latest' || fromJSON('["self-hosted","Linux","X64","ubuntu-latest-lts"]') }}
+    defaults:
+      run:
+        shell: bash ./ci/run-ci bash -euo pipefail {0}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-
-      - name: Install native build dependencies
-        run: |
-          set -euo pipefail
-          bash .github/scripts/install-apt-deps.sh \
-            build-essential \
-            cmake \
-            doctest-dev \
-            libcli11-dev \
-            libcurl4-openssl-dev \
-            libssl-dev \
-            meson \
-            ninja-build \
-            nlohmann-json3-dev \
-            pkgconf
 
       - name: Build and test native CLI
         run: |
@@ -213,15 +140,14 @@ jobs:
 
   release-tooling:
     name: Release tooling
-    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || fromJSON('["self-hosted","Linux","X64","ubuntu-latest-lts"]') }}
+    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-latest' || fromJSON('["self-hosted","Linux","X64","ubuntu-latest-lts"]') }}
+    defaults:
+      run:
+        shell: bash ./ci/run-ci bash -euo pipefail {0}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
-
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
-        with:
-          python-version: '3.12'
 
       - name: Install release tooling Python dependencies
         run: bash .github/scripts/setup-release-python.sh
@@ -238,7 +164,10 @@ jobs:
   consumer-smoke:
     name: Consumer smoke (pnpm install + next build + signed sync)
     needs: native-cli
-    runs-on: ${{ github.event_name == 'pull_request' && 'ubuntu-latest' || fromJSON('["self-hosted","Linux","X64","ubuntu-latest-lts"]') }}
+    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-latest' || fromJSON('["self-hosted","Linux","X64","ubuntu-latest-lts"]') }}
+    defaults:
+      run:
+        shell: bash ./ci/run-ci bash -euo pipefail {0}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
@@ -248,10 +177,6 @@ jobs:
           ref: main
           path: .ci/payload-markdown
 
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        with:
-          node-version-file: '.nvmrc'
-
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           name: pmdocs-ci
@@ -260,7 +185,6 @@ jobs:
       - name: Pack payload-markdown and payload-markdown-docs
         run: |
           set -euo pipefail
-          corepack enable
           mkdir -p .ci/tarballs
           (cd .ci/payload-markdown && pnpm install --frozen-lockfile && pnpm build && npm pack --ignore-scripts --pack-destination ../tarballs)
           pnpm install --frozen-lockfile --prefer-offline --unsafe-perm

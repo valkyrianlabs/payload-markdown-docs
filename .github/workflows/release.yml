@@ -21,6 +21,13 @@ on:
 # Least privilege: every job gets read-only contents unless it declares more.
 # Only the GitHub release upload job may write repository contents, and only the npm
 # trusted-publishing and docs OIDC push jobs may mint id-tokens.
+#
+# Runners: every self-hosted job except publish-homebrew-tap (which checks out only the tap and
+# needs nothing privileged) runs its steps inside the disposable CI container: the job's default
+# shell is ./ci/run-ci (rootless Podman; see ci/README.md). Clean-install smoke tests use a
+# digest-pinned stock Ubuntu image through the same wrapper. No job needs host sudo, host apt,
+# Docker or setup-* actions. publish-npm stays on GitHub-hosted runners: npm trusted publishing
+# (OIDC) does not accept self-hosted runners.
 permissions:
   contents: read
 
@@ -43,6 +50,9 @@ jobs:
   validate-release-state:
     name: Validate release state
     runs-on: [self-hosted, Linux, X64, ubuntu-latest-lts]
+    defaults:
+      run:
+        shell: bash ./ci/run-ci bash -euo pipefail {0}
     outputs:
       version: ${{ steps.state.outputs.version }}
       release_tag: ${{ steps.state.outputs.release_tag }}
@@ -56,11 +66,6 @@ jobs:
           ref: ${{ github.event.inputs.ref || github.ref }}
           fetch-depth: 0
 
-      - name: Setup Python
-        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
-        with:
-          python-version: "3.12"
-
       - name: Install release tooling Python dependencies
         run: |
           set -euo pipefail
@@ -68,7 +73,7 @@ jobs:
 
       - name: Validate versions and publication policy
         id: state
-        shell: bash
+        shell: bash ./ci/run-ci bash -euo pipefail {0}
         env:
           DISPATCH_REF: ${{ github.event.inputs.ref || '' }}
           DISPATCH_PUBLISH: ${{ github.event.inputs.publish || 'dry-run' }}
@@ -172,6 +177,9 @@ jobs:
   npm-package:
     name: npm package
     runs-on: [self-hosted, Linux, X64, ubuntu-latest-lts]
+    defaults:
+      run:
+        shell: bash ./ci/run-ci bash -euo pipefail {0}
     needs:
       - validate-release-state
       - native-debian
@@ -182,21 +190,9 @@ jobs:
         with:
           ref: ${{ github.event.inputs.ref || github.ref }}
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
-        with:
-          run_install: false
-
-      - name: Setup Node
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
-        with:
-          node-version-file: ".nvmrc"
-          registry-url: "https://registry.npmjs.org"
-
       - name: Install dependencies
         run: |
           set -euo pipefail
-          corepack enable
           pnpm install --frozen-lockfile --prefer-offline
 
       - name: Ensure package is publishable
@@ -218,7 +214,7 @@ jobs:
 
       - name: Verify npm version is unpublished
         if: needs.validate-release-state.outputs.publish_required == 'true'
-        shell: bash
+        shell: bash ./ci/run-ci bash -euo pipefail {0}
         env:
           PKG_NAME: ${{ needs.validate-release-state.outputs.package_name }}
           PKG_VERSION: ${{ needs.validate-release-state.outputs.version }}
@@ -266,6 +262,9 @@ jobs:
   native-debian:
     name: Native CLI and Debian package
     runs-on: [self-hosted, Linux, X64, ubuntu-latest-lts]
+    defaults:
+      run:
+        shell: bash ./ci/run-ci bash -euo pipefail {0}
     needs: validate-release-state
     environment: Production
     steps:
@@ -275,34 +274,10 @@ jobs:
           ref: ${{ github.event.inputs.ref || github.ref }}
           fetch-depth: 0
 
-      - name: Setup Python
-        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
-        with:
-          python-version: "3.12"
-
       - name: Install release tooling Python dependencies
         run: |
           set -euo pipefail
           bash .github/scripts/setup-release-python.sh
-
-      - name: Install native and release-tooling dependencies
-        shell: bash
-        run: |
-          set -euo pipefail
-          bash .github/scripts/install-apt-deps.sh \
-            build-essential \
-            cmake \
-            debhelper \
-            devscripts \
-            doctest-dev \
-            dpkg-dev \
-            libcli11-dev \
-            libcurl4-openssl-dev \
-            libssl-dev \
-            meson \
-            ninja-build \
-            nlohmann-json3-dev \
-            pkgconf
 
       - name: Build and test native CLI
         run: |
@@ -319,24 +294,13 @@ jobs:
           path: build-native/cli/pmdocs
           if-no-files-found: error
 
-      - name: Setup pnpm for Debian package skill data
-        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
-        with:
-          run_install: false
-
-      - name: Setup Node for Debian package skill data
-        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
-        with:
-          node-version-file: ".nvmrc"
-
       - name: Install npm dependencies for Debian package skill data
         run: |
           set -euo pipefail
-          corepack enable
           pnpm install --frozen-lockfile --prefer-offline
 
       - name: Generate release changelog
-        shell: bash
+        shell: bash ./ci/run-ci bash -euo pipefail {0}
         env:
           RELEASE_AI_MODE: ${{ vars.RELEASE_AI_MODE || 'auto' }}
           # Profile precedence: VL_AI_RELEASE_PROFILE (valkyrianlabs org variable), RELEASE_AI_PROFILE,
@@ -374,23 +338,18 @@ jobs:
           set -euo pipefail
           python -m tools.release validate-release-artifacts --output-dir release
 
+      # A clean, digest-pinned stock Ubuntu image (not the CI image), as container root; apt runs
+      # inside that throwaway container only.
       - name: Smoke install Debian package in container
+        shell: bash ./ci/run-ci --image docker.io/library/ubuntu:24.04@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55 --root bash -euo pipefail {0}
         run: |
-          set -euo pipefail
-          docker run --rm \
-            -v "$PWD/release:/release:ro" \
-            -v "$PWD/dev/docs-fixtures:/fixtures:ro" \
-            ubuntu:24.04 \
-            bash -lc '
-              set -euo pipefail
-              apt-get update
-              apt-get install -y ca-certificates
-              apt-get install -y /release/*.deb
-              pmdocs --version
-              pmdocs doctor
-              pmdocs validate /fixtures/basic --source payload-markdown-docs
-              pmdocs skill install --dry-run
-            '
+          apt-get update
+          apt-get install -y ca-certificates
+          apt-get install -y ./release/*.deb
+          pmdocs --version
+          pmdocs doctor
+          pmdocs validate dev/docs-fixtures/basic --source payload-markdown-docs
+          pmdocs skill install --dry-run
 
       - name: Upload Debian artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -414,6 +373,9 @@ jobs:
   homebrew-formula:
     name: Homebrew formula
     runs-on: [self-hosted, Linux, X64, ubuntu-latest-lts]
+    defaults:
+      run:
+        shell: bash ./ci/run-ci bash -euo pipefail {0}
     needs: validate-release-state
     steps:
       - name: Checkout
@@ -422,32 +384,10 @@ jobs:
           ref: ${{ github.event.inputs.ref || github.ref }}
           fetch-depth: 0
 
-      - name: Setup Python
-        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
-        with:
-          python-version: "3.12"
-
       - name: Install release tooling Python dependencies
         run: |
           set -euo pipefail
           bash .github/scripts/setup-release-python.sh
-
-      - name: Install native and formula validation dependencies
-        run: |
-          set -euo pipefail
-          bash .github/scripts/install-apt-deps.sh \
-            build-essential \
-            cmake \
-            curl \
-            doctest-dev \
-            libcli11-dev \
-            libcurl4-openssl-dev \
-            libssl-dev \
-            meson \
-            ninja-build \
-            nlohmann-json3-dev \
-            pkgconf \
-            ruby
 
       - name: Validate release state and formula syntax
         run: |
@@ -472,7 +412,7 @@ jobs:
 
       - name: Stage release Homebrew formula
         if: needs.validate-release-state.outputs.publish_required == 'true'
-        shell: bash
+        shell: bash ./ci/run-ci bash -euo pipefail {0}
         env:
           VERSION: ${{ needs.validate-release-state.outputs.version }}
         run: |
@@ -496,6 +436,9 @@ jobs:
   assemble-release-artifacts:
     name: Assemble release artifacts
     runs-on: [self-hosted, Linux, X64, ubuntu-latest-lts]
+    defaults:
+      run:
+        shell: bash ./ci/run-ci bash -euo pipefail {0}
     permissions:
       contents: write
     needs:
@@ -509,11 +452,6 @@ jobs:
         with:
           ref: ${{ github.event.inputs.ref || github.ref }}
           fetch-depth: 0
-
-      - name: Setup Python
-        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
-        with:
-          python-version: "3.12"
 
       - name: Install release tooling Python dependencies
         run: |
@@ -540,7 +478,7 @@ jobs:
           path: release/homebrew/Formula
 
       - name: Validate assembled release artifacts
-        shell: bash
+        shell: bash ./ci/run-ci bash -euo pipefail {0}
         run: |
           set -euo pipefail
           args=(--output-dir release)
@@ -552,7 +490,7 @@ jobs:
       - name: Prepare GitHub release asset list (deduped)
         if: needs.validate-release-state.outputs.release_tag != ''
         id: gh_release_assets
-        shell: bash
+        shell: bash ./ci/run-ci bash -euo pipefail {0}
         run: |
           set -euo pipefail
           artifact_dir="release"
@@ -574,7 +512,7 @@ jobs:
       - name: Prepare GitHub Release body append
         if: needs.validate-release-state.outputs.release_tag != ''
         id: gh_release_body
-        shell: bash
+        shell: bash ./ci/run-ci bash -euo pipefail {0}
         run: |
           set -euo pipefail
 
@@ -619,6 +557,9 @@ jobs:
   publish-debian:
     name: Publish Debian artifacts to Nexus
     runs-on: [self-hosted, Linux, X64, ubuntu-latest-lts]
+    defaults:
+      run:
+        shell: bash ./ci/run-ci bash -euo pipefail {0}
     needs:
       - validate-release-state
       - assemble-release-artifacts
@@ -633,11 +574,6 @@ jobs:
         with:
           ref: ${{ github.event.inputs.ref || github.ref }}
 
-      - name: Setup Python
-        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
-        with:
-          python-version: "3.12"
-
       - name: Install release tooling Python dependencies
         run: |
           set -euo pipefail
@@ -650,7 +586,7 @@ jobs:
           path: release
 
       - name: Publish or dry-run Debian upload
-        shell: bash
+        shell: bash ./ci/run-ci bash -euo pipefail {0}
         run: |
           set -euo pipefail
           if [ "${{ needs.validate-release-state.outputs.publish_required }}" = "true" ]; then
@@ -659,23 +595,25 @@ jobs:
             python -m tools.release publish-deb --output-dir release --mode disabled --dry-run
           fi
 
+      # Installs the just-published package from the APT repository into a clean, digest-pinned
+      # stock Ubuntu container (as container root), never onto the host.
       - name: Smoke install published APT package
         if: needs.validate-release-state.outputs.publish_required == 'true'
-        shell: bash
+        shell: bash ./ci/run-ci --image docker.io/library/ubuntu:24.04@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55 --root bash -euo pipefail {0}
         run: |
-          set -euo pipefail
-          sudo -n install -d -m 0755 /etc/apt/keyrings
-          curl -fsSL https://apt.valkyrianlabs.com/pubkey.gpg -o valkyrianlabs.gpg
-          sudo -n install -m 0644 valkyrianlabs.gpg /etc/apt/keyrings/valkyrianlabs.gpg
+          apt-get update
+          apt-get install -y --no-install-recommends ca-certificates curl
+          install -d -m 0755 /etc/apt/keyrings
+          curl -fsSL https://apt.valkyrianlabs.com/pubkey.gpg -o /etc/apt/keyrings/valkyrianlabs.gpg
           echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/valkyrianlabs.gpg] https://apt.valkyrianlabs.com stable main" \
-            | sudo -n tee /etc/apt/sources.list.d/valkyrianlabs.list > /dev/null
-          sudo -n apt update
-          sudo -n apt purge -y pmdocs || true
-          sudo -n apt install -y pmdocs
+            > /etc/apt/sources.list.d/valkyrianlabs.list
+          apt-get update
+          apt-get install -y pmdocs
           pmdocs --version
 
   publish-homebrew-tap:
     name: Publish Homebrew tap formula
+    # No checkout of this repository (only the tap), and nothing privileged: plain host shell.
     runs-on: [self-hosted, Linux, X64, ubuntu-latest-lts]
     needs:
       - validate-release-state
@@ -794,6 +732,9 @@ jobs:
   publish-docs:
     name: Publish docs
     runs-on: [self-hosted, Linux, X64, ubuntu-latest-lts]
+    defaults:
+      run:
+        shell: bash ./ci/run-ci bash -euo pipefail {0}
     permissions:
       contents: read
       id-token: write
