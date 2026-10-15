@@ -93,6 +93,20 @@ import { prepareDocsSyncMigration } from 'payload-markdown-docs/migrations'
 
 See [Upgrading to 1.1](/reference/upgrade-1-1) for when to call it.
 
+## `/mcp`
+
+Use `/mcp` in the Payload config to give AI agents MCP tools through
+`@payloadcms/plugin-mcp`:
+
+```ts
+import { withPayloadMarkdownDocsMcp } from 'payload-markdown-docs/mcp'
+
+mcpPlugin(withPayloadMarkdownDocsMcp({ collections: { pages: { enabled: true } } }))
+```
+
+It also exports the tool definitions (`payloadMarkdownDocsMcpTools`) and the operations
+as plain functions for custom agents. Server-only. See [MCP Agent Tools](/workflow/mcp).
+
 Sync planning, security, routing internals, hashing, frontmatter parsing, and
 manifest builders are internal package implementation details.
 

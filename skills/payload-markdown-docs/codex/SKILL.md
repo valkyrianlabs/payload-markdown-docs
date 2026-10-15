@@ -99,6 +99,8 @@ when `pmdocs` is not installed.
   delete behavior matters.
 - Do not directly mutate generated Payload records unless the user explicitly
   asks for admin-side overrides.
+- When connected to the site's MCP server, follow `reference/mcp.md`: doc
+  content and frontmatter cannot be changed over MCP; change them in Git.
 - Do not invent directives, frontmatter fields, CLI flags, sync modes, runtime
   features, route helpers, or publishing behavior.
 - Do not describe unsupported features as implemented.
@@ -204,6 +206,7 @@ pmdocs install routes --payload-app "src/app/(payload)"
 - `reference/sync.md`
 - `reference/routing.md`
 - `reference/admin.md`
+- `reference/mcp.md`
 - `reference/troubleshooting.md`
 - `examples/github-actions.md`
 

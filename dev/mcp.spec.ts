@@ -1,5 +1,5 @@
 /**
- * Real-Postgres tests for the MCP integration (`@valkyrianlabs/payload-markdown-docs/mcp`)
+ * Real-Postgres tests for the MCP integration (`payload-markdown-docs/mcp`)
  * through the official MCP client and @payloadcms/plugin-mcp's endpoint, composed with
  * payload-markdown's MCP wrapper exactly like the dev app.
  *
@@ -11,7 +11,7 @@ import type { Payload } from 'payload'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import config from '@payload-config'
-import { writeMarkdown } from '@valkyrianlabs/payload-markdown/mcp'
+import { writeMarkdown } from 'payload-markdown/mcp'
 import { generateKeyPairSync, randomUUID } from 'node:crypto'
 import { APIError, createLocalReq, createPayloadRequest, getPayload } from 'payload'
 import { afterAll, beforeAll, describe, expect, test, vi } from 'vitest'

@@ -211,11 +211,11 @@ Both packages are published under two names, built once and released together:
 
 | Package | Preferred | Also published as |
 | --- | --- | --- |
-| This plugin | `payload-markdown-docs` | `@valkyrianlabs/payload-markdown-docs` |
-| Markdown field and renderer | `payload-markdown` | `@valkyrianlabs/payload-markdown` |
+| This plugin | `payload-markdown-docs` | `payload-markdown-docs` |
+| Markdown field and renderer | `payload-markdown` | `payload-markdown` |
 
 Install one name of each (any combination works) and import from the names you
-installed (`payload-markdown-docs/next`, `@valkyrianlabs/payload-markdown-docs/next`,
+installed (`payload-markdown-docs/next`, `payload-markdown-docs/next`,
 and so on). Both `payload-markdown` names are optional peer dependencies, so
 install the one you use yourself. The plugin finds it on its own: the docs
 content field uses the admin component of the installed `payload-markdown`
@@ -287,6 +287,7 @@ The package surface is intentionally split by runtime:
 - `payload-markdown-docs/next`: Next rendering, metadata, sitemap, nav, route, and asset route helpers.
 - `payload-markdown-docs/admin`: `DocsSetManager` for Payload import maps.
 - `payload-markdown-docs/blocks`: optional Payload block schemas and field helpers.
+- `payload-markdown-docs/mcp`: MCP tools for `@payloadcms/plugin-mcp` (server-only).
 
 Manual block installation imports from `/blocks`:
 
@@ -776,6 +777,24 @@ Skills are native agent workflow artifacts.
 The source split is intentional: `/docs` contains human documentation, while
 `/skills` contains agent-native workflow packages.
 
+## AI Agents Over MCP
+
+`payload-markdown-docs/mcp` adds docs tools to Payload's official MCP
+plugin, alongside payload-markdown's markdown tools (either wrapper order works):
+
+```ts
+import { mcpPlugin } from '@payloadcms/plugin-mcp'
+import { withPayloadMarkdownMcp } from 'payload-markdown/mcp'
+import { withPayloadMarkdownDocsMcp } from 'payload-markdown-docs/mcp'
+
+mcpPlugin(withPayloadMarkdownMcp(withPayloadMarkdownDocsMcp({ collections: { pages: { enabled: true } } })))
+```
+
+Agents can change presentation fields, publish, roll back to Git snapshots, manage docs
+sets, groups and sync access, and read sync runs. They cannot overwrite synced content:
+Git owns doc bodies and frontmatter, and the plugin rejects those writes from every MCP
+tool. See [MCP Agent Tools](docs/workflow/mcp.md).
+
 ## Advanced Security
 
 You do not need this for normal docs publishing.
@@ -796,6 +815,7 @@ all workflow publishing for that docs set.
 - [Docs Navbar](docs/frontend/navbar.md)
 - [CLI](docs/reference/cli.md)
 - [Public API](docs/reference/public-api.md)
+- [MCP Agent Tools](docs/workflow/mcp.md)
 
 ## Related Packages
 
