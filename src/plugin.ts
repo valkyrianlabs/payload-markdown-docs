@@ -1,6 +1,7 @@
 import type { Config, Plugin } from 'payload'
 
 import type { DocsCollectionAccessProfile } from './collections/access.js'
+import type { DocsCollectionRole } from './payload/agentGuard.js'
 import type { PayloadMarkdownDocsConfig } from './types.js'
 
 import { withDocsCollectionAccess } from './collections/access.js'
@@ -35,6 +36,7 @@ import {
 } from './endpoints/index.js'
 import { installDocsMarketingBlocks } from './install/blocks.js'
 import { installDocsHeroFields } from './install/heroes.js'
+import { withDocsAgentGuard } from './payload/agentGuard.js'
 import { resolveDocsMarketingBlocksAfterRead } from './payload/index.js'
 import { resolvePayloadMarkdownPackage } from './payloadMarkdown.js'
 
@@ -402,7 +404,10 @@ export const payloadMarkdownDocs =
         : []),
     ]
 
-    const accessProfiles: Record<string, { key: string; profile: DocsCollectionAccessProfile }> = {
+    const accessProfiles: Record<
+      string,
+      { key: DocsCollectionRole; profile: DocsCollectionAccessProfile }
+    > = {
       [docsAccessCollectionSlug]: { key: 'docsAccess', profile: 'admin' },
       [docsAssetsCollectionSlug]: { key: 'docsAssets', profile: 'admin' },
       [docsCollectionSlug]: { key: 'docs', profile: 'admin' },
@@ -420,14 +425,18 @@ export const payloadMarkdownDocs =
 
       const collectionOptions = pluginOptions.collections?.[accessProfile.key]
 
-      return withDocsCollectionAccess({
-        admin: pluginOptions.access?.admin,
-        collection,
-        overrides:
-          typeof collectionOptions === 'object' && collectionOptions !== null
-            ? collectionOptions.access
-            : undefined,
-        profile: accessProfile.profile,
+      return withDocsAgentGuard({
+        collection: withDocsCollectionAccess({
+          admin: pluginOptions.access?.admin,
+          collection,
+          overrides:
+            typeof collectionOptions === 'object' && collectionOptions !== null
+              ? collectionOptions.access
+              : undefined,
+          profile: accessProfile.profile,
+        }),
+        markdownFieldName,
+        role: accessProfile.key,
       })
     })
 
