@@ -72,7 +72,7 @@ export async function repairDocsRoutes({
   const docsGroupsCollection = collections.docsGroups ?? DEFAULT_DOCS_GROUPS_COLLECTION_SLUG
   const docsCollection = collections.docs ?? DEFAULT_DOCS_COLLECTION_SLUG
   const docsAssetsCollection = collections.docsAssets ?? DEFAULT_DOCS_ASSETS_COLLECTION_SLUG
-  const has = (slug: string) => Boolean(payload.collections[slug])
+  const has = (slug: CollectionSlug) => Boolean(payload.collections[slug])
 
   if (!has(docsSetsCollection) || !has(docsGroupsCollection)) {
     return { paths: [], sets: [] }

@@ -1,3 +1,5 @@
+import type { CollectionSlug } from 'payload'
+
 import { unstable_cache } from 'next/cache'
 
 import type { PayloadMarkdownDocsCollectionSlugs, PayloadMarkdownDocsReadPayload } from './types.js'
@@ -136,8 +138,8 @@ const getFirstLinkableUrl = (item: PayloadMarkdownDocsNavItem): string | undefin
 const NAV_CACHE_KEY = 'payload-markdown-docs-nav-v1'
 
 type LoadNavItemsOptions = {
-  docsGroupsCollectionSlug: string
-  docsSetsCollectionSlug: string
+  docsGroupsCollectionSlug: CollectionSlug
+  docsSetsCollectionSlug: CollectionSlug
   fetchLimit: number
   includeDrafts: boolean
   overrideAccess: boolean
