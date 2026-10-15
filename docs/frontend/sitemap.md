@@ -198,7 +198,9 @@ sitemap entries should use the canonical routes outside `/api`.
 ## Cache Keys And Tags
 
 The helper wraps its read in `unstable_cache`. Override `cacheKey` or `tags`
-when the app uses different sitemap invalidation tags.
+when the app uses different sitemap invalidation tags. The default tags are
+expired immediately after every applied sync and whenever a docs set or docs
+group changes (see [Cache Revalidation](/configuration/sync-config#cache-revalidation)).
 
 ```ts
 const docs = await getDocsForSitemap({

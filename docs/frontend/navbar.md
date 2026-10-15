@@ -106,3 +106,25 @@ const docsItems = await getPayloadMarkdownDocsHeaderNavItems({
   payload,
 })
 ```
+
+## Caching
+
+`getPayloadMarkdownDocsNavItems` (and the header adapters and
+`PayloadMarkdownDocsNavbar`, which use it) caches its docs set and docs group
+query in the Next data cache with `unstable_cache`, tagged
+`PAYLOAD_MARKDOWN_DOCS_NAV_CACHE_TAG` (`payload-markdown-docs:nav`). The cache
+key covers the collection slugs, `fetchLimit` and `overrideAccess`; `maxItems`,
+`availableSlots` and `existingItems` are applied after the cached read, so
+different header layouts share one entry.
+
+Next records the tag on every prerendered page that rendered the nav, and the
+plugin expires it immediately (`revalidateTag(tag, { expire: 0 })`) whenever a
+docs set or docs group is created, changed or deleted and after every applied
+sync. Statically prerendered pages with the docs nav in their header are
+regenerated on the next request, with no site-level revalidation code.
+
+- `includeDrafts: true` (and Next draft mode) is never cached, so drafts stay live.
+- Pass `cache: false` to read directly. Outside a Next runtime (scripts, tests)
+  the helper falls back to a direct read on its own.
+- To expire the nav from your own code, call
+  `revalidateTag(PAYLOAD_MARKDOWN_DOCS_NAV_CACHE_TAG, { expire: 0 })`.

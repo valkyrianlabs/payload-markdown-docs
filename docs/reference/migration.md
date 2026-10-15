@@ -105,3 +105,37 @@ requested:
 
 `includeAssets` does not imply llms or skill routes. Served asset endpoints are
 unchanged; this only controls crawler discovery from the sitemap helper.
+
+## Repairing Stale Docs Routes
+
+Before docs set and docs group changes rewrote generated docs routes (see
+[Changing Docs Set Routes](/concepts/docs-sets#changing-docs-set-routes)),
+changing a docs set's group, slug or `routeMode`, or a group's slug or parent,
+left generated docs on their old routes until the next sync. To fix such data
+without a sync, run `repairDocsRoutes` once, for example from a Payload
+migration or a `payload run` script:
+
+```ts
+import { repairDocsRoutes } from 'payload-markdown-docs/migrations'
+
+export async function up({ payload, req }: MigrateUpArgs): Promise<void> {
+  const result = await repairDocsRoutes({ payload, req })
+
+  payload.logger.info({ msg: 'Repaired docs routes', sets: result.sets })
+}
+```
+
+It compares every generated doc's route with its `sourcePath` and the current
+docs set route, so it needs no record of the old routes, and rewrites the
+published row, the latest draft and the docs set's assets. Options:
+
+- `docsSetId`: repair one docs set
+- `dryRun: true`: report without writing
+- `collections`: custom collection slugs (`docs`, `docsAssets`, `docsGroups`,
+  `docsSets`)
+
+Docs whose new route another doc already holds stay where they are and are
+listed under `collisions`; records that cannot be placed are listed under
+`unresolved`. It is safe to run more than once. Saving a published docs set in
+the admin repairs that set the same way, and a sync rewrites every route it
+manages.

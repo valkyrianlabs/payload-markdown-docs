@@ -28,7 +28,8 @@ The root export also includes public plugin config types such as
 `PayloadMarkdownDocsCollectionConfig`, `PayloadMarkdownDocsEndpointConfig`,
 `PayloadMarkdownDocsPagesRoutingConfig`,
 `PayloadMarkdownDocsSyncRevalidateConfig`, `DocsBlockInstallSelection`,
-`DocsCollectionInstallConfig`, and `DocsMarketingBlockKey`.
+`DocsCollectionInstallConfig`, and `DocsMarketingBlockKey`, plus
+`PAYLOAD_MARKDOWN_DOCS_NAV_CACHE_TAG` (also exported from `/next`).
 
 Do not import constants, routing helpers, sync helpers, security helpers,
 frontmatter parsers, manifest builders, or block schemas from the root package.
@@ -58,7 +59,9 @@ Use `getPayloadMarkdownDocsRoutePath` to normalize route input from a string,
 fallback Pages collection. `resolvePayloadMarkdownDocsRoute` supports `path` for
 new integrations; the older `slug` option remains available for compatibility.
 
-Use the nav/header builders for frontend navigation data.
+Use the nav/header builders for frontend navigation data. The nav query is
+cached under `PAYLOAD_MARKDOWN_DOCS_NAV_CACHE_TAG`; see
+[Docs Navbar](/frontend/navbar#caching).
 
 ## `/admin`
 
@@ -92,6 +95,10 @@ import { prepareDocsSyncMigration } from 'payload-markdown-docs/migrations'
 ```
 
 See [Upgrading to 1.1](/reference/upgrade-1-1) for when to call it.
+
+`repairDocsRoutes` rewrites generated docs routes that went stale after a docs
+set or docs group route change; see
+[Repairing Stale Docs Routes](/reference/migration#repairing-stale-docs-routes).
 
 ## `/mcp`
 
