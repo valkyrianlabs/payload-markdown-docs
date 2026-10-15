@@ -374,6 +374,11 @@ rules inside your repo. The `payload-markdown-docs` skill covers package
 structure and sync behavior. The companion `payload-markdown` skill covers
 renderer directives and Markdown authoring.
 
+After upgrading `pmdocs` or `payload-markdown`, `pmdocs skill update` refreshes
+both installed skills (`pmdocs skill check` reports whether they are current).
+Agents do this on their own: the skill tells them to, and `pmdocs validate`
+reminds them when the installed copy is stale.
+
 A typical prompt after installing the skill:
 
 ```txt

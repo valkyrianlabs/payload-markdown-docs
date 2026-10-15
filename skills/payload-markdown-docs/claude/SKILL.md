@@ -38,6 +38,26 @@ outdated (`npx payload-markdown skill check`), reinstall it with
 `npx payload-markdown skill install` before guessing directive names, props,
 themes, or formatting rules.
 
+## Keep These Skills Current
+
+At the start of docs work in a project, run:
+
+```bash
+pmdocs skill check
+```
+
+- `outdated` or `missing`: run `pmdocs skill update` right away, without asking,
+  then re-read this file and `../payload-markdown/SKILL.md` before continuing.
+  The update refreshes this skill and the `payload-markdown` skill together and
+  keeps the installed `--docs-root` and `--package-manager`.
+- `modified`: someone edited the installed skill. Do not pass `--force`; tell the
+  user a newer skill is available and let them decide.
+- `current`: carry on.
+
+`pmdocs validate` and `pmdocs plan` print the same reminder on stderr ("the agent
+skill installed in this project is stale"); treat it the same way. Skip the check
+when `pmdocs` is not installed.
+
 ## Current Model
 
 - Human docs records live in `./docs` by default.
