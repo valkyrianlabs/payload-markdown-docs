@@ -85,3 +85,11 @@ export async function prepareDocsSyncMigration({
 
   return result
 }
+
+export { repairDocsRoutes } from '../payload/repairDocsRoutes.js'
+export type { RepairDocsRoutesArgs, RepairDocsRoutesResult } from '../payload/repairDocsRoutes.js'
+export type {
+  DocsRouteCollision,
+  DocsRouteRewriteIssue,
+  DocsSetRouteRewriteReport,
+} from '../payload/rewriteDocsSetRoutes.js'
