@@ -37,6 +37,7 @@ import {
 import { installDocsMarketingBlocks } from './install/blocks.js'
 import { installDocsHeroFields } from './install/heroes.js'
 import { withDocsAgentGuard } from './payload/agentGuard.js'
+import { createDocsGroupsRouteHooks, createDocsSetsRouteHooks } from './payload/docsRouteHooks.js'
 import { resolveDocsMarketingBlocksAfterRead } from './payload/index.js'
 import { resolvePayloadMarkdownPackage } from './payloadMarkdown.js'
 
@@ -335,11 +336,31 @@ export const payloadMarkdownDocs =
       )
     }
 
+    // Docs set routes are derived from sets and groups; these hooks rewrite stored docs
+    // routes when they change and expire the nav and docs caches.
+    const routeHooksOptions = {
+      docsAssetsCollectionSlug: docsAssetsEnabled ? docsAssetsCollectionSlug : undefined,
+      docsCollectionSlug: docsEnabled ? docsCollectionSlug : undefined,
+      docsGroupsCollectionSlug,
+      docsSetsCollectionSlug,
+      revalidate: pluginOptions.sync?.revalidate,
+    }
+    const docsSetsRouteHooks = createDocsSetsRouteHooks(routeHooksOptions)
+    const docsGroupsRouteHooks = createDocsGroupsRouteHooks(routeHooksOptions)
+
     const addedCollections = [
       ...(docsGroupsEnabled
         ? [
             createDocsGroupsCollection({
               slug: docsGroupsCollectionSlug,
+              // Group hooks read docs sets, so they need the docs sets collection.
+              hooks: docsSetsEnabled
+                ? {
+                    afterChange: [docsGroupsRouteHooks.afterChange],
+                    afterDelete: [docsGroupsRouteHooks.afterDelete],
+                    beforeDelete: [docsGroupsRouteHooks.beforeDelete],
+                  }
+                : undefined,
             }),
           ]
         : []),
@@ -349,6 +370,11 @@ export const payloadMarkdownDocs =
               slug: docsSetsCollectionSlug,
               docsCollectionSlug: docsEnabled ? docsCollectionSlug : undefined,
               docsGroupsCollectionSlug,
+              hooks: {
+                afterChange: [docsSetsRouteHooks.afterChange],
+                afterDelete: [docsSetsRouteHooks.afterDelete],
+                beforeChange: [docsSetsRouteHooks.beforeChange],
+              },
               seoEnabled: pluginOptions.seo !== false,
               seoUploadCollectionSlug: uploadCollections.seoUploadCollectionSlug,
             }),
