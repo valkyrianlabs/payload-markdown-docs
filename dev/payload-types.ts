@@ -64,11 +64,13 @@ export type SupportedTimezones =
 export interface Config {
   auth: {
     users: UserAuthOperations;
+    'payload-mcp-api-keys': PayloadMcpApiKeyAuthOperations;
   };
   blocks: {
     vlMdBlock: MarkdownBlock;
   };
   collections: {
+    users: User;
     pages: Page;
     posts: Post;
     media: Media;
@@ -79,8 +81,8 @@ export interface Config {
     docs: Doc;
     'docs-sync-runs': DocsSyncRun;
     'docs-sync-nonces': DocsSyncNonce;
+    'payload-mcp-api-keys': PayloadMcpApiKey;
     'payload-kv': PayloadKv;
-    users: User;
     'payload-jobs': PayloadJob;
     'payload-locked-documents': PayloadLockedDocument;
     'payload-preferences': PayloadPreference;
@@ -88,6 +90,7 @@ export interface Config {
   };
   collectionsJoins: {};
   collectionsSelect: {
+    users: UsersSelect<false> | UsersSelect<true>;
     pages: PagesSelect<false> | PagesSelect<true>;
     posts: PostsSelect<false> | PostsSelect<true>;
     media: MediaSelect<false> | MediaSelect<true>;
@@ -98,8 +101,8 @@ export interface Config {
     docs: DocsSelect<false> | DocsSelect<true>;
     'docs-sync-runs': DocsSyncRunsSelect<false> | DocsSyncRunsSelect<true>;
     'docs-sync-nonces': DocsSyncNoncesSelect<false> | DocsSyncNoncesSelect<true>;
+    'payload-mcp-api-keys': PayloadMcpApiKeysSelect<false> | PayloadMcpApiKeysSelect<true>;
     'payload-kv': PayloadKvSelect<false> | PayloadKvSelect<true>;
-    users: UsersSelect<false> | UsersSelect<true>;
     'payload-jobs': PayloadJobsSelect<false> | PayloadJobsSelect<true>;
     'payload-locked-documents': PayloadLockedDocumentsSelect<false> | PayloadLockedDocumentsSelect<true>;
     'payload-preferences': PayloadPreferencesSelect<false> | PayloadPreferencesSelect<true>;
@@ -119,7 +122,7 @@ export interface Config {
   widgets: {
     collections: CollectionsWidget;
   };
-  user: User;
+  user: User | PayloadMcpApiKey;
   jobs: {
     tasks: {
       schedulePublish: TaskSchedulePublish;
@@ -132,6 +135,24 @@ export interface Config {
   };
 }
 export interface UserAuthOperations {
+  forgotPassword: {
+    email: string;
+    password: string;
+  };
+  login: {
+    email: string;
+    password: string;
+  };
+  registerFirstUser: {
+    email: string;
+    password: string;
+  };
+  unlock: {
+    email: string;
+    password: string;
+  };
+}
+export interface PayloadMcpApiKeyAuthOperations {
   forgotPassword: {
     email: string;
     password: string;
@@ -284,6 +305,32 @@ export interface MarkdownBlock {
   id?: string | null;
   blockName?: string | null;
   blockType: 'vlMdBlock';
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "users".
+ */
+export interface User {
+  id: number;
+  updatedAt: string;
+  createdAt: string;
+  email: string;
+  resetPasswordToken?: string | null;
+  resetPasswordExpiration?: string | null;
+  salt?: string | null;
+  hash?: string | null;
+  resetPasswordRequestedAt?: string | null;
+  loginAttempts?: number | null;
+  lockUntil?: string | null;
+  sessions?:
+    | {
+        id: string;
+        createdAt?: string | null;
+        expiresAt: string;
+      }[]
+    | null;
+  password?: string | null;
+  collection: 'users';
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -776,6 +823,220 @@ export interface DocsSyncNonce {
   createdAt: string;
 }
 /**
+ * API keys control which collections, resources, tools, and prompts MCP clients can access
+ *
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "payload-mcp-api-keys".
+ */
+export interface PayloadMcpApiKey {
+  id: number;
+  /**
+   * The user that the API key is associated with.
+   */
+  user: number | User;
+  /**
+   * A useful label for the API key.
+   */
+  label?: string | null;
+  /**
+   * The purpose of the API key.
+   */
+  description?: string | null;
+  pages?: {
+    /**
+     * Allow clients to find pages.
+     */
+    find?: boolean | null;
+    /**
+     * Allow clients to create pages.
+     */
+    create?: boolean | null;
+    /**
+     * Allow clients to update pages.
+     */
+    update?: boolean | null;
+    /**
+     * Allow clients to delete pages.
+     */
+    delete?: boolean | null;
+  };
+  docs?: {
+    /**
+     * Allow clients to find docs.
+     */
+    find?: boolean | null;
+    /**
+     * Allow clients to update docs.
+     */
+    update?: boolean | null;
+  };
+  docsSets?: {
+    /**
+     * Allow clients to find docs-sets.
+     */
+    find?: boolean | null;
+    /**
+     * Allow clients to create docs-sets.
+     */
+    create?: boolean | null;
+    /**
+     * Allow clients to update docs-sets.
+     */
+    update?: boolean | null;
+  };
+  docsGroups?: {
+    /**
+     * Allow clients to find docs-groups.
+     */
+    find?: boolean | null;
+    /**
+     * Allow clients to create docs-groups.
+     */
+    create?: boolean | null;
+    /**
+     * Allow clients to update docs-groups.
+     */
+    update?: boolean | null;
+    /**
+     * Allow clients to delete docs-groups.
+     */
+    delete?: boolean | null;
+  };
+  docsAccess?: {
+    /**
+     * Allow clients to find docs-access.
+     */
+    find?: boolean | null;
+    /**
+     * Allow clients to create docs-access.
+     */
+    create?: boolean | null;
+    /**
+     * Allow clients to update docs-access.
+     */
+    update?: boolean | null;
+    /**
+     * Allow clients to delete docs-access.
+     */
+    delete?: boolean | null;
+  };
+  docsSyncRuns?: {
+    /**
+     * Allow clients to find docs-sync-runs.
+     */
+    find?: boolean | null;
+  };
+  payloadMarkdownDocsAssets?: {
+    /**
+     * Allow clients to find payload-markdown-docs-assets.
+     */
+    find?: boolean | null;
+  };
+  'payload-mcp-tool'?: {
+    /**
+     * Start here. Explains how this site's Git-backed docs work and what agents may change: the docs collections and slugs, which fields Git owns (never writable over MCP) and which are admin-owned, drafts and versions, and what this connection is allowed to do.
+     */
+    docsGuide?: boolean | null;
+    /**
+     * Lists docs groups and docs sets (one per Git docs source; slug = pmdocs --source id) with routing, SEO, publishing security (branch, repositories, workflow refs), last sync status and doc counts.
+     */
+    docsStructure?: boolean | null;
+    /**
+     * Finds generated docs (latest drafts): id, title, route, sourcePath, docs set, status, archived, sync state (contentDrift/fieldsDrift = edited outside Git), the admin-owned fields docsUpdate may change, and updatedAt. Pass id for one doc; includeContent for the markdown.
+     */
+    docsFind?: boolean | null;
+    /**
+     * Changes admin-owned fields of one generated doc: heroImage, overrides.navTitle, overrides.hideFromNav, parent, publishedAt (and fields other plugins add). Git-owned fields (content, title, navTitle, description, order, route, ...) are refused with sync_owned. Saves a draft for draft-enabled docs (publish=true to publish).
+     */
+    docsUpdate?: boolean | null;
+    /**
+     * Publishes the latest draft (content Git synced as a draft) or unpublishes a generated doc or docs set. Only when the user asked. Archived docs cannot be published.
+     */
+    docsPublish?: boolean | null;
+    /**
+     * Version history of a generated doc or docs set, newest first: versionId, status, date, title/route and, for docs, gitSnapshot (exactly what Git sync wrote; only those can be restored). Pass versionId to inspect one version and the fields it changes.
+     */
+    docsVersions?: boolean | null;
+    /**
+     * Rolls a generated doc or docs set back to a previous version. Docs versions must be Git snapshots (gitSnapshot: true), so a rollback never puts content on the site that did not come from Git. Restores as a draft unless publish=true. The next sync from Git still updates the doc.
+     */
+    docsRestoreVersion?: boolean | null;
+    /**
+     * Creates (no id) or updates a docs set: title, description, SEO meta, group, routeMode, and publishing security (branch, allowPullRequests, allowTagRefs, repositories, advancedSecurity). The slug is the Git --source id. Saves a draft unless publish=true. Sync status fields are refused.
+     */
+    docsSetSave?: boolean | null;
+    /**
+     * Creates (no id) or updates a docs group: title, slug, description, navTitle, order, parent, pageMode. Groups have no drafts: changes are live.
+     */
+    docsGroupSave?: boolean | null;
+    /**
+     * Lists the credentials allowed to sync docs: Ed25519 keys (keyId, public key) and trusted GitHub OIDC owners (optionally limited to repositories), with the docs sets each may sync.
+     */
+    docsAccessList?: boolean | null;
+    /**
+     * Creates (no id) or updates a sync credential. ed25519: title, keyId, publicKey (public key only; private keys are refused). githubOidc: title, owner, limitRepos, repositories. Scope it with docsSets. Changes who can publish docs: confirm with the user.
+     */
+    docsAccessSave?: boolean | null;
+    /**
+     * Deletes a sync credential. Syncs signed with that key, or from that GitHub owner, stop working. Confirm with the user first.
+     */
+    docsAccessDelete?: boolean | null;
+    /**
+     * The sync audit log, newest first: source, repository, branch, commit, actor, mode (dry-run/sync), status, file counts, warnings and errors. Pass id for one run with its full plan summary.
+     */
+    docsSyncRuns?: boolean | null;
+    /**
+     * Start here. Returns the payload-markdown authoring guide for this site: the agent workflow, which collections and globals hold markdown, the configured directive themes, colour palettes, icons and code languages, and every directive with its attributes. Read it before writing markdown.
+     */
+    markdownGuide?: boolean | null;
+    /**
+     * Renders markdown exactly like the site and returns { ok, counts, diagnostics (severity, line, column, message), errors, headings }. ok is true only with no errors and no warnings. Fix every diagnostic before saving.
+     */
+    markdownValidate?: boolean | null;
+    /**
+     * Finds documents and lists every markdown field and markdown block in them: ref (use it in markdownWrite), path, label, scope, current markdown, plus the blocks outline, updatedAt, status, adminUrl and previewUrl. Reads the latest draft. Find by id, by search (title contains, slug or id) or by a Payload where query.
+     */
+    markdownRead?: boolean | null;
+    /**
+     * Changes markdown in one document in a single atomic save: replace a field or block by ref, insert a new markdown block into a blocks field, or remove a markdown block. Every new markdown is validated with the site renderer first; nothing is saved if any edit has errors or warnings. Saves a draft for draft-enabled documents (publish=true to publish). Other fields and blocks are left untouched. Use dryRun to check without saving.
+     */
+    markdownWrite?: boolean | null;
+    /**
+     * Publishes the latest draft of a document or global after validating all of its markdown. Use only when the user asked to publish.
+     */
+    markdownPublish?: boolean | null;
+    /**
+     * Lists the colour palettes markdown can use (built-in, configured in code, and managed in the admin), with their colours, plus the syntax to apply them. Palettes colour icons individually and recolour directives without CSS or code changes.
+     */
+    markdownPalettes?: boolean | null;
+    /**
+     * Creates or updates a colour palette in the "Markdown Appearance" global (by name), so markdown can use it right away without code changes or a rebuild. Colours are validated; contrast notes are advisory. Pass previousName to rename. Requires update permission on that global.
+     */
+    markdownPaletteSave?: boolean | null;
+    /**
+     * Deletes a palette from the "Markdown Appearance" global. Markdown that still uses it renders without it and reports an unknown palette. Requires update permission on that global.
+     */
+    markdownPaletteDelete?: boolean | null;
+  };
+  'payload-mcp-prompt'?: {
+    /**
+     * Manage the Git-backed docs (presentation fields, publishing, versions, docs sets, sync access) without touching Git-owned content.
+     */
+    docsManage?: boolean | null;
+    /**
+     * Edit the markdown of a Payload document with payload-markdown directives, validated and saved as a draft.
+     */
+    markdownEditDocument?: boolean | null;
+  };
+  updatedAt: string;
+  createdAt: string;
+  enableAPIKey?: boolean | null;
+  apiKey?: string | null;
+  apiKeyIndex?: string | null;
+  hasAPIKey?: boolean | null;
+  collection: 'payload-mcp-api-keys';
+}
+/**
  * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv".
  */
@@ -791,32 +1052,6 @@ export interface PayloadKv {
     | number
     | boolean
     | null;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "users".
- */
-export interface User {
-  id: number;
-  updatedAt: string;
-  createdAt: string;
-  email: string;
-  resetPasswordToken?: string | null;
-  resetPasswordExpiration?: string | null;
-  salt?: string | null;
-  hash?: string | null;
-  resetPasswordRequestedAt?: string | null;
-  loginAttempts?: number | null;
-  lockUntil?: string | null;
-  sessions?:
-    | {
-        id: string;
-        createdAt?: string | null;
-        expiresAt: string;
-      }[]
-    | null;
-  password?: string | null;
-  collection: 'users';
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -918,6 +1153,10 @@ export interface PayloadLockedDocument {
   id: number;
   document?:
     | ({
+        relationTo: 'users';
+        value: number | User;
+      } | null)
+    | ({
         relationTo: 'pages';
         value: number | Page;
       } | null)
@@ -958,14 +1197,19 @@ export interface PayloadLockedDocument {
         value: number | DocsSyncNonce;
       } | null)
     | ({
-        relationTo: 'users';
-        value: number | User;
+        relationTo: 'payload-mcp-api-keys';
+        value: number | PayloadMcpApiKey;
       } | null);
   globalSlug?: string | null;
-  user: {
-    relationTo: 'users';
-    value: number | User;
-  };
+  user:
+    | {
+        relationTo: 'users';
+        value: number | User;
+      }
+    | {
+        relationTo: 'payload-mcp-api-keys';
+        value: number | PayloadMcpApiKey;
+      };
   updatedAt: string;
   createdAt: string;
 }
@@ -975,10 +1219,15 @@ export interface PayloadLockedDocument {
  */
 export interface PayloadPreference {
   id: number;
-  user: {
-    relationTo: 'users';
-    value: number | User;
-  };
+  user:
+    | {
+        relationTo: 'users';
+        value: number | User;
+      }
+    | {
+        relationTo: 'payload-mcp-api-keys';
+        value: number | PayloadMcpApiKey;
+      };
   key?: string | null;
   value?:
     | {
@@ -1002,6 +1251,29 @@ export interface PayloadMigration {
   batch?: number | null;
   updatedAt: string;
   createdAt: string;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "users_select".
+ */
+export interface UsersSelect<T extends boolean = true> {
+  updatedAt?: T;
+  createdAt?: T;
+  email?: T;
+  resetPasswordToken?: T;
+  resetPasswordExpiration?: T;
+  salt?: T;
+  hash?: T;
+  resetPasswordRequestedAt?: T;
+  loginAttempts?: T;
+  lockUntil?: T;
+  sessions?:
+    | T
+    | {
+        id?: T;
+        createdAt?: T;
+        expiresAt?: T;
+      };
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -1383,34 +1655,104 @@ export interface DocsSyncNoncesSelect<T extends boolean = true> {
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
+ * via the `definition` "payload-mcp-api-keys_select".
+ */
+export interface PayloadMcpApiKeysSelect<T extends boolean = true> {
+  user?: T;
+  label?: T;
+  description?: T;
+  pages?:
+    | T
+    | {
+        find?: T;
+        create?: T;
+        update?: T;
+        delete?: T;
+      };
+  docs?:
+    | T
+    | {
+        find?: T;
+        update?: T;
+      };
+  docsSets?:
+    | T
+    | {
+        find?: T;
+        create?: T;
+        update?: T;
+      };
+  docsGroups?:
+    | T
+    | {
+        find?: T;
+        create?: T;
+        update?: T;
+        delete?: T;
+      };
+  docsAccess?:
+    | T
+    | {
+        find?: T;
+        create?: T;
+        update?: T;
+        delete?: T;
+      };
+  docsSyncRuns?:
+    | T
+    | {
+        find?: T;
+      };
+  payloadMarkdownDocsAssets?:
+    | T
+    | {
+        find?: T;
+      };
+  'payload-mcp-tool'?:
+    | T
+    | {
+        docsGuide?: T;
+        docsStructure?: T;
+        docsFind?: T;
+        docsUpdate?: T;
+        docsPublish?: T;
+        docsVersions?: T;
+        docsRestoreVersion?: T;
+        docsSetSave?: T;
+        docsGroupSave?: T;
+        docsAccessList?: T;
+        docsAccessSave?: T;
+        docsAccessDelete?: T;
+        docsSyncRuns?: T;
+        markdownGuide?: T;
+        markdownValidate?: T;
+        markdownRead?: T;
+        markdownWrite?: T;
+        markdownPublish?: T;
+        markdownPalettes?: T;
+        markdownPaletteSave?: T;
+        markdownPaletteDelete?: T;
+      };
+  'payload-mcp-prompt'?:
+    | T
+    | {
+        docsManage?: T;
+        markdownEditDocument?: T;
+      };
+  updatedAt?: T;
+  createdAt?: T;
+  enableAPIKey?: T;
+  apiKey?: T;
+  apiKeyIndex?: T;
+  hasAPIKey?: T;
+}
+/**
+ * This interface was referenced by `Config`'s JSON-Schema
  * via the `definition` "payload-kv_select".
  */
 export interface PayloadKvSelect<T extends boolean = true> {
   key?: T;
   data?: T;
-}
-/**
- * This interface was referenced by `Config`'s JSON-Schema
- * via the `definition` "users_select".
- */
-export interface UsersSelect<T extends boolean = true> {
-  updatedAt?: T;
-  createdAt?: T;
-  email?: T;
-  resetPasswordToken?: T;
-  resetPasswordExpiration?: T;
-  salt?: T;
-  hash?: T;
-  resetPasswordRequestedAt?: T;
-  loginAttempts?: T;
-  lockUntil?: T;
-  sessions?:
-    | T
-    | {
-        id?: T;
-        createdAt?: T;
-        expiresAt?: T;
-      };
 }
 /**
  * This interface was referenced by `Config`'s JSON-Schema
@@ -1623,10 +1965,15 @@ export interface TaskSchedulePublish {
       value: number | Page;
     } | null;
     global?: string | null;
-    user?: {
-      relationTo: 'users';
-      value: number | User;
-    } | null;
+    user?:
+      | ({
+          relationTo: 'users';
+          value: number | User;
+        } | null)
+      | ({
+          relationTo: 'payload-mcp-api-keys';
+          value: number | PayloadMcpApiKey;
+        } | null);
   };
   output?: unknown;
 }

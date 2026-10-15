@@ -1,12 +1,15 @@
 import { postgresAdapter } from '@payloadcms/db-postgres'
+import { mcpPlugin } from '@payloadcms/plugin-mcp'
 import { lexicalEditor } from '@payloadcms/richtext-lexical'
 import path from 'path'
 import { buildConfig } from 'payload'
 import { payloadMarkdown } from 'payload-markdown'
+import { withPayloadMarkdownMcp } from 'payload-markdown/mcp'
 import sharp from 'sharp'
 import { fileURLToPath } from 'url'
 
 import { payloadMarkdownDocs } from '../dist'
+import { withPayloadMarkdownDocsMcp } from '../dist/mcp'
 import { Pages } from './collections/Pages'
 import './helpers/loadDevEnv'
 import { Header } from './Header/config'
@@ -25,8 +28,12 @@ export default buildConfig({
     importMap: {
       baseDir: path.resolve(dirname),
     },
+    user: 'users',
   },
   collections: [
+    // Explicit, because the MCP API key collection is also an auth collection
+    // (Payload only adds its default users collection when there is none).
+    { slug: 'users', admin: { useAsTitle: 'email' }, auth: true, fields: [] },
     Pages,
     {
       slug: 'posts',
@@ -81,6 +88,20 @@ export default buildConfig({
         enableDrafts: true,
       },
     }),
+    // AI agents: /api/mcp with the payload-markdown tools (pages) and the docs tools, which
+    // keep synced docs content read-only. Create a key in the admin under MCP → API Keys.
+    mcpPlugin(
+      withPayloadMarkdownMcp(
+        withPayloadMarkdownDocsMcp({
+          collections: {
+            pages: {
+              description: 'Site pages built from layout blocks, including markdown blocks.',
+              enabled: true,
+            },
+          },
+        }),
+      ),
+    ),
   ],
   secret: process.env.PAYLOAD_SECRET || 'test-secret_key',
   sharp,
