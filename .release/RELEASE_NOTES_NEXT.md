@@ -21,6 +21,18 @@ pnpm add payload-markdown-docs payload-markdown @payloadcms/plugin-seo
 
 payload-markdown works under either of its names too: `payload-markdown` (preferred) or `@valkyrianlabs/payload-markdown`. The docs content field uses the admin component of whichever is installed (detected from the components `payloadMarkdown()` registers, or from `node_modules`; set `payloadMarkdownPackage` to choose explicitly). `pmdocs install routes` writes route files that import the plugin under the name your app depends on.
 
+## Let AI agents manage your docs over MCP
+
+`payload-markdown-docs/mcp` plugs into Payload's official `@payloadcms/plugin-mcp`, next to payload-markdown's own MCP tools:
+
+```ts
+mcpPlugin(withPayloadMarkdownMcp(withPayloadMarkdownDocsMcp({ /* mcpPlugin options */ })))
+```
+
+Agents get 13 tools to manage the docs site: inspect docs sets, groups and docs (with sync drift), edit presentation fields (hero image, nav overrides, parent, publish date), publish and unpublish, list and inspect versions, roll back to a version Git produced, create and update docs sets and groups (titles, descriptions, SEO, routing, publishing security), manage sync access keys, and read the sync history. Every tool runs as the API key's user with Payload access control.
+
+Git stays the source of truth for doc bodies and frontmatter. A guard on the plugin collections refuses any MCP write to a Git-owned field (`sync_owned`), whichever tool sends it, including payload-markdown's markdown write tools and plugin-mcp's generic collection tools; the sync endpoint, the admin UI and REST are unaffected. See the MCP Agent Tools docs page for setup and the full tool list.
+
 ## The payload-markdown skill is always installed
 
 `pmdocs install skill` now always installs the `payload-markdown` skill next to the `payload-markdown-docs` skill. Previously Homebrew installs skipped it silently and Debian installs shipped an old copy. It is taken from your project's installed `payload-markdown` package when there is one, so the directive guidance matches the version your site renders with, and from the copy bundled with `pmdocs` otherwise. If neither is available the command fails instead of installing half the guidance. The `payload-markdown-docs` skill links straight into it for directives, styling, layout and the MCP content workflow.

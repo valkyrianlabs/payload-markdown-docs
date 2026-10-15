@@ -107,6 +107,7 @@ required_paths = [
   "package/dist/admin/index.js",
   "package/dist/blocks/index.js",
   "package/dist/fields/index.js",
+  "package/dist/mcp/index.js",
   "package/dist/migrations/index.js",
   "package/dist/next/index.js",
   "package/dist/skills/payload-markdown-docs/claude/SKILL.md",

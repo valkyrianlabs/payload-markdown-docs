@@ -58,7 +58,7 @@ type McpOptionsLike = {
   ) => unknown
 }
 
-const APPLIED = Symbol.for('@valkyrianlabs/payload-markdown-docs/mcp')
+const APPLIED = Symbol.for('payload-markdown-docs/mcp')
 
 const DEFAULT_SLUGS: Record<DocsCollectionRole, string> = {
   docs: DEFAULT_DOCS_COLLECTION_SLUG,

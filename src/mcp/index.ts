@@ -1,5 +1,5 @@
 /**
- * `@valkyrianlabs/payload-markdown-docs/mcp`: MCP tools that let AI agents manage
+ * `payload-markdown-docs/mcp`: MCP tools that let AI agents manage
  * Git-backed docs through `@payloadcms/plugin-mcp` (presentation fields, publishing,
  * versions, docs sets and groups, sync access, sync runs) without ever overwriting
  * content Git owns, plus the same operations as plain functions for custom agents.
