@@ -12,6 +12,7 @@ export {
 } from '../components/heroes/index.js'
 export { SkillCTAGroup } from '../components/skills/SkillCTAGroup.js'
 export { SkillTabs } from '../components/skills/SkillTabs.js'
+export { PAYLOAD_MARKDOWN_DOCS_NAV_CACHE_TAG } from '../constants.js'
 export type {
   DocsCTAProps,
   DocsCTASkillOverride,

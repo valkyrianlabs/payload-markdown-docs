@@ -402,6 +402,7 @@ const createEndpointForTests = ({
   docsEnableDrafts = false,
   docsSetsEnabled = true,
   publicKey,
+  revalidate,
   routingPagesEnabled = false,
   syncRunsEnabled = true,
 }: {
@@ -412,6 +413,7 @@ const createEndpointForTests = ({
   docsEnableDrafts?: boolean
   docsSetsEnabled?: boolean
   publicKey: string
+  revalidate?: false
   routingPagesEnabled?: boolean
   syncRunsEnabled?: boolean
 }) => {
@@ -440,6 +442,7 @@ const createEndpointForTests = ({
     markdownFieldName: 'content',
     noncesCollectionSlug: 'docs-sync-nonces',
     noncesEnabled: true,
+    revalidate,
     routing: {
       pages: {
         allowBridgePages: true,
@@ -469,6 +472,7 @@ const callEndpoint = async ({
     deleteBehavior?: 'archive' | 'delete' | 'draft' | 'ignore'
     docsEnableDrafts?: boolean
     docsSetsEnabled?: boolean
+    revalidate?: false
     routingPagesEnabled?: boolean
     syncRunsEnabled?: boolean
   }
@@ -2029,6 +2033,39 @@ describe('sync endpoint dry-run handling', () => {
     expect(json).toMatchObject({ ok: true })
     expect(cacheMocks.revalidatePath).toHaveBeenCalledWith('/plugins')
     expect(cacheMocks.revalidatePath).toHaveBeenCalledWith('/plugins/main-docs')
+    // The sync updates the docs set (and may publish it): the nav tag expires
+    // immediately, and no tag is revalidated stale-while-revalidate ('max').
+    expect(cacheMocks.revalidateTag).toHaveBeenCalledWith('payload-markdown-docs:nav', { expire: 0 })
+    expect(cacheMocks.revalidateTag).toHaveBeenCalledWith('sitemap:docs', { expire: 0 })
+    expect(cacheMocks.revalidateTag.mock.calls.every((call: unknown[]) => call[1] !== 'max')).toBe(
+      true,
+    )
+  })
+
+  it('expires the nav tag even when sync revalidation is disabled', async () => {
+    const { privateKey, publicKey } = keyPair()
+    const body = JSON.stringify(createManifest({ mode: 'sync' }))
+    const payload = createMockPayload({
+      docsSets: [{ id: 'docs-set-1', slug: 'main-docs', branch: 'main' }],
+    })
+    const { response } = await callEndpoint({
+      body,
+      endpointOptions: {
+        allowWrites: true,
+        docsSetsEnabled: true,
+        revalidate: false,
+      },
+      headers: signBody({
+        body,
+        privateKey,
+      }),
+      payload,
+      publicKey: publicKey.toString(),
+    })
+
+    expect(response.status).toBe(200)
+    expect(cacheMocks.revalidateTag.mock.calls).toEqual([['payload-markdown-docs:nav', { expire: 0 }]])
+    expect(cacheMocks.revalidatePath).not.toHaveBeenCalled()
   })
 
   it('applies sync mode by creating llms and skill asset records', async () => {

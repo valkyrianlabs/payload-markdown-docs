@@ -1,8 +1,11 @@
+import { unstable_cache } from 'next/cache'
+
 import type { PayloadMarkdownDocsCollectionSlugs, PayloadMarkdownDocsReadPayload } from './types.js'
 
 import {
   DEFAULT_DOCS_GROUPS_COLLECTION_SLUG,
   DEFAULT_DOCS_SETS_COLLECTION_SLUG,
+  PAYLOAD_MARKDOWN_DOCS_NAV_CACHE_TAG,
 } from '../constants.js'
 import { getDocsGroupRoutePath, indexDocsGroupsById } from '../routing/docsSetRoutes.js'
 import { getRelationshipId, isRecord } from '../shared/records.js'
@@ -32,6 +35,14 @@ export type PayloadMarkdownDocsNavCapacityOptions = {
 }
 
 export type GetPayloadMarkdownDocsNavItemsOptions = {
+  /**
+   * Cache the nav query in the Next data cache under
+   * `PAYLOAD_MARKDOWN_DOCS_NAV_CACHE_TAG` (default true). The plugin expires the tag
+   * when docs sets or groups change and after every sync, and every prerendered page
+   * that rendered the nav carries the tag, so those pages are regenerated too. Never
+   * cached with `includeDrafts`. Set false outside a Next runtime (scripts, tests).
+   */
+  cache?: boolean
   collections?: Pick<PayloadMarkdownDocsCollectionSlugs, 'docsGroups' | 'docsSets'>
   fetchLimit?: number
   includeDrafts?: boolean
@@ -121,16 +132,26 @@ const getFirstLinkableUrl = (item: PayloadMarkdownDocsNavItem): string | undefin
   return undefined
 }
 
-export const getPayloadMarkdownDocsNavItems = async ({
-  collections,
-  fetchLimit = 1000,
-  includeDrafts = false,
-  overrideAccess = true,
+/** Cache-key version for the nav query; bump when the cached tree shape changes. */
+const NAV_CACHE_KEY = 'payload-markdown-docs-nav-v1'
+
+type LoadNavItemsOptions = {
+  docsGroupsCollectionSlug: string
+  docsSetsCollectionSlug: string
+  fetchLimit: number
+  includeDrafts: boolean
+  overrideAccess: boolean
+  payload: PayloadMarkdownDocsReadPayload
+}
+
+const loadNavItems = async ({
+  docsGroupsCollectionSlug,
+  docsSetsCollectionSlug,
+  fetchLimit,
+  includeDrafts,
+  overrideAccess,
   payload,
-  ...capacityOptions
-}: GetPayloadMarkdownDocsNavItemsOptions): Promise<PayloadMarkdownDocsNavItem[]> => {
-  const docsGroupsCollectionSlug = collections?.docsGroups ?? DEFAULT_DOCS_GROUPS_COLLECTION_SLUG
-  const docsSetsCollectionSlug = collections?.docsSets ?? DEFAULT_DOCS_SETS_COLLECTION_SLUG
+}: LoadNavItemsOptions): Promise<PayloadMarkdownDocsNavItem[]> => {
   const [docsSetsResult, docsGroupsResult] = await Promise.all([
     payload.find({
       collection: docsSetsCollectionSlug,
@@ -232,17 +253,75 @@ export const getPayloadMarkdownDocsNavItems = async ({
     }
   }
 
-  return applyTopLevelCapacity(
-    sortByOrderThenLabel([
-      ...topLevelGroupIds.flatMap((groupId) => {
-        const item = buildGroupItem(groupId)
+  return sortByOrderThenLabel([
+    ...topLevelGroupIds.flatMap((groupId) => {
+      const item = buildGroupItem(groupId)
 
-        return item ? [item] : []
-      }),
-      ...topLevelDocsSetItems,
-    ]),
-    capacityOptions,
+      return item ? [item] : []
+    }),
+    ...topLevelDocsSetItems,
+  ])
+}
+
+const isMissingNextCacheRuntime = (error: unknown): boolean =>
+  error instanceof Error && error.message.includes('incrementalCache missing')
+
+const loadCachedNavItems = async (
+  options: LoadNavItemsOptions,
+): Promise<PayloadMarkdownDocsNavItem[]> => {
+  const cached = unstable_cache(
+    () => loadNavItems(options),
+    [
+      NAV_CACHE_KEY,
+      options.docsSetsCollectionSlug,
+      options.docsGroupsCollectionSlug,
+      `limit:${options.fetchLimit}`,
+      `overrideAccess:${options.overrideAccess}`,
+    ],
+    {
+      tags: [PAYLOAD_MARKDOWN_DOCS_NAV_CACHE_TAG],
+    },
   )
+
+  try {
+    return await cached()
+  } catch (error) {
+    // Outside a Next runtime (scripts, CLI) there is no data cache: read directly.
+    if (isMissingNextCacheRuntime(error)) {
+      return loadNavItems(options)
+    }
+
+    throw error
+  }
+}
+
+export const getPayloadMarkdownDocsNavItems = async ({
+  cache = true,
+  collections,
+  fetchLimit = 1000,
+  includeDrafts = false,
+  overrideAccess = true,
+  payload,
+  ...capacityOptions
+}: GetPayloadMarkdownDocsNavItemsOptions): Promise<PayloadMarkdownDocsNavItem[]> => {
+  const docsGroupsCollectionSlug = collections?.docsGroups ?? DEFAULT_DOCS_GROUPS_COLLECTION_SLUG
+  const docsSetsCollectionSlug = collections?.docsSets ?? DEFAULT_DOCS_SETS_COLLECTION_SLUG
+  const loadOptions: LoadNavItemsOptions = {
+    docsGroupsCollectionSlug,
+    docsSetsCollectionSlug,
+    fetchLimit,
+    includeDrafts,
+    overrideAccess,
+    payload,
+  }
+  // Drafts must be live, so draft-aware reads are never cached. Capacity is applied
+  // after the cached call so different header layouts share one cache entry.
+  const items =
+    includeDrafts || !cache
+      ? await loadNavItems(loadOptions)
+      : await loadCachedNavItems(loadOptions)
+
+  return applyTopLevelCapacity(items, capacityOptions)
 }
 
 const toHeaderLink = ({

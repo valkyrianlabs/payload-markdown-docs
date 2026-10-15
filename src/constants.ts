@@ -25,3 +25,16 @@ export const DEFAULT_NONCE_TTL_SECONDS = 600
 export const DEFAULT_GITHUB_OIDC_ISSUER = 'https://token.actions.githubusercontent.com'
 export const MANAGED_BY = 'payload-markdown-docs'
 export const DOCS_GLOBALS_ADMIN_GROUP = 'Documentation'
+/**
+ * Next.js cache tag carried by the cached docs nav query (`getPayloadMarkdownDocsNavItems`)
+ * and, through it, by every prerendered page that rendered the nav. The plugin expires it
+ * whenever docs sets or docs groups change and after every applied sync.
+ */
+export const PAYLOAD_MARKDOWN_DOCS_NAV_CACHE_TAG = 'payload-markdown-docs:nav'
+/** Tags the plugin expires after a sync or a docs set / docs group change (unless configured). */
+export const DEFAULT_DOCS_REVALIDATE_TAGS = [
+  'payload-markdown-docs',
+  'payload-markdown-docs:docs',
+  'sitemap',
+  'sitemap:docs',
+]
