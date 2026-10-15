@@ -5,7 +5,7 @@
 # version in pnpm-lock.yaml), plus Node (.nvmrc), pnpm (packageManager), the native CLI's
 # Meson/CMake toolchain and libraries, Debian packaging tools and Python for tools/release.
 # Built and run by ci/run-ci (same script as payload-markdown); nothing here touches the host.
-FROM mcr.microsoft.com/playwright:v1.58.2-noble@sha256:6446946a1d9fd62d9ae501312a2d76a43ee688542b21622056a372959b65d63d
+FROM mcr.microsoft.com/playwright:v1.64.1-noble@sha256:7852dc5a7d72f5fe458a597d690f6c42fbc8e9e26ddfa95f8e6ef552558d9bbf
 
 ARG NODE_VERSION=24.13.1
 ARG PNPM_VERSION=10.33.0

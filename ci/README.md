@@ -8,7 +8,7 @@ documented once, in payload-markdown's
 
 - `ci/run-ci` is a verbatim copy of payload-markdown's (repository-agnostic: image
   `localhost/payload-markdown-docs-ci`, caches under `~/.cache/payload-markdown-docs-ci`).
-- `ci/Containerfile` is this repository's image: the Playwright 1.58.2 noble image (pinned by
+- `ci/Containerfile` is this repository's image: the Playwright 1.64.1 noble image (pinned by
   digest) plus Node (`.nvmrc`), pnpm (`packageManager`), the native CLI's Meson/CMake toolchain
   and libraries, Debian packaging tools, Ruby and Python. `/workspace/.venv/bin` (created by
   `.github/scripts/setup-release-python.sh`) is first on `PATH`.
