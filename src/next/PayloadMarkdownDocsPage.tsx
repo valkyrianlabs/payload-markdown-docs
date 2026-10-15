@@ -10,6 +10,7 @@ import type {
 
 import { DEFAULT_DOCS_COLLECTION_SLUG } from '../constants.js'
 import { rewritePayloadMarkdownDocsLinks } from '../routing/docsLinks.js'
+import { loadPayloadMarkdownServer } from './payloadMarkdownServer.js'
 
 export { rewritePayloadMarkdownDocsLinks }
 
@@ -99,7 +100,7 @@ const renderMarkdown = async ({
     return null
   }
 
-  const { MarkdownRenderer } = await import('@valkyrianlabs/payload-markdown/server')
+  const { MarkdownRenderer } = await loadPayloadMarkdownServer()
 
   return MarkdownRenderer({
     className: 'min-w-0',

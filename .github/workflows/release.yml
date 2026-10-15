@@ -1,605 +1,273 @@
+# Release payload-markdown-docs (the Payload plugin on npm and the native pmdocs CLI) with
+# vl-release.
+#
+#   vlr cut patch|minor|major --push      (locally) -> pushes vX.Y.Z -> this workflow
+#
+# build ─▶ publish-debian ─▶ publish-npm ─▶ github-release ─▶ publish-homebrew ─▶ finalize
+#                                       └─▶ publish-docs ─────────────────────────┘
+#
+# `vlr prepare` promotes .release/RELEASE_NOTES_NEXT.md and .release/CHANGELOG_NEXT.md into
+# RELEASE_NOTES.md and debian/changelog in each job's work tree only (deterministic, so every job
+# renders the same documents). The build job builds and validates every artifact once (npm
+# tarballs, .deb, source archive, Homebrew formula); later jobs publish and attach those exact
+# bytes. Nothing is written back to main unless every publication succeeded. Publication never
+# replaces published bytes: re-running a failed job skips whatever is already identical.
+#
+# npm: one build, two names. `vlr build-npm` packs @valkyrianlabs/payload-markdown-docs and
+# derives payload-markdown-docs from the same tarball (release.toml [[npm.aliases]]);
+# `vlr publish-npm` plans both before uploading either and uploads the alias first. Both
+# npmjs.com packages trust this workflow file (`release.yml`) and the `Production` environment
+# (trusted publishing, OIDC; no token secret). A brand-new alias cannot use trusted publishing
+# until it exists: see `vlr help ci` ("A new alias on npmjs.com") for the one-time bootstrap.
+#
+# Runners: every job runs on the self-hosted runner inside the disposable CI container
+# (`./ci/run-ci`, rootless Podman; see ci/README.md) except publish-npm, because npm trusted
+# publishing only accepts GitHub-hosted runners. Clean-install smoke tests use a digest-pinned
+# stock Ubuntu image through the same wrapper.
+#
+# Variables: RELEASE_PUBLISH_MODE (`nexus` publishes the APT package; npm publishes unless it is
+# `disabled`), NEXUS_APT_REPO (or NEXUS_REPO_URL), DOCS_SYNC_ENDPOINT. Secrets: NEXUS_USER,
+# NEXUS_PASSWORD (or NEXUS_PASS), HOMEBREW_TAP_TOKEN (contents:write on valkyrianlabs/homebrew-tap).
+
 name: Release
 
 on:
-  release:
-    types: [published]
+  push:
+    tags: ['v*']
   workflow_dispatch:
     inputs:
       ref:
-        description: Optional branch, tag, or SHA to release-check.
-        required: false
+        description: Release tag (e.g. v1.2.0), or a branch/SHA to rehearse
+        required: true
         type: string
       publish:
-        description: Run protected publication steps.
+        description: Publish (requires a v* tag), or rehearse everything without publishing
         required: true
         default: dry-run
         type: choice
-        options:
-          - dry-run
-          - publish
+        options: [dry-run, publish]
 
-# Least privilege: every job gets read-only contents unless it declares more.
-# Only the GitHub release upload job may write repository contents, and only the npm
-# trusted-publishing and docs OIDC push jobs may mint id-tokens.
-#
-# Runners: every self-hosted job except publish-homebrew-tap (which checks out only the tap and
-# needs nothing privileged) runs its steps inside the disposable CI container: the job's default
-# shell is ./ci/run-ci (rootless Podman; see ci/README.md). Clean-install smoke tests use a
-# digest-pinned stock Ubuntu image through the same wrapper. No job needs host sudo, host apt,
-# Docker or setup-* actions. publish-npm stays on GitHub-hosted runners: npm trusted publishing
-# (OIDC) does not accept self-hosted runners.
 permissions:
   contents: read
 
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-production
   cancel-in-progress: false
 
 env:
-  RELEASE_PUBLISH_MODE: ${{ vars.RELEASE_PUBLISH_MODE || 'disabled' }}
-  RELEASE_PUBLISH_REQUIRED: ${{ vars.RELEASE_PUBLISH_REQUIRED || 'auto' }}
-  RELEASE_DEBIAN_DISTRIBUTION: ${{ vars.RELEASE_DEBIAN_DISTRIBUTION || '' }}
-  RELEASE_DEBIAN_URGENCY: ${{ vars.RELEASE_DEBIAN_URGENCY || '' }}
-  HOMEBREW_TAP_PUBLISH_MODE: ${{ vars.HOMEBREW_TAP_PUBLISH_MODE || 'disabled' }}
-  HOMEBREW_TAP_REPOSITORY: ${{ vars.HOMEBREW_TAP_REPOSITORY || '' }}
-  HOMEBREW_TAP_BRANCH: ${{ vars.HOMEBREW_TAP_BRANCH || 'main' }}
-  NPM_PACKAGE_NAME: ${{ vars.NPM_PACKAGE_NAME || '' }}
+  RELEASE_REF: ${{ github.event.inputs.ref || github.ref }}
   DOCS_SYNC_ENDPOINT: ${{ vars.DOCS_SYNC_ENDPOINT || 'https://valkyrianlabs.com/api/documentation/sync' }}
+  PMDOCS_SOURCE: payload-markdown-docs
 
 jobs:
-  validate-release-state:
-    name: Validate release state
-    runs-on: [self-hosted, Linux, X64, ubuntu-latest-lts]
-    defaults:
-      run:
-        shell: bash ./ci/run-ci bash -euo pipefail {0}
-    outputs:
-      version: ${{ steps.state.outputs.version }}
-      release_tag: ${{ steps.state.outputs.release_tag }}
-      publish_required: ${{ steps.state.outputs.publish_required }}
-      package_name: ${{ steps.state.outputs.package_name }}
-      package_private: ${{ steps.state.outputs.package_private }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-        with:
-          ref: ${{ github.event.inputs.ref || github.ref }}
-          fetch-depth: 0
-
-      - name: Install release tooling Python dependencies
-        run: |
-          set -euo pipefail
-          bash .github/scripts/setup-release-python.sh
-
-      - name: Validate versions and publication policy
-        id: state
-        shell: bash ./ci/run-ci bash -euo pipefail {0}
-        env:
-          DISPATCH_REF: ${{ github.event.inputs.ref || '' }}
-          DISPATCH_PUBLISH: ${{ github.event.inputs.publish || 'dry-run' }}
-          EVENT_RELEASE_TAG: ${{ github.event.release.tag_name || '' }}
-        run: |
-          set -euo pipefail
-
-          python -m tools.release check
-
-          version="$(tr -d '[:space:]' < VERSION)"
-          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "::error::VERSION must be a plain semantic version, got '${version}'."
-            exit 1
-          fi
-
-          release_tag=""
-          if [ -n "$EVENT_RELEASE_TAG" ]; then
-            release_tag="$EVENT_RELEASE_TAG"
-          elif [[ "${GITHUB_REF:-}" == refs/tags/* ]]; then
-            release_tag="${GITHUB_REF_NAME}"
-          elif [[ "$DISPATCH_REF" == refs/tags/* ]]; then
-            release_tag="${DISPATCH_REF#refs/tags/}"
-          elif [[ "$DISPATCH_REF" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            release_tag="$DISPATCH_REF"
-          fi
-
-          raw_required="${RELEASE_PUBLISH_REQUIRED:-auto}"
-          case "$raw_required" in
-            auto)
-              if [ "${GITHUB_EVENT_NAME}" = "release" ] || [ "$DISPATCH_PUBLISH" = "publish" ]; then
-                publish_required="true"
-              else
-                publish_required="false"
-              fi
-              ;;
-            true|false)
-              publish_required="$raw_required"
-              ;;
-            *)
-              echo "::error::Invalid RELEASE_PUBLISH_REQUIRED value: ${raw_required}. Expected auto|true|false."
-              exit 1
-              ;;
-          esac
-
-          if [ "$DISPATCH_PUBLISH" = "publish" ]; then
-            publish_required="true"
-          fi
-
-          if [ -n "$release_tag" ]; then
-            if [ "$release_tag" != "v${version}" ] && [ "$release_tag" != "$version" ]; then
-              echo "::error::Release tag '${release_tag}' does not match VERSION '${version}'."
-              echo "::error::Expected 'v${version}' or '${version}'."
-              exit 1
-            fi
-          fi
-
-          if [ "$publish_required" = "true" ]; then
-            if [ -z "$release_tag" ]; then
-              echo "::error::Publication requires a release tag."
-              exit 1
-            fi
-            if [ "$release_tag" != "v${version}" ]; then
-              echo "::error::Multi-package publication requires the canonical tag 'v${version}'."
-              exit 1
-            fi
-          fi
-
-          package_name="$(python3 - <<'PY'
-          import json
-          from pathlib import Path
-          print(json.loads(Path("package.json").read_text(encoding="utf-8"))["name"])
-          PY
-          )"
-          expected_package_name="${NPM_PACKAGE_NAME:-$package_name}"
-          if [ "$package_name" != "$expected_package_name" ]; then
-            echo "::error::package.json name '${package_name}' does not match NPM_PACKAGE_NAME '${expected_package_name}'."
-            exit 1
-          fi
-          package_private="$(python3 - <<'PY'
-          import json
-          from pathlib import Path
-          print(str(bool(json.loads(Path("package.json").read_text(encoding="utf-8")).get("private", False))).lower())
-          PY
-          )"
-
-          {
-            echo "version=${version}"
-            echo "release_tag=${release_tag}"
-            echo "publish_required=${publish_required}"
-            echo "package_name=${package_name}"
-            echo "package_private=${package_private}"
-          } >> "$GITHUB_OUTPUT"
-
-          echo "VERSION=${version}"
-          echo "release_tag=${release_tag:-<none>}"
-          echo "publish_required=${publish_required}"
-          echo "package_name=${package_name}"
-          echo "expected_package_name=${expected_package_name}"
-          echo "package_private=${package_private}"
-
-  npm-package:
-    name: npm package
-    runs-on: [self-hosted, Linux, X64, ubuntu-latest-lts]
-    defaults:
-      run:
-        shell: bash ./ci/run-ci bash -euo pipefail {0}
-    needs:
-      - validate-release-state
-      - native-debian
-      - homebrew-formula
-    steps:
-      - name: Checkout
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-        with:
-          ref: ${{ github.event.inputs.ref || github.ref }}
-
-      - name: Install dependencies
-        run: |
-          set -euo pipefail
-          pnpm install --frozen-lockfile --prefer-offline
-
-      - name: Ensure package is publishable
-        if: needs.validate-release-state.outputs.package_private == 'true'
-        run: |
-          echo "::error::package.json has private=true; refusing to publish."
-          exit 1
-
-      - name: Build package
-        run: |
-          set -euo pipefail
-          export NEXT_CPU_COUNT="$(nproc)"
-          pnpm build
-
-      - name: Run plugin tests
-        run: |
-          set -euo pipefail
-          pnpm test:int
-
-      - name: Verify npm version is unpublished
-        if: needs.validate-release-state.outputs.publish_required == 'true'
-        shell: bash ./ci/run-ci bash -euo pipefail {0}
-        env:
-          PKG_NAME: ${{ needs.validate-release-state.outputs.package_name }}
-          PKG_VERSION: ${{ needs.validate-release-state.outputs.version }}
-        run: |
-          set -euo pipefail
-          published="$(npm view "$PKG_NAME@$PKG_VERSION" version 2>/dev/null || true)"
-          if [ -n "$published" ]; then
-            echo "::error::npm already has ${PKG_NAME}@${PKG_VERSION}; refusing to publish."
-            exit 1
-          fi
-
-      - name: Validate package contents
-        env:
-          EXPECTED_PACKAGE_NAME: ${{ needs.validate-release-state.outputs.package_name }}
-        run: |
-          set -euo pipefail
-          npm pack --dry-run
-          mkdir -p release/npm
-          npm pack --pack-destination release/npm
-          tarball_count="$(find release/npm -maxdepth 1 -type f -name '*.tgz' | wc -l | tr -d ' ')"
-          if [ "$tarball_count" -ne 1 ]; then
-            echo "::error::Expected exactly one npm tarball, found ${tarball_count}."
-            find release/npm -maxdepth 1 -type f | sort
-            exit 1
-          fi
-          tarball="$(find release/npm -maxdepth 1 -type f -name '*.tgz' | sort | head -n 1)"
-          actual_name="$(tar -xOf "$tarball" package/package.json | node -e 'let d = ""; process.stdin.on("data", c => d += c); process.stdin.on("end", () => console.log(JSON.parse(d).name));')"
-          if [ "$actual_name" != "$EXPECTED_PACKAGE_NAME" ]; then
-            echo "::error::npm tarball package name '${actual_name}' does not match expected '${EXPECTED_PACKAGE_NAME}'."
-            exit 1
-          fi
-
-      - name: npm publish dry-run
-        run: |
-          set -euo pipefail
-          npm publish --dry-run --access public
-
-      - name: Upload npm package artifact
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: pmdocs-npm-${{ needs.validate-release-state.outputs.version }}
-          path: release/npm/*.tgz
-          if-no-files-found: error
-
-  native-debian:
-    name: Native CLI and Debian package
-    runs-on: [self-hosted, Linux, X64, ubuntu-latest-lts]
-    defaults:
-      run:
-        shell: bash ./ci/run-ci bash -euo pipefail {0}
-    needs: validate-release-state
-    environment: Production
-    steps:
-      - name: Checkout
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-        with:
-          ref: ${{ github.event.inputs.ref || github.ref }}
-          fetch-depth: 0
-
-      - name: Install release tooling Python dependencies
-        run: |
-          set -euo pipefail
-          bash .github/scripts/setup-release-python.sh
-
-      - name: Build and test native CLI
-        run: |
-          set -euo pipefail
-          meson setup build-native -Dinstall_skill_data=false
-          meson compile -C build-native
-          meson test -C build-native --print-errorlogs
-          ./build-native/cli/pmdocs --version
-
-      - name: Upload native pmdocs Linux artifact
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: pmdocs-linux-amd64
-          path: build-native/cli/pmdocs
-          if-no-files-found: error
-
-      - name: Install npm dependencies for Debian package skill data
-        run: |
-          set -euo pipefail
-          pnpm install --frozen-lockfile --prefer-offline
-
-      - name: Generate release changelog
-        shell: bash ./ci/run-ci bash -euo pipefail {0}
-        env:
-          RELEASE_AI_MODE: ${{ vars.RELEASE_AI_MODE || 'auto' }}
-          # Profile precedence: VL_AI_RELEASE_PROFILE (valkyrianlabs org variable), RELEASE_AI_PROFILE,
-          # RELEASE_AI_PROFILE_OPENAI (legacy). Unset values fall through to the ai.yml-backed default.
-          VL_AI_RELEASE_PROFILE: ${{ vars.VL_AI_RELEASE_PROFILE || '' }}
-          RELEASE_AI_PROFILE: ${{ vars.RELEASE_AI_PROFILE || '' }}
-          RELEASE_AI_PROFILE_OPENAI: ${{ vars.RELEASE_AI_PROFILE_OPENAI || '' }}
-          RELEASE_LOCAL_LLM_ENABLED: ${{ vars.RELEASE_LOCAL_LLM_ENABLED || 'false' }}
-          RELEASE_LOCAL_LLM_PROFILE: ${{ vars.RELEASE_LOCAL_LLM_PROFILE || '' }}
-          RELEASE_LOCAL_LLM_BASE_URL: ${{ vars.RELEASE_LOCAL_LLM_BASE_URL || '' }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY || '' }}
-          # DeepSeek key (valkyrianlabs org secret); DEEPSEEK_API_KEY is the generic fallback name.
-          VL_DEEPSEEK_API_KEY: ${{ secrets.VL_DEEPSEEK_API_KEY || '' }}
-          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY || '' }}
-          RELEASE_LOCAL_LLM_API_KEY: ${{ secrets.RELEASE_LOCAL_LLM_API_KEY || '' }}
-        run: |
-          set -euo pipefail
-          mkdir -p release
-          python -m tools.release changelog release \
-            --output release/changelog.release.md \
-            --raw-output release/changelog.raw.md \
-            --payload-output release/changelog.payload.json \
-            --semantic-payload-output release/changelog.semantic_payload.json \
-            --context-output release/changelog.context.json \
-            --release-notes-output release/release_notes.md \
-            --selection-output release/changelog.selection.json
-
-      - name: Build Debian package
-        run: |
-          set -euo pipefail
-          python -m tools.release build-deb --output-dir release
-
-      - name: Validate Debian package artifact
-        run: |
-          set -euo pipefail
-          python -m tools.release validate-release-artifacts --output-dir release
-
-      # A clean, digest-pinned stock Ubuntu image (not the CI image), as container root; apt runs
-      # inside that throwaway container only.
-      - name: Smoke install Debian package in container
-        shell: bash ./ci/run-ci --image docker.io/library/ubuntu:24.04@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55 --root bash -euo pipefail {0}
-        run: |
-          apt-get update
-          apt-get install -y ca-certificates
-          apt-get install -y ./release/*.deb
-          pmdocs --version
-          pmdocs doctor
-          pmdocs validate dev/docs-fixtures/basic --source payload-markdown-docs
-          pmdocs skill install --dry-run
-
-      - name: Upload Debian artifacts
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: pmdocs-debian-${{ needs.validate-release-state.outputs.version }}
-          path: |
-            release/*.deb
-            release/*.changes
-            release/*.buildinfo
-            release/build-deb.log
-            release/changelog.release.md
-            release/changelog.raw.md
-            release/changelog.payload.json
-            release/changelog.semantic_payload.json
-            release/changelog.context.json
-            release/changelog.selection.json
-            release/release_notes.md
-            release/release_notes.md.context.json
-          if-no-files-found: error
-
-  homebrew-formula:
-    name: Homebrew formula
-    runs-on: [self-hosted, Linux, X64, ubuntu-latest-lts]
-    defaults:
-      run:
-        shell: bash ./ci/run-ci bash -euo pipefail {0}
-    needs: validate-release-state
-    steps:
-      - name: Checkout
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-        with:
-          ref: ${{ github.event.inputs.ref || github.ref }}
-          fetch-depth: 0
-
-      - name: Install release tooling Python dependencies
-        run: |
-          set -euo pipefail
-          bash .github/scripts/setup-release-python.sh
-
-      - name: Validate release state and formula syntax
-        run: |
-          set -euo pipefail
-          python -m tools.release check
-          ruby -c homebrew/Formula/pmdocs.rb
-          python -m tools.release prepare-homebrew-formula --output-dir release --dry-run
-
-      - name: Build and test native CLI for formula source build parity
-        run: |
-          set -euo pipefail
-          # Same options as homebrew/Formula/pmdocs.rb: the release archive has no
-          # node_modules, so only the payload-markdown-docs skill is bundled.
-          meson setup build-homebrew -Dinstall_skill_data=true -Dcompanion_skill_data=auto
-          meson compile -C build-homebrew
-          meson test -C build-homebrew --print-errorlogs
-          stage="$PWD/stage-homebrew"
-          DESTDIR="$stage" meson install -C build-homebrew
-          export PMDOCS_DATA_DIR="$stage/usr/local/share/pmdocs"
-          "$stage/usr/local/bin/pmdocs" doctor
-          "$stage/usr/local/bin/pmdocs" install skill --agent codex --dry-run | grep -F 'payload-markdown-docs/SKILL.md'
-
-      - name: Stage release Homebrew formula
-        if: needs.validate-release-state.outputs.publish_required == 'true'
-        shell: bash ./ci/run-ci bash -euo pipefail {0}
-        env:
-          VERSION: ${{ needs.validate-release-state.outputs.version }}
-        run: |
-          set -euo pipefail
-          archive_url="https://github.com/${GITHUB_REPOSITORY}/archive/refs/tags/v${VERSION}.tar.gz"
-          sha256="$(curl -fsSL "$archive_url" | shasum -a 256 | awk '{print $1}')"
-          python -m tools.release prepare-homebrew-formula \
-            --output-dir release \
-            --archive-url "$archive_url" \
-            --sha256 "$sha256"
-          ruby -c release/homebrew/Formula/pmdocs.rb
-
-      - name: Upload Homebrew formula artifact
-        if: needs.validate-release-state.outputs.publish_required == 'true'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: pmdocs-homebrew-${{ needs.validate-release-state.outputs.version }}
-          path: release/homebrew/Formula/pmdocs.rb
-          if-no-files-found: error
-
-  assemble-release-artifacts:
-    name: Assemble release artifacts
+  build:
+    name: Prepare, build and validate
     runs-on: [self-hosted, Linux, X64, ubuntu-latest-lts]
     defaults:
       run:
         shell: bash ./ci/run-ci bash -euo pipefail {0}
     permissions:
-      contents: write
-    needs:
-      - validate-release-state
-      - npm-package
-      - native-debian
-      - homebrew-formula
+      contents: read
+      id-token: write # pmdocs push --github-oidc --dry-run
+    outputs:
+      version: ${{ steps.state.outputs.version }}
+      publish: ${{ steps.mode.outputs.publish }}
     steps:
-      - name: Checkout
+      - name: Checkout the release ref
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
-          ref: ${{ github.event.inputs.ref || github.ref }}
+          ref: ${{ env.RELEASE_REF }}
           fetch-depth: 0
 
-      - name: Install release tooling Python dependencies
+      - name: Publication mode
+        id: mode
+        env:
+          DISPATCH_PUBLISH: ${{ github.event.inputs.publish || 'dry-run' }}
         run: |
-          set -euo pipefail
-          bash .github/scripts/setup-release-python.sh
-
-      - name: Download npm package artifact
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: pmdocs-npm-${{ needs.validate-release-state.outputs.version }}
-          path: release/npm
-
-      - name: Download Debian package artifacts
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: pmdocs-debian-${{ needs.validate-release-state.outputs.version }}
-          path: release
-
-      - name: Download Homebrew formula artifact
-        if: needs.validate-release-state.outputs.publish_required == 'true'
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: pmdocs-homebrew-${{ needs.validate-release-state.outputs.version }}
-          path: release/homebrew/Formula
-
-      - name: Validate assembled release artifacts
-        shell: bash ./ci/run-ci bash -euo pipefail {0}
-        run: |
-          set -euo pipefail
-          args=(--output-dir release)
-          if [ "${{ needs.validate-release-state.outputs.publish_required }}" = "true" ]; then
-            args+=(--require-homebrew)
+          publish=false
+          if [ "${GITHUB_EVENT_NAME}" = "push" ] || [ "$DISPATCH_PUBLISH" = "publish" ]; then
+            publish=true
+            case "$RELEASE_REF" in
+              refs/tags/v*|v[0-9]*) ;;
+              *) echo "::error::Publication requires a v* tag, got '${RELEASE_REF}'."; exit 1 ;;
+            esac
           fi
-          python -m tools.release validate-release-artifacts "${args[@]}"
+          echo "publish=${publish}" >> "$GITHUB_OUTPUT"
 
-      - name: Prepare GitHub release asset list (deduped)
-        if: needs.validate-release-state.outputs.release_tag != ''
-        id: gh_release_assets
-        shell: bash ./ci/run-ci bash -euo pipefail {0}
+      - name: Release gate
         run: |
-          set -euo pipefail
-          artifact_dir="release"
-          mapfile -t release_assets < <(find "$artifact_dir" -type f | LC_ALL=C sort -u)
-          if [ "${#release_assets[@]}" -eq 0 ]; then
-            echo "::error::No files found for GitHub release asset attachment under ${artifact_dir}."
-            exit 1
-          fi
+          case "$RELEASE_REF" in
+            refs/tags/*|v[0-9]*) vlr check --release --tag "${RELEASE_REF#refs/tags/}" ;;
+            *) vlr check ;;
+          esac
+          vlr version check
 
-          echo "[gh-release] deduped asset count: ${#release_assets[@]}"
-          printf '%s\n' "${release_assets[@]}"
+      - name: Prepare release documents (work tree only)
+        run: vlr prepare --record release/meta/prepare.json
 
-          {
-            echo "assets<<EOF"
-            printf '%s\n' "${release_assets[@]}"
-            echo "EOF"
-          } >> "$GITHUB_OUTPUT"
+      - name: Release state
+        id: state
+        run: vlr status --github-output
 
-      - name: Prepare GitHub Release body append
-        if: needs.validate-release-state.outputs.release_tag != ''
-        id: gh_release_body
-        shell: bash ./ci/run-ci bash -euo pipefail {0}
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --prefer-offline --unsafe-perm
+
+      # The bundled payload-markdown skill must be the one of the payload-markdown this release
+      # was built and tested against.
+      - name: Check the vendored payload-markdown skill
+        run: node scripts/sync-payload-markdown-skill.mjs --check
+
+      # Runs `pnpm build` (pre_pack) and packs both npm tarballs every later step uses.
+      - name: Build and pack npm packages
+        run: NEXT_CPU_COUNT="$(nproc)" vlr build-npm
+
+      - name: Run tests
+        run: pnpm test:int
+
+      - name: Lint
+        run: pnpm lint
+
+      # Both npm names from the built tarballs: same files, every export and its types, and
+      # admin component paths under each installed name.
+      - name: Verify both npm packages
+        run: node scripts/verify-npm-packages.mjs --release release
+
+      - name: Build and test the native CLI
         run: |
-          set -euo pipefail
+          meson setup build-native -Dinstall_skill_data=false
+          meson compile -C build-native
+          meson test -C build-native --print-errorlogs
+          ./build-native/cli/pmdocs --version
 
-          body_path="release/github-release-body.md"
-          source_path=""
-          if [ -s release/release_notes.md ]; then
-            source_path="release/release_notes.md"
-          elif [ -s release/changelog.release.md ]; then
-            source_path="release/changelog.release.md"
-          else
-            echo "::error::No release notes or release changelog artifact found for GitHub release body."
-            exit 1
-          fi
+      # dpkg-buildpackage from the prepared tree (debian/changelog carries this release); the
+      # package bundles both skills and runs the meson tests.
+      - name: Build the Debian package
+        run: vlr build-deb
 
-          {
-            printf "%s\n\n" "## What's changed"
-            cat "$source_path"
-            printf "\n"
-          } > "$body_path"
+      - name: Source archive and Homebrew formula
+        run: |
+          vlr source-archive
+          vlr homebrew formula
+          ruby -c release/homebrew/pmdocs.rb
 
-          echo "[gh-release] prepared append body from ${source_path}: ${body_path}"
-          echo "body_path=${body_path}" >> "$GITHUB_OUTPUT"
+      # Builds pmdocs from the source archive exactly like the formula does, in a directory with no
+      # node_modules: both skills must come from the archive.
+      - name: Homebrew source-build parity
+        env:
+          VERSION: ${{ steps.state.outputs.version }}
+        run: |
+          work="$(mktemp -d)"
+          tar -xzf "release/pmdocs-${VERSION}.tar.gz" -C "$work"
+          src="$(find "$work" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
+          meson setup "$work/build" "$src" --prefix=/usr/local -Dinstall_skill_data=true
+          meson compile -C "$work/build"
+          DESTDIR="$work/stage" meson install -C "$work/build"
+          mkdir -p "$work/project"
+          cd "$work/project"
+          export PMDOCS_DATA_DIR="$work/stage/usr/local/share/pmdocs"
+          "$work/stage/usr/local/bin/pmdocs" doctor
+          plan="$("$work/stage/usr/local/bin/pmdocs" install skill --agent codex --dry-run)"
+          grep -F 'payload-markdown-docs/SKILL.md' <<< "$plan"
+          grep -F 'payload-markdown/SKILL.md' <<< "$plan"
 
-      - name: Upload GitHub Release assets
-        if: needs.validate-release-state.outputs.release_tag != ''
-        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
-        with:
-          tag_name: ${{ needs.validate-release-state.outputs.release_tag }}
-          body_path: ${{ steps.gh_release_body.outputs.body_path }}
-          append_body: true
-          files: ${{ steps.gh_release_assets.outputs.assets }}
-          overwrite_files: true
-          fail_on_unmatched_files: true
+      # A clean, digest-pinned stock Ubuntu image (not the CI image), as container root; apt runs
+      # inside that throwaway container only.
+      - name: Smoke install the Debian package
+        shell: bash ./ci/run-ci --image docker.io/library/ubuntu:24.04@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55 --root bash -euo pipefail {0}
+        run: |
+          apt-get update
+          apt-get install -y ca-certificates
+          apt-get install -y ./release/pmdocs_*.deb
+          pmdocs --version
+          pmdocs doctor
+          pmdocs validate dev/docs-fixtures/basic --source payload-markdown-docs
+          mkdir -p /tmp/project && cd /tmp/project
+          pmdocs install skill --agent claude
+          pmdocs skill check
 
-      - name: Upload combined release artifact
+      - name: Validate docs and rehearse the docs sync
+        run: |
+          ./build-native/cli/pmdocs validate ./docs --source "$PMDOCS_SOURCE"
+          ./build-native/cli/pmdocs push ./docs --endpoint "$DOCS_SYNC_ENDPOINT" --source "$PMDOCS_SOURCE" --github-oidc --dry-run
+
+      - name: Checksums and package contracts
+        run: |
+          vlr checksums
+          vlr validate-artifacts
+          vlr artifacts
+
+      # Read-only, for both npm names: fails now if this version is already published with
+      # different bytes.
+      - name: Plan npm publication
+        run: vlr publish-npm --mode enabled --dry-run
+
+      - name: Preview the GitHub release
+        run: |
+          vlr release-title
+          vlr release-body
+
+      - name: Upload release artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: pmdocs-release-${{ needs.validate-release-state.outputs.version }}
+          name: pmdocs-release-${{ steps.state.outputs.version }}
           path: release
+          include-hidden-files: true
+          if-no-files-found: error
+
+      - name: Upload the workflow-built pmdocs
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: pmdocs-linux-amd64-${{ steps.state.outputs.version }}
+          path: build-native/cli/pmdocs
           if-no-files-found: error
 
   publish-debian:
-    name: Publish Debian artifacts to Nexus
+    name: Publish the Debian package
     runs-on: [self-hosted, Linux, X64, ubuntu-latest-lts]
     defaults:
       run:
         shell: bash ./ci/run-ci bash -euo pipefail {0}
-    needs:
-      - validate-release-state
-      - assemble-release-artifacts
+    needs: build
+    if: needs.build.outputs.publish == 'true'
     environment: Production
-    env:
-      NEXUS_REPO_URL: ${{ vars.NEXUS_REPO_URL || '' }}
-      NEXUS_USER: ${{ secrets.NEXUS_USER || '' }}
-      NEXUS_PASS: ${{ secrets.NEXUS_PASS || '' }}
+    concurrency:
+      group: valkyrianlabs-apt-publish
+      cancel-in-progress: false
     steps:
-      - name: Checkout
+      - name: Checkout the release tag
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
-          ref: ${{ github.event.inputs.ref || github.ref }}
+          ref: ${{ env.RELEASE_REF }}
+          fetch-depth: 0
 
-      - name: Install release tooling Python dependencies
-        run: |
-          set -euo pipefail
-          bash .github/scripts/setup-release-python.sh
-
-      - name: Download combined release artifact
+      - name: Download release artifacts
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: pmdocs-release-${{ needs.validate-release-state.outputs.version }}
+          name: pmdocs-release-${{ needs.build.outputs.version }}
           path: release
 
-      - name: Publish or dry-run Debian upload
-        shell: bash ./ci/run-ci bash -euo pipefail {0}
+      - name: Prepare and verify artifacts
         run: |
-          set -euo pipefail
-          if [ "${{ needs.validate-release-state.outputs.publish_required }}" = "true" ]; then
-            python -m tools.release publish-deb --output-dir release --require-enabled
-          else
-            python -m tools.release publish-deb --output-dir release --mode disabled --dry-run
-          fi
+          vlr prepare
+          vlr checksums --verify
+          vlr validate-artifacts
+
+      # Idempotent and sha256-verified: identical bytes already live are skipped, different bytes
+      # are refused.
+      - name: Publish to the APT repository
+        env:
+          RELEASE_PUBLISH_MODE: ${{ vars.RELEASE_PUBLISH_MODE || 'disabled' }}
+          NEXUS_APT_REPO: ${{ vars.NEXUS_APT_REPO || vars.NEXUS_REPO_URL }}
+          NEXUS_USER: ${{ secrets.NEXUS_USER }}
+          NEXUS_PASSWORD: ${{ secrets.NEXUS_PASSWORD || secrets.NEXUS_PASS }}
+        run: vlr publish-deb --require-enabled
 
       # Installs the just-published package from the APT repository into a clean, digest-pinned
       # stock Ubuntu container (as container root), never onto the host.
-      - name: Smoke install published APT package
-        if: needs.validate-release-state.outputs.publish_required == 'true'
+      - name: Smoke install the published APT package
         shell: bash ./ci/run-ci --image docker.io/library/ubuntu:24.04@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55 --root bash -euo pipefail {0}
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
         run: |
           apt-get update
           apt-get install -y --no-install-recommends ca-certificates curl
@@ -609,125 +277,117 @@ jobs:
             > /etc/apt/sources.list.d/valkyrianlabs.list
           apt-get update
           apt-get install -y pmdocs
-          pmdocs --version
+          pmdocs --version | grep -F "pmdocs ${VERSION}"
+          pmdocs doctor
 
-  # No checkout of this repository (only the tap), and nothing privileged: plain host shell.
-  publish-homebrew-tap:
-    name: Publish Homebrew tap formula
-    runs-on: [self-hosted, Linux, X64, ubuntu-latest-lts]
-    needs:
-      - validate-release-state
-      - assemble-release-artifacts
-    if: needs.validate-release-state.outputs.publish_required == 'true'
-    environment: Production
-    env:
-      HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN || '' }}
-    steps:
-      - name: Download combined release artifact
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
-        with:
-          name: pmdocs-release-${{ needs.validate-release-state.outputs.version }}
-          path: release
-
-      - name: Validate Homebrew tap publication settings
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ "${HOMEBREW_TAP_PUBLISH_MODE}" != "tap" ]; then
-            echo "::error::Homebrew tap publication is required, but HOMEBREW_TAP_PUBLISH_MODE is '${HOMEBREW_TAP_PUBLISH_MODE}'."
-            exit 1
-          fi
-          if [ -z "${HOMEBREW_TAP_REPOSITORY}" ]; then
-            echo "::error::HOMEBREW_TAP_REPOSITORY is required for tap publication."
-            exit 1
-          fi
-          if [ -z "${HOMEBREW_TAP_TOKEN}" ]; then
-            echo "::error::HOMEBREW_TAP_TOKEN is required for tap publication."
-            exit 1
-          fi
-          test -f release/homebrew/Formula/pmdocs.rb
-
-      - name: Checkout Homebrew tap
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-        with:
-          repository: ${{ env.HOMEBREW_TAP_REPOSITORY }}
-          ref: ${{ env.HOMEBREW_TAP_BRANCH }}
-          path: homebrew-tap
-          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-
-      - name: Commit formula update
-        shell: bash
-        env:
-          VERSION: ${{ needs.validate-release-state.outputs.version }}
-        run: |
-          set -euo pipefail
-          mkdir -p homebrew-tap/Formula
-          cp release/homebrew/Formula/pmdocs.rb homebrew-tap/Formula/pmdocs.rb
-          git -C homebrew-tap config user.name "github-actions[bot]"
-          git -C homebrew-tap config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git -C homebrew-tap add Formula/pmdocs.rb
-          if git -C homebrew-tap diff --cached --quiet; then
-            echo "Homebrew formula already up to date."
-            exit 0
-          fi
-          git -C homebrew-tap commit -m "Update pmdocs ${VERSION}"
-          git -C homebrew-tap push origin "HEAD:${HOMEBREW_TAP_BRANCH}"
-
-  # npm trusted publishing (OIDC) works only on GitHub-hosted runners, so this job stays there;
-  # every other job runs on the self-hosted runner.
+  # npm trusted publishing (OIDC) works only on GitHub-hosted runners, so this job stays there.
+  # After the APT package, so an APT failure never leaves npm as the only published surface.
   publish-npm:
-    name: Publish npm package
+    name: Publish to npm
     runs-on: ubuntu-latest
+    needs: [build, publish-debian]
+    if: needs.build.outputs.publish == 'true'
+    environment:
+      name: Production
+      url: https://www.npmjs.com/package/payload-markdown-docs
     permissions:
       contents: read
-      id-token: write
-    needs:
-      - validate-release-state
-      - npm-package
-      - publish-debian
-      - publish-homebrew-tap
-    if: >
-      needs.validate-release-state.outputs.publish_required == 'true' &&
-      needs.npm-package.result == 'success' &&
-      needs.publish-debian.result == 'success' &&
-      needs.publish-homebrew-tap.result == 'success'
-    environment: Production
+      id-token: write # npm trusted publishing
+    env:
+      RELEASE_PUBLISH_MODE: ${{ vars.RELEASE_PUBLISH_MODE || 'enabled' }}
     steps:
-      - name: Checkout
+      - name: Checkout the release tag
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
-          ref: ${{ github.event.inputs.ref || github.ref }}
+          ref: ${{ env.RELEASE_REF }}
+          fetch-depth: 0
 
       - name: Setup Node
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
-          node-version-file: ".nvmrc"
-          registry-url: "https://registry.npmjs.org"
+          node-version-file: '.nvmrc'
 
-      - name: Download npm package artifact
+      - name: Install vl-release
+        run: bash .github/scripts/install-valkyrianlabs-tools.sh vl-release
+
+      - name: Download release artifacts
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: pmdocs-npm-${{ needs.validate-release-state.outputs.version }}
-          path: release/npm
+          name: pmdocs-release-${{ needs.build.outputs.version }}
+          path: release
 
-      - name: Publish to npm through trusted publishing
-        shell: bash
-        env:
-          EXPECTED_PACKAGE_NAME: ${{ needs.validate-release-state.outputs.package_name }}
+      # Publishes both validated tarballs, payload-markdown-docs first (or skips one npm already
+      # has with identical bytes), then waits until npm lists each by integrity under `latest`.
+      - name: Publish to npm
         run: |
           set -euo pipefail
-          mapfile -t tarballs < <(find release/npm -maxdepth 1 -type f -name '*.tgz' | sort)
-          if [ "${#tarballs[@]}" -ne 1 ]; then
-            echo "::error::Expected exactly one npm tarball, found ${#tarballs[@]}."
-            printf '%s\n' "${tarballs[@]}"
-            exit 1
-          fi
-          actual_name="$(tar -xOf "${tarballs[0]}" package/package.json | node -e 'let d = ""; process.stdin.on("data", c => d += c); process.stdin.on("end", () => console.log(JSON.parse(d).name));')"
-          if [ "$actual_name" != "$EXPECTED_PACKAGE_NAME" ]; then
-            echo "::error::npm tarball package name '${actual_name}' does not match expected '${EXPECTED_PACKAGE_NAME}'."
-            exit 1
-          fi
-          npm publish "${tarballs[0]}" --access public
+          vlr prepare
+          vlr publish-npm --require-enabled
+
+  github-release:
+    name: GitHub release
+    runs-on: [self-hosted, Linux, X64, ubuntu-latest-lts]
+    defaults:
+      run:
+        shell: bash ./ci/run-ci bash -euo pipefail {0}
+    needs: [build, publish-debian, publish-npm]
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout the release tag
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ env.RELEASE_REF }}
+          fetch-depth: 0
+
+      - name: Download release artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: pmdocs-release-${{ needs.build.outputs.version }}
+          path: release
+
+      - name: Create or update the release (notes from RELEASE_NOTES.md; assets immutable)
+        run: |
+          vlr prepare
+          vlr checksums --verify
+          vlr github-release
+
+  # The formula's url is the source archive attached to the GitHub release; `vlr homebrew publish`
+  # downloads it to verify the sha256 before touching the tap.
+  publish-homebrew:
+    name: Publish the Homebrew formula
+    runs-on: [self-hosted, Linux, X64, ubuntu-latest-lts]
+    defaults:
+      run:
+        shell: bash ./ci/run-ci bash -euo pipefail {0}
+    needs: [build, github-release]
+    environment: Production
+    steps:
+      - name: Checkout the release tag
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ env.RELEASE_REF }}
+          fetch-depth: 0
+
+      - name: Checkout the tap
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          repository: valkyrianlabs/homebrew-tap
+          path: homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+
+      - name: Download release artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: pmdocs-release-${{ needs.build.outputs.version }}
+          path: release
+
+      - name: Publish the formula
+        run: |
+          vlr prepare
+          vlr homebrew publish --tap-dir homebrew-tap
 
   publish-docs:
     name: Publish docs
@@ -735,63 +395,64 @@ jobs:
     defaults:
       run:
         shell: bash ./ci/run-ci bash -euo pipefail {0}
+    needs: [build, publish-npm]
     permissions:
       contents: read
-      id-token: write
-    needs:
-      - validate-release-state
-      - native-debian
-      - publish-debian
-      - publish-homebrew-tap
-      - publish-npm
-    if: >
-      needs.validate-release-state.outputs.publish_required == 'true' &&
-      needs.native-debian.result == 'success' &&
-      needs.publish-debian.result == 'success' &&
-      needs.publish-homebrew-tap.result == 'success' &&
-      needs.publish-npm.result == 'success'
+      id-token: write # pmdocs push --github-oidc
     environment:
       name: Production
       url: ${{ env.DOCS_SYNC_ENDPOINT }}
     steps:
-      - name: Checkout
+      - name: Checkout the release tag
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
-          ref: ${{ github.event.inputs.ref || github.ref }}
+          ref: ${{ env.RELEASE_REF }}
 
-      - name: Download workflow-built pmdocs
+      - name: Download the workflow-built pmdocs
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: pmdocs-linux-amd64
-          path: .artifacts/pmdocs-linux-amd64
+          name: pmdocs-linux-amd64-${{ needs.build.outputs.version }}
+          path: .tools
 
-      - name: Prepare workflow-built pmdocs
-        run: |
-          set -euo pipefail
-          mkdir -p .tools
-          cp .artifacts/pmdocs-linux-amd64/pmdocs .tools/pmdocs
-          chmod +x .tools/pmdocs
-          echo "$PWD/.tools" >> "$GITHUB_PATH"
-          export PATH="$PWD/.tools:$PATH"
-          PMDOCS_BIN="$(command -v pmdocs)"
-          echo "Using workflow-built pmdocs artifact: ${PMDOCS_BIN}"
-          pmdocs --version
-          pmdocs --help
-
+      # Dogfoods the pmdocs this release built rather than a published one.
       - name: Validate and push docs
         run: |
-          set -euo pipefail
-          export PATH="$PWD/.tools:$PATH"
-          PMDOCS_BIN="$(command -v pmdocs)"
-          echo "Publishing docs with workflow-built pmdocs: ${PMDOCS_BIN}"
+          chmod +x .tools/pmdocs
+          .tools/pmdocs --version
+          .tools/pmdocs validate ./docs --source "$PMDOCS_SOURCE"
+          .tools/pmdocs push ./docs --endpoint "$DOCS_SYNC_ENDPOINT" --source "$PMDOCS_SOURCE" --github-oidc --publish
 
-          pmdocs --version
+  finalize:
+    name: Record the release on main
+    runs-on: [self-hosted, Linux, X64, ubuntu-latest-lts]
+    defaults:
+      run:
+        shell: bash ./ci/run-ci bash -euo pipefail {0}
+    needs: [build, publish-debian, publish-npm, github-release, publish-homebrew, publish-docs]
+    permissions:
+      contents: write
+    steps:
+      # vlr finalize pushes to main; with a protected main it needs GitHub Actions as a bypass
+      # actor or RELEASE_FINALIZE_TOKEN. Publication is already complete when this runs; re-run
+      # only this job after fixing permissions.
+      - name: Checkout the release tag
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          ref: ${{ env.RELEASE_REF }}
+          fetch-depth: 0
+          token: ${{ secrets.RELEASE_FINALIZE_TOKEN || github.token }}
 
-          pmdocs validate ./docs \
-            --source payload-markdown-docs
+      - name: Download release artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: pmdocs-release-${{ needs.build.outputs.version }}
+          path: release
 
-          pmdocs push ./docs \
-            --endpoint "${DOCS_SYNC_ENDPOINT}" \
-            --source payload-markdown-docs \
-            --github-oidc \
-            --publish
+      # Re-prepare (deterministic), prove it matches what was built and published, then commit
+      # RELEASE_NOTES.md, debian/changelog and the cleared staging files onto main.
+      - name: Finalize
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          vlr prepare
+          vlr finalize --record release/meta/prepare.json

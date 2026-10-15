@@ -22,7 +22,7 @@ export type PrepareDocsSyncMigrationResult = {
  * migration's `up`, before the SQL runs:
  *
  * ```ts
- * import { prepareDocsSyncMigration } from '@valkyrianlabs/payload-markdown-docs/migrations'
+ * import { prepareDocsSyncMigration } from 'payload-markdown-docs/migrations'
  *
  * export async function up({ db, payload, req }: MigrateUpArgs): Promise<void> {
  *   await prepareDocsSyncMigration({ payload, req })
@@ -85,3 +85,11 @@ export async function prepareDocsSyncMigration({
 
   return result
 }
+
+export { repairDocsRoutes } from '../payload/repairDocsRoutes.js'
+export type { RepairDocsRoutesArgs, RepairDocsRoutesResult } from '../payload/repairDocsRoutes.js'
+export type {
+  DocsRouteCollision,
+  DocsRouteRewriteIssue,
+  DocsSetRouteRewriteReport,
+} from '../payload/rewriteDocsSetRoutes.js'

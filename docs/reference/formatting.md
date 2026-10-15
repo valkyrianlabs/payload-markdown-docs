@@ -11,7 +11,7 @@ tags:
 
 # Formatting Reference
 
-Docs are plain `.md` files that pass through `@valkyrianlabs/payload-markdown`.
+Docs are plain `.md` files that pass through `payload-markdown`.
 Keep them readable in Git first; the renderer can enhance supported directives
 without turning the source into MDX.
 

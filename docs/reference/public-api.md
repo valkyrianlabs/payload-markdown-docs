@@ -11,14 +11,14 @@ tags:
 
 # Public API
 
-`@valkyrianlabs/payload-markdown-docs` exposes a small v1 package surface.
+`payload-markdown-docs` exposes a small v1 package surface.
 
 ## Root
 
 Use the root package for Payload plugin configuration:
 
 ```ts
-import { payloadMarkdownDocs } from '@valkyrianlabs/payload-markdown-docs'
+import { payloadMarkdownDocs } from 'payload-markdown-docs'
 ```
 
 The root export also includes public plugin config types such as
@@ -28,7 +28,8 @@ The root export also includes public plugin config types such as
 `PayloadMarkdownDocsCollectionConfig`, `PayloadMarkdownDocsEndpointConfig`,
 `PayloadMarkdownDocsPagesRoutingConfig`,
 `PayloadMarkdownDocsSyncRevalidateConfig`, `DocsBlockInstallSelection`,
-`DocsCollectionInstallConfig`, and `DocsMarketingBlockKey`.
+`DocsCollectionInstallConfig`, and `DocsMarketingBlockKey`, plus
+`PAYLOAD_MARKDOWN_DOCS_NAV_CACHE_TAG` (also exported from `/next`).
 
 Do not import constants, routing helpers, sync helpers, security helpers,
 frontmatter parsers, manifest builders, or block schemas from the root package.
@@ -46,7 +47,7 @@ import {
   generatePayloadMarkdownDocsMetadata,
   getPayloadMarkdownDocsMetadata,
   resolvePayloadMarkdownDocsRoute,
-} from '@valkyrianlabs/payload-markdown-docs/next'
+} from 'payload-markdown-docs/next'
 ```
 
 This surface owns route resolution, page rendering, metadata, sitemap helpers,
@@ -58,14 +59,16 @@ Use `getPayloadMarkdownDocsRoutePath` to normalize route input from a string,
 fallback Pages collection. `resolvePayloadMarkdownDocsRoute` supports `path` for
 new integrations; the older `slug` option remains available for compatibility.
 
-Use the nav/header builders for frontend navigation data.
+Use the nav/header builders for frontend navigation data. The nav query is
+cached under `PAYLOAD_MARKDOWN_DOCS_NAV_CACHE_TAG`; see
+[Docs Navbar](/frontend/navbar#caching).
 
 ## `/admin`
 
 Use `/admin` only for Payload import map components:
 
 ```ts
-import { DocsSetManager } from '@valkyrianlabs/payload-markdown-docs/admin'
+import { DocsSetManager } from 'payload-markdown-docs/admin'
 ```
 
 Admin data loaders and URL helpers are internal.
@@ -75,7 +78,7 @@ Admin data loaders and URL helpers are internal.
 Use `/blocks` for optional manual Payload block installation:
 
 ```ts
-import { DocsCTABlock } from '@valkyrianlabs/payload-markdown-docs/blocks'
+import { DocsCTABlock } from 'payload-markdown-docs/blocks'
 ```
 
 The v1 in-page block registry contains only `DocsCTABlock`.
@@ -88,10 +91,28 @@ available.
 Use `/migrations` inside Payload migrations when upgrading an existing install:
 
 ```ts
-import { prepareDocsSyncMigration } from '@valkyrianlabs/payload-markdown-docs/migrations'
+import { prepareDocsSyncMigration } from 'payload-markdown-docs/migrations'
 ```
 
 See [Upgrading to 1.1](/reference/upgrade-1-1) for when to call it.
+
+`repairDocsRoutes` rewrites generated docs routes that went stale after a docs
+set or docs group route change; see
+[Repairing Stale Docs Routes](/reference/migration#repairing-stale-docs-routes).
+
+## `/mcp`
+
+Use `/mcp` in the Payload config to give AI agents MCP tools through
+`@payloadcms/plugin-mcp`:
+
+```ts
+import { withPayloadMarkdownDocsMcp } from 'payload-markdown-docs/mcp'
+
+mcpPlugin(withPayloadMarkdownDocsMcp({ collections: { pages: { enabled: true } } }))
+```
+
+It also exports the tool definitions (`payloadMarkdownDocsMcpTools`) and the operations
+as plain functions for custom agents. Server-only. See [MCP Agent Tools](/workflow/mcp).
 
 Sync planning, security, routing internals, hashing, frontmatter parsing, and
 manifest builders are internal package implementation details.

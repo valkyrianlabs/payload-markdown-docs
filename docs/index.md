@@ -7,7 +7,7 @@ status: published
 tags:
   - overview
 dependencies:
-  - '@valkyrianlabs/payload-markdown'
+  - 'payload-markdown'
 ---
 
 # Payload Markdown Docs
@@ -23,24 +23,24 @@ href="https://github.com/valkyrianlabs/payload-markdown-docs/actions"
 ::badge[npm]{
 type="npm"
 target="version"
-package="@valkyrianlabs/payload-markdown-docs"
-href="https://www.npmjs.com/package/@valkyrianlabs/payload-markdown-docs"
+package="payload-markdown-docs"
+href="https://www.npmjs.com/package/payload-markdown-docs"
 }
 ::badge[npm downloads]{
 type="npm"
 target="downloads"
-package="@valkyrianlabs/payload-markdown-docs"
-href="https://www.npmjs.com/package/@valkyrianlabs/payload-markdown-docs"
+package="payload-markdown-docs"
+href="https://www.npmjs.com/package/payload-markdown-docs"
 }
 ::badge[license]{
 type="npm"
 target="license"
-package="@valkyrianlabs/payload-markdown-docs"
+package="payload-markdown-docs"
 href="https://github.com/valkyrianlabs/payload-markdown-docs?tab=MIT-1-ov-file"
 }
 :::
 
-`@valkyrianlabs/payload-markdown-docs` publishes Git-backed Markdown documentation into Payload CMS. Developers and agents edit files in a repo-local `docs/` folder, CI validates and authenticates a manifest, and the Payload plugin decides what can be synced.
+`payload-markdown-docs` publishes Git-backed Markdown documentation into Payload CMS. Developers and agents edit files in a repo-local `docs/` folder, CI validates and authenticates a manifest, and the Payload plugin decides what can be synced.
 
 :::callout {variant="info" title="Native CLI split"}
 Install the npm package in the Payload app. Install the native `pmdocs` binary
@@ -54,7 +54,7 @@ which source credentials are trusted; plugin config decides whether writes,
 publishing, or hard delete are permitted.
 :::
 
-The package is built around `@valkyrianlabs/payload-markdown`. That package owns Markdown fields, directive rendering, themes, and authoring UX. This package owns docs ingestion, signed sync, audit records, docs sets, route resolution, and CI/local tooling.
+The package is built around `payload-markdown`. That package owns Markdown fields, directive rendering, themes, and authoring UX. This package owns docs ingestion, signed sync, audit records, docs sets, route resolution, and CI/local tooling.
 
 :::cards {columns="3" cardTheme="glass"}
 
@@ -116,8 +116,8 @@ Use the root, `/next`, `/admin`, and `/blocks` package surfaces intentionally.
 
 ### Install
 
-Add `@valkyrianlabs/payload-markdown-docs` and
-`@valkyrianlabs/payload-markdown`, then install the native `pmdocs` binary.
+Add `payload-markdown-docs` and
+`payload-markdown`, then install the native `pmdocs` binary.
 
 ### Configure Payload
 

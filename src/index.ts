@@ -1,3 +1,5 @@
+export { PAYLOAD_MARKDOWN_DOCS_NAV_CACHE_TAG } from './constants.js'
+export type { PayloadMarkdownPackageName } from './payloadMarkdown.js'
 export { payloadMarkdownDocs } from './plugin.js'
 export type {
   DocsBlockInstallSelection,

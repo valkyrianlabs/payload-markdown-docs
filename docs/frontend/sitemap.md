@@ -25,7 +25,7 @@ import type { MetadataRoute } from 'next'
 import config from '@payload-config'
 import { getPayload } from 'payload'
 
-import { getDocsForSitemap } from '@valkyrianlabs/payload-markdown-docs/next'
+import { getDocsForSitemap } from 'payload-markdown-docs/next'
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://example.com'
 
@@ -50,7 +50,7 @@ import type { MetadataRoute } from 'next'
 import config from '@payload-config'
 import { getPayload } from 'payload'
 
-import { getDocsForSitemap } from '@valkyrianlabs/payload-markdown-docs/next'
+import { getDocsForSitemap } from 'payload-markdown-docs/next'
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://example.com'
 
@@ -120,7 +120,7 @@ import config from '@payload-config'
 import {
   getDocsForSitemap,
   getPayloadMarkdownDocsAiSitemapRoutes,
-} from '@valkyrianlabs/payload-markdown-docs/next'
+} from 'payload-markdown-docs/next'
 import { getPayload } from 'payload'
 
 const aiRoutes = getPayloadMarkdownDocsAiSitemapRoutes({
@@ -198,7 +198,9 @@ sitemap entries should use the canonical routes outside `/api`.
 ## Cache Keys And Tags
 
 The helper wraps its read in `unstable_cache`. Override `cacheKey` or `tags`
-when the app uses different sitemap invalidation tags.
+when the app uses different sitemap invalidation tags. The default tags are
+expired immediately after every applied sync and whenever a docs set or docs
+group changes (see [Cache Revalidation](/configuration/sync-config#cache-revalidation)).
 
 ```ts
 const docs = await getDocsForSitemap({
@@ -254,7 +256,7 @@ Use `getPaginatedDocsForSitemap` when the app needs the original Payload-style
 paginated result instead of the mapped Next sitemap array.
 
 ```ts
-import { getPaginatedDocsForSitemap } from '@valkyrianlabs/payload-markdown-docs/next'
+import { getPaginatedDocsForSitemap } from 'payload-markdown-docs/next'
 
 const result = await getPaginatedDocsForSitemap({
   payload,

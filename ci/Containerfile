@@ -1,31 +1,31 @@
 # CI build/test environment for payload-markdown-docs (plugin, Playwright, native pmdocs CLI and
-# Debian/Homebrew release tooling).
+# releases with vl-release).
 #
 # Playwright's own image (Ubuntu 24.04 with Chromium and its OS dependencies for the Playwright
 # version in pnpm-lock.yaml), plus Node (.nvmrc), pnpm (packageManager), the native CLI's
-# Meson/CMake toolchain and libraries, Debian packaging tools and Python for tools/release.
+# Meson/CMake toolchain and libraries, Debian packaging tools, the GitHub CLI and vl-release.
+# Pinned by digest; dev/ci.spec.ts keeps the tag in step with pnpm-lock.yaml's playwright.
 # Built and run by ci/run-ci (same script as payload-markdown); nothing here touches the host.
-FROM mcr.microsoft.com/playwright:v1.58.2-noble@sha256:6446946a1d9fd62d9ae501312a2d76a43ee688542b21622056a372959b65d63d
+FROM mcr.microsoft.com/playwright:v1.64.1-noble@sha256:7852dc5a7d72f5fe458a597d690f6c42fbc8e9e26ddfa95f8e6ef552558d9bbf
 
+# .nvmrc and package.json "packageManager" (checked by dev/ci.spec.ts).
 ARG NODE_VERSION=24.13.1
 ARG PNPM_VERSION=10.33.0
-# Passed by ci/run-ci; unused here.
+# Newest vl-release in the ValkyrianLabs APT index when ci/run-ci built the image; part of the
+# image tag, so a new tool release rebuilds the image.
 ARG VALKYRIANLABS_TOOLS=""
 
-# The release tooling's virtualenv (.github/scripts/setup-release-python.sh) lives in the
-# workspace; it comes first on PATH whenever it exists.
 ENV DEBIAN_FRONTEND=noninteractive \
     PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
     COREPACK_HOME=/usr/local/share/corepack \
     COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
     HOME=/home/ci \
-    CI=true \
-    PATH=/workspace/.venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    CI=true
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
       ca-certificates curl git gnupg jq sudo xz-utils \
-      python3 python3-venv python3-pip python3-yaml \
+      python3 python3-yaml \
       build-essential cmake doctest-dev libcli11-dev libcurl4-openssl-dev libssl-dev \
       meson ninja-build nlohmann-json3-dev pkgconf \
       debhelper devscripts dpkg-dev fakeroot ruby \
@@ -44,6 +44,21 @@ RUN set -eux; \
     corepack prepare "pnpm@${PNPM_VERSION}" --activate; \
     chmod -R a+rX "$COREPACK_HOME"; \
     node --version; pnpm --version
+
+# GitHub CLI (vlr github-release) and vl-release, from their signed APT repositories. Release
+# CI builds and uses its own pmdocs, so the image does not install the published one.
+RUN set -eux; \
+    install -d -m 0755 /etc/apt/keyrings; \
+    curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg -o /etc/apt/keyrings/githubcli.gpg; \
+    curl -fsSL https://apt.valkyrianlabs.com/pubkey.gpg -o /etc/apt/keyrings/valkyrianlabs.gpg; \
+    chmod 0644 /etc/apt/keyrings/*.gpg; \
+    echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/githubcli.gpg] https://cli.github.com/packages stable main" > /etc/apt/sources.list.d/github-cli.list; \
+    echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/valkyrianlabs.gpg] https://apt.valkyrianlabs.com stable main" > /etc/apt/sources.list.d/valkyrianlabs.list; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends gh vl-release; \
+    rm -rf /var/lib/apt/lists/*; \
+    echo "tools: ${VALKYRIANLABS_TOOLS}"; \
+    vlr --version; gh --version | head -1
 
 RUN install -d -m 1777 /home/ci
 

@@ -1,12 +1,13 @@
 ---
 name: payload-markdown-docs
-description: Use this skill when maintaining Git-backed documentation for a project that uses `@valkyrianlabs/payload-markdown-docs`.
+description: Use this skill when maintaining Git-backed documentation for a project that uses `payload-markdown-docs` (also published as `payload-markdown-docs`).
 ---
 
 # Payload Markdown Docs Skill
 
 Use this skill in Codex when maintaining Git-backed documentation for a project
-that uses `@valkyrianlabs/payload-markdown-docs`.
+that uses `payload-markdown-docs` (also published as
+`payload-markdown-docs`; same package, either name).
 
 Edit repo-local source files first. Treat generated Payload docs records and
 synced raw assets as server-owned output, not as source of truth.
@@ -17,17 +18,45 @@ native `pmdocs` CLI or served from the package
 
 This skill owns the docs package structure, plugin sync workflow, routing,
 frontmatter, and plugin-specific safety rules. It intentionally does not define
-Payload Markdown directive syntax or renderer formatting details. Use the
-sibling `payload-markdown` skill for those:
+Payload Markdown directive syntax, styling, layout, themes, palettes, or the
+Payload Markdown MCP content workflow. Doc bodies are payload-markdown, so read
+the sibling `payload-markdown` skill for all of that:
 
 - `../payload-markdown/SKILL.md`
 - `../payload-markdown/reference/payload-markdown-directives.md`
+- `../payload-markdown/reference/directive-spec.json`
 - `../payload-markdown/reference/formatting.md`
 - `../payload-markdown/reference/quality.md`
+- `../payload-markdown/reference/automated-docs-workflow.md`
+- `../payload-markdown/reference/mcp-content-workflow.md`
 
-The `pmdocs install skill --agent codex` installer writes this sibling skill.
-If it is missing, reinstall the skill bundle before guessing directive names,
-props, themes, or formatting rules.
+`pmdocs install skill --agent codex` writes this sibling skill next to this
+one, taken from the project's installed `payload-markdown` package when there
+is one (so it matches the version the site renders with). If it is missing or
+outdated (`npx payload-markdown skill check`), reinstall it with
+`pmdocs install skill --agent codex --force` or
+`npx payload-markdown skill install` before guessing directive names, props,
+themes, or formatting rules.
+
+## Keep These Skills Current
+
+At the start of docs work in a project, run:
+
+```bash
+pmdocs skill check
+```
+
+- `outdated` or `missing`: run `pmdocs skill update` right away, without asking,
+  then re-read this file and `../payload-markdown/SKILL.md` before continuing.
+  The update refreshes this skill and the `payload-markdown` skill together and
+  keeps the installed `--docs-root` and `--package-manager`.
+- `modified`: someone edited the installed skill. Do not pass `--force`; tell the
+  user a newer skill is available and let them decide.
+- `current`: carry on.
+
+`pmdocs validate` and `pmdocs plan` print the same reminder on stderr ("the agent
+skill installed in this project is stale"); treat it the same way. Skip the check
+when `pmdocs` is not installed.
 
 ## Current Model
 
@@ -70,6 +99,8 @@ props, themes, or formatting rules.
   delete behavior matters.
 - Do not directly mutate generated Payload records unless the user explicitly
   asks for admin-side overrides.
+- When connected to the site's MCP server, follow `reference/mcp.md`: doc
+  content and frontmatter cannot be changed over MCP; change them in Git.
 - Do not invent directives, frontmatter fields, CLI flags, sync modes, runtime
   features, route helpers, or publishing behavior.
 - Do not describe unsupported features as implemented.
@@ -175,15 +206,20 @@ pmdocs install routes --payload-app "src/app/(payload)"
 - `reference/sync.md`
 - `reference/routing.md`
 - `reference/admin.md`
+- `reference/mcp.md`
 - `reference/troubleshooting.md`
 - `examples/github-actions.md`
 
 Payload Markdown companion references:
 
 - `../payload-markdown/reference/payload-markdown-directives.md`
+- `../payload-markdown/reference/directive-spec.json`
 - `../payload-markdown/reference/formatting.md`
 - `../payload-markdown/reference/quality.md`
+- `../payload-markdown/reference/automated-docs-workflow.md`
+- `../payload-markdown/reference/mcp-content-workflow.md`
 - `../payload-markdown/examples/docs-page.md`
+- `../payload-markdown/examples/reference-page.md`
 
 ## Safety Checklist
 

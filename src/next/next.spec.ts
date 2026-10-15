@@ -46,7 +46,7 @@ vi.mock('next/cache', () => ({
   unstable_cache: cacheMocks.unstableCache,
 }))
 
-vi.mock('@valkyrianlabs/payload-markdown/server', () => ({
+vi.mock('payload-markdown/server', () => ({
   MarkdownRenderer: ({ markdown }: { markdown?: string }) => markdown ?? null,
 }))
 

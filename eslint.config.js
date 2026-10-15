@@ -42,6 +42,7 @@ export default [
           maximumDefaultProjectFileMatchCount_THIS_WILL_SLOW_DOWN_LINTING: 40,
           allowDefaultProject: [
             'scripts/*.ts',
+            'scripts/*.mjs',
             'tools/dev/*.mjs',
             'scripts/consumer-smoke/*.mjs',
             '*.js',

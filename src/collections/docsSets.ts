@@ -9,6 +9,8 @@ import { populatePublishedAt } from '../payload/populatePublishedAt.js'
 export type CreateDocsSetsCollectionOptions = {
   docsCollectionSlug?: string
   docsGroupsCollectionSlug: string
+  /** Extra hooks (route rewrite and cache revalidation, see payload/docsRouteHooks). */
+  hooks?: Pick<NonNullable<CollectionConfig['hooks']>, 'afterChange' | 'afterDelete' | 'beforeChange'>
   seoEnabled: boolean
   /** Upload collection for the SEO meta image; omitted when the app has none. */
   seoUploadCollectionSlug?: string
@@ -37,6 +39,7 @@ export const createDocsSetsCollection = ({
   slug,
   docsCollectionSlug,
   docsGroupsCollectionSlug,
+  hooks,
   seoEnabled,
   seoUploadCollectionSlug,
 }: CreateDocsSetsCollectionOptions): CollectionConfig => ({
@@ -253,7 +256,9 @@ export const createDocsSetsCollection = ({
     },
   ],
   hooks: {
-    beforeChange: [populatePublishedAt],
+    afterChange: hooks?.afterChange ?? [],
+    afterDelete: hooks?.afterDelete ?? [],
+    beforeChange: [populatePublishedAt, ...(hooks?.beforeChange ?? [])],
   },
   labels: {
     plural: 'Sets',

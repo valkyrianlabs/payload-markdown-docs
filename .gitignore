@@ -27,8 +27,11 @@
 /build
 /dist
 
-# release tooling outputs (local runs of python -m tools.release)
-/.changelog_scratch/
+# native CLI build trees (CI and local meson builds)
+/build-*/
+/stage-*/
+
+# vl-release output
 /release/
 
 # misc

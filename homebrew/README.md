@@ -24,52 +24,32 @@ brew tap valkyrianlabs/tap
 brew install pmdocs
 ```
 
-Release checklist:
+Releases render and publish the formula with vl-release (`release.toml`
+`[homebrew]`); nothing is copied by hand:
 
-1. Tag a release in `valkyrianlabs/payload-markdown-docs`.
-2. Publish a source archive or use the GitHub tag archive URL.
-3. Compute the archive checksum with `curl -L <url> | shasum -a 256`.
-4. Stage the release formula:
+1. `vlr source-archive` writes `release/pmdocs-<version>.tar.gz` from the
+   prepared tree. It is attached to the GitHub release and is the formula's
+   source; it contains both bundled skills (`skills/payload-markdown-docs` and
+   the vendored `skills/payload-markdown`), so the formula needs no npm
+   resource.
+2. `vlr homebrew formula` renders `release/homebrew/pmdocs.rb` from
+   `homebrew/Formula/pmdocs.rb` with that archive's URL and sha256.
+3. After the GitHub release, `vlr homebrew publish --tap-dir homebrew-tap`
+   downloads the archive, verifies its sha256 and commits the formula to
+   `valkyrianlabs/homebrew-tap` (secret `HOMEBREW_TAP_TOKEN`). Re-runs skip an
+   identical formula and refuse to change a published one.
 
-   ```bash
-   python3 -m tools.release prepare-homebrew-formula \
-     --output-dir release \
-     --archive-url <url> \
-     --sha256 <sha256>
-   ```
+Release CI also builds pmdocs from the source archive with the formula's Meson
+options and checks that `pmdocs install skill` plans both skills. To test the
+formula on a Mac before a release:
 
-5. Copy `release/homebrew/Formula/pmdocs.rb` into
-   `valkyrianlabs/homebrew-tap/Formula/pmdocs.rb`.
-6. Confirm the formula dependencies are available: `meson`, `ninja`, `pkgconf`,
-   `cmake`, `cli11`, `curl`, `openssl@3`, `nlohmann-json`, and `doctest`.
-7. The formula builds with `-Dinstall_skill_data=true -Dcompanion_skill_data=auto`:
-   the tag archive contains `skills/payload-markdown-docs` but no
-   `node_modules`, so the npm companion `payload-markdown` skill is skipped and
-   `pmdocs install skill` installs the bundled skill. `brew test` runs
-   `pmdocs doctor` and `pmdocs install skill --agent codex --dry-run`.
-8. Test the formula before publishing:
+```bash
+brew install --build-from-source ./release/homebrew/pmdocs.rb
+brew test pmdocs
+```
 
-   ```bash
-   brew install --build-from-source ./release/homebrew/Formula/pmdocs.rb
-   brew test pmdocs
-   ```
-
-9. After copying the formula into the tap and replacing the release URL and
-   checksum, test the published path:
-
-   ```bash
-   brew install --build-from-source valkyrianlabs/tap/pmdocs
-   brew test pmdocs
-   ```
-
-10. Commit and push the formula to the tap.
-
-The release workflow performs formula staging, syntax validation, and tap commit
-publication when
-`HOMEBREW_TAP_PUBLISH_MODE=tap`, `HOMEBREW_TAP_REPOSITORY`,
-`HOMEBREW_TAP_BRANCH`, and `HOMEBREW_TAP_TOKEN` are configured in the protected
-Production environment. Formula install smoke tests still need a runner with
-Homebrew available, preferably protected macOS CI before v1.
+The formula's version is a vl-release version target (`vlr version bump`), so
+never edit its `url` or `sha256` by hand.
 
 The Homebrew formula should run native Meson tests only. TypeScript checks
 (including the TypeScript half of the shared `contracts/vectors/` suite) need

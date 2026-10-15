@@ -25,7 +25,7 @@ group.
 ```ts
 import type { CollectionConfig } from 'payload'
 
-import { docsHeroField } from '@valkyrianlabs/payload-markdown-docs/fields'
+import { docsHeroField } from 'payload-markdown-docs/fields'
 import { hero } from '@/heros/config'
 
 export const Pages: CollectionConfig = {
@@ -68,7 +68,7 @@ fields are hidden while a local hero variant is selected.
 If the app does not have a local hero field, use the standalone docs hero field:
 
 ```ts
-import { docsHeroField } from '@valkyrianlabs/payload-markdown-docs/fields'
+import { docsHeroField } from 'payload-markdown-docs/fields'
 
 fields: [docsHeroField()]
 ```
@@ -81,7 +81,7 @@ only when the selected docs set has a title. Description remains optional.
 The plugin can wrap existing `hero` fields on the configured pages collection:
 
 ```ts
-import { payloadMarkdownDocs } from '@valkyrianlabs/payload-markdown-docs'
+import { payloadMarkdownDocs } from 'payload-markdown-docs'
 
 payloadMarkdownDocs({
   heroes: true,
@@ -122,7 +122,7 @@ Render docs hero variants inside your existing hero renderer:
 import type { FC } from 'react'
 import type { Page } from '@/payload-types'
 
-import { docsHeroComponents } from '@valkyrianlabs/payload-markdown-docs/next'
+import { docsHeroComponents } from 'payload-markdown-docs/next'
 
 import { HighImpactHero } from './HighImpact'
 import { LowImpactHero } from './LowImpact'
@@ -157,7 +157,7 @@ Use hero components directly on custom Set or Group pages. Pass URLs from your
 own route logic or from already-resolved docs data.
 
 ```tsx
-import { DocsProductHero } from '@valkyrianlabs/payload-markdown-docs/next'
+import { DocsProductHero } from 'payload-markdown-docs/next'
 
 export function SetLandingPage({
   set,
@@ -192,7 +192,7 @@ export function SetLandingPage({
 For docs-native pages, use `DocsNativeHero`:
 
 ```tsx
-import { DocsNativeHero } from '@valkyrianlabs/payload-markdown-docs/next'
+import { DocsNativeHero } from 'payload-markdown-docs/next'
 
 <DocsNativeHero
   breadcrumb={[{ label: 'Docs', href: '/docs' }, { label: 'Configuration' }]}

@@ -1,19 +1,19 @@
-![@valkyrianlabs/payload-markdown-docs v1.0.0 release banner](https://media.valkyrianlabs.com/%40valkyrianlabspayload-markdown-docs_v1-release-banner.png)
+![payload-markdown-docs v1.0.0 release banner](https://media.valkyrianlabs.com/%40valkyrianlabspayload-markdown-docs_v1-release-banner.png)
 
 [![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/valkyrianlabs/payload-markdown-docs/deploy.yml)](https://github.com/valkyrianlabs/payload-markdown-docs/actions)
 &nbsp;
-[![npm](https://img.shields.io/npm/v/@valkyrianlabs/payload-markdown-docs)](https://www.npmjs.com/package/@valkyrianlabs/payload-markdown-docs)
+[![npm](https://img.shields.io/npm/v/payload-markdown-docs)](https://www.npmjs.com/package/payload-markdown-docs)
 &nbsp;
-[![npm](https://img.shields.io/npm/dw/@valkyrianlabs/payload-markdown-docs)](https://www.npmjs.com/package/@valkyrianlabs/payload-markdown-docs)
+[![npm](https://img.shields.io/npm/dw/payload-markdown-docs)](https://www.npmjs.com/package/payload-markdown-docs)
 &nbsp;
-[![license](https://img.shields.io/npm/l/@valkyrianlabs/payload-markdown-docs)](https://github.com/valkyrianlabs/payload-markdown-docs?tab=MIT-1-ov-file)
+[![license](https://img.shields.io/npm/l/payload-markdown-docs)](https://github.com/valkyrianlabs/payload-markdown-docs?tab=MIT-1-ov-file)
 
 AI-first Markdown documentation generation, sync, and publishing for Payload CMS.
 
-`@valkyrianlabs/payload-markdown-docs` turns a repo-local `/docs` tree into
+`payload-markdown-docs` turns a repo-local `/docs` tree into
 Payload-native documentation that can be generated with AI, reviewed as plain
 Markdown, validated locally, synced through GitHub Actions, and rendered in your
-Next/Payload site with [@valkyrianlabs/payload-markdown](https://github.com/valkyrianlabs/payload-markdown).
+Next/Payload site with [payload-markdown](https://github.com/valkyrianlabs/payload-markdown).
 
 It is the documentation delivery pipeline for teams who want docs to move as
 fast as the code they describe.
@@ -29,7 +29,7 @@ fast as the code they describe.
 Install the Payload plugin package in the Payload app:
 
 ```bash
-pnpm add @valkyrianlabs/payload-markdown-docs @valkyrianlabs/payload-markdown @payloadcms/plugin-seo
+pnpm add payload-markdown-docs payload-markdown @payloadcms/plugin-seo
 ```
 
 The two companion packages are peer dependencies; see [Install](#install).
@@ -137,7 +137,7 @@ The installed skills give the agent repo-local guidance for:
 - validation,
 - route-derived docs metadata,
 - Markdown authoring patterns,
-- and [@valkyrianlabs/payload-markdown](https://github.com/valkyrianlabs/payload-markdown) directive usage through the companion `payload-markdown` skill.
+- and [payload-markdown](https://github.com/valkyrianlabs/payload-markdown) directive usage through the companion `payload-markdown` skill.
 
 You can still write every document by hand. In fact, you should review and tune
 important docs by hand. But the workflow is optimized for AI to build the first
@@ -146,7 +146,7 @@ pass, maintain large sections, and keep documentation moving with the codebase.
 Codex and Claude skill packs are included today. The canonical
 `payload-markdown-docs` skill artifacts live in this package. The companion
 `payload-markdown` skill is copied from the installed
-`@valkyrianlabs/payload-markdown` package during native CLI packaging.
+`payload-markdown` package during native CLI packaging.
 
 ## Why This Exists
 
@@ -187,15 +187,15 @@ the output. Your site owns the final output.
 - Drop-in docs navbar and headless navigation helpers.
 - Native `pmdocs` commands for validation, manifest generation, sync planning,
   route installation, key generation, and publishing.
-- Rendering powered by `@valkyrianlabs/payload-markdown`.
+- Rendering powered by `payload-markdown`.
 
 ## Install
 
 ```bash
-pnpm add @valkyrianlabs/payload-markdown-docs @valkyrianlabs/payload-markdown @payloadcms/plugin-seo
+pnpm add payload-markdown-docs payload-markdown @payloadcms/plugin-seo
 ```
 
-`@valkyrianlabs/payload-markdown` (Markdown field and renderer) and
+`payload-markdown` (Markdown field and renderer) and
 `@payloadcms/plugin-seo` (docs-set SEO fields) are **peer dependencies**: the
 plugin registers admin components from both packages in your app's import map,
 so your app must install them directly. Installing them yourself also keeps a
@@ -204,6 +204,32 @@ configure (themes, code highlighting, icons) apply to docs pages too. Register
 `payloadMarkdown()` in the same Payload config as `payloadMarkdownDocs()`.
 `payload`, `next`, `react` and `react-dom` are peers as well and are already
 part of every Payload app.
+
+### Package names
+
+Both packages are published under two names, built once and released together:
+
+| Package | Preferred | Also published as |
+| --- | --- | --- |
+| This plugin | `payload-markdown-docs` | `payload-markdown-docs` |
+| Markdown field and renderer | `payload-markdown` | `payload-markdown` |
+
+Install one name of each (any combination works) and import from the names you
+installed (`payload-markdown-docs/next`, `payload-markdown-docs/next`,
+and so on). Both `payload-markdown` names are optional peer dependencies, so
+install the one you use yourself. The plugin finds it on its own: the docs
+content field uses the admin component of the installed `payload-markdown`
+(taken from the components `payloadMarkdown()` registers, so list
+`payloadMarkdown()` first, or from `node_modules`), and docs pages render with
+it. Set `payloadMarkdownPackage` in `payloadMarkdownDocs()` to choose explicitly.
+
+With webpack builds (`next build --webpack`), Next prints one "Module not
+found" warning for the `payload-markdown` name you did not install. It is
+harmless: the plugin tries the preferred name first and falls back to the other.
+Turbopack builds print nothing.
+
+Switching names in an existing app: replace the dependency and the imports,
+update the Tailwind `@source` paths, and run `payload generate:importmap`.
 
 Upgrading from 1.0.x: 1.1 adds database schema, including a unique index that
 needs a one-line data cleanup in your migration. Follow
@@ -217,8 +243,8 @@ Tailwind v4, add both packages to your app stylesheet's sources:
 ```css
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
-@source "../node_modules/@valkyrianlabs/payload-markdown/dist";
-@source "../node_modules/@valkyrianlabs/payload-markdown-docs/dist";
+@source "../node_modules/payload-markdown/dist";
+@source "../node_modules/payload-markdown-docs/dist";
 ```
 
 Adjust the relative paths to where your stylesheet lives. The components expect
@@ -232,7 +258,7 @@ above for the native `pmdocs` binary.
 ## Configure Payload
 
 ```ts
-import { payloadMarkdownDocs } from '@valkyrianlabs/payload-markdown-docs'
+import { payloadMarkdownDocs } from 'payload-markdown-docs'
 import { buildConfig } from 'payload'
 
 export default buildConfig({
@@ -257,15 +283,16 @@ export default buildConfig({
 
 The package surface is intentionally split by runtime:
 
-- `@valkyrianlabs/payload-markdown-docs`: Payload plugin/config API only.
-- `@valkyrianlabs/payload-markdown-docs/next`: Next rendering, metadata, sitemap, nav, route, and asset route helpers.
-- `@valkyrianlabs/payload-markdown-docs/admin`: `DocsSetManager` for Payload import maps.
-- `@valkyrianlabs/payload-markdown-docs/blocks`: optional Payload block schemas and field helpers.
+- `payload-markdown-docs`: Payload plugin/config API only.
+- `payload-markdown-docs/next`: Next rendering, metadata, sitemap, nav, route, and asset route helpers.
+- `payload-markdown-docs/admin`: `DocsSetManager` for Payload import maps.
+- `payload-markdown-docs/blocks`: optional Payload block schemas and field helpers.
+- `payload-markdown-docs/mcp`: MCP tools for `@payloadcms/plugin-mcp` (server-only).
 
 Manual block installation imports from `/blocks`:
 
 ```ts
-import { DocsCTABlock } from '@valkyrianlabs/payload-markdown-docs/blocks'
+import { DocsCTABlock } from 'payload-markdown-docs/blocks'
 ```
 
 This adds the `Docs Globals` admin collections:
@@ -373,6 +400,11 @@ installs agent-facing guidance so AI agents can understand the documentation
 rules inside your repo. The `payload-markdown-docs` skill covers package
 structure and sync behavior. The companion `payload-markdown` skill covers
 renderer directives and Markdown authoring.
+
+After upgrading `pmdocs` or `payload-markdown`, `pmdocs skill update` refreshes
+both installed skills (`pmdocs skill check` reports whether they are current).
+Agents do this on their own: the skill tells them to, and `pmdocs validate`
+reminds them when the installed copy is stale.
 
 A typical prompt after installing the skill:
 
@@ -546,7 +578,7 @@ Use the native binary instead:
 pmdocs push ...
 ```
 
-Keep `@valkyrianlabs/payload-markdown-docs` installed in the Payload app for the
+Keep `payload-markdown-docs` installed in the Payload app for the
 plugin/runtime integration. Install `pmdocs` from Homebrew or the Valkyrian
 Labs Debian repository anywhere you run operator commands.
 
@@ -564,7 +596,7 @@ import {
   PayloadMarkdownDocsPage,
   getPayloadMarkdownDocsRoutePath,
   resolvePayloadMarkdownDocsRoute,
-} from '@valkyrianlabs/payload-markdown-docs/next'
+} from 'payload-markdown-docs/next'
 import { notFound } from 'next/navigation'
 import { getPayload } from 'payload'
 
@@ -616,7 +648,7 @@ notes and metadata examples.
 Use the drop-in navbar when you want the plugin to own the docs menu UI:
 
 ```tsx
-import { PayloadMarkdownDocsNavbar } from '@valkyrianlabs/payload-markdown-docs/next'
+import { PayloadMarkdownDocsNavbar } from 'payload-markdown-docs/next'
 import type { Payload } from 'payload'
 
 export async function HeaderDocsNav({ payload }: { payload: Payload }) {
@@ -635,7 +667,7 @@ docs groups and top-level ungrouped docs sets without exceeding your existing
 menu cap:
 
 ```ts
-import { appendPayloadMarkdownDocsHeaderNavItems } from '@valkyrianlabs/payload-markdown-docs/next'
+import { appendPayloadMarkdownDocsHeaderNavItems } from 'payload-markdown-docs/next'
 
 const navItems = await appendPayloadMarkdownDocsHeaderNavItems({
   existingItems: header.navItems ?? [],
@@ -653,7 +685,7 @@ and `docs-sets` relationships.
 For fully custom navigation, use the headless nav builder:
 
 ```ts
-import { getPayloadMarkdownDocsNavItems } from '@valkyrianlabs/payload-markdown-docs/next'
+import { getPayloadMarkdownDocsNavItems } from 'payload-markdown-docs/next'
 
 const docsNav = await getPayloadMarkdownDocsNavItems({
   availableSlots: 4,
@@ -730,7 +762,7 @@ skills. Use `additionalRoutes` for static routes that are not generated or
 synced:
 
 ```ts
-import { getDocsForSitemap } from '@valkyrianlabs/payload-markdown-docs/next'
+import { getDocsForSitemap } from 'payload-markdown-docs/next'
 
 const sitemap = await getDocsForSitemap({
   payload,
@@ -744,6 +776,24 @@ Skills are native agent workflow artifacts.
 
 The source split is intentional: `/docs` contains human documentation, while
 `/skills` contains agent-native workflow packages.
+
+## AI Agents Over MCP
+
+`payload-markdown-docs/mcp` adds docs tools to Payload's official MCP
+plugin, alongside payload-markdown's markdown tools (either wrapper order works):
+
+```ts
+import { mcpPlugin } from '@payloadcms/plugin-mcp'
+import { withPayloadMarkdownMcp } from 'payload-markdown/mcp'
+import { withPayloadMarkdownDocsMcp } from 'payload-markdown-docs/mcp'
+
+mcpPlugin(withPayloadMarkdownMcp(withPayloadMarkdownDocsMcp({ collections: { pages: { enabled: true } } })))
+```
+
+Agents can change presentation fields, publish, roll back to Git snapshots, manage docs
+sets, groups and sync access, and read sync runs. They cannot overwrite synced content:
+Git owns doc bodies and frontmatter, and the plugin rejects those writes from every MCP
+tool. See [MCP Agent Tools](docs/workflow/mcp.md).
 
 ## Advanced Security
 
@@ -765,11 +815,12 @@ all workflow publishing for that docs set.
 - [Docs Navbar](docs/frontend/navbar.md)
 - [CLI](docs/reference/cli.md)
 - [Public API](docs/reference/public-api.md)
+- [MCP Agent Tools](docs/workflow/mcp.md)
 
 ## Related Packages
 
-- [`@valkyrianlabs/payload-markdown`](https://www.npmjs.com/package/@valkyrianlabs/payload-markdown)
-- [`@valkyrianlabs/payload-markdown-docs`](https://www.npmjs.com/package/@valkyrianlabs/payload-markdown-docs)
+- [`payload-markdown`](https://www.npmjs.com/package/payload-markdown)
+- [`payload-markdown-docs`](https://www.npmjs.com/package/payload-markdown-docs)
 
 ## License
 

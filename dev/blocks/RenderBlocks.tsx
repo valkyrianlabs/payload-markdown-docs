@@ -1,4 +1,4 @@
-import { MarkdownBlockComponent } from '@valkyrianlabs/payload-markdown/server'
+import { MarkdownBlockComponent } from 'payload-markdown/server'
 import React, { Fragment } from 'react'
 
 import type { Page } from '../payload-types.ts'

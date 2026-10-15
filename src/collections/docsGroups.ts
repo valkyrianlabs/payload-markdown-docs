@@ -5,11 +5,14 @@ import { slugField } from 'payload'
 import { DOCS_GLOBALS_ADMIN_GROUP } from '../constants.js'
 
 export type CreateDocsGroupsCollectionOptions = {
+  /** Extra hooks (route rewrite and cache revalidation, see payload/docsRouteHooks). */
+  hooks?: Pick<NonNullable<CollectionConfig['hooks']>, 'afterChange' | 'afterDelete' | 'beforeDelete'>
   slug: string
 }
 
 export const createDocsGroupsCollection = ({
   slug,
+  hooks,
 }: CreateDocsGroupsCollectionOptions): CollectionConfig => ({
   slug,
   admin: {
@@ -72,6 +75,7 @@ export const createDocsGroupsCollection = ({
       ],
     },
   ],
+  ...(hooks ? { hooks } : {}),
   labels: {
     plural: 'Groups',
     singular: 'Group',

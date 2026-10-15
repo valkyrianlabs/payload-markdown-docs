@@ -9,7 +9,7 @@ tags:
 
 # Architecture
 
-`payload-markdown-docs` is a docs publishing workflow around Payload CMS and `@valkyrianlabs/payload-markdown`.
+`payload-markdown-docs` is a docs publishing workflow around Payload CMS and `payload-markdown`.
 
 :::toc {title="On this page" depth="3" theme="compact"}
 :::

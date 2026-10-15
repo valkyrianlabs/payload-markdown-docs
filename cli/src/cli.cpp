@@ -24,6 +24,9 @@ namespace pmdocs {
 namespace {
 
 constexpr std::string_view kPrimarySkillName = "payload-markdown-docs";
+// payload-markdown's own skill (directives, styling, layout, MCP). The docs skill
+// links to it, so `install skill` always installs both.
+constexpr std::string_view kCompanionSkillName = "payload-markdown";
 constexpr std::string_view kVersion = PMDOCS_VERSION;
 
 enum class InstallCommandShape {
@@ -54,6 +57,8 @@ struct SkillInstallTarget {
   std::string package_slug;
   std::filesystem::path source_root;
   std::filesystem::path target_root;
+  // "bundled" (pmdocs data directory) or "project" (the app's node_modules).
+  std::string source_kind = "bundled";
 };
 
 std::string read_file(const std::filesystem::path& path) {
@@ -142,7 +147,7 @@ std::vector<AssetRouteTemplate> asset_route_templates() {
     {
       .relative_path = "payloadMarkdownDocsAssetRoute.ts",
       .content = "import config from '@payload-config'\n"
-                 "import { createPayloadMarkdownDocsAssetRouteHandler } from '@valkyrianlabs/payload-markdown-docs/next'\n"
+                 "import { createPayloadMarkdownDocsAssetRouteHandler } from '{{packageName}}/next'\n"
                  "\n"
                  "export const GET = createPayloadMarkdownDocsAssetRouteHandler({\n"
                  "  config,\n"
@@ -226,6 +231,42 @@ std::filesystem::path bundled_skill_dir_for_agent(std::string_view agent) {
   return bundled_skill_dir_for_package_and_agent(kPrimarySkillName, agent);
 }
 
+// The payload-markdown skill shipped inside the project's installed payload-markdown
+// package (either npm name), found by walking up from the working directory like
+// Node resolution does. It matches the payload-markdown version the app runs, so it
+// is preferred over pmdocs' bundled copy.
+std::optional<std::filesystem::path> project_companion_skill_dir(std::string_view agent) {
+  static const std::vector<std::filesystem::path> package_dirs = {
+    std::filesystem::path{"node_modules"} / "payload-markdown",
+    std::filesystem::path{"node_modules"} / "@valkyrianlabs" / "payload-markdown",
+  };
+
+  std::error_code error;
+  auto directory = std::filesystem::current_path(error);
+
+  if (error) {
+    return std::nullopt;
+  }
+
+  while (true) {
+    for (const auto& package_dir : package_dirs) {
+      const auto skill_dir = directory / package_dir / "skills" / std::string{kCompanionSkillName} / std::string{agent};
+
+      if (std::filesystem::is_regular_file(skill_dir / "SKILL.md", error)) {
+        return skill_dir;
+      }
+
+      error.clear();
+    }
+
+    if (!directory.has_parent_path() || directory.parent_path() == directory) {
+      return std::nullopt;
+    }
+
+    directory = directory.parent_path();
+  }
+}
+
 std::vector<std::string> bundled_skill_package_slugs_for_agent(std::string_view agent) {
   std::vector<std::string> package_slugs;
   const auto root = bundled_skills_root();
@@ -268,8 +309,10 @@ std::vector<std::string> bundled_skill_package_slugs_for_agent(std::string_view 
     }
   }
 
-  if (std::ranges::find(package_slugs, std::string{kPrimarySkillName}) == package_slugs.end()) {
-    package_slugs.push_back(std::string{kPrimarySkillName});
+  for (const auto required : {kPrimarySkillName, kCompanionSkillName}) {
+    if (std::ranges::find(package_slugs, std::string{required}) == package_slugs.end()) {
+      package_slugs.push_back(std::string{required});
+    }
   }
 
   std::ranges::sort(package_slugs);
@@ -300,11 +343,20 @@ std::vector<SkillInstallTarget> skill_install_targets(const InstallSkillOptions&
   std::vector<SkillInstallTarget> targets;
 
   for (const auto& package_slug : bundled_skill_package_slugs_for_agent(options.agent)) {
-    targets.push_back({
+    SkillInstallTarget target{
       .package_slug = package_slug,
       .source_root = bundled_skill_dir_for_package_and_agent(package_slug, options.agent),
       .target_root = project_skill_dir_for_package(options, package_slug),
-    });
+    };
+
+    if (package_slug == kCompanionSkillName) {
+      if (const auto project_dir = project_companion_skill_dir(options.agent)) {
+        target.source_root = *project_dir;
+        target.source_kind = "project";
+      }
+    }
+
+    targets.push_back(std::move(target));
   }
 
   return targets;
@@ -364,6 +416,211 @@ std::optional<std::string> ensure_directory_path(const std::filesystem::path& di
   return std::nullopt;
 }
 
+// ---------------------------------------------------------------------------
+// Installed skill manifests (skill.json) and the stale-skill gate.
+//
+// Hashes follow payload-markdown's skill manifest scheme (bin/skill.mjs): sha256
+// over "<posix path>\0<sha256 of the content, CRLF read as LF>\n" for every file,
+// sorted, skipping dotfiles, __pycache__ and the root skill.json. The same digest
+// therefore describes a payload-markdown skill whether pmdocs or
+// `payload-markdown skill install` wrote it.
+// ---------------------------------------------------------------------------
+
+constexpr std::string_view kSkillManifestFile = "skill.json";
+
+std::string normalize_line_endings(std::string content) {
+  return replace_all(std::move(content), "\r\n", "\n");
+}
+
+std::string skill_files_hash(std::vector<std::pair<std::string, std::string>> files) {
+  std::ranges::sort(files, {}, [](const auto& file) { return file.first; });
+  std::string digest_input;
+
+  for (const auto& [relative_path, content] : files) {
+    digest_input += relative_path;
+    digest_input.push_back('\0');
+    digest_input += sha256_hex(normalize_line_endings(content));
+    digest_input.push_back('\n');
+  }
+
+  return sha256_hex(digest_input);
+}
+
+bool is_skill_content_path(const std::filesystem::path& relative_path) {
+  for (const auto& part : relative_path) {
+    const auto name = part.generic_string();
+
+    if (name.empty() || name.front() == '.' || name == "__pycache__") {
+      return false;
+    }
+  }
+
+  return relative_path.generic_string() != kSkillManifestFile;
+}
+
+// Regular skill files below `dir` (symlinks skipped), as (posix path, content).
+std::vector<std::pair<std::string, std::string>> read_skill_files(const std::filesystem::path& dir) {
+  std::vector<std::pair<std::string, std::string>> files;
+  std::error_code error;
+
+  if (!std::filesystem::is_directory(dir, error)) {
+    return files;
+  }
+
+  std::filesystem::recursive_directory_iterator iterator{dir, error};
+  const std::filesystem::recursive_directory_iterator end;
+
+  for (; !error && iterator != end; iterator.increment(error)) {
+    const auto status = iterator->symlink_status(error);
+
+    if (error) {
+      break;
+    }
+
+    if (std::filesystem::is_symlink(status)) {
+      if (std::filesystem::is_directory(iterator->status(error))) {
+        iterator.disable_recursion_pending();
+      }
+
+      error.clear();
+      continue;
+    }
+
+    if (!std::filesystem::is_regular_file(status)) {
+      continue;
+    }
+
+    const auto relative_path = std::filesystem::relative(iterator->path(), dir, error).lexically_normal();
+
+    if (error || !is_skill_content_path(relative_path)) {
+      error.clear();
+      continue;
+    }
+
+    files.emplace_back(relative_path.generic_string(), read_file(iterator->path()));
+  }
+
+  return files;
+}
+
+std::string skill_dir_hash(const std::filesystem::path& dir) {
+  return skill_files_hash(read_skill_files(dir));
+}
+
+std::optional<nlohmann::json> read_skill_manifest(const std::filesystem::path& dir) {
+  std::error_code error;
+  const auto path = dir / std::string{kSkillManifestFile};
+
+  if (!std::filesystem::is_regular_file(path, error)) {
+    return std::nullopt;
+  }
+
+  try {
+    auto manifest = nlohmann::json::parse(read_file(path));
+
+    if (manifest.is_object()) {
+      return manifest;
+    }
+  } catch (const std::exception&) {
+  }
+
+  return std::nullopt;
+}
+
+std::string manifest_string(const std::optional<nlohmann::json>& manifest, std::string_view key) {
+  if (manifest && manifest->contains(key) && (*manifest)[key].is_string()) {
+    return (*manifest)[key].get<std::string>();
+  }
+
+  return {};
+}
+
+// What a source skill directory would install: payload-markdown-docs records the
+// template hash, other packages their own manifest's sha256 (or a computed one).
+std::string source_skill_sha256(const std::string& package_slug, const std::filesystem::path& source_root) {
+  if (package_slug != kPrimarySkillName) {
+    const auto source_manifest = read_skill_manifest(source_root);
+    if (const auto sha256 = manifest_string(source_manifest, "sha256"); !sha256.empty()) {
+      return sha256;
+    }
+  }
+
+  return skill_dir_hash(source_root);
+}
+
+std::string source_skill_version(const std::string& package_slug, const std::filesystem::path& source_root) {
+  if (package_slug == kPrimarySkillName) {
+    return std::string{kVersion};
+  }
+
+  return manifest_string(read_skill_manifest(source_root), "version");
+}
+
+struct SkillStatus {
+  std::string package_slug;
+  std::string agent;
+  std::filesystem::path target_root;
+  std::filesystem::path source_root;
+  std::string source_kind;
+  // missing | current | outdated | modified | unavailable (no source to compare with)
+  std::string status;
+  std::string installed_version;
+  std::string available_version;
+  std::optional<nlohmann::json> manifest;
+};
+
+SkillStatus skill_status_for(const SkillInstallTarget& target, std::string_view agent) {
+  SkillStatus result{
+    .package_slug = target.package_slug,
+    .agent = std::string{agent},
+    .target_root = absolute_normalized(target.target_root),
+    .source_root = target.source_root,
+    .source_kind = target.source_kind,
+  };
+  std::error_code error;
+
+  if (!std::filesystem::is_regular_file(result.target_root / "SKILL.md", error)) {
+    result.status = "missing";
+    return result;
+  }
+
+  result.manifest = read_skill_manifest(result.target_root);
+  result.installed_version = manifest_string(result.manifest, "version");
+
+  error.clear();
+  const auto source_available = std::filesystem::is_regular_file(target.source_root / "SKILL.md", error);
+
+  if (source_available) {
+    result.available_version = source_skill_version(target.package_slug, target.source_root);
+  }
+
+  const auto installed_sha256 = manifest_string(result.manifest, "sha256");
+
+  if (installed_sha256.empty()) {
+    // Installed before manifests existed (or by hand): treat as outdated.
+    result.status = source_available ? "outdated" : "unavailable";
+    return result;
+  }
+
+  if (skill_dir_hash(result.target_root) != installed_sha256) {
+    result.status = "modified";
+    return result;
+  }
+
+  if (!source_available) {
+    result.status = "unavailable";
+    return result;
+  }
+
+  const auto installed_source = target.package_slug == kPrimarySkillName
+    ? manifest_string(result.manifest, "source_sha256")
+    : installed_sha256;
+
+  result.status = installed_source == source_skill_sha256(target.package_slug, target.source_root) ? "current" : "outdated";
+
+  return result;
+}
+
 std::vector<PlannedFile> collect_planned_files(const InstallSkillOptions& options) {
   std::error_code error;
   std::vector<PlannedFile> files;
@@ -373,6 +630,15 @@ std::vector<PlannedFile> collect_planned_files(const InstallSkillOptions& option
     const auto target_root = absolute_normalized(target.target_root);
 
     if (!std::filesystem::is_directory(source_root, error)) {
+      if (target.package_slug == kCompanionSkillName) {
+        throw std::runtime_error{
+          "The payload-markdown skill was not found in this project's node_modules or in the bundled skill data at "
+          + source_root.string()
+          + ". The payload-markdown-docs skill depends on it. Install payload-markdown in the project, or reinstall "
+            "pmdocs from a package that bundles it (Debian, Homebrew), or set PMDOCS_DATA_DIR."
+        };
+      }
+
       throw std::runtime_error{
         "Bundled skill data was not found at " + source_root.string()
         + ". Install pmdocs or set PMDOCS_DATA_DIR for local testing."
@@ -438,9 +704,60 @@ std::vector<PlannedFile> collect_planned_files(const InstallSkillOptions& option
         .destination_path = destination_path,
         .relative_path = relative_path,
         .display_path = std::filesystem::path{target.package_slug} / relative_path,
-        .content = render_template(read_file(entry.path()), options),
+        // Only pmdocs' own skill is a template. Other packages' skills are copied
+        // byte for byte, so their own drift checks (payload-markdown skill check)
+        // still match.
+        .content = target.package_slug == kPrimarySkillName
+          ? render_template(read_file(entry.path()), options)
+          : read_file(entry.path()),
       });
     }
+  }
+
+  // The installed payload-markdown-docs skill records what it was rendered from, so
+  // `pmdocs skill check` can tell an outdated install from a hand-edited one.
+  // (payload-markdown's skill already carries its own skill.json.)
+  // Other packages normally ship their own skill.json; one is generated only when not.
+  for (const auto& target : skill_install_targets(options)) {
+    const auto primary = target.package_slug == kPrimarySkillName;
+
+    if (!primary && read_skill_manifest(target.source_root)) {
+      continue;
+    }
+
+    std::vector<std::pair<std::string, std::string>> installed;
+    for (const auto& file : files) {
+      if (file.display_path.begin() != file.display_path.end()
+          && file.display_path.begin()->generic_string() == target.package_slug
+          && is_skill_content_path(file.relative_path)) {
+        installed.emplace_back(file.relative_path.generic_string(), file.content);
+      }
+    }
+
+    nlohmann::json manifest = {
+      {"name", target.package_slug},
+      {"variant", options.agent},
+      {"sha256", skill_files_hash(installed)},
+    };
+
+    if (primary) {
+      manifest["package"] = "payload-markdown-docs";
+      manifest["version"] = std::string{kVersion};
+      manifest["source_sha256"] = skill_dir_hash(target.source_root);
+      manifest["docsRoot"] = options.docs_root;
+      manifest["packageManager"] = options.package_manager;
+    }
+    const auto target_root = absolute_normalized(target.target_root);
+
+    std::erase_if(files, [&](const PlannedFile& file) {
+      return file.destination_path == target_root / std::string{kSkillManifestFile};
+    });
+    files.push_back({
+      .destination_path = target_root / std::string{kSkillManifestFile},
+      .relative_path = std::string{kSkillManifestFile},
+      .display_path = std::filesystem::path{target.package_slug} / std::string{kSkillManifestFile},
+      .content = manifest.dump(2) + "\n",
+    });
   }
 
   std::ranges::sort(files, {}, [](const PlannedFile& file) {
@@ -471,6 +788,50 @@ std::optional<std::filesystem::path> detect_payload_app_dir() {
   return std::nullopt;
 }
 
+// The plugin is published as payload-markdown-docs and @valkyrianlabs/payload-markdown-docs.
+// Generated route files import whichever the app depends on (the nearest package.json at or
+// above the route group), and the unscoped name when neither is listed.
+std::string plugin_package_for_app(const std::filesystem::path& payload_app_dir) {
+  constexpr std::string_view kUnscoped = "payload-markdown-docs";
+  constexpr std::string_view kScoped = "@valkyrianlabs/payload-markdown-docs";
+  auto directory = absolute_normalized(payload_app_dir);
+
+  while (true) {
+    std::error_code error;
+    const auto manifest_path = directory / "package.json";
+
+    if (std::filesystem::is_regular_file(manifest_path, error)) {
+      try {
+        const auto manifest = nlohmann::json::parse(read_file(manifest_path));
+        const auto depends_on = [&](std::string_view name) {
+          for (const auto* key : {"dependencies", "devDependencies", "peerDependencies"}) {
+            if (manifest.contains(key) && manifest[key].is_object() && manifest[key].contains(name)) {
+              return true;
+            }
+          }
+          return false;
+        };
+
+        if (depends_on(kUnscoped)) {
+          return std::string{kUnscoped};
+        }
+        if (depends_on(kScoped)) {
+          return std::string{kScoped};
+        }
+      } catch (const std::exception&) {
+      }
+
+      return std::string{kUnscoped};
+    }
+
+    if (!directory.has_parent_path() || directory.parent_path() == directory) {
+      return std::string{kUnscoped};
+    }
+
+    directory = directory.parent_path();
+  }
+}
+
 std::vector<PlannedFile> collect_asset_route_files(const InstallRoutesOptions& options) {
   const auto target_root = absolute_normalized(options.payload_app_dir);
   std::vector<PlannedFile> files;
@@ -491,7 +852,7 @@ std::vector<PlannedFile> collect_asset_route_files(const InstallRoutesOptions& o
     files.push_back({
       .destination_path = destination_path,
       .relative_path = relative_path,
-      .content = std::string{route.content},
+      .content = replace_all(std::string{route.content}, "{{packageName}}", plugin_package_for_app(options.payload_app_dir)),
     });
   }
 
@@ -540,7 +901,11 @@ std::string format_install_plan(const InstallSkillOptions& options, const std::v
   out << "Agent: " << options.agent << "\n";
   out << "Sources:\n";
   for (const auto& target : skill_install_targets(options)) {
-    out << "- " << target.package_slug << ": " << target.source_root.string() << "\n";
+    out << "- " << target.package_slug << ": " << target.source_root.string();
+    if (target.source_kind == "project") {
+      out << " (project node_modules)";
+    }
+    out << "\n";
   }
   out << "Targets:\n";
   for (const auto& target : skill_install_targets(options)) {
@@ -616,6 +981,8 @@ Usage:
   pmdocs install skill --agent codex [options]
   pmdocs install routes [options]
   pmdocs skill install [options]
+  pmdocs skill check [options]
+  pmdocs skill update [options]
   pmdocs validate [docs-root] [options]
   pmdocs manifest [docs-root] [options]
   pmdocs plan [docs-root] [options]
@@ -627,7 +994,8 @@ Commands:
   install skill   Install bundled AI-agent skill guidance into the current project.
   install routes  Install public Next asset route files.
   skill install   Alias for install skill. Defaults to Codex for compatibility.
-  skill update    Update an installed Codex skill. (planned)
+  skill check     Report whether installed agent skills are current.
+  skill update    Update installed agent skills to the current versions.
   validate        Validate a local docs package.
   manifest        Print a JSON docs package manifest.
   plan            Build a sync plan against optional existing docs records.
@@ -747,8 +1115,10 @@ Usage:
 Reports local native CLI diagnostics only. It does not check networking,
 Payload server configuration, auth, OIDC, or signing.
 
-Exits 0 with "status: ok" when bundled skill data is present, and 1 with
-"status: degraded" when it is missing (pmdocs install skill cannot work).
+Exits 0 with "status: ok" when the payload-markdown-docs skill and the
+payload-markdown skill are available (bundled, or payload-markdown's from the
+project's node_modules), and 1 with "status: degraded" when either is missing
+(pmdocs install skill cannot work).
 )";
 }
 
@@ -774,9 +1144,14 @@ Options:
   --dry-run                 Print planned writes without changing files.
   --help                    Show this help.
 
-Copies every bundled skill package for the selected agent from the installed
-pmdocs data directory into the current project. The installer renders
-{{docsRoot}} and {{packageManager}} placeholders while copying files.
+Installs the payload-markdown-docs skill and the payload-markdown skill it builds
+on (directives, styling, layout, MCP), plus any other skill package bundled for the
+selected agent. The payload-markdown skill comes from the project's installed
+payload-markdown package (node_modules/payload-markdown or
+node_modules/@valkyrianlabs/payload-markdown) when present, so it matches the
+version the app runs, and from the pmdocs data directory otherwise. The installer
+renders {{docsRoot}} and {{packageManager}} placeholders in payload-markdown-docs
+files and copies other packages' files unchanged.
 
 Bundled Codex skill sources:
 )";
@@ -850,13 +1225,6 @@ CommandResult make_stdout(std::string output) {
   };
 }
 
-CommandResult planned_command_result(std::string_view command) {
-  return {
-    .exit_code = 2,
-    .stderr_text = "pmdocs " + std::string{command} + " is not supported.\n",
-  };
-}
-
 CommandResult doctor_result() {
   std::error_code cwd_error;
   const auto cwd = std::filesystem::current_path(cwd_error);
@@ -871,11 +1239,16 @@ CommandResult doctor_result() {
   codex_options.out_dir = default_project_skill_dir_for_agent("codex");
   const auto skill_targets = skill_install_targets(codex_options);
   std::vector<std::string> found_skill_packages;
+  std::string companion_source = "missing";
 
   for (const auto& target : skill_targets) {
     skill_error.clear();
     if (std::filesystem::is_regular_file(target.source_root / "SKILL.md", skill_error)) {
       found_skill_packages.push_back(target.package_slug);
+
+      if (target.package_slug == kCompanionSkillName) {
+        companion_source = target.source_kind + ": " + target.source_root.string();
+      }
     }
   }
 
@@ -886,6 +1259,7 @@ CommandResult doctor_result() {
     {"skill_source", skill_source.string()},
     {"skill_found", skill_found},
     {"skill_packages", found_skill_packages},
+    {"companion_skill_source", companion_source},
     {"project_skill_path", project_skill_path.string()},
   };
 
@@ -921,9 +1295,11 @@ CommandResult doctor_result() {
     out << " " << package_slug;
   }
   out << "\n";
+  out << "companion_skill_source: " << companion_source << "\n";
   out << "project_skill_path: " << diagnostics["project_skill_path"].get<std::string>() << "\n";
 
-  const auto companion_found = std::ranges::find(found_skill_packages, std::string{"payload-markdown"}) != found_skill_packages.end();
+  const auto companion_found =
+    std::ranges::find(found_skill_packages, std::string{kCompanionSkillName}) != found_skill_packages.end();
   std::vector<std::string> notes;
 
   if (!skill_found) {
@@ -934,7 +1310,9 @@ CommandResult doctor_result() {
     );
   } else if (!companion_found) {
     notes.push_back(
-      "The payload-markdown companion skill is not bundled; `pmdocs install skill` installs payload-markdown-docs only."
+      "The payload-markdown skill was found neither in this project's node_modules nor in the bundled skill data, "
+      "so `pmdocs install skill` cannot install it. Install payload-markdown in the project, or reinstall pmdocs from "
+      "the Debian package or the Homebrew formula."
     );
   }
 
@@ -945,12 +1323,13 @@ CommandResult doctor_result() {
     }
   }
 
-  // Missing primary skill data breaks a documented command: report it as
-  // degraded with a non-zero exit so scripts and package tests notice.
-  out << "status: " << (skill_found ? "ok" : "degraded") << "\n";
+  // Missing skill data breaks a documented command: report it as degraded with
+  // a non-zero exit so scripts and package tests notice.
+  const auto healthy = skill_found && companion_found;
+  out << "status: " << (healthy ? "ok" : "degraded") << "\n";
 
   return {
-    .exit_code = skill_found ? 0 : 1,
+    .exit_code = healthy ? 0 : 1,
     .stdout_text = out.str(),
   };
 }
@@ -1021,10 +1400,32 @@ std::filesystem::path default_project_skill_dir() {
 
 CommandResult run_skill_install(const InstallSkillOptions& options) {
   try {
-    const auto planned_files = collect_planned_files(options);
+    auto planned_files = collect_planned_files(options);
+
+    // Installs this tool (or payload-markdown's installer) wrote and nobody edited
+    // since are replaced wholesale, so files a newer skill dropped do not linger.
+    std::vector<std::filesystem::path> replace_roots;
+    for (const auto& target : skill_install_targets(options)) {
+      const auto status = skill_status_for(target, options.agent);
+      const auto versioned = !manifest_string(status.manifest, "sha256").empty();
+
+      if (status.status == "current" || status.status == "outdated" || status.status == "unavailable") {
+        if (versioned || options.replace_unversioned) {
+          replace_roots.push_back(status.target_root);
+        }
+      }
+    }
+
+    const auto is_replaced = [&](const PlannedFile& file) {
+      return std::ranges::any_of(replace_roots, [&](const auto& root) {
+        return is_below_or_equal(file.destination_path, root);
+      });
+    };
 
     if (!options.force) {
-      const auto conflicts = find_conflicts(planned_files);
+      std::vector<PlannedFile> checked;
+      std::ranges::copy_if(planned_files, std::back_inserter(checked), [&](const auto& file) { return !is_replaced(file); });
+      const auto conflicts = find_conflicts(checked);
 
       if (!conflicts.empty()) {
         return {
@@ -1036,6 +1437,18 @@ CommandResult run_skill_install(const InstallSkillOptions& options) {
 
     if (options.dry_run) {
       return make_stdout(format_install_plan(options, planned_files));
+    }
+
+    for (const auto& root : replace_roots) {
+      std::error_code remove_error;
+      std::filesystem::remove_all(root, remove_error);
+
+      if (remove_error) {
+        return {
+          .exit_code = 1,
+          .stderr_text = "Could not replace " + root.string() + ": " + remove_error.message() + "\n",
+        };
+      }
     }
 
     for (const auto& file : planned_files) {
@@ -1077,6 +1490,234 @@ CommandResult run_skill_install(const InstallSkillOptions& options) {
       .exit_code = 1,
       .stderr_text = std::string{error.what()} + "\n",
     };
+  }
+}
+
+namespace {
+
+struct InstalledAgentSkills {
+  InstallSkillOptions options;
+  std::vector<SkillStatus> statuses;
+};
+
+// Agents whose payload-markdown-docs skill is installed (or the requested one).
+std::vector<InstalledAgentSkills> installed_agent_skills(const SkillCheckOptions& check) {
+  std::vector<InstalledAgentSkills> installed;
+  std::vector<std::string> agents;
+
+  if (!check.agent.empty()) {
+    agents.push_back(check.agent);
+  } else {
+    agents = {"claude", "codex"};
+  }
+
+  for (const auto& agent : agents) {
+    InstallSkillOptions options;
+    options.agent = agent;
+    options.out_dir = check.out_dir.empty() ? default_project_skill_dir_for_agent(agent) : check.out_dir;
+
+    std::error_code error;
+    if (check.agent.empty() && !std::filesystem::is_regular_file(absolute_normalized(options.out_dir) / "SKILL.md", error)) {
+      continue;
+    }
+
+    const auto manifest = read_skill_manifest(absolute_normalized(options.out_dir));
+    options.docs_root = !check.docs_root.empty() ? check.docs_root
+      : !manifest_string(manifest, "docsRoot").empty() ? manifest_string(manifest, "docsRoot") : options.docs_root;
+    options.package_manager = !check.package_manager.empty() ? check.package_manager
+      : !manifest_string(manifest, "packageManager").empty() ? manifest_string(manifest, "packageManager") : options.package_manager;
+
+    InstalledAgentSkills entry{.options = options};
+    for (const auto& target : skill_install_targets(options)) {
+      entry.statuses.push_back(skill_status_for(target, agent));
+    }
+
+    installed.push_back(std::move(entry));
+  }
+
+  return installed;
+}
+
+std::string describe_status(const SkillStatus& status) {
+  std::ostringstream out;
+  out << status.status;
+
+  if (status.status == "outdated") {
+    out << " (installed " << (status.installed_version.empty() ? "unversioned" : status.installed_version)
+        << ", available " << (status.available_version.empty() ? "newer" : status.available_version) << ")";
+  } else if (status.status == "current" && !status.installed_version.empty()) {
+    out << " (" << status.installed_version << ")";
+  } else if (status.status == "modified") {
+    out << " (edited since install)";
+  }
+
+  return out.str();
+}
+
+bool needs_update(const SkillStatus& status) {
+  return status.status == "outdated" || status.status == "missing";
+}
+
+} // namespace
+
+CommandResult run_skill_check(const SkillCheckOptions& options) {
+  try {
+    const auto installed = installed_agent_skills(options);
+    nlohmann::json report = nlohmann::json::array();
+    std::ostringstream out;
+    bool all_current = !installed.empty();
+    bool any_modified = false;
+
+    out << "pmdocs skill check\n\n";
+
+    if (installed.empty()) {
+      out << "No payload-markdown-docs skill is installed in .claude/skills or .agents/skills.\n"
+          << "Install it with `pmdocs install skill --agent claude` or `--agent codex`.\n";
+    }
+
+    for (const auto& agent : installed) {
+      for (const auto& status : agent.statuses) {
+        all_current = all_current && status.status == "current";
+        any_modified = any_modified || status.status == "modified";
+        out << agent.options.agent << " " << status.package_slug << ": " << describe_status(status) << "\n";
+        report.push_back({
+          {"agent", agent.options.agent},
+          {"package", status.package_slug},
+          {"status", status.status},
+          {"path", status.target_root.string()},
+          {"installedVersion", status.installed_version},
+          {"availableVersion", status.available_version},
+          {"source", status.source_root.string()},
+          {"sourceKind", status.source_kind},
+        });
+      }
+    }
+
+    if (!installed.empty() && !all_current) {
+      out << "\nRun `pmdocs skill update` to install the current skills"
+          << (any_modified ? " (add --force to replace locally edited ones)" : "") << ".\n";
+    }
+
+    out << "status: " << (all_current ? "current" : "stale") << "\n";
+
+    if (options.json) {
+      return {
+        .exit_code = all_current ? 0 : 1,
+        .stdout_text = nlohmann::json{{"status", all_current ? "current" : "stale"}, {"skills", report}}.dump(2) + "\n",
+      };
+    }
+
+    return {
+      .exit_code = all_current ? 0 : 1,
+      .stdout_text = out.str(),
+    };
+  } catch (const std::exception& error) {
+    return {
+      .exit_code = 1,
+      .stderr_text = std::string{error.what()} + "\n",
+    };
+  }
+}
+
+CommandResult run_skill_update(const SkillCheckOptions& options) {
+  try {
+    const auto installed = installed_agent_skills(options);
+
+    if (installed.empty()) {
+      return {
+        .exit_code = 1,
+        .stderr_text = "No payload-markdown-docs skill is installed in .claude/skills or .agents/skills. "
+                       "Install it with `pmdocs install skill --agent claude` or `--agent codex`.\n",
+      };
+    }
+
+    std::ostringstream out;
+    std::ostringstream modified;
+    out << (options.dry_run ? "pmdocs skill update dry-run" : "pmdocs skill update") << "\n\n";
+
+    for (const auto& agent : installed) {
+      for (const auto& status : agent.statuses) {
+        if (status.status == "modified" && !options.force) {
+          modified << "- " << status.target_root.string() << "\n";
+        }
+      }
+    }
+
+    if (!modified.str().empty()) {
+      return {
+        .exit_code = 1,
+        .stderr_text = "These installed skills were edited since they were installed; not replacing them. "
+                       "Keep the edits elsewhere, then run `pmdocs skill update --force`:\n" + modified.str(),
+      };
+    }
+
+    for (const auto& agent : installed) {
+      const auto stale = std::ranges::any_of(agent.statuses, [&](const auto& status) {
+        return needs_update(status) || (options.force && status.status == "modified");
+      });
+      const auto settings_changed = (!options.docs_root.empty() || !options.package_manager.empty());
+
+      if (!stale && !settings_changed) {
+        out << agent.options.agent << ": already current\n";
+        continue;
+      }
+
+      auto install = agent.options;
+      install.force = options.force;
+      install.dry_run = options.dry_run;
+      install.replace_unversioned = true;
+
+      const auto result = run_skill_install(install);
+      if (result.exit_code != 0) {
+        return result;
+      }
+
+      for (const auto& status : agent.statuses) {
+        out << agent.options.agent << " " << status.package_slug << ": " << describe_status(status)
+            << (options.dry_run ? " -> would update" : " -> updated") << "\n";
+      }
+    }
+
+    return make_stdout(out.str());
+  } catch (const std::exception& error) {
+    return {
+      .exit_code = 1,
+      .stderr_text = std::string{error.what()} + "\n",
+    };
+  }
+}
+
+std::string stale_skill_notice() {
+  if (const char* setting = std::getenv("PMDOCS_SKILL_CHECK"); setting != nullptr && std::string_view{setting} == "0") {
+    return {};
+  }
+
+  try {
+    std::vector<std::string> stale;
+
+    for (const auto& agent : installed_agent_skills({})) {
+      for (const auto& status : agent.statuses) {
+        if (needs_update(status)) {
+          stale.push_back(agent.options.agent + " " + status.package_slug + " " + describe_status(status));
+        }
+      }
+    }
+
+    if (stale.empty()) {
+      return {};
+    }
+
+    std::ostringstream out;
+    out << "pmdocs: the agent skill installed in this project is stale:\n";
+    for (const auto& line : stale) {
+      out << "  " << line << "\n";
+    }
+    out << "Run `pmdocs skill update` (agents: do so now, then re-read the skill). "
+           "Set PMDOCS_SKILL_CHECK=0 to silence this.\n";
+
+    return out.str();
+  } catch (const std::exception&) {
+    return {};
   }
 }
 
@@ -1184,8 +1825,24 @@ CommandResult run(std::vector<std::string_view> args) {
   auto* skill_install = skill->add_subcommand("install", "Install bundled Codex skill guidance into the current project.");
   legacy_skill_install_options_refs = add_install_skill_options(skill_install, install_options);
 
-  auto* skill_update = skill->add_subcommand("update", "Update installed Codex skill guidance. (planned)");
-  skill_update->allow_extras();
+  SkillCheckOptions skill_check_options;
+  const auto add_skill_check_options = [](CLI::App* command, SkillCheckOptions& options) {
+    command->add_option("--agent", options.agent, "Agent: codex or claude. Defaults to every installed one.")
+      ->check(CLI::IsMember({"codex", "claude"}));
+    command->add_option("--out", options.out_dir, "payload-markdown-docs skill directory, when installed with --out.");
+  };
+
+  auto* skill_check = skill->add_subcommand("check", "Report whether the installed skills are current.");
+  add_skill_check_options(skill_check, skill_check_options);
+  skill_check->add_flag("--json", skill_check_options.json, "Print JSON output.");
+
+  auto* skill_update = skill->add_subcommand("update", "Update installed skills to the current versions.");
+  add_skill_check_options(skill_update, skill_check_options);
+  skill_update->add_option("--docs-root", skill_check_options.docs_root, "Docs root to render. Defaults to the installed value.");
+  skill_update->add_option("--package-manager", skill_check_options.package_manager, "Package manager to render. Defaults to the installed value.")
+    ->check(CLI::IsMember({"bun", "npm", "pnpm", "yarn"}));
+  skill_update->add_flag("--force", skill_check_options.force, "Also replace skills edited since they were installed.");
+  skill_update->add_flag("--dry-run", skill_check_options.dry_run, "Print what would be updated without changing files.");
   skill_update->callback([&skill_update_requested]() {
     skill_update_requested = true;
   });
@@ -1322,10 +1979,16 @@ CommandResult run(std::vector<std::string_view> args) {
       out << "pmdocs skill\n\n";
       out << "Usage:\n";
       out << "  pmdocs skill install [options]\n";
-      out << "  pmdocs skill update [options]\n\n";
+      out << "  pmdocs skill check [--agent codex|claude] [--json]\n";
+      out << "  pmdocs skill update [--agent codex|claude] [--force] [--dry-run]\n\n";
       out << "Commands:\n";
       out << "  install   Alias for pmdocs install skill. Defaults to Codex for compatibility.\n";
-      out << "  update    Update installed Codex skill guidance. (planned)\n";
+      out << "  check     Report whether the installed payload-markdown-docs and payload-markdown\n";
+      out << "            skills are current (exit 1 when stale, missing or edited).\n";
+      out << "  update    Replace outdated installed skills, keeping their --docs-root and\n";
+      out << "            --package-manager. Edited skills need --force.\n\n";
+      out << "validate and plan print a notice on stderr when the installed skill is stale\n";
+      out << "(PMDOCS_SKILL_CHECK=0 silences it).\n";
 
       return make_stdout(out.str());
     }
@@ -1506,12 +2169,23 @@ CommandResult run(std::vector<std::string_view> args) {
     return run_keygen_command(keygen_options);
   }
 
-  if (skill_update_requested) {
-    return planned_command_result("skill update");
+  if (skill_check->parsed()) {
+    return run_skill_check(skill_check_options);
   }
 
+  if (skill_update_requested) {
+    return run_skill_update(skill_check_options);
+  }
+
+  // The stale-skill gate: agents run validate and plan constantly, so these are
+  // where an outdated installed skill gets noticed.
+  const auto with_skill_notice = [](CommandResult result) {
+    result.stderr_text += stale_skill_notice();
+    return result;
+  };
+
   if (validate_requested) {
-    return run_validate_command(validate_options);
+    return with_skill_notice(run_validate_command(validate_options));
   }
 
   if (manifest_requested) {
@@ -1519,7 +2193,7 @@ CommandResult run(std::vector<std::string_view> args) {
   }
 
   if (plan_requested) {
-    return run_plan_command(plan_options);
+    return with_skill_notice(run_plan_command(plan_options));
   }
 
   if (push_requested) {

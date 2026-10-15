@@ -1,5 +1,7 @@
 import type { Access, CollectionConfig } from 'payload'
 
+import type { PayloadMarkdownPackageName } from './payloadMarkdown.js'
+
 export type PayloadMarkdownDocsConfig = {
   /**
    * Access control for the plugin collections. By default only users of the Payload
@@ -14,6 +16,12 @@ export type PayloadMarkdownDocsConfig = {
   endpoint?: PayloadMarkdownDocsEndpointConfig
   heroes?: DocsHeroInstallSelection
   pages?: PayloadMarkdownDocsPagesConfig
+  /**
+   * The payload-markdown package the app installed. Detected when omitted: from the component
+   * paths `payloadMarkdown()` adds (list it before this plugin), else from node_modules, else
+   * `payload-markdown`.
+   */
+  payloadMarkdownPackage?: PayloadMarkdownPackageName
   routing?: PayloadMarkdownDocsRoutingConfig
   seo?: boolean
   sync?: PayloadMarkdownDocsSyncConfig

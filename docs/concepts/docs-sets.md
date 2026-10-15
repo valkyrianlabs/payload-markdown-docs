@@ -101,3 +101,32 @@ remain globally meaningful and collision-checked.
 :::
 
 Use [route reservations](/concepts/route-reservations) to understand collision behavior.
+
+## Changing Docs Set Routes
+
+Generated docs and assets store their full route. When a change moves a docs
+set's route base, the plugin rewrites those stored routes in the same
+transaction, so the site, the nav and the admin manager show the new paths
+right away instead of after the next sync. That covers:
+
+- changing a docs set's group, slug or `routeMode`
+- changing a group's slug or parent, for every docs set below it
+- deleting a group (its docs sets lose the group segment; child groups become
+  top-level groups)
+
+Each doc keeps its path below the route base (`/plugins/x/guide` becomes
+`/tools/x/guide`), the published row and the latest draft both move, archived
+docs keep their tombstone with the new path inside, and skill, `llms.txt` and
+static asset routes below the product route move too. Root `/llms.txt` and
+`/llms-full.txt` are unchanged. The old and new paths are revalidated.
+
+- A draft saved over a published docs set changes nothing until it is published.
+- A change that would move docs onto routes another docs set already serves is
+  rejected (HTTP 409) and nothing is saved.
+- Older version history keeps the route each version was saved with.
+- Pass `context: { payloadMarkdownDocsSkipRouteRewrite: true }` on a Local API
+  update to skip the rewrite (the next sync, or `repairDocsRoutes`, catches up).
+
+Saving a published docs set also repairs routes that were already stale. For
+installs that changed routes before this existed, see
+[Repairing Stale Docs Routes](/reference/migration#repairing-stale-docs-routes).

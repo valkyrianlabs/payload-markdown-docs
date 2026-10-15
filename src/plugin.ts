@@ -1,6 +1,7 @@
 import type { Config, Plugin } from 'payload'
 
 import type { DocsCollectionAccessProfile } from './collections/access.js'
+import type { DocsCollectionRole } from './payload/agentGuard.js'
 import type { PayloadMarkdownDocsConfig } from './types.js'
 
 import { withDocsCollectionAccess } from './collections/access.js'
@@ -35,7 +36,10 @@ import {
 } from './endpoints/index.js'
 import { installDocsMarketingBlocks } from './install/blocks.js'
 import { installDocsHeroFields } from './install/heroes.js'
+import { withDocsAgentGuard } from './payload/agentGuard.js'
+import { createDocsGroupsRouteHooks, createDocsSetsRouteHooks } from './payload/docsRouteHooks.js'
 import { resolveDocsMarketingBlocksAfterRead } from './payload/index.js'
+import { resolvePayloadMarkdownPackage } from './payloadMarkdown.js'
 
 type ResolvedCollectionOptions = {
   docsAccessCollectionSlug: string
@@ -332,11 +336,31 @@ export const payloadMarkdownDocs =
       )
     }
 
+    // Docs set routes are derived from sets and groups; these hooks rewrite stored docs
+    // routes when they change and expire the nav and docs caches.
+    const routeHooksOptions = {
+      docsAssetsCollectionSlug: docsAssetsEnabled ? docsAssetsCollectionSlug : undefined,
+      docsCollectionSlug: docsEnabled ? docsCollectionSlug : undefined,
+      docsGroupsCollectionSlug,
+      docsSetsCollectionSlug,
+      revalidate: pluginOptions.sync?.revalidate,
+    }
+    const docsSetsRouteHooks = createDocsSetsRouteHooks(routeHooksOptions)
+    const docsGroupsRouteHooks = createDocsGroupsRouteHooks(routeHooksOptions)
+
     const addedCollections = [
       ...(docsGroupsEnabled
         ? [
             createDocsGroupsCollection({
               slug: docsGroupsCollectionSlug,
+              // Group hooks read docs sets, so they need the docs sets collection.
+              hooks: docsSetsEnabled
+                ? {
+                    afterChange: [docsGroupsRouteHooks.afterChange],
+                    afterDelete: [docsGroupsRouteHooks.afterDelete],
+                    beforeDelete: [docsGroupsRouteHooks.beforeDelete],
+                  }
+                : undefined,
             }),
           ]
         : []),
@@ -346,6 +370,11 @@ export const payloadMarkdownDocs =
               slug: docsSetsCollectionSlug,
               docsCollectionSlug: docsEnabled ? docsCollectionSlug : undefined,
               docsGroupsCollectionSlug,
+              hooks: {
+                afterChange: [docsSetsRouteHooks.afterChange],
+                afterDelete: [docsSetsRouteHooks.afterDelete],
+                beforeChange: [docsSetsRouteHooks.beforeChange],
+              },
               seoEnabled: pluginOptions.seo !== false,
               seoUploadCollectionSlug: uploadCollections.seoUploadCollectionSlug,
             }),
@@ -376,6 +405,10 @@ export const payloadMarkdownDocs =
               enableDrafts,
               heroImageMediaCollectionSlugs: uploadCollections.heroImageMediaCollectionSlugs,
               markdownFieldName,
+              payloadMarkdownPackage: resolvePayloadMarkdownPackage(
+                incomingConfig,
+                pluginOptions.payloadMarkdownPackage,
+              ),
               syncRunsCollectionSlug: syncRunsEnabled ? syncRunsCollectionSlug : undefined,
             }),
           ]
@@ -397,7 +430,10 @@ export const payloadMarkdownDocs =
         : []),
     ]
 
-    const accessProfiles: Record<string, { key: string; profile: DocsCollectionAccessProfile }> = {
+    const accessProfiles: Record<
+      string,
+      { key: DocsCollectionRole; profile: DocsCollectionAccessProfile }
+    > = {
       [docsAccessCollectionSlug]: { key: 'docsAccess', profile: 'admin' },
       [docsAssetsCollectionSlug]: { key: 'docsAssets', profile: 'admin' },
       [docsCollectionSlug]: { key: 'docs', profile: 'admin' },
@@ -415,14 +451,18 @@ export const payloadMarkdownDocs =
 
       const collectionOptions = pluginOptions.collections?.[accessProfile.key]
 
-      return withDocsCollectionAccess({
-        admin: pluginOptions.access?.admin,
-        collection,
-        overrides:
-          typeof collectionOptions === 'object' && collectionOptions !== null
-            ? collectionOptions.access
-            : undefined,
-        profile: accessProfile.profile,
+      return withDocsAgentGuard({
+        collection: withDocsCollectionAccess({
+          admin: pluginOptions.access?.admin,
+          collection,
+          overrides:
+            typeof collectionOptions === 'object' && collectionOptions !== null
+              ? collectionOptions.access
+              : undefined,
+          profile: accessProfile.profile,
+        }),
+        markdownFieldName,
+        role: accessProfile.key,
       })
     })
 

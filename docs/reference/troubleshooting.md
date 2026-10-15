@@ -114,6 +114,15 @@ the synced `title`, `description`, `navTitle`, and `order`
 added are checked for content only until their next successful sync. CMS-only
 fields such as hero images and nav overrides are never overwritten by a sync.
 
+## Docs Still Served At An Old Route
+
+Docs set and group route changes rewrite generated docs routes immediately
+(see [Changing Docs Set Routes](/concepts/docs-sets#changing-docs-set-routes)).
+Routes that went stale before that, or a change rejected because the new routes
+collide with another docs set, can be fixed with
+[`repairDocsRoutes`](/reference/migration#repairing-stale-docs-routes), by
+saving the published docs set, or with a sync.
+
 ## Public `/llms.txt` Or Skill Route 404
 
 If `/api/llms.txt` or a Payload API skill asset URL works but the public route

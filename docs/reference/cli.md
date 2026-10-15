@@ -14,7 +14,7 @@ tags:
 The supported operator CLI is the native system-level `pmdocs` binary. Install
 it through Homebrew or the Valkyrian Labs Debian repository.
 
-The npm package `@valkyrianlabs/payload-markdown-docs` installs the Payload
+The npm package `payload-markdown-docs` installs the Payload
 plugin and runtime helpers only. It does not provide the supported CLI surface.
 
 Examples use `main-docs` as a sample docs set slug. Replace it with the Payload
@@ -62,11 +62,13 @@ pmdocs doctor
 Prints local native CLI diagnostics. It does not check networking, Payload
 server configuration, auth, OIDC, or signing.
 
-`doctor` exits `0` with `status: ok` when the bundled skill data is present and
-`1` with `status: degraded` when it is missing, because `pmdocs install skill`
-cannot work without it. Homebrew builds bundle the `payload-markdown-docs` skill
-but not the npm companion `payload-markdown` skill; `doctor` notes this and
-`install skill` installs the bundled skill only.
+`doctor` exits `0` with `status: ok` when both skills `pmdocs install skill`
+installs are available, and `1` with `status: degraded` when either is missing.
+The `payload-markdown-docs` skill comes from the bundled skill data. The
+`payload-markdown` skill comes from the project's installed `payload-markdown`
+package when there is one (`companion_skill_source: project: ...`), and from the
+bundled copy otherwise; the Debian package and the Homebrew formula both bundle
+it.
 
 ## validate
 
@@ -291,8 +293,57 @@ Useful flags:
 - `--force`
 - `--dry-run`
 
+The `payload-markdown` skill is taken from the project's installed
+`payload-markdown` package (`node_modules/payload-markdown` or
+`node_modules/payload-markdown`, searched upwards from the
+working directory) so it matches the version the site renders with; otherwise
+from the copy bundled with `pmdocs`. Its files are copied unchanged, so
+`npx payload-markdown skill check` accepts them. If neither is available the
+command fails instead of installing half the guidance.
+
+Each installed skill carries a `skill.json` manifest (version and content
+hash). Re-running `install skill` replaces an install that nobody edited without
+`--force`; edited files are reported as conflicts.
+
 The installer writes Markdown guidance files only. It does not sync docs or run
 package manager commands.
+
+## skill check
+
+```bash
+pmdocs skill check
+pmdocs skill check --agent claude --json
+```
+
+Reports each installed skill (`payload-markdown-docs` and `payload-markdown`,
+for every agent installed in the project, or `--agent`) as:
+
+| Status | Meaning |
+| --- | --- |
+| `current` | Matches what this `pmdocs` (or the project's `payload-markdown`) installs. |
+| `outdated` | Installed from an older version, or before manifests existed. |
+| `modified` | Edited since it was installed. |
+| `missing` | Not installed. |
+
+Exits `0` only when every skill is `current`.
+
+## skill update
+
+```bash
+pmdocs skill update
+pmdocs skill update --agent codex --dry-run
+```
+
+Replaces outdated or missing skills for every installed agent (or `--agent`),
+keeping the `--docs-root` and `--package-manager` they were installed with
+(override either with the same flag). Skills that were edited since install are
+left alone and the command fails; pass `--force` to replace them too.
+
+`pmdocs validate` and `pmdocs plan` print a reminder on stderr when an installed
+skill is outdated; they never change their exit code for it. Set
+`PMDOCS_SKILL_CHECK=0` to silence it. The installed skill tells agents to run
+`pmdocs skill update` when they see `outdated`, and to ask first when it says
+`modified`.
 
 ## install routes
 

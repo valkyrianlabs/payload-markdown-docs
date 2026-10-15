@@ -64,6 +64,21 @@ paths, synced asset routes, and common docs sitemap tags through `next/cache`.
 This keeps production App Router pages from serving stale generated docs or raw
 AI assets after `push --publish`.
 
+Tags are expired immediately with `revalidateTag(tag, { expire: 0 })`, not the
+stale-while-revalidate `'max'` profile, so the next request renders fresh data.
+The default tags are `payload-markdown-docs`, `payload-markdown-docs:docs`,
+`payload-markdown-docs:<source id>`, `sitemap` and `sitemap:docs`. The docs nav
+tag `payload-markdown-docs:nav` is always expired too, even with
+`revalidate: false`, because the plugin owns that cache (see
+[Docs Navbar](/frontend/navbar#caching)).
+
+Changing a docs set or docs group in the admin (or through the Local API, REST
+or MCP) revalidates the same way: the configured tags, the nav tag, and the
+affected paths: the docs set and group routes and, when the change moved them,
+the old and new route of every generated doc (see
+[Changing docs set routes](/concepts/docs-sets#changing-docs-set-routes)).
+Set `context: { disableRevalidate: true }` on a Local API call to skip it.
+
 Disable path revalidation or provide app-specific tags when needed.
 
 ```ts
@@ -78,7 +93,12 @@ sync: {
 ```
 
 Use `revalidate: false` only when the app handles docs cache invalidation
-elsewhere.
+elsewhere. It applies to sync revalidation and to the docs set and group hooks
+(except the nav tag).
+
+Other public readers (the route adapter, sidebar, metadata, llms.txt and asset
+handlers) read Payload on each render and are not cached by the plugin; their
+prerendered pages are refreshed by the path revalidation above.
 
 ## Assets
 

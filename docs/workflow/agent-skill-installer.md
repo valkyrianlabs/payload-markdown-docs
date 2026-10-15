@@ -96,16 +96,34 @@ skills/payload-markdown-docs/codex/
 skills/payload-markdown-docs/claude/
 ```
 
-The companion `payload-markdown` skill source is copied from the installed
-dependency during native CLI packaging:
+The `payload-markdown` skill is installed from the project's own
+`payload-markdown` package when it is installed (either package name), so the
+directive guidance matches the version the site renders with:
 
 ```text
-node_modules/@valkyrianlabs/payload-markdown/skills/payload-markdown/codex/
-node_modules/@valkyrianlabs/payload-markdown/skills/payload-markdown/claude/
+node_modules/payload-markdown/skills/payload-markdown/<agent>/
+node_modules/payload-markdown/skills/payload-markdown/<agent>/
 ```
 
-The installed native `pmdocs` package writes both skills next to each other so
-renderer directive guidance is available through the same agent skill root.
+Otherwise `pmdocs` uses the copy it bundles (`skills/payload-markdown/` in this
+repository, vendored from the `payload-markdown` package and checked for drift
+in CI). Both skills are written next to each other so `payload-markdown-docs`
+can link straight into `../payload-markdown/`.
+
+## Keeping Skills Current
+
+Each installed skill has a `skill.json` manifest. When `pmdocs` or
+`payload-markdown` is upgraded:
+
+```bash
+pmdocs skill check    # current, outdated, modified or missing; exit 1 unless current
+pmdocs skill update   # replace outdated skills, keeping --docs-root and --package-manager
+```
+
+`pmdocs validate` and `pmdocs plan` also print a reminder when the installed
+skill is stale, and the skill itself tells agents to run `pmdocs skill update`
+on their own. Skills edited by hand are never replaced without
+`pmdocs skill update --force`.
 
 `install skill` installs local agent guidance only. It does not publish skills,
 sync docs, install public routes, or call Payload.

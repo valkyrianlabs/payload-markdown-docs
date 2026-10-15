@@ -45,6 +45,11 @@
       "types": "./dist/migrations/index.d.ts",
       "import": "./dist/migrations/index.js",
       "default": "./dist/migrations/index.js"
+    },
+    "./mcp": {
+      "types": "./dist/mcp/index.d.ts",
+      "import": "./dist/mcp/index.js",
+      "default": "./dist/mcp/index.js"
     }
   },
   "main": "./dist/index.js",
@@ -56,8 +61,8 @@
     "build": "pnpm clean && pnpm copyfiles && pnpm build:types && pnpm build:swc",
     "build:swc": "swc ./src -d ./dist --config-file .swcrc --strip-leading-paths --ignore \"**/*.spec.ts\"",
     "build:types": "tsc -p tsconfig.build.json --outDir dist --rootDir ./src",
-    "clean": "rimraf {dist,*.tsbuildinfo}",
-    "copyfiles": "copyfiles -u 1 \"src/**/*.{html,css,scss,ttf,woff,woff2,eot,svg,jpg,png,json,md}\" dist/ && copyfiles -u 0 \"skills/**/*\" dist/",
+    "clean": "rimraf --glob dist '*.tsbuildinfo'",
+    "copyfiles": "copyfiles -u 1 \"src/**/*.{html,css,scss,ttf,woff,woff2,eot,svg,jpg,png,json,md}\" dist/ && copyfiles -u 0 \"skills/payload-markdown-docs/**/*\" dist/",
     "dev": "next dev dev --turbo",
     "dev:docs:keygen": "pnpm dev:payload run ./dev/scripts/create-docs-keypair.ts",
     "dev:docs:manifest": "pmdocs manifest ./dev/docs-fixtures/basic --source payload-markdown-docs --pretty",
@@ -75,53 +80,67 @@
     "prepack": "pnpm build",
     "test": "pnpm test:int && pnpm test:e2e",
     "test:e2e": "playwright test",
-    "test:int": "vitest"
+    "sync:pm-skill": "node scripts/sync-payload-markdown-skill.mjs",
+    "test:int": "vitest",
+    "verify:packages": "node scripts/verify-npm-packages.mjs --pack"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.7",
+    "@modelcontextprotocol/sdk": "1.30.0",
     "@payloadcms/db-postgres": "latest",
     "@payloadcms/db-sqlite": "latest",
     "@payloadcms/eslint-config": "latest",
     "@payloadcms/next": "latest",
+    "@payloadcms/plugin-mcp": "latest",
     "@payloadcms/plugin-seo": "latest",
     "@payloadcms/richtext-lexical": "latest",
     "@payloadcms/ui": "latest",
-    "@playwright/test": "1.58.2",
-    "@swc/cli": "0.6.0",
+    "@playwright/test": "1.64.1",
+    "@swc/cli": "0.8.1",
     "@tailwindcss/postcss": "^4.3.3",
     "@tailwindcss/typography": "^0.5.20",
-    "@types/node": "22.19.9",
-    "@types/react": "19.2.14",
-    "@types/react-dom": "19.2.3",
-    "@valkyrianlabs/payload-markdown": "^1.6.0",
+    "@types/node": "24.19.2",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@valkyrianlabs/payload-markdown": "^1.8.1",
     "copyfiles": "2.4.1",
-    "cross-env": "^7.0.3",
+    "cross-env": "^10.1.0",
     "eslint": "^9.39.5",
     "eslint-config-next": "latest",
     "graphql": "^16.14.2",
-    "mongodb-memory-server": "10.1.4",
+    "mongodb-memory-server": "11.3.0",
     "next": "latest",
     "payload": "latest",
-    "postcss": "^8.5.28",
-    "prettier": "^3.9.9",
-    "qs-esm": "8.0.1",
-    "react": "19.2.4",
-    "react-dom": "19.2.4",
-    "rimraf": "3.0.2",
-    "sharp": "0.34.2",
-    "sort-package-json": "^2.15.1",
+    "payload-markdown": "^1.8.1",
+    "postcss": "^8.5.30",
+    "prettier": "^3.9.10",
+    "qs-esm": "8.0.2",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "rimraf": "6.1.3",
+    "sharp": "0.35.5",
+    "sort-package-json": "^4.1.0",
     "tailwindcss": "^4.3.3",
-    "typescript": "5.7.3",
-    "vite-tsconfig-paths": "6.0.5",
-    "vitest": "4.0.18"
+    "typescript": "5.9.3",
+    "vite-tsconfig-paths": "6.1.1",
+    "vitest": "5.0.5"
   },
   "peerDependencies": {
     "@payloadcms/plugin-seo": "^3.0.0",
-    "@valkyrianlabs/payload-markdown": "^1.6.0",
+    "@valkyrianlabs/payload-markdown": "^1.8.1",
     "next": "^15.2.0 || ^16.0.0",
     "payload": "^3.0.0",
+    "payload-markdown": "^1.8.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@valkyrianlabs/payload-markdown": {
+      "optional": true
+    },
+    "payload-markdown": {
+      "optional": true
+    }
   },
   "engines": {
     "node": "^18.20.2 || >=20.9.0",
@@ -141,7 +160,8 @@
   },
   "registry": "https://registry.npmjs.org/",
   "dependencies": {
-    "fflate": "^0.8.3"
+    "fflate": "^0.8.3",
+    "zod": "^3.25.0 || ^4.0.0"
   },
   "packageManager": "pnpm@10.33.0"
 }

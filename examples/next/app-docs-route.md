@@ -10,7 +10,7 @@ import config from '@payload-config'
 import {
   PayloadMarkdownDocsPage,
   resolvePayloadMarkdownDocsRoute,
-} from '@valkyrianlabs/payload-markdown-docs/next'
+} from 'payload-markdown-docs/next'
 
 export default async function Page({
   params,

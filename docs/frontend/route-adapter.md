@@ -38,7 +38,7 @@ import {
   PayloadMarkdownDocsPage,
   getPayloadMarkdownDocsRoutePath,
   resolvePayloadMarkdownDocsRoute,
-} from '@valkyrianlabs/payload-markdown-docs/next'
+} from 'payload-markdown-docs/next'
 
 export const dynamic = 'force-dynamic'
 
@@ -166,7 +166,7 @@ import type { Metadata } from 'next'
 import {
   generatePayloadMarkdownDocsMetadata,
   getPayloadMarkdownDocsRoutePath,
-} from '@valkyrianlabs/payload-markdown-docs/next'
+} from 'payload-markdown-docs/next'
 
 export async function generateMetadata({
   params,

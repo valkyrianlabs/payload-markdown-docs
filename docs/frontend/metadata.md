@@ -17,7 +17,7 @@ Use metadata helpers from the `/next` export after resolving a docs route.
 import {
   getPayloadMarkdownDocsMetadata,
   resolvePayloadMarkdownDocsRoute,
-} from '@valkyrianlabs/payload-markdown-docs/next'
+} from 'payload-markdown-docs/next'
 
 const resolved = await resolvePayloadMarkdownDocsRoute({
   payload,

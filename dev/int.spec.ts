@@ -229,9 +229,8 @@ describe('payloadMarkdownDocs collection wiring', () => {
 
     expect(docsCollection).toBeDefined()
     expect(markdownField?.type).toBe('text')
-    expect(markdownField?.admin?.components?.Field).toBe(
-      '@valkyrianlabs/payload-markdown/server#PayloadMarkdownField',
-    )
+    // No payloadMarkdown() in this config: the installed package (unscoped preferred) decides.
+    expect(markdownField?.admin?.components?.Field).toBe('payload-markdown/server#PayloadMarkdownField')
   })
 
   test('custom infrastructure collection slugs work', () => {

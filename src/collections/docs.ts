@@ -1,15 +1,17 @@
 import type { CollectionConfig, Field } from 'payload'
 
-import { markdownField } from '@valkyrianlabs/payload-markdown'
+import type { PayloadMarkdownPackageName } from '../payloadMarkdown.js'
 
 import { MANAGED_BY } from '../constants.js'
 import { populatePublishedAt } from '../payload/populatePublishedAt.js'
+import { payloadMarkdownField } from '../payloadMarkdown.js'
 
 export type CreateDocsCollectionOptions = {
   docsSetsCollectionSlug?: string
   enableDrafts?: boolean
   heroImageMediaCollectionSlugs?: string[]
   markdownFieldName: string
+  payloadMarkdownPackage: PayloadMarkdownPackageName
   slug: string
   syncRunsCollectionSlug?: string
 }
@@ -45,6 +47,7 @@ export const createDocsCollection = ({
   enableDrafts = false,
   heroImageMediaCollectionSlugs,
   markdownFieldName,
+  payloadMarkdownPackage,
   syncRunsCollectionSlug,
 }: CreateDocsCollectionOptions): CollectionConfig => ({
   slug,
@@ -128,9 +131,10 @@ export const createDocsCollection = ({
     ...(heroImageMediaCollectionSlugs?.length
       ? [createHeroImageField(heroImageMediaCollectionSlugs)]
       : []),
-    markdownField({
+    payloadMarkdownField({
       name: markdownFieldName,
       label: 'Content',
+      packageName: payloadMarkdownPackage,
     }),
     {
       name: 'overrides',
