@@ -676,7 +676,8 @@ TEST_CASE("install routes writes public Next asset route files") {
   CHECK(std::filesystem::exists(payload_app / "payloadMarkdownDocsAssetRoute.ts"));
   CHECK(std::filesystem::exists(payload_app / "llms.txt" / "route.ts"));
   CHECK(std::filesystem::exists(payload_app / "plugins" / "[docsSetSlug]" / "skills" / "[agent]" / "[[...assetPath]]" / "route.ts"));
-  CHECK(read_text(payload_app / "payloadMarkdownDocsAssetRoute.ts").find("@valkyrianlabs/payload-markdown-docs/next") != std::string::npos);
+  // No package.json lists the plugin: the unscoped name.
+  CHECK(read_text(payload_app / "payloadMarkdownDocsAssetRoute.ts").find("from 'payload-markdown-docs/next'") != std::string::npos);
 
   write_text(payload_app / "llms.txt" / "route.ts", "stale\n");
   const auto conflict = pmdocs::run(args({"install", "routes", "--payload-app", payload_app_string}));
@@ -686,6 +687,23 @@ TEST_CASE("install routes writes public Next asset route files") {
   const auto forced = pmdocs::run(args({"install", "routes", "--payload-app", payload_app_string, "--force"}));
   CHECK(forced.exit_code == 0);
   CHECK(read_text(payload_app / "llms.txt" / "route.ts").find("force-dynamic") != std::string::npos);
+}
+
+TEST_CASE("install routes imports the plugin under the name the app depends on") {
+  TempDir temp{"pmdocs-test-install-routes-name"};
+  const auto project_root = temp.path() / "project";
+  const auto payload_app = project_root / "src" / "app" / "(payload)";
+  const auto payload_app_string = payload_app.string();
+  std::filesystem::create_directories(payload_app);
+  CwdGuard cwd{project_root};
+
+  write_text(project_root / "package.json", "{\"dependencies\":{\"@valkyrianlabs/payload-markdown-docs\":\"^1.2.0\"}}\n");
+  REQUIRE(pmdocs::run(args({"install", "routes", "--payload-app", payload_app_string})).exit_code == 0);
+  CHECK(read_text(payload_app / "payloadMarkdownDocsAssetRoute.ts").find("from '@valkyrianlabs/payload-markdown-docs/next'") != std::string::npos);
+
+  write_text(project_root / "package.json", "{\"dependencies\":{\"payload-markdown-docs\":\"^1.2.0\"}}\n");
+  REQUIRE(pmdocs::run(args({"install", "routes", "--payload-app", payload_app_string, "--force"})).exit_code == 0);
+  CHECK(read_text(payload_app / "payloadMarkdownDocsAssetRoute.ts").find("from 'payload-markdown-docs/next'") != std::string::npos);
 }
 
 TEST_CASE("install routes detects default Payload app route group") {

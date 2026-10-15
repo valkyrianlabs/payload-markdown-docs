@@ -147,7 +147,7 @@ std::vector<AssetRouteTemplate> asset_route_templates() {
     {
       .relative_path = "payloadMarkdownDocsAssetRoute.ts",
       .content = "import config from '@payload-config'\n"
-                 "import { createPayloadMarkdownDocsAssetRouteHandler } from '@valkyrianlabs/payload-markdown-docs/next'\n"
+                 "import { createPayloadMarkdownDocsAssetRouteHandler } from '{{packageName}}/next'\n"
                  "\n"
                  "export const GET = createPayloadMarkdownDocsAssetRouteHandler({\n"
                  "  config,\n"
@@ -788,6 +788,50 @@ std::optional<std::filesystem::path> detect_payload_app_dir() {
   return std::nullopt;
 }
 
+// The plugin is published as payload-markdown-docs and @valkyrianlabs/payload-markdown-docs.
+// Generated route files import whichever the app depends on (the nearest package.json at or
+// above the route group), and the unscoped name when neither is listed.
+std::string plugin_package_for_app(const std::filesystem::path& payload_app_dir) {
+  constexpr std::string_view kUnscoped = "payload-markdown-docs";
+  constexpr std::string_view kScoped = "@valkyrianlabs/payload-markdown-docs";
+  auto directory = absolute_normalized(payload_app_dir);
+
+  while (true) {
+    std::error_code error;
+    const auto manifest_path = directory / "package.json";
+
+    if (std::filesystem::is_regular_file(manifest_path, error)) {
+      try {
+        const auto manifest = nlohmann::json::parse(read_file(manifest_path));
+        const auto depends_on = [&](std::string_view name) {
+          for (const auto* key : {"dependencies", "devDependencies", "peerDependencies"}) {
+            if (manifest.contains(key) && manifest[key].is_object() && manifest[key].contains(name)) {
+              return true;
+            }
+          }
+          return false;
+        };
+
+        if (depends_on(kUnscoped)) {
+          return std::string{kUnscoped};
+        }
+        if (depends_on(kScoped)) {
+          return std::string{kScoped};
+        }
+      } catch (const std::exception&) {
+      }
+
+      return std::string{kUnscoped};
+    }
+
+    if (!directory.has_parent_path() || directory.parent_path() == directory) {
+      return std::string{kUnscoped};
+    }
+
+    directory = directory.parent_path();
+  }
+}
+
 std::vector<PlannedFile> collect_asset_route_files(const InstallRoutesOptions& options) {
   const auto target_root = absolute_normalized(options.payload_app_dir);
   std::vector<PlannedFile> files;
@@ -808,7 +852,7 @@ std::vector<PlannedFile> collect_asset_route_files(const InstallRoutesOptions& o
     files.push_back({
       .destination_path = destination_path,
       .relative_path = relative_path,
-      .content = std::string{route.content},
+      .content = replace_all(std::string{route.content}, "{{packageName}}", plugin_package_for_app(options.payload_app_dir)),
     });
   }
 
