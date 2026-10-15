@@ -45,6 +45,11 @@
       "types": "./dist/migrations/index.d.ts",
       "import": "./dist/migrations/index.js",
       "default": "./dist/migrations/index.js"
+    },
+    "./mcp": {
+      "types": "./dist/mcp/index.d.ts",
+      "import": "./dist/mcp/index.js",
+      "default": "./dist/mcp/index.js"
     }
   },
   "main": "./dist/index.js",
@@ -81,10 +86,12 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.7",
+    "@modelcontextprotocol/sdk": "1.30.0",
     "@payloadcms/db-postgres": "latest",
     "@payloadcms/db-sqlite": "latest",
     "@payloadcms/eslint-config": "latest",
     "@payloadcms/next": "latest",
+    "@payloadcms/plugin-mcp": "latest",
     "@payloadcms/plugin-seo": "latest",
     "@payloadcms/richtext-lexical": "latest",
     "@payloadcms/ui": "latest",
@@ -153,7 +160,8 @@
   },
   "registry": "https://registry.npmjs.org/",
   "dependencies": {
-    "fflate": "^0.8.3"
+    "fflate": "^0.8.3",
+    "zod": "^3.25.0 || ^4.0.0"
   },
   "packageManager": "pnpm@10.33.0"
 }
