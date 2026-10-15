@@ -36,6 +36,7 @@ import {
 import { installDocsMarketingBlocks } from './install/blocks.js'
 import { installDocsHeroFields } from './install/heroes.js'
 import { resolveDocsMarketingBlocksAfterRead } from './payload/index.js'
+import { resolvePayloadMarkdownPackage } from './payloadMarkdown.js'
 
 type ResolvedCollectionOptions = {
   docsAccessCollectionSlug: string
@@ -376,6 +377,10 @@ export const payloadMarkdownDocs =
               enableDrafts,
               heroImageMediaCollectionSlugs: uploadCollections.heroImageMediaCollectionSlugs,
               markdownFieldName,
+              payloadMarkdownPackage: resolvePayloadMarkdownPackage(
+                incomingConfig,
+                pluginOptions.payloadMarkdownPackage,
+              ),
               syncRunsCollectionSlug: syncRunsEnabled ? syncRunsCollectionSlug : undefined,
             }),
           ]

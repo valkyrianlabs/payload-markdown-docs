@@ -1,3 +1,4 @@
+export type { PayloadMarkdownPackageName } from './payloadMarkdown.js'
 export { payloadMarkdownDocs } from './plugin.js'
 export type {
   DocsBlockInstallSelection,

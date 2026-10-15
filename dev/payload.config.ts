@@ -1,8 +1,8 @@
 import { postgresAdapter } from '@payloadcms/db-postgres'
 import { lexicalEditor } from '@payloadcms/richtext-lexical'
-import { payloadMarkdown } from '@valkyrianlabs/payload-markdown'
 import path from 'path'
 import { buildConfig } from 'payload'
+import { payloadMarkdown } from 'payload-markdown'
 import sharp from 'sharp'
 import { fileURLToPath } from 'url'
 
