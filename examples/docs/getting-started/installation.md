@@ -9,6 +9,6 @@ tags:
 
 # Installation
 
-Install the docs sync package alongside `@valkyrianlabs/payload-markdown`, then add the plugin to your Payload config.
+Install the docs sync package alongside `payload-markdown`, then add the plugin to your Payload config.
 
 Generate an Ed25519 key pair before enabling signed uploads in CI.

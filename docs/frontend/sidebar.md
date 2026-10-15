@@ -38,7 +38,7 @@ The tree is derived from source paths and routes. It is data, not a required UI
 component, so your app can render it however it wants.
 
 ```tsx
-import { resolvePayloadMarkdownDocsRoute } from '@valkyrianlabs/payload-markdown-docs/next'
+import { resolvePayloadMarkdownDocsRoute } from 'payload-markdown-docs/next'
 
 const resolved = await resolvePayloadMarkdownDocsRoute({
   payload,

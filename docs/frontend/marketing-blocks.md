@@ -24,7 +24,7 @@ layouts that wrap or reference generated documentation.
 ```ts
 import type { CollectionConfig } from 'payload'
 
-import { DocsCTABlock } from '@valkyrianlabs/payload-markdown-docs/blocks'
+import { DocsCTABlock } from 'payload-markdown-docs/blocks'
 
 export const Pages: CollectionConfig = {
   slug: 'pages',
@@ -72,7 +72,7 @@ Auto-install appends Docs CTA to existing `blocks` fields on eligible
 collections. It does not create new collections or inject a new layout field.
 
 ```ts
-import { payloadMarkdownDocs } from '@valkyrianlabs/payload-markdown-docs'
+import { payloadMarkdownDocs } from 'payload-markdown-docs'
 
 payloadMarkdownDocs({
   blocks: true,
@@ -108,7 +108,7 @@ payloadMarkdownDocs({
 Render the block in your app's normal `RenderBlocks.tsx` component map.
 
 ```tsx
-import { DocsCTA } from '@valkyrianlabs/payload-markdown-docs/next'
+import { DocsCTA } from 'payload-markdown-docs/next'
 
 const blockComponents = {
   docsCTA: DocsCTA,

@@ -13,7 +13,7 @@ tags:
 `payloadMarkdownDocs()` is a Payload plugin factory.
 
 ```ts
-import { payloadMarkdownDocs } from '@valkyrianlabs/payload-markdown-docs'
+import { payloadMarkdownDocs } from 'payload-markdown-docs'
 
 payloadMarkdownDocs({
   enabled: true,
@@ -29,7 +29,7 @@ endpoint. A disabled plugin is an exact no-op.
 ## Recommended Config
 
 ```ts
-import { payloadMarkdownDocs } from '@valkyrianlabs/payload-markdown-docs'
+import { payloadMarkdownDocs } from 'payload-markdown-docs'
 import { buildConfig } from 'payload'
 
 export default buildConfig({

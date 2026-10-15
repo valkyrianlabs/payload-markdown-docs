@@ -23,7 +23,7 @@ modes.
 ## Install
 
 ```bash
-pnpm add @valkyrianlabs/payload-markdown-docs @valkyrianlabs/payload-markdown
+pnpm add payload-markdown-docs payload-markdown
 ```
 
 ## Server Configuration
@@ -33,7 +33,7 @@ collection and explicit sync permissions. Add docs packages and trust records in
 Payload Admin.
 
 ```ts
-import { payloadMarkdownDocs } from '@valkyrianlabs/payload-markdown-docs'
+import { payloadMarkdownDocs } from 'payload-markdown-docs'
 
 payloadMarkdownDocs({
   auth: {
@@ -264,7 +264,7 @@ import {
   PayloadMarkdownDocsPage,
   getPayloadMarkdownDocsRoutePath,
   resolvePayloadMarkdownDocsRoute,
-} from '@valkyrianlabs/payload-markdown-docs/next'
+} from 'payload-markdown-docs/next'
 
 export default async function Page({ params }: { params: Promise<{ slug?: string[] }> }) {
   const { slug = [] } = await params

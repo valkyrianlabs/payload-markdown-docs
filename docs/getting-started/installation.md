@@ -13,10 +13,10 @@ tags:
 Install the docs workflow package together with its peer packages:
 
 ```bash
-pnpm add @valkyrianlabs/payload-markdown-docs @valkyrianlabs/payload-markdown @payloadcms/plugin-seo
+pnpm add payload-markdown-docs payload-markdown @payloadcms/plugin-seo
 ```
 
-`@valkyrianlabs/payload-markdown` (Markdown field and renderer) and
+`payload-markdown` (Markdown field and renderer) and
 `@payloadcms/plugin-seo` (docs-set SEO fields) are **peer dependencies**: the
 plugin registers admin components from both packages in your app's import map,
 so your app must install them directly. Installing them yourself also keeps a
@@ -34,8 +34,8 @@ Tailwind v4, add both packages to your app stylesheet's sources:
 ```css
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
-@source "../node_modules/@valkyrianlabs/payload-markdown/dist";
-@source "../node_modules/@valkyrianlabs/payload-markdown-docs/dist";
+@source "../node_modules/payload-markdown/dist";
+@source "../node_modules/payload-markdown-docs/dist";
 ```
 
 Adjust the relative paths to where your stylesheet lives. The components expect
@@ -82,7 +82,7 @@ pmdocs --help
 ## Minimal Plugin Registration
 
 ```ts
-import { payloadMarkdownDocs } from '@valkyrianlabs/payload-markdown-docs'
+import { payloadMarkdownDocs } from 'payload-markdown-docs'
 import { buildConfig } from 'payload'
 
 export default buildConfig({

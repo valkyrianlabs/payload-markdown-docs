@@ -25,7 +25,7 @@ import type { MetadataRoute } from 'next'
 import config from '@payload-config'
 import { getPayload } from 'payload'
 
-import { getDocsForSitemap } from '@valkyrianlabs/payload-markdown-docs/next'
+import { getDocsForSitemap } from 'payload-markdown-docs/next'
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://example.com'
 
@@ -50,7 +50,7 @@ import type { MetadataRoute } from 'next'
 import config from '@payload-config'
 import { getPayload } from 'payload'
 
-import { getDocsForSitemap } from '@valkyrianlabs/payload-markdown-docs/next'
+import { getDocsForSitemap } from 'payload-markdown-docs/next'
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://example.com'
 
@@ -120,7 +120,7 @@ import config from '@payload-config'
 import {
   getDocsForSitemap,
   getPayloadMarkdownDocsAiSitemapRoutes,
-} from '@valkyrianlabs/payload-markdown-docs/next'
+} from 'payload-markdown-docs/next'
 import { getPayload } from 'payload'
 
 const aiRoutes = getPayloadMarkdownDocsAiSitemapRoutes({
@@ -254,7 +254,7 @@ Use `getPaginatedDocsForSitemap` when the app needs the original Payload-style
 paginated result instead of the mapped Next sitemap array.
 
 ```ts
-import { getPaginatedDocsForSitemap } from '@valkyrianlabs/payload-markdown-docs/next'
+import { getPaginatedDocsForSitemap } from 'payload-markdown-docs/next'
 
 const result = await getPaginatedDocsForSitemap({
   payload,

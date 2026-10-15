@@ -1,13 +1,13 @@
 ---
 name: payload-markdown-docs
-description: Use this skill when maintaining Git-backed documentation for a project that uses `payload-markdown-docs` (also published as `@valkyrianlabs/payload-markdown-docs`).
+description: Use this skill when maintaining Git-backed documentation for a project that uses `payload-markdown-docs` (also published as `payload-markdown-docs`).
 ---
 
 # Payload Markdown Docs Skill
 
 Use this skill in Claude when maintaining Git-backed documentation for a project
 that uses `payload-markdown-docs` (also published as
-`@valkyrianlabs/payload-markdown-docs`; same package, either name).
+`payload-markdown-docs`; same package, either name).
 
 Edit repo-local source files first. Treat generated Payload docs records and
 synced raw assets as server-owned output, not as source of truth.

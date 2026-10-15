@@ -102,7 +102,7 @@ directive guidance matches the version the site renders with:
 
 ```text
 node_modules/payload-markdown/skills/payload-markdown/<agent>/
-node_modules/@valkyrianlabs/payload-markdown/skills/payload-markdown/<agent>/
+node_modules/payload-markdown/skills/payload-markdown/<agent>/
 ```
 
 Otherwise `pmdocs` uses the copy it bundles (`skills/payload-markdown/` in this

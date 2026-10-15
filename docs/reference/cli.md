@@ -14,7 +14,7 @@ tags:
 The supported operator CLI is the native system-level `pmdocs` binary. Install
 it through Homebrew or the Valkyrian Labs Debian repository.
 
-The npm package `@valkyrianlabs/payload-markdown-docs` installs the Payload
+The npm package `payload-markdown-docs` installs the Payload
 plugin and runtime helpers only. It does not provide the supported CLI surface.
 
 Examples use `main-docs` as a sample docs set slug. Replace it with the Payload
@@ -295,7 +295,7 @@ Useful flags:
 
 The `payload-markdown` skill is taken from the project's installed
 `payload-markdown` package (`node_modules/payload-markdown` or
-`node_modules/@valkyrianlabs/payload-markdown`, searched upwards from the
+`node_modules/payload-markdown`, searched upwards from the
 working directory) so it matches the version the site renders with; otherwise
 from the copy bundled with `pmdocs`. Its files are copied unchanged, so
 `npx payload-markdown skill check` accepts them. If neither is available the

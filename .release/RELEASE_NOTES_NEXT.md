@@ -7,3 +7,35 @@ Format: the first line is "# <release title>" WITHOUT a version number (vlr adds
 Everything after the title is the Markdown release body. Describe the resulting behavior
 for users and operators; keep it representative of what actually ships.
 -->
+# Install as payload-markdown-docs, skills that stay current
+
+## `pnpm add payload-markdown-docs`
+
+The plugin is now also published under the short name `payload-markdown-docs`:
+
+```bash
+pnpm add payload-markdown-docs payload-markdown @payloadcms/plugin-seo
+```
+
+`@valkyrianlabs/payload-markdown-docs` stays fully supported. Both names come from the same build and are released together at the same version, with identical files; the only differences are the package name and the name Payload's admin import map uses for the plugin's components, which follows whichever name you installed. Import from the name you installed (`payload-markdown-docs/next`, `payload-markdown-docs/migrations`, and so on), install only one of them, and run `payload generate:importmap` after switching.
+
+payload-markdown works under either of its names too: `payload-markdown` (preferred) or `@valkyrianlabs/payload-markdown`. The docs content field uses the admin component of whichever is installed (detected from the components `payloadMarkdown()` registers, or from `node_modules`; set `payloadMarkdownPackage` to choose explicitly). `pmdocs install routes` writes route files that import the plugin under the name your app depends on.
+
+## The payload-markdown skill is always installed
+
+`pmdocs install skill` now always installs the `payload-markdown` skill next to the `payload-markdown-docs` skill. Previously Homebrew installs skipped it silently and Debian installs shipped an old copy. It is taken from your project's installed `payload-markdown` package when there is one, so the directive guidance matches the version your site renders with, and from the copy bundled with `pmdocs` otherwise. If neither is available the command fails instead of installing half the guidance. The `payload-markdown-docs` skill links straight into it for directives, styling, layout and the MCP content workflow.
+
+## Skills that keep themselves current
+
+Installed skills now record what they were installed from, and `pmdocs` notices when a newer one is available:
+
+```bash
+pmdocs skill check    # current, outdated, modified or missing per skill; exits 1 unless current
+pmdocs skill update   # replaces outdated skills, keeping --docs-root and --package-manager
+```
+
+`pmdocs validate` and `pmdocs plan` print a reminder when the installed skill is stale, and the skill tells agents to run `pmdocs skill update` on their own. Skills you edited by hand are never replaced without `--force`. Re-running `pmdocs install skill` over an unedited install no longer needs `--force`.
+
+## Releases
+
+Releases are built and published with vl-release: the Debian package, the Homebrew formula (now built from a release source archive that carries both skills), both npm names and the GitHub release come from one validated build, and a failed release can simply be re-run.

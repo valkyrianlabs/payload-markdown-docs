@@ -11,14 +11,14 @@ tags:
 
 # Public API
 
-`@valkyrianlabs/payload-markdown-docs` exposes a small v1 package surface.
+`payload-markdown-docs` exposes a small v1 package surface.
 
 ## Root
 
 Use the root package for Payload plugin configuration:
 
 ```ts
-import { payloadMarkdownDocs } from '@valkyrianlabs/payload-markdown-docs'
+import { payloadMarkdownDocs } from 'payload-markdown-docs'
 ```
 
 The root export also includes public plugin config types such as
@@ -46,7 +46,7 @@ import {
   generatePayloadMarkdownDocsMetadata,
   getPayloadMarkdownDocsMetadata,
   resolvePayloadMarkdownDocsRoute,
-} from '@valkyrianlabs/payload-markdown-docs/next'
+} from 'payload-markdown-docs/next'
 ```
 
 This surface owns route resolution, page rendering, metadata, sitemap helpers,
@@ -65,7 +65,7 @@ Use the nav/header builders for frontend navigation data.
 Use `/admin` only for Payload import map components:
 
 ```ts
-import { DocsSetManager } from '@valkyrianlabs/payload-markdown-docs/admin'
+import { DocsSetManager } from 'payload-markdown-docs/admin'
 ```
 
 Admin data loaders and URL helpers are internal.
@@ -75,7 +75,7 @@ Admin data loaders and URL helpers are internal.
 Use `/blocks` for optional manual Payload block installation:
 
 ```ts
-import { DocsCTABlock } from '@valkyrianlabs/payload-markdown-docs/blocks'
+import { DocsCTABlock } from 'payload-markdown-docs/blocks'
 ```
 
 The v1 in-page block registry contains only `DocsCTABlock`.
@@ -88,7 +88,7 @@ available.
 Use `/migrations` inside Payload migrations when upgrading an existing install:
 
 ```ts
-import { prepareDocsSyncMigration } from '@valkyrianlabs/payload-markdown-docs/migrations'
+import { prepareDocsSyncMigration } from 'payload-markdown-docs/migrations'
 ```
 
 See [Upgrading to 1.1](/reference/upgrade-1-1) for when to call it.

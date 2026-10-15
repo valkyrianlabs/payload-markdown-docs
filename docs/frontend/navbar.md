@@ -21,7 +21,7 @@ groups and docs sets, renders nested navigation, and does not require your
 existing CMSLink component.
 
 ```tsx
-import { PayloadMarkdownDocsNavbar } from '@valkyrianlabs/payload-markdown-docs/next'
+import { PayloadMarkdownDocsNavbar } from 'payload-markdown-docs/next'
 import type { Payload } from 'payload'
 
 export function DocsNav({ payload }: { payload: Payload }) {
@@ -46,7 +46,7 @@ custom link props.
 Use `getPayloadMarkdownDocsNavItems` when the app owns the markup.
 
 ```ts
-import { getPayloadMarkdownDocsNavItems } from '@valkyrianlabs/payload-markdown-docs/next'
+import { getPayloadMarkdownDocsNavItems } from 'payload-markdown-docs/next'
 
 const docsNav = await getPayloadMarkdownDocsNavItems({
   payload,
@@ -71,7 +71,7 @@ Use `appendPayloadMarkdownDocsHeaderNavItems` when the app already has a Header
 global with `navItems`.
 
 ```ts
-import { appendPayloadMarkdownDocsHeaderNavItems } from '@valkyrianlabs/payload-markdown-docs/next'
+import { appendPayloadMarkdownDocsHeaderNavItems } from 'payload-markdown-docs/next'
 
 const navItems = await appendPayloadMarkdownDocsHeaderNavItems({
   existingItems: header.navItems ?? [],
@@ -87,7 +87,7 @@ The adapter emits custom URL links by default. This is the safest mode for
 existing CMSLink implementations.
 
 ```ts
-import { getPayloadMarkdownDocsHeaderNavItems } from '@valkyrianlabs/payload-markdown-docs/next'
+import { getPayloadMarkdownDocsHeaderNavItems } from 'payload-markdown-docs/next'
 
 const docsItems = await getPayloadMarkdownDocsHeaderNavItems({
   mode: 'url',
@@ -99,7 +99,7 @@ Use relationship mode only when the frontend renderer understands docs
 relationships.
 
 ```ts
-import { getPayloadMarkdownDocsHeaderNavItems } from '@valkyrianlabs/payload-markdown-docs/next'
+import { getPayloadMarkdownDocsHeaderNavItems } from 'payload-markdown-docs/next'
 
 const docsItems = await getPayloadMarkdownDocsHeaderNavItems({
   mode: 'relationship',
