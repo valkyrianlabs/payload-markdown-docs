@@ -12,7 +12,7 @@ permissions:
 # Every run step executes inside the disposable CI container: each job's default shell is
 # `./ci/run-ci` (rootless Podman; see ci/README.md and payload-markdown's ci/README.md), so no
 # job needs host sudo, host packages, Docker service containers or setup-* actions. Node, pnpm,
-# Playwright with Chromium, the native toolchain and Python come with ci/Containerfile.
+# Playwright with Chromium, the native toolchain and vl-release come with ci/Containerfile.
 #
 # Runners: pushes and pull requests from branches of this repository run on the self-hosted
 # runner; pull requests from forks (untrusted code that could also rewrite this file) run on
@@ -52,6 +52,11 @@ jobs:
         run: |
           set -euo pipefail
           pnpm test:int
+
+      # Rehearses the dual npm publication: packs dist/, derives the unscoped payload-markdown-docs
+      # tarball like vlr does, and checks both names (same files, every export and its types).
+      - name: Verify both npm packages
+        run: node scripts/verify-npm-packages.mjs --pack
 
   # The bugs that mattered (draft leaks, unique-route sync failures, access defaults) were only
   # visible with real Payload + Postgres semantics, so the DB-backed suite runs on every change.
@@ -125,11 +130,16 @@ jobs:
       - name: Smoke test Meson install
         run: |
           set -euo pipefail
-          meson setup build-install -Dinstall_skill_data=true -Dcompanion_skill_data=auto
+          meson setup build-install -Dinstall_skill_data=true
           meson compile -C build-install
           meson install -C build-install --destdir "$PWD/stage-native"
-          PMDOCS_DATA_DIR="$PWD/stage-native/usr/local/share/pmdocs" \
-            "$PWD/stage-native/usr/local/bin/pmdocs" doctor
+          # Outside the repository, so both skills must come from the installed data.
+          stage="$PWD/stage-native"
+          cd "$(mktemp -d)"
+          export PMDOCS_DATA_DIR="$stage/usr/local/share/pmdocs"
+          "$stage/usr/local/bin/pmdocs" doctor
+          "$stage/usr/local/bin/pmdocs" install skill --agent codex
+          "$stage/usr/local/bin/pmdocs" skill check
 
       - name: Upload pmdocs for the consumer smoke test
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -138,8 +148,10 @@ jobs:
           path: build-native/cli/pmdocs
           if-no-files-found: error
 
-  release-tooling:
-    name: Release tooling
+  # The vl-release contract (release.toml, staged release docs, versions) and the agent skill it
+  # installs, so a broken release is caught here rather than on the tag.
+  release-contract:
+    name: Release contract
     runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-latest' || fromJSON('["self-hosted","Linux","X64","ubuntu-latest-lts"]') }}
     defaults:
       run:
@@ -149,14 +161,12 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install release tooling Python dependencies
-        run: bash .github/scripts/setup-release-python.sh
-
-      - name: Run release tooling tests
-        run: python -m pytest -q -p no:cacheprovider tools/release/tests
-
-      - name: Check release versions
-        run: python -m tools.release check
+      - name: Check the release contract
+        run: |
+          vlr check
+          vlr version check
+          vlr prepare --dry-run
+          vlr release-title --staged
 
   # Installs the packed plugin and the current payload-markdown main branch into a fresh
   # Next.js + Payload app the way the README instructs, syncs docs with pmdocs, and renders them

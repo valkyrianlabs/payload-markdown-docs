@@ -10,8 +10,8 @@ documented once, in payload-markdown's
   `localhost/payload-markdown-docs-ci`, caches under `~/.cache/payload-markdown-docs-ci`).
 - `ci/Containerfile` is this repository's image: the Playwright 1.64.1 noble image (pinned by
   digest) plus Node (`.nvmrc`), pnpm (`packageManager`), the native CLI's Meson/CMake toolchain
-  and libraries, Debian packaging tools, Ruby and Python. `/workspace/.venv/bin` (created by
-  `.github/scripts/setup-release-python.sh`) is first on `PATH`.
+  and libraries, Debian packaging tools, Ruby, the GitHub CLI and vl-release (`vlr`, from the
+  ValkyrianLabs APT repository; a new vl-release version rebuilds the image).
 
 Workflows make `./ci/run-ci` each self-hosted job's default shell, so `run:` blocks are plain
 commands:

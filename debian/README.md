@@ -8,25 +8,22 @@ Build locally from the repository root on a Debian-like system with:
 
 ```bash
 sudo apt install build-essential cmake debhelper doctest-dev libcli11-dev libcurl4-openssl-dev libssl-dev meson ninja-build nlohmann-json3-dev pkgconf
-corepack enable
-pnpm install --frozen-lockfile
 dpkg-buildpackage -us -uc -b
 ```
 
-The release helper wraps the same package build and copies artifacts into
-`release/`:
+Releases build the package with vl-release (`release.toml` `[debian]`), which
+copies the prepared tree into `build/deb/src`, runs `dpkg-buildpackage` there and
+checks the package contract (required skill files, byte-identical copies of the
+work tree's skills):
 
 ```bash
-python3 -m tools.release changelog release \
-  --output release/changelog.release.md \
-  --raw-output release/changelog.raw.md \
-  --payload-output release/changelog.payload.json \
-  --semantic-payload-output release/changelog.semantic_payload.json \
-  --context-output release/changelog.context.json \
-  --selection-output release/changelog.selection.json
-python3 -m tools.release build-deb --output-dir release
-python3 -m tools.release validate-release-artifacts --output-dir release
+vlr prepare --dry-run   # preview the debian/changelog stanza from .release/CHANGELOG_NEXT.md
+vlr build-deb
+vlr validate-artifacts
 ```
+
+`debian/changelog` is published history: only `vlr prepare` (release CI) adds to
+it. Describe package changes in `.release/CHANGELOG_NEXT.md` instead.
 
 Smoke-check the resulting package before publishing to the internal apt
 repository:
@@ -48,7 +45,8 @@ the shared TS/C++ protocol contract vectors under `contracts/vectors/`. There is
 no separate npm parity harness; the TypeScript side runs the same vectors from
 `pnpm exec vitest --run`.
 
-Protected CI publication to Nexus is controlled by `RELEASE_PUBLISH_MODE`,
-`NEXUS_REPO_URL`, `NEXUS_USER`, and `NEXUS_PASS`. Local and workflow-dispatch
-dry-runs keep publication disabled so release tooling tests do not upload
-artifacts accidentally.
+Release CI publishes with `vlr publish-deb --require-enabled`, gated by
+`RELEASE_PUBLISH_MODE` (`nexus`) and the `NEXUS_APT_REPO` (or `NEXUS_REPO_URL`),
+`NEXUS_USER` and `NEXUS_PASSWORD` (or `NEXUS_PASS`) settings; it skips a
+package the repository already has with identical bytes and refuses different
+ones. Workflow-dispatch dry-runs never publish.
