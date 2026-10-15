@@ -7,7 +7,7 @@ Format: the first line is "# <release title>" WITHOUT a version number (vlr adds
 Everything after the title is the Markdown release body. Describe the resulting behavior
 for users and operators; keep it representative of what actually ships.
 -->
-# Install as payload-markdown-docs, skills that stay current
+# payload-markdown-docs, MCP agent tools and skills that stay current
 
 ## `pnpm add payload-markdown-docs`
 
@@ -48,12 +48,12 @@ pmdocs skill update   # replaces outdated skills, keeping --docs-root and --pack
 
 `pmdocs validate` and `pmdocs plan` print a reminder when the installed skill is stale, and the skill tells agents to run `pmdocs skill update` on their own. Skills you edited by hand are never replaced without `--force`. Re-running `pmdocs install skill` over an unedited install no longer needs `--force`.
 
-## Releases
-
-Releases are built and published with vl-release: the Debian package, the Homebrew formula (now built from a release source archive that carries both skills), both npm names and the GitHub release come from one validated build, and a failed release can simply be re-run.
-
 ## Docs routes and the docs nav follow docs set and group changes
 
 Changing a docs set's group, slug or route mode, or a group's slug or parent (or deleting a group), now moves the generated docs and their assets to the new routes immediately, in the same save, instead of leaving them on the old paths until the next sync. Published docs and their drafts move together, the old and new paths are revalidated, and a change that would put docs onto routes another docs set already serves is rejected with nothing saved. Routes that are already stale from earlier changes are repaired by saving the published docs set, or all at once with `repairDocsRoutes({ payload })` from `payload-markdown-docs/migrations`.
 
 The docs nav (`getPayloadMarkdownDocsNavItems`, the header adapters and `PayloadMarkdownDocsNavbar`) is now cached under the `payload-markdown-docs:nav` tag (exported as `PAYLOAD_MARKDOWN_DOCS_NAV_CACHE_TAG`), and the plugin expires it whenever a docs set or group changes and after every sync. Statically prerendered pages that show the docs nav in their header no longer keep serving an outdated nav. Sync and admin revalidation now expire cache tags immediately (`{ expire: 0 }`) rather than serving the stale entry once more.
+
+## Releases
+
+Releases are built and published with vl-release: the Debian package, the Homebrew formula (now built from a release source archive that carries both skills), both npm names and the GitHub release come from one validated build, and a failed release can simply be re-run.
