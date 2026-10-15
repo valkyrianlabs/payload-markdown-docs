@@ -26,6 +26,32 @@ configure (themes, code highlighting, icons) apply to docs pages too. Register
 `payload`, `next`, `react` and `react-dom` are peers as well and are already
 part of every Payload app.
 
+### Package Names
+
+Both packages are published under two names, built once and released together:
+
+| Package | Preferred | Also published as |
+| --- | --- | --- |
+| This plugin | `payload-markdown-docs` | `@valkyrianlabs/payload-markdown-docs` |
+| Markdown field and renderer | `payload-markdown` | `@valkyrianlabs/payload-markdown` |
+
+Install one name of each (any combination works) and import from the names you
+installed (`payload-markdown-docs/next`, `@valkyrianlabs/payload-markdown-docs/next`,
+and so on). Both `payload-markdown` names are optional peer dependencies, so
+install the one you use yourself. The plugin finds it on its own: the docs
+content field uses the admin component of the installed `payload-markdown`
+(taken from the components `payloadMarkdown()` registers, so list
+`payloadMarkdown()` first, or from `node_modules`), and docs pages render with
+it. Set `payloadMarkdownPackage` in `payloadMarkdownDocs()` to choose explicitly.
+
+With webpack builds (`next build --webpack`), Next prints one "Module not
+found" warning for the `payload-markdown` name you did not install. It is
+harmless: the plugin tries the preferred name first and falls back to the other.
+Turbopack builds print nothing.
+
+Switching names in an existing app: replace the dependency and the imports,
+update the Tailwind `@source` paths, and run `payload generate:importmap`.
+
 ### Styling
 
 Docs pages and components use Tailwind utility classes from both packages. With

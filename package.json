@@ -120,11 +120,20 @@
   },
   "peerDependencies": {
     "@payloadcms/plugin-seo": "^3.0.0",
-    "@valkyrianlabs/payload-markdown": "^1.6.0",
+    "@valkyrianlabs/payload-markdown": "^1.8.1",
     "next": "^15.2.0 || ^16.0.0",
     "payload": "^3.0.0",
+    "payload-markdown": "^1.8.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@valkyrianlabs/payload-markdown": {
+      "optional": true
+    },
+    "payload-markdown": {
+      "optional": true
+    }
   },
   "engines": {
     "node": "^18.20.2 || >=20.9.0",
