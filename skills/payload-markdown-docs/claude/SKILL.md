@@ -1,12 +1,13 @@
 ---
 name: payload-markdown-docs
-description: Use this skill when maintaining Git-backed documentation for a project that uses `@valkyrianlabs/payload-markdown-docs`.
+description: Use this skill when maintaining Git-backed documentation for a project that uses `payload-markdown-docs` (also published as `@valkyrianlabs/payload-markdown-docs`).
 ---
 
 # Payload Markdown Docs Skill
 
 Use this skill in Claude when maintaining Git-backed documentation for a project
-that uses `@valkyrianlabs/payload-markdown-docs`.
+that uses `payload-markdown-docs` (also published as
+`@valkyrianlabs/payload-markdown-docs`; same package, either name).
 
 Edit repo-local source files first. Treat generated Payload docs records and
 synced raw assets as server-owned output, not as source of truth.
@@ -17,17 +18,25 @@ native `pmdocs` CLI or served from the package
 
 This skill owns the docs package structure, plugin sync workflow, routing,
 frontmatter, and plugin-specific safety rules. It intentionally does not define
-Payload Markdown directive syntax or renderer formatting details. Use the
-sibling `payload-markdown` skill for those:
+Payload Markdown directive syntax, styling, layout, themes, palettes, or the
+Payload Markdown MCP content workflow. Doc bodies are payload-markdown, so read
+the sibling `payload-markdown` skill for all of that:
 
 - `../payload-markdown/SKILL.md`
 - `../payload-markdown/reference/payload-markdown-directives.md`
+- `../payload-markdown/reference/directive-spec.json`
 - `../payload-markdown/reference/formatting.md`
 - `../payload-markdown/reference/quality.md`
+- `../payload-markdown/reference/automated-docs-workflow.md`
+- `../payload-markdown/reference/mcp-content-workflow.md`
 
-The `pmdocs install skill --agent claude` installer writes this sibling skill.
-If it is missing, reinstall the skill bundle before guessing directive names,
-props, themes, or formatting rules.
+`pmdocs install skill --agent claude` writes this sibling skill next to this
+one, taken from the project's installed `payload-markdown` package when there
+is one (so it matches the version the site renders with). If it is missing or
+outdated (`npx payload-markdown skill check`), reinstall it with
+`pmdocs install skill --agent claude --force` or
+`npx payload-markdown skill install` before guessing directive names, props,
+themes, or formatting rules.
 
 ## Current Model
 
@@ -181,9 +190,13 @@ pmdocs install routes --payload-app "src/app/(payload)"
 Payload Markdown companion references:
 
 - `../payload-markdown/reference/payload-markdown-directives.md`
+- `../payload-markdown/reference/directive-spec.json`
 - `../payload-markdown/reference/formatting.md`
 - `../payload-markdown/reference/quality.md`
+- `../payload-markdown/reference/automated-docs-workflow.md`
+- `../payload-markdown/reference/mcp-content-workflow.md`
 - `../payload-markdown/examples/docs-page.md`
+- `../payload-markdown/examples/reference-page.md`
 
 ## Safety Checklist
 

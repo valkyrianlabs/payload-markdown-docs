@@ -451,6 +451,55 @@ TEST_CASE("legacy skill install remains a Codex alias") {
   CHECK(std::filesystem::exists(markdown_target / "SKILL.md"));
 }
 
+TEST_CASE("install skill prefers the project's payload-markdown skill and copies it unrendered") {
+  TempDir temp{"pmdocs-test-project-companion"};
+  const auto data_root = create_skill_fixture(temp.path());
+  const auto project_root = temp.path() / "project";
+  const auto app_root = project_root / "apps" / "site";
+  std::filesystem::create_directories(app_root);
+  // Hoisted like a workspace install, under the scoped name: found by walking up.
+  const auto package_skill =
+    project_root / "node_modules" / "@valkyrianlabs" / "payload-markdown" / "skills" / "payload-markdown" / "codex";
+  write_text(package_skill / "SKILL.md", "Installed payload-markdown skill for {{docsRoot}}\n");
+  write_text(package_skill / "skill.json", "{\"name\":\"payload-markdown\"}\n");
+  EnvGuard env{"PMDOCS_DATA_DIR", data_root.string()};
+  CwdGuard cwd{app_root};
+
+  const auto dry_run = pmdocs::run(args({"install", "skill", "--agent", "codex", "--dry-run"}));
+  CHECK(dry_run.exit_code == 0);
+  CHECK(dry_run.stdout_text.find("(project node_modules)") != std::string::npos);
+
+  const auto result = pmdocs::run(args({"install", "skill", "--agent", "codex"}));
+  const auto markdown_target = app_root / ".agents" / "skills" / "payload-markdown";
+
+  CHECK(result.exit_code == 0);
+  CHECK(read_text(markdown_target / "SKILL.md") == "Installed payload-markdown skill for {{docsRoot}}\n");
+  CHECK(std::filesystem::exists(markdown_target / "skill.json"));
+  CHECK_FALSE(std::filesystem::exists(markdown_target / "reference" / "formatting.md"));
+  CHECK(read_text(app_root / ".agents" / "skills" / "payload-markdown-docs" / "SKILL.md").find("Docs root: ./docs")
+        != std::string::npos);
+}
+
+TEST_CASE("install skill fails when the payload-markdown skill is unavailable") {
+  TempDir temp{"pmdocs-test-missing-companion"};
+  const auto data_root = create_skill_fixture(temp.path());
+  std::filesystem::remove_all(data_root / "skills" / "payload-markdown");
+  const auto project_root = temp.path() / "project";
+  std::filesystem::create_directory(project_root);
+  EnvGuard env{"PMDOCS_DATA_DIR", data_root.string()};
+  CwdGuard cwd{project_root};
+
+  const auto result = pmdocs::run(args({"install", "skill", "--agent", "codex"}));
+  CHECK(result.exit_code != 0);
+  CHECK(result.stderr_text.find("payload-markdown skill was not found") != std::string::npos);
+  CHECK_FALSE(std::filesystem::exists(project_root / ".agents"));
+
+  const auto doctor = pmdocs::run(args({"doctor"}));
+  CHECK(doctor.exit_code == 1);
+  CHECK(doctor.stdout_text.find("status: degraded") != std::string::npos);
+  CHECK(doctor.stdout_text.find("companion_skill_source: missing") != std::string::npos);
+}
+
 TEST_CASE("skill install renders placeholders from flags") {
   TempDir temp{"pmdocs-test-render"};
   const auto data_root = create_skill_fixture(temp.path());
@@ -1482,6 +1531,8 @@ TEST_CASE("doctor reports missing skill data as degraded with a non-zero exit") 
   TempDir temp{"pmdocs-test-doctor-degraded"};
   const auto data_root = temp.path() / "empty-data";
   std::filesystem::create_directories(data_root);
+  // Away from any node_modules/payload-markdown (the repository's own would count).
+  CwdGuard cwd{temp.path()};
 
   {
     EnvGuard data_dir{"PMDOCS_DATA_DIR", data_root.string()};
@@ -1495,9 +1546,18 @@ TEST_CASE("doctor reports missing skill data as degraded with a non-zero exit") 
     write_text(data_root / "skills" / "payload-markdown-docs" / "codex" / "SKILL.md", "# Skill\n");
     EnvGuard data_dir{"PMDOCS_DATA_DIR", data_root.string()};
     const auto primary_only = pmdocs::run(args({"doctor"}));
-    CHECK(primary_only.exit_code == 0);
-    CHECK(primary_only.stdout_text.find("status: ok") != std::string::npos);
-    CHECK(primary_only.stdout_text.find("companion skill is not bundled") != std::string::npos);
+    CHECK(primary_only.exit_code == 1);
+    CHECK(primary_only.stdout_text.find("status: degraded") != std::string::npos);
+    CHECK(primary_only.stdout_text.find("payload-markdown skill was found neither") != std::string::npos);
+  }
+
+  {
+    write_text(temp.path() / "node_modules" / "payload-markdown" / "skills" / "payload-markdown" / "codex" / "SKILL.md", "# PM\n");
+    EnvGuard data_dir{"PMDOCS_DATA_DIR", data_root.string()};
+    const auto from_project = pmdocs::run(args({"doctor"}));
+    CHECK(from_project.exit_code == 0);
+    CHECK(from_project.stdout_text.find("companion_skill_source: project: ") != std::string::npos);
+    std::filesystem::remove_all(temp.path() / "node_modules");
   }
 
   {

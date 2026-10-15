@@ -24,6 +24,9 @@ namespace pmdocs {
 namespace {
 
 constexpr std::string_view kPrimarySkillName = "payload-markdown-docs";
+// payload-markdown's own skill (directives, styling, layout, MCP). The docs skill
+// links to it, so `install skill` always installs both.
+constexpr std::string_view kCompanionSkillName = "payload-markdown";
 constexpr std::string_view kVersion = PMDOCS_VERSION;
 
 enum class InstallCommandShape {
@@ -54,6 +57,8 @@ struct SkillInstallTarget {
   std::string package_slug;
   std::filesystem::path source_root;
   std::filesystem::path target_root;
+  // "bundled" (pmdocs data directory) or "project" (the app's node_modules).
+  std::string source_kind = "bundled";
 };
 
 std::string read_file(const std::filesystem::path& path) {
@@ -226,6 +231,42 @@ std::filesystem::path bundled_skill_dir_for_agent(std::string_view agent) {
   return bundled_skill_dir_for_package_and_agent(kPrimarySkillName, agent);
 }
 
+// The payload-markdown skill shipped inside the project's installed payload-markdown
+// package (either npm name), found by walking up from the working directory like
+// Node resolution does. It matches the payload-markdown version the app runs, so it
+// is preferred over pmdocs' bundled copy.
+std::optional<std::filesystem::path> project_companion_skill_dir(std::string_view agent) {
+  static const std::vector<std::filesystem::path> package_dirs = {
+    std::filesystem::path{"node_modules"} / "payload-markdown",
+    std::filesystem::path{"node_modules"} / "@valkyrianlabs" / "payload-markdown",
+  };
+
+  std::error_code error;
+  auto directory = std::filesystem::current_path(error);
+
+  if (error) {
+    return std::nullopt;
+  }
+
+  while (true) {
+    for (const auto& package_dir : package_dirs) {
+      const auto skill_dir = directory / package_dir / "skills" / std::string{kCompanionSkillName} / std::string{agent};
+
+      if (std::filesystem::is_regular_file(skill_dir / "SKILL.md", error)) {
+        return skill_dir;
+      }
+
+      error.clear();
+    }
+
+    if (!directory.has_parent_path() || directory.parent_path() == directory) {
+      return std::nullopt;
+    }
+
+    directory = directory.parent_path();
+  }
+}
+
 std::vector<std::string> bundled_skill_package_slugs_for_agent(std::string_view agent) {
   std::vector<std::string> package_slugs;
   const auto root = bundled_skills_root();
@@ -268,8 +309,10 @@ std::vector<std::string> bundled_skill_package_slugs_for_agent(std::string_view 
     }
   }
 
-  if (std::ranges::find(package_slugs, std::string{kPrimarySkillName}) == package_slugs.end()) {
-    package_slugs.push_back(std::string{kPrimarySkillName});
+  for (const auto required : {kPrimarySkillName, kCompanionSkillName}) {
+    if (std::ranges::find(package_slugs, std::string{required}) == package_slugs.end()) {
+      package_slugs.push_back(std::string{required});
+    }
   }
 
   std::ranges::sort(package_slugs);
@@ -300,11 +343,20 @@ std::vector<SkillInstallTarget> skill_install_targets(const InstallSkillOptions&
   std::vector<SkillInstallTarget> targets;
 
   for (const auto& package_slug : bundled_skill_package_slugs_for_agent(options.agent)) {
-    targets.push_back({
+    SkillInstallTarget target{
       .package_slug = package_slug,
       .source_root = bundled_skill_dir_for_package_and_agent(package_slug, options.agent),
       .target_root = project_skill_dir_for_package(options, package_slug),
-    });
+    };
+
+    if (package_slug == kCompanionSkillName) {
+      if (const auto project_dir = project_companion_skill_dir(options.agent)) {
+        target.source_root = *project_dir;
+        target.source_kind = "project";
+      }
+    }
+
+    targets.push_back(std::move(target));
   }
 
   return targets;
@@ -373,6 +425,15 @@ std::vector<PlannedFile> collect_planned_files(const InstallSkillOptions& option
     const auto target_root = absolute_normalized(target.target_root);
 
     if (!std::filesystem::is_directory(source_root, error)) {
+      if (target.package_slug == kCompanionSkillName) {
+        throw std::runtime_error{
+          "The payload-markdown skill was not found in this project's node_modules or in the bundled skill data at "
+          + source_root.string()
+          + ". The payload-markdown-docs skill depends on it. Install payload-markdown in the project, or reinstall "
+            "pmdocs from a package that bundles it (Debian, Homebrew), or set PMDOCS_DATA_DIR."
+        };
+      }
+
       throw std::runtime_error{
         "Bundled skill data was not found at " + source_root.string()
         + ". Install pmdocs or set PMDOCS_DATA_DIR for local testing."
@@ -438,7 +499,12 @@ std::vector<PlannedFile> collect_planned_files(const InstallSkillOptions& option
         .destination_path = destination_path,
         .relative_path = relative_path,
         .display_path = std::filesystem::path{target.package_slug} / relative_path,
-        .content = render_template(read_file(entry.path()), options),
+        // Only pmdocs' own skill is a template. Other packages' skills are copied
+        // byte for byte, so their own drift checks (payload-markdown skill check)
+        // still match.
+        .content = target.package_slug == kPrimarySkillName
+          ? render_template(read_file(entry.path()), options)
+          : read_file(entry.path()),
       });
     }
   }
@@ -540,7 +606,11 @@ std::string format_install_plan(const InstallSkillOptions& options, const std::v
   out << "Agent: " << options.agent << "\n";
   out << "Sources:\n";
   for (const auto& target : skill_install_targets(options)) {
-    out << "- " << target.package_slug << ": " << target.source_root.string() << "\n";
+    out << "- " << target.package_slug << ": " << target.source_root.string();
+    if (target.source_kind == "project") {
+      out << " (project node_modules)";
+    }
+    out << "\n";
   }
   out << "Targets:\n";
   for (const auto& target : skill_install_targets(options)) {
@@ -747,8 +817,10 @@ Usage:
 Reports local native CLI diagnostics only. It does not check networking,
 Payload server configuration, auth, OIDC, or signing.
 
-Exits 0 with "status: ok" when bundled skill data is present, and 1 with
-"status: degraded" when it is missing (pmdocs install skill cannot work).
+Exits 0 with "status: ok" when the payload-markdown-docs skill and the
+payload-markdown skill are available (bundled, or payload-markdown's from the
+project's node_modules), and 1 with "status: degraded" when either is missing
+(pmdocs install skill cannot work).
 )";
 }
 
@@ -774,9 +846,14 @@ Options:
   --dry-run                 Print planned writes without changing files.
   --help                    Show this help.
 
-Copies every bundled skill package for the selected agent from the installed
-pmdocs data directory into the current project. The installer renders
-{{docsRoot}} and {{packageManager}} placeholders while copying files.
+Installs the payload-markdown-docs skill and the payload-markdown skill it builds
+on (directives, styling, layout, MCP), plus any other skill package bundled for the
+selected agent. The payload-markdown skill comes from the project's installed
+payload-markdown package (node_modules/payload-markdown or
+node_modules/@valkyrianlabs/payload-markdown) when present, so it matches the
+version the app runs, and from the pmdocs data directory otherwise. The installer
+renders {{docsRoot}} and {{packageManager}} placeholders in payload-markdown-docs
+files and copies other packages' files unchanged.
 
 Bundled Codex skill sources:
 )";
@@ -871,11 +948,16 @@ CommandResult doctor_result() {
   codex_options.out_dir = default_project_skill_dir_for_agent("codex");
   const auto skill_targets = skill_install_targets(codex_options);
   std::vector<std::string> found_skill_packages;
+  std::string companion_source = "missing";
 
   for (const auto& target : skill_targets) {
     skill_error.clear();
     if (std::filesystem::is_regular_file(target.source_root / "SKILL.md", skill_error)) {
       found_skill_packages.push_back(target.package_slug);
+
+      if (target.package_slug == kCompanionSkillName) {
+        companion_source = target.source_kind + ": " + target.source_root.string();
+      }
     }
   }
 
@@ -886,6 +968,7 @@ CommandResult doctor_result() {
     {"skill_source", skill_source.string()},
     {"skill_found", skill_found},
     {"skill_packages", found_skill_packages},
+    {"companion_skill_source", companion_source},
     {"project_skill_path", project_skill_path.string()},
   };
 
@@ -921,9 +1004,11 @@ CommandResult doctor_result() {
     out << " " << package_slug;
   }
   out << "\n";
+  out << "companion_skill_source: " << companion_source << "\n";
   out << "project_skill_path: " << diagnostics["project_skill_path"].get<std::string>() << "\n";
 
-  const auto companion_found = std::ranges::find(found_skill_packages, std::string{"payload-markdown"}) != found_skill_packages.end();
+  const auto companion_found =
+    std::ranges::find(found_skill_packages, std::string{kCompanionSkillName}) != found_skill_packages.end();
   std::vector<std::string> notes;
 
   if (!skill_found) {
@@ -934,7 +1019,9 @@ CommandResult doctor_result() {
     );
   } else if (!companion_found) {
     notes.push_back(
-      "The payload-markdown companion skill is not bundled; `pmdocs install skill` installs payload-markdown-docs only."
+      "The payload-markdown skill was found neither in this project's node_modules nor in the bundled skill data, "
+      "so `pmdocs install skill` cannot install it. Install payload-markdown in the project, or reinstall pmdocs from "
+      "the Debian package or the Homebrew formula."
     );
   }
 
@@ -945,12 +1032,13 @@ CommandResult doctor_result() {
     }
   }
 
-  // Missing primary skill data breaks a documented command: report it as
-  // degraded with a non-zero exit so scripts and package tests notice.
-  out << "status: " << (skill_found ? "ok" : "degraded") << "\n";
+  // Missing skill data breaks a documented command: report it as degraded with
+  // a non-zero exit so scripts and package tests notice.
+  const auto healthy = skill_found && companion_found;
+  out << "status: " << (healthy ? "ok" : "degraded") << "\n";
 
   return {
-    .exit_code = skill_found ? 0 : 1,
+    .exit_code = healthy ? 0 : 1,
     .stdout_text = out.str(),
   };
 }

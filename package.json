@@ -57,7 +57,7 @@
     "build:swc": "swc ./src -d ./dist --config-file .swcrc --strip-leading-paths --ignore \"**/*.spec.ts\"",
     "build:types": "tsc -p tsconfig.build.json --outDir dist --rootDir ./src",
     "clean": "rimraf --glob dist '*.tsbuildinfo'",
-    "copyfiles": "copyfiles -u 1 \"src/**/*.{html,css,scss,ttf,woff,woff2,eot,svg,jpg,png,json,md}\" dist/ && copyfiles -u 0 \"skills/**/*\" dist/",
+    "copyfiles": "copyfiles -u 1 \"src/**/*.{html,css,scss,ttf,woff,woff2,eot,svg,jpg,png,json,md}\" dist/ && copyfiles -u 0 \"skills/payload-markdown-docs/**/*\" dist/",
     "dev": "next dev dev --turbo",
     "dev:docs:keygen": "pnpm dev:payload run ./dev/scripts/create-docs-keypair.ts",
     "dev:docs:manifest": "pmdocs manifest ./dev/docs-fixtures/basic --source payload-markdown-docs --pretty",
@@ -75,6 +75,7 @@
     "prepack": "pnpm build",
     "test": "pnpm test:int && pnpm test:e2e",
     "test:e2e": "playwright test",
+    "sync:pm-skill": "node scripts/sync-payload-markdown-skill.mjs",
     "test:int": "vitest"
   },
   "devDependencies": {

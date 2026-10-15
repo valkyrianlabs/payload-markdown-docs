@@ -30,29 +30,22 @@ endif
 subdir('cli')
 
 if get_option('install_skill_data')
-  payload_markdown_skill_dir = 'node_modules' / '@valkyrianlabs' / 'payload-markdown' / 'skills' / 'payload-markdown'
-  companion_skill_option = get_option('companion_skill_data')
-  companion_skill_found = fs.exists(payload_markdown_skill_dir / 'codex' / 'SKILL.md')
-
-  if companion_skill_option.enabled() and not companion_skill_found
-    error(
-      'payload-markdown companion skill data was not found at '
-      + payload_markdown_skill_dir
-      + '. Run pnpm install before building the native pmdocs package, or pass -Dcompanion_skill_data=auto.'
-    )
-  endif
-
   install_subdir(
     'skills/payload-markdown-docs',
     install_dir: pmdocs_data_dir / 'skills',
   )
 
-  if companion_skill_found and not companion_skill_option.disabled()
+  # payload-markdown's own skill, vendored from the payload-markdown npm package by
+  # scripts/sync-payload-markdown-skill.mjs (checked against node_modules in CI), so every
+  # build, including Homebrew's from the source archive, bundles it.
+  if not get_option('companion_skill_data').disabled()
+    if not fs.exists('skills' / 'payload-markdown' / 'codex' / 'SKILL.md')
+      error('skills/payload-markdown is missing. Run pnpm sync:pm-skill, or pass -Dcompanion_skill_data=disabled.')
+    endif
+
     install_subdir(
-      payload_markdown_skill_dir,
+      'skills/payload-markdown',
       install_dir: pmdocs_data_dir / 'skills',
     )
-  elif not companion_skill_option.disabled()
-    warning('payload-markdown companion skill data not found; installing payload-markdown-docs skill data only.')
   endif
 endif
