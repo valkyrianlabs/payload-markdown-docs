@@ -3,7 +3,7 @@ import {
   PayloadMarkdownDocsPage,
   type PayloadMarkdownDocsReadPayload,
   resolvePayloadMarkdownDocsRoute,
-} from '@valkyrianlabs/payload-markdown-docs/next'
+} from '__PAYLOAD_MARKDOWN_DOCS__/next'
 import { notFound } from 'next/navigation'
 import { getPayload } from 'payload'
 

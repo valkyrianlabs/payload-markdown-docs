@@ -171,9 +171,18 @@ jobs:
   # Installs the packed plugin and the current payload-markdown main branch into a fresh
   # Next.js + Payload app the way the README instructs, syncs docs with pmdocs, and renders them
   # through the real core renderer. Catches cross-repo contract breaks that unit tests mock away.
+  # Both packages are published under two names; the app may install either of each.
   consumer-smoke:
-    name: Consumer smoke (pnpm install + next build + signed sync)
+    name: Consumer smoke (${{ matrix.docs }} + ${{ matrix.core }})
     needs: native-cli
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { docs: payload-markdown-docs, core: payload-markdown }
+          - { docs: '@valkyrianlabs/payload-markdown-docs', core: '@valkyrianlabs/payload-markdown' }
+          - { docs: payload-markdown-docs, core: '@valkyrianlabs/payload-markdown' }
+          - { docs: '@valkyrianlabs/payload-markdown-docs', core: payload-markdown }
     runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-latest' || fromJSON('["self-hosted","Linux","X64","ubuntu-latest-lts"]') }}
     defaults:
       run:
@@ -204,10 +213,15 @@ jobs:
           ls -l .ci/tarballs
 
       - name: Run consumer smoke
+        env:
+          CORE_NAME: ${{ matrix.core }}
+          DOCS_NAME: ${{ matrix.docs }}
         run: |
           set -euo pipefail
           node scripts/consumer-smoke/run.mjs \
             --core "$(ls .ci/tarballs/valkyrianlabs-payload-markdown-[0-9]*.tgz)" \
             --docs "$(ls .ci/tarballs/valkyrianlabs-payload-markdown-docs-*.tgz)" \
+            --core-name "$CORE_NAME" \
+            --docs-name "$DOCS_NAME" \
             --pmdocs .ci/bin/pmdocs \
             --workdir "$RUNNER_TEMP/consumer-smoke"

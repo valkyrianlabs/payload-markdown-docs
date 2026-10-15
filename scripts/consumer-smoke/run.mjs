@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// pnpm consumer smoke test for @valkyrianlabs/payload-markdown + @valkyrianlabs/payload-markdown-docs.
+// pnpm consumer smoke test for payload-markdown + payload-markdown-docs, under either npm name of
+// each (`--core-name`, `--docs-name`; the scoped names by default).
 //
 // Installs packed tarballs into a fresh Next.js + Payload app exactly as the README instructs, then:
 //   1. exactly one copy of core and of @payloadcms/ui is installed
@@ -10,7 +11,11 @@
 //
 // Usage:
 //   node scripts/consumer-smoke/run.mjs --core <core.tgz> --docs <docs.tgz> --pmdocs <path/to/pmdocs>
+//        [--core-name payload-markdown|@valkyrianlabs/payload-markdown]
+//        [--docs-name payload-markdown-docs|@valkyrianlabs/payload-markdown-docs]
 //        [--versions-from <dir with node_modules>] [--workdir <dir>] [--port 3990] [--keep]
+// A tarball packed under the other name is renamed first, the way vl-release derives the npm alias
+// (package.json "name" and dist/package.js).
 // Env: PNPM (default "pnpm"; e.g. "corepack pnpm").
 import { execFileSync, spawn } from 'node:child_process'
 import fs from 'node:fs'
@@ -31,13 +36,34 @@ const required = (name) => {
   return path.resolve(args[name])
 }
 
-const coreTarball = required('core')
-const docsTarball = required('docs')
+const coreName = args['core-name'] || '@valkyrianlabs/payload-markdown'
+const docsName = args['docs-name'] || '@valkyrianlabs/payload-markdown-docs'
 const pmdocs = args.pmdocs ? path.resolve(args.pmdocs) : 'pmdocs'
 const port = Number(args.port || 3990)
 const versionsFrom = path.resolve(args['versions-from'] || path.join(here, '..', '..'))
 const work = path.resolve(args.workdir || fs.mkdtempSync(path.join(os.tmpdir(), 'pmd-consumer-')))
 const [pnpmBin, ...pnpmPrefix] = (process.env.PNPM || 'pnpm').split(' ')
+
+/** The tarball under `name`: as is, or renamed like vlr derives an [[npm.aliases]] package. */
+const asPackage = (tarball, name) => {
+  const stage = fs.mkdtempSync(path.join(os.tmpdir(), 'pmd-rename-'))
+  execFileSync('tar', ['-xzf', tarball, '-C', stage])
+  const manifestPath = path.join(stage, 'package', 'package.json')
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'))
+  if (manifest.name === name) return tarball
+
+  fs.writeFileSync(manifestPath, fs.readFileSync(manifestPath, 'utf8').replace(`"name": "${manifest.name}"`, `"name": "${name}"`))
+  for (const member of ['dist/package.js', 'dist/package.js.map']) {
+    const file = path.join(stage, 'package', member)
+    if (fs.existsSync(file)) fs.writeFileSync(file, fs.readFileSync(file, 'utf8').split(manifest.name).join(name))
+  }
+  const out = fs.mkdtempSync(path.join(os.tmpdir(), 'pmd-renamed-'))
+  execFileSync('npm', ['pack', '--ignore-scripts', '--pack-destination', out], { cwd: path.join(stage, 'package'), stdio: 'pipe' })
+  return path.join(out, fs.readdirSync(out)[0])
+}
+
+const coreTarball = asPackage(required('core'), coreName)
+const docsTarball = asPackage(required('docs'), docsName)
 
 const results = []
 const check = (name, ok, detail = '') => {
@@ -60,9 +86,17 @@ const PEERS_AND_APP_DEPS = [
 ]
 
 fs.cpSync(path.join(here, 'template'), work, { recursive: true })
+// The template names both packages through placeholders.
+for (const file of fs.readdirSync(work, { recursive: true })) {
+  const full = path.join(work, file)
+  if (!fs.statSync(full).isFile() || !/\.(?:css|ts|tsx)$/.test(full)) continue
+  const text = fs.readFileSync(full, 'utf8')
+  const replaced = text.replaceAll('__PAYLOAD_MARKDOWN_DOCS__', docsName).replaceAll('__PAYLOAD_MARKDOWN__', coreName)
+  if (replaced !== text) fs.writeFileSync(full, replaced)
+}
 const dependencies = Object.fromEntries(PEERS_AND_APP_DEPS.map((pkg) => [pkg, args[`version:${pkg}`] || versionOf(pkg)]))
-dependencies['@valkyrianlabs/payload-markdown'] = `file:${coreTarball}`
-dependencies['@valkyrianlabs/payload-markdown-docs'] = `file:${docsTarball}`
+dependencies[coreName] = `file:${coreTarball}`
+dependencies[docsName] = `file:${docsTarball}`
 fs.writeFileSync(
   path.join(work, 'package.json'),
   `${JSON.stringify(
@@ -78,7 +112,7 @@ fs.writeFileSync(
     2,
   )}\n`,
 )
-console.log(`[smoke] workdir ${work}`)
+console.log(`[smoke] workdir ${work} (${docsName} + ${coreName})`)
 
 let server
 try {
@@ -88,7 +122,7 @@ try {
   check('install', true, peerIssues.length ? `peer warnings: ${peerIssues.join(' | ')}` : 'no peer warnings')
   const pnpmDir = path.join(work, 'node_modules', '.pnpm')
   const copies = (pattern) => fs.readdirSync(pnpmDir).filter((dir) => pattern.test(dir))
-  const coreCopies = copies(/^@valkyrianlabs\+payload-markdown@/)
+  const coreCopies = copies(/^(?:@valkyrianlabs\+)?payload-markdown@/)
   check('single payload-markdown copy', coreCopies.length === 1, coreCopies.join(', '))
   const uiCopies = copies(/^@payloadcms\+ui@/)
   check('single @payloadcms/ui copy', uiCopies.length === 1, uiCopies.join(', '))
@@ -110,7 +144,9 @@ try {
   })
   check(
     'import map resolves from the app root',
-    unresolved.length === 0 && specifiers.some((s) => s.startsWith('@valkyrianlabs/payload-markdown/')),
+    unresolved.length === 0 &&
+      specifiers.some((s) => s.startsWith(`${coreName}/`)) &&
+      specifiers.some((s) => s.startsWith(`${docsName}/`)),
     `${specifiers.length} specifiers${unresolved.length ? `; unresolved: ${unresolved.join(', ')}` : ''}`,
   )
 
