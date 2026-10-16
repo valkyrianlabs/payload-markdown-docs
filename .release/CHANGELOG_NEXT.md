@@ -7,3 +7,7 @@ Format: one "- " bullet per change (concise, technical). Indent continuation lin
 Optional "## Section" headings group bullets; if used, every bullet must be under one.
 One level of nested "  - " detail bullets is allowed. Consolidate; don't paste commit logs.
 -->
+
+- Depend on valkyrianlabs-archive-keyring so renewed APT signing-key metadata reaches existing installs
+  through upgrades (it owns /usr/share/keyrings/valkyrianlabs.gpg and links an unmodified
+  /etc/apt/keyrings/valkyrianlabs.gpg to it).
