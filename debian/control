@@ -21,7 +21,8 @@ Package: pmdocs
 Architecture: any
 Depends:
  ${misc:Depends},
- ${shlibs:Depends}
+ ${shlibs:Depends},
+ valkyrianlabs-archive-keyring,
 Description: native CLI for Payload Markdown Docs
  pmdocs is the system-level native command-line interface for
  payload-markdown-docs. It provides docs sync tooling for projects that do not
