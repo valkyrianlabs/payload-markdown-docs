@@ -109,6 +109,12 @@ jobs:
         id: state
         run: vlr status --github-output
 
+      # dpkg-buildpackage from the prepared tree (debian/changelog carries this release); the
+      # package bundles both skills and runs the meson tests. First among the artifact builds:
+      # `vlr build-deb` empties release/ (all but meta/) before building.
+      - name: Build the Debian package
+        run: vlr build-deb
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --prefer-offline --unsafe-perm
 
@@ -138,11 +144,6 @@ jobs:
           meson compile -C build-native
           meson test -C build-native --print-errorlogs
           ./build-native/cli/pmdocs --version
-
-      # dpkg-buildpackage from the prepared tree (debian/changelog carries this release); the
-      # package bundles both skills and runs the meson tests.
-      - name: Build the Debian package
-        run: vlr build-deb
 
       - name: Source archive and Homebrew formula
         run: |

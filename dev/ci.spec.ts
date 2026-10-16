@@ -97,6 +97,11 @@ describe('release (vl-release)', () => {
       expect(build).toContain(command)
     }
 
+    // `vlr build-deb` empties release/: every other artifact must be built after it.
+    for (const later of ['vlr build-npm', 'vlr source-archive', 'vlr homebrew formula']) {
+      expect(build.indexOf('vlr build-deb')).toBeLessThan(build.indexOf(later))
+    }
+
     // The Homebrew parity build uses only the source archive, outside any node_modules.
     expect(build).toMatch(/tar -xzf "release\/pmdocs-\$\{VERSION\}\.tar\.gz"/)
     expect(build).toMatch(/grep -F 'payload-markdown\/SKILL\.md'/)
