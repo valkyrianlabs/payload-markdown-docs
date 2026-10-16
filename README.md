@@ -54,7 +54,7 @@ sudo apt install -y pmdocs
 pmdocs --version
 ```
 
-The packages depend on `valkyrianlabs-archive-keyring`, which installs the repository key at
+The packages recommend `valkyrianlabs-archive-keyring` (APT installs it by default), which puts the repository key at
 `/usr/share/keyrings/valkyrianlabs.gpg` and keeps it current through normal upgrades (for example when its
 expiry changes). When the key downloaded above is unmodified, the package replaces it with a symlink to the
 packaged key, so the source line above keeps working and you never need to download the key again. Removing
