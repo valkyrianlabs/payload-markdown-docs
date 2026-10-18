@@ -1,0 +1,43 @@
+name: Homebrew
+
+# Builds and tests the pmdocs formula on macOS, from a source archive of this checkout, whenever
+# the native CLI, its bundled data or the formula changes. Runs on a GitHub-hosted macOS runner,
+# so it never waits for (or holds) the self-hosted runners that Build and Test uses.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'cli/**'
+      - 'contracts/**'
+      - 'skills/**'
+      - 'meson.build'
+      - 'meson.options'
+      - 'VERSION'
+      - 'homebrew/**'
+      - '.github/scripts/homebrew-local-install.sh'
+      - '.github/workflows/homebrew.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'cli/**'
+      - 'contracts/**'
+      - 'skills/**'
+      - 'meson.build'
+      - 'meson.options'
+      - 'VERSION'
+      - 'homebrew/**'
+      - '.github/scripts/homebrew-local-install.sh'
+      - '.github/workflows/homebrew.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  formula:
+    name: Homebrew formula (macOS)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Install the formula from a local tap and run its test block
+        run: bash .github/scripts/homebrew-local-install.sh

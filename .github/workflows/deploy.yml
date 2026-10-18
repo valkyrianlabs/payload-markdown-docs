@@ -9,149 +9,23 @@ on:
 permissions:
   contents: read
 
-# Every run step executes inside the disposable CI container: each job's default shell is
-# `./ci/run-ci` (rootless Podman; see ci/README.md and payload-markdown's ci/README.md), so no
-# job needs host sudo, host packages, Docker service containers or setup-* actions. Node, pnpm,
-# Playwright with Chromium, the native toolchain and vl-release come with ci/Containerfile.
+# Build once, test in parallel. The `build` job compiles everything exactly once (plugin dist/,
+# the consumer package, native pmdocs, payload-markdown for the consumer smoke) and uploads the
+# output; `tests` and `consumer-smoke` download it and run side by side on the two runners.
+# Nothing after `build` compiles anything.
+#
+# Every run step executes inside the disposable CI container: the default shell is `./ci/run-ci`
+# (rootless Podman; see ci/README.md and payload-markdown's ci/README.md), so no step needs host
+# sudo, host packages, Docker service containers or setup-* actions. Node, pnpm, Playwright with
+# Chromium, the native toolchain and vl-release come with ci/Containerfile. Steps that need a
+# database use `./ci/run-ci --postgres` for a throwaway Postgres (tmpfs) in the same pod.
 #
 # Runners: pushes and pull requests from branches of this repository run on the self-hosted
 # runner; pull requests from forks (untrusted code that could also rewrite this file) run on
 # GitHub-hosted runners, which build the same container.
 jobs:
-  build-and-test:
-    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-latest' || fromJSON('["self-hosted","Linux","X64","ubuntu-latest-lts"]') }}
-    defaults:
-      run:
-        shell: bash ./ci/run-ci bash -euo pipefail {0}
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-
-      # Reject invalid workflow files (unknown contexts, bad expressions) before they reach main;
-      # GitHub otherwise reports them only as a failed run with no jobs.
-      - name: Lint workflows
-        run: |
-          bash <(curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/v1.7.7/scripts/download-actionlint.bash) 1.7.7
-          ./actionlint -color -shellcheck=
-
-      - name: Install dependencies
-        run: |
-          pnpm install --frozen-lockfile --prefer-offline --unsafe-perm
-
-      - name: Lint
-        run: pnpm lint
-
-      - name: Build
-        run: |
-          export NEXT_CPU_COUNT=$(nproc)
-          pnpm build
-
-      - name: Typecheck dev app
-        run: pnpm exec tsc -p dev/tsconfig.json --noEmit --incremental false --composite false
-
-      - name: Run tests
-        run: |
-          set -euo pipefail
-          pnpm test:int
-
-      # Rehearses the dual npm publication: packs dist/, derives the unscoped payload-markdown-docs
-      # tarball like vlr does, and checks both names (same files, every export and its types).
-      - name: Verify both npm packages
-        run: node scripts/verify-npm-packages.mjs --pack
-
-  # The bugs that mattered (draft leaks, unique-route sync failures, access defaults) were only
-  # visible with real Payload + Postgres semantics, so the DB-backed suite runs on every change.
-  db-tests:
-    name: Postgres-backed tests
-    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-latest' || fromJSON('["self-hosted","Linux","X64","ubuntu-latest-lts"]') }}
-    defaults:
-      run:
-        shell: bash ./ci/run-ci bash -euo pipefail {0}
-    env:
-      PAYLOAD_SECRET: ci-secret
-      PAYLOAD_MARKDOWN_DOCS_RUN_DB_TESTS: '1'
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-
-      - name: Install dependencies
-        run: |
-          pnpm install --frozen-lockfile --prefer-offline --unsafe-perm
-
-      - name: Build
-        run: pnpm build
-
-      - name: Run tests against Postgres
-        shell: bash ./ci/run-ci --postgres bash -euo pipefail {0}
-        run: pnpm test:int
-
-  e2e:
-    name: Playwright e2e
-    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-latest' || fromJSON('["self-hosted","Linux","X64","ubuntu-latest-lts"]') }}
-    defaults:
-      run:
-        shell: bash ./ci/run-ci bash -euo pipefail {0}
-    env:
-      PAYLOAD_SECRET: ci-secret
-      DOCS_SYNC_KEY_ID: dev-local
-      PORT: '3100'
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-
-      - name: Install dependencies
-        run: |
-          pnpm install --frozen-lockfile --prefer-offline --unsafe-perm
-
-      - name: Build
-        run: pnpm build
-
-      # Chromium and its OS dependencies come with the container image; the step gets its own
-      # throwaway Postgres (tmpfs) in the same pod.
-      - name: Run Playwright
-        shell: bash ./ci/run-ci --postgres bash -euo pipefail {0}
-        run: pnpm test:e2e --reporter=line
-
-  native-cli:
-    name: Native CLI
-    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-latest' || fromJSON('["self-hosted","Linux","X64","ubuntu-latest-lts"]') }}
-    defaults:
-      run:
-        shell: bash ./ci/run-ci bash -euo pipefail {0}
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-
-      - name: Build and test native CLI
-        run: |
-          set -euo pipefail
-          meson setup build-native -Dinstall_skill_data=false
-          meson compile -C build-native
-          meson test -C build-native --print-errorlogs
-
-      # `pmdocs doctor` reports `degraded` (exit 1) when bundled skill data is missing, so the
-      # install smoke uses a build that bundles it, like the Debian and Homebrew packages do.
-      - name: Smoke test Meson install
-        run: |
-          set -euo pipefail
-          meson setup build-install -Dinstall_skill_data=true
-          meson compile -C build-install
-          meson install -C build-install --destdir "$PWD/stage-native"
-          # Outside the repository, so both skills must come from the installed data.
-          stage="$PWD/stage-native"
-          cd "$(mktemp -d)"
-          export PMDOCS_DATA_DIR="$stage/usr/local/share/pmdocs"
-          "$stage/usr/local/bin/pmdocs" doctor
-          "$stage/usr/local/bin/pmdocs" install skill --agent codex
-          "$stage/usr/local/bin/pmdocs" skill check
-
-      - name: Upload pmdocs for the consumer smoke test
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: pmdocs-ci
-          path: build-native/cli/pmdocs
-          if-no-files-found: error
-
-  # The vl-release contract (release.toml, staged release docs, versions) and the agent skill it
-  # installs, so a broken release is caught here rather than on the tag.
-  release-contract:
-    name: Release contract
+  build:
+    name: Build
     runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-latest' || fromJSON('["self-hosted","Linux","X64","ubuntu-latest-lts"]') }}
     defaults:
       run:
@@ -161,6 +35,21 @@ jobs:
         with:
           fetch-depth: 0
 
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          repository: valkyrianlabs/payload-markdown
+          ref: main
+          path: .ci/payload-markdown
+
+      # Reject invalid workflow files (unknown contexts, bad expressions) before they reach main;
+      # GitHub otherwise reports them only as a failed run with no jobs.
+      - name: Lint workflows
+        run: |
+          bash <(curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/v1.7.7/scripts/download-actionlint.bash) 1.7.7
+          ./actionlint -color -shellcheck=
+
+      # The vl-release contract (release.toml, staged release docs, versions), so a broken
+      # release is caught here rather than on the tag.
       - name: Check the release contract
         run: |
           vlr check
@@ -168,21 +57,98 @@ jobs:
           vlr release-title --staged
           vlr release-body --staged > /dev/null
 
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --prefer-offline --unsafe-perm
+
+      # The only compilation in this workflow, in three parallel lanes. Lint runs before the plugin
+      # build in the same lane, so it never type-checks a half-written dist/. The native build
+      # bundles the skill data, so the install smoke below can use it as is (`pmdocs doctor`
+      # needs it). payload-markdown is built from a copy outside this repository: a pnpm install
+      # nested inside this pnpm workspace replaces the workspace's own node_modules.
+      - name: Lint and build
+        run: |
+          export NEXT_CPU_COUNT=$(nproc)
+          ci/run-parallel \
+            'plugin::pnpm lint && pnpm build && pnpm --filter ./packages/consumer build && pnpm exec tsc -p dev/tsconfig.json --noEmit --incremental false --composite false' \
+            'native::meson setup build-native -Dinstall_skill_data=true && meson compile -C build-native' \
+            'payload-markdown::out="$PWD/build/payload-markdown" && mkdir -p "$out" && cp -a .ci/payload-markdown "$RUNNER_TEMP/" && cd "$RUNNER_TEMP/payload-markdown" && pnpm install --frozen-lockfile && pnpm build && npm pack --ignore-scripts --pack-destination "$out"'
+
+      - name: Native CLI tests
+        run: meson test -C build-native --print-errorlogs
+
+      - name: Native CLI install smoke
+        run: |
+          meson install -C build-native --no-rebuild --destdir "$PWD/stage-native"
+          # Outside the repository, so both skills must come from the installed data.
+          stage="$PWD/stage-native"
+          cd "$(mktemp -d)"
+          export PMDOCS_DATA_DIR="$stage/usr/local/share/pmdocs"
+          "$stage/usr/local/bin/pmdocs" doctor
+          "$stage/usr/local/bin/pmdocs" install skill --agent codex
+          "$stage/usr/local/bin/pmdocs" skill check
+
+      # Packs the built dist/ (no rebuild), derives the unscoped payload-markdown-docs tarball
+      # like vlr does, and checks both names (same files, every export and its types); packs the
+      # consumer package and imports it with nothing else installed. The tarballs land in
+      # build/npm-packages/ for the consumer smoke.
+      - name: Verify the npm packages
+        run: node scripts/verify-npm-packages.mjs --pack
+
+      - name: Upload the build
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ci-build
+          path: |
+            dist
+            packages/consumer/dist
+            build-native/cli/pmdocs
+            build/npm-packages
+            build/payload-markdown
+          if-no-files-found: error
+          retention-days: 1
+
+  # The whole vitest suite, including the DB-backed specs (the bugs that mattered, such as
+  # draft leaks, unique-route sync failures and access defaults, were only visible with real
+  # Payload + Postgres semantics), then Playwright, against the built dist/.
+  tests:
+    name: Tests (Postgres, Playwright)
+    needs: build
+    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-latest' || fromJSON('["self-hosted","Linux","X64","ubuntu-latest-lts"]') }}
+    defaults:
+      run:
+        shell: bash ./ci/run-ci bash -euo pipefail {0}
+    env:
+      PAYLOAD_SECRET: ci-secret
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ci-build
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --prefer-offline --unsafe-perm
+
+      - name: Vitest (Postgres)
+        shell: bash ./ci/run-ci --postgres bash -euo pipefail {0}
+        env:
+          PAYLOAD_MARKDOWN_DOCS_RUN_DB_TESTS: '1'
+        run: pnpm test:int
+
+      - name: Playwright e2e
+        shell: bash ./ci/run-ci --postgres bash -euo pipefail {0}
+        env:
+          DOCS_SYNC_KEY_ID: dev-local
+          PORT: '3100'
+        run: pnpm test:e2e --reporter=line
+
   # Installs the packed plugin and the current payload-markdown main branch into a fresh
   # Next.js + Payload app the way the README instructs, syncs docs with pmdocs, and renders them
-  # through the real core renderer. Catches cross-repo contract breaks that unit tests mock away.
-  # Both packages are published under two names; the app may install either of each.
+  # through the real core renderer. Both packages are published under two names; all four
+  # combinations run at once (own app, own port) from the tarballs `build` packed.
   consumer-smoke:
-    name: Consumer smoke (${{ matrix.docs }} + ${{ matrix.core }})
-    needs: native-cli
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - { docs: payload-markdown-docs, core: payload-markdown }
-          - { docs: '@valkyrianlabs/payload-markdown-docs', core: '@valkyrianlabs/payload-markdown' }
-          - { docs: payload-markdown-docs, core: '@valkyrianlabs/payload-markdown' }
-          - { docs: '@valkyrianlabs/payload-markdown-docs', core: payload-markdown }
+    name: Consumer smoke (all package names)
+    needs: build
     runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-latest' || fromJSON('["self-hosted","Linux","X64","ubuntu-latest-lts"]') }}
     defaults:
       run:
@@ -190,38 +156,28 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-        with:
-          repository: valkyrianlabs/payload-markdown
-          ref: main
-          path: .ci/payload-markdown
-
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          name: pmdocs-ci
-          path: .ci/bin
+          name: ci-build
 
-      - name: Pack payload-markdown and payload-markdown-docs
-        run: |
-          set -euo pipefail
-          mkdir -p .ci/tarballs
-          (cd .ci/payload-markdown && pnpm install --frozen-lockfile && pnpm build && npm pack --ignore-scripts --pack-destination ../tarballs)
-          pnpm install --frozen-lockfile --prefer-offline --unsafe-perm
-          pnpm build
-          npm pack --ignore-scripts --pack-destination .ci/tarballs
-          chmod +x .ci/bin/pmdocs
-          ls -l .ci/tarballs
+      # The smoke app pins its Payload and Next.js versions to this workspace's.
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --prefer-offline --unsafe-perm
 
-      - name: Run consumer smoke
-        env:
-          CORE_NAME: ${{ matrix.core }}
-          DOCS_NAME: ${{ matrix.docs }}
+      - name: Consumer smoke
         run: |
-          set -euo pipefail
-          node scripts/consumer-smoke/run.mjs \
-            --core "$(ls .ci/tarballs/valkyrianlabs-payload-markdown-[0-9]*.tgz)" \
-            --docs "$(ls .ci/tarballs/valkyrianlabs-payload-markdown-docs-*.tgz)" \
-            --core-name "$CORE_NAME" \
-            --docs-name "$DOCS_NAME" \
-            --pmdocs .ci/bin/pmdocs \
-            --workdir "$RUNNER_TEMP/consumer-smoke"
+          chmod +x build-native/cli/pmdocs
+          version="$(node -p "require('./package.json').version")"
+          smoke() {
+            local docs=$1 core=$2 port=$3
+            printf "%s::node scripts/consumer-smoke/run.mjs --core %q --docs %q --docs-name %q --core-name %q --pmdocs build-native/cli/pmdocs --port %s --workdir %q" \
+              "$docs + $core" \
+              "$(ls build/payload-markdown/valkyrianlabs-payload-markdown-[0-9]*.tgz)" \
+              "build/npm-packages/valkyrianlabs-payload-markdown-docs-${version}.tgz" \
+              "$docs" "$core" "$port" "$RUNNER_TEMP/consumer-smoke-$port"
+          }
+          ci/run-parallel \
+            "$(smoke payload-markdown-docs payload-markdown 3990)" \
+            "$(smoke @valkyrianlabs/payload-markdown-docs @valkyrianlabs/payload-markdown 3991)" \
+            "$(smoke payload-markdown-docs @valkyrianlabs/payload-markdown 3992)" \
+            "$(smoke @valkyrianlabs/payload-markdown-docs payload-markdown 3993)"

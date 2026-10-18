@@ -26,7 +26,8 @@ The root export also includes public plugin config types such as
 `PayloadMarkdownDocsSyncConfig`, `PayloadMarkdownDocsTargetConfig`,
 `PayloadMarkdownDocsRoutingConfig`, `PayloadMarkdownDocsCollectionsConfig`,
 `PayloadMarkdownDocsCollectionConfig`, `PayloadMarkdownDocsEndpointConfig`,
-`PayloadMarkdownDocsPagesRoutingConfig`,
+`PayloadMarkdownDocsPagesRoutingConfig`, `PayloadMarkdownDocsPublicApiConfig`,
+`PayloadMarkdownDocsPublicApiEndpointConfig`,
 `PayloadMarkdownDocsSyncRevalidateConfig`, `DocsBlockInstallSelection`,
 `DocsCollectionInstallConfig`, and `DocsMarketingBlockKey`, plus
 `PAYLOAD_MARKDOWN_DOCS_NAV_CACHE_TAG` (also exported from `/next`).
@@ -119,3 +120,10 @@ manifest builders are internal package implementation details.
 
 The CLI is the sync API for v1. The package does not expose a public `/sync`
 SDK subpath.
+
+## Consumer package
+
+`@valkyrianlabs/payload-markdown-docs-consumer` is a separate package for other
+sites. It has no dependencies, and exports `createDocsProjectsClient`, the wire
+types and parsers of the [projects API](/reference/projects-api), and the
+stack helpers `flattenStack` and `formatStackCategory`.

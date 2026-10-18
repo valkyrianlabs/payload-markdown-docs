@@ -1,0 +1,76 @@
+# Project metadata for the payload-markdown-docs docs set: synced by pmdocs, shown on preview
+# cards and in the public projects API. Maintained alongside the code (see the
+# payload-markdown-docs agent skill, reference/stack-toml.md).
+
+[project]
+title = "Payload Markdown Docs"
+description = "Git-backed Markdown documentation sync for Payload CMS, powered by payload-markdown."
+
+[[stack.languages]]
+name = "TypeScript"
+
+[[stack.languages]]
+name = "C++23"
+
+[[stack.frameworks]]
+name = "Payload CMS"
+
+[[stack.frameworks]]
+name = "Next.js"
+
+[[stack.frameworks]]
+name = "React"
+
+[[stack.libraries]]
+name = "payload-markdown"
+
+[[stack.libraries]]
+name = "Zod"
+
+[[stack.libraries]]
+name = "CLI11"
+
+[[stack.libraries]]
+name = "nlohmann/json"
+
+[[stack.libraries]]
+name = "toml++"
+
+[[stack.libraries]]
+name = "libcurl"
+
+[[stack.libraries]]
+name = "OpenSSL"
+
+[[stack.security]]
+name = "Ed25519"
+
+[[stack.security]]
+name = "GitHub OIDC"
+
+[[stack.tooling]]
+name = "Meson"
+
+[[stack.tooling]]
+name = "pnpm"
+
+[[stack.tooling]]
+name = "Vitest"
+
+[[stack.tooling]]
+name = "Playwright"
+
+[[stack.tooling]]
+name = "doctest"
+
+[[stack.distribution]]
+name = "npm"
+
+[[stack.distribution]]
+name = "Debian"
+
+[[stack.distribution]]
+name = "Homebrew"
+
+[[stack.distribution]]
+name = "GitHub Actions"

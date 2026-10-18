@@ -495,8 +495,24 @@ export interface DocsSet {
    */
   allowPullRequests?: boolean | null;
   publishedAt?: string | null;
+  /**
+   * When off, the title and description come from [project] in docs/stack.toml on every sync (when the file sets them). Docs sets created before this option existed start with it on.
+   */
+  manualTitleDescription?: boolean | null;
   title: string;
   description?: string | null;
+  /**
+   * Technology stack synced from docs/stack.toml by pmdocs. Edit the file in the repository, not this field.
+   */
+  stack?:
+    | {
+        [k: string]: unknown;
+      }
+    | unknown[]
+    | string
+    | number
+    | boolean
+    | null;
   meta?: {
     title?: string | null;
     description?: string | null;
@@ -542,6 +558,14 @@ export interface DocsSet {
   sync?: {
     lastSyncedAt?: string | null;
     lastStatus?: ('failed' | 'pending' | 'success') | null;
+    /**
+     * Title from docs/stack.toml at the last sync.
+     */
+    projectTitle?: string | null;
+    /**
+     * Description from docs/stack.toml at the last sync.
+     */
+    projectDescription?: string | null;
   };
   updatedAt: string;
   createdAt: string;
@@ -1471,8 +1495,10 @@ export interface DocsSetsSelect<T extends boolean = true> {
   branch?: T;
   allowPullRequests?: T;
   publishedAt?: T;
+  manualTitleDescription?: T;
   title?: T;
   description?: T;
+  stack?: T;
   meta?:
     | T
     | {
@@ -1503,6 +1529,8 @@ export interface DocsSetsSelect<T extends boolean = true> {
     | {
         lastSyncedAt?: T;
         lastStatus?: T;
+        projectTitle?: T;
+        projectDescription?: T;
       };
   updatedAt?: T;
   createdAt?: T;

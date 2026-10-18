@@ -1877,6 +1877,203 @@
         ],
         "warnings": []
       }
+    },
+    {
+      "name": "project metadata is validated and normalized",
+      "manifest": {
+        "version": 1,
+        "source": {
+          "id": "main-docs"
+        },
+        "files": [
+          {
+            "content": "# Home\n",
+            "path": "index.md",
+            "sha256": "7d48eefbcff2495cc4b0cd99ea783bbc46184d78af064c56e1a7dc7ae9dba3aa"
+          }
+        ],
+        "project": {
+          "title": " Vaulthalla ",
+          "stack": [
+            {
+              "category": "languages",
+              "items": [
+                {
+                  "name": "C++23"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "options": {
+        "routeBase": "/main-docs",
+        "assetRouteBase": "/plugins/main-docs"
+      },
+      "expect": {
+        "ok": true,
+        "issues": [],
+        "warnings": [],
+        "files": [
+          {
+            "path": "index.md",
+            "route": "/main-docs",
+            "title": "Home"
+          }
+        ],
+        "assets": [],
+        "routeCollisions": [],
+        "project": {
+          "title": "Vaulthalla",
+          "stack": [
+            {
+              "category": "languages",
+              "items": [
+                {
+                  "name": "C++23"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "unknown project fields warn (newer client, older contract)",
+      "manifest": {
+        "version": 1,
+        "source": {
+          "id": "main-docs"
+        },
+        "files": [
+          {
+            "content": "# Home\n",
+            "path": "index.md",
+            "sha256": "7d48eefbcff2495cc4b0cd99ea783bbc46184d78af064c56e1a7dc7ae9dba3aa"
+          }
+        ],
+        "project": {
+          "stack": [
+            {
+              "category": "languages",
+              "items": [
+                {
+                  "name": "Go",
+                  "url": "https://go.dev"
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "options": {
+        "routeBase": "/main-docs",
+        "assetRouteBase": "/plugins/main-docs"
+      },
+      "expect": {
+        "ok": true,
+        "issues": [],
+        "warnings": [
+          {
+            "code": "unknown_project_field",
+            "path": "stack.languages[0].url"
+          }
+        ],
+        "files": [
+          {
+            "path": "index.md",
+            "route": "/main-docs",
+            "title": "Home"
+          }
+        ],
+        "assets": [],
+        "routeCollisions": [],
+        "project": {
+          "stack": [
+            {
+              "category": "languages",
+              "items": [
+                {
+                  "name": "Go"
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "invalid project metadata rejects the manifest",
+      "manifest": {
+        "version": 1,
+        "source": {
+          "id": "main-docs"
+        },
+        "files": [
+          {
+            "content": "# Home\n",
+            "path": "index.md",
+            "sha256": "7d48eefbcff2495cc4b0cd99ea783bbc46184d78af064c56e1a7dc7ae9dba3aa"
+          }
+        ],
+        "project": {
+          "stack": [
+            {
+              "category": "languages",
+              "items": [
+                {
+                  "name": ""
+                }
+              ]
+            }
+          ]
+        }
+      },
+      "options": {
+        "routeBase": "/main-docs",
+        "assetRouteBase": "/plugins/main-docs"
+      },
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "invalid_stack_item",
+            "path": "stack.languages[0].name"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "project must be an object",
+      "manifest": {
+        "version": 1,
+        "source": {
+          "id": "main-docs"
+        },
+        "files": [
+          {
+            "content": "# Home\n",
+            "path": "index.md",
+            "sha256": "7d48eefbcff2495cc4b0cd99ea783bbc46184d78af064c56e1a7dc7ae9dba3aa"
+          }
+        ],
+        "project": null
+      },
+      "options": {
+        "routeBase": "/main-docs",
+        "assetRouteBase": "/plugins/main-docs"
+      },
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "invalid_project",
+            "path": "project"
+          }
+        ],
+        "warnings": []
+      }
     }
   ]
 }

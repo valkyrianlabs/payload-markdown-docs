@@ -32,7 +32,9 @@ import {
 } from './constants.js'
 import {
   createDocsAssetsEndpoints,
+  createDocsProjectsEndpoints,
   createSyncEndpoint,
+  DEFAULT_DOCS_PROJECTS_ENDPOINT_PATH,
 } from './endpoints/index.js'
 import { installDocsMarketingBlocks } from './install/blocks.js'
 import { installDocsHeroFields } from './install/heroes.js'
@@ -307,6 +309,16 @@ export const payloadMarkdownDocs =
     const endpointPath = normalizeEndpointPath(
       pluginOptions.endpoint?.path ?? DEFAULT_DOCS_SYNC_ENDPOINT_PATH,
     )
+    const projectsApiConfig = pluginOptions.publicApi?.projects
+    const projectsApi = {
+      enabled:
+        projectsApiConfig === true ||
+        (typeof projectsApiConfig === 'object' && projectsApiConfig.enabled !== false),
+      path: normalizeEndpointPath(
+        (typeof projectsApiConfig === 'object' ? projectsApiConfig.path : undefined) ??
+          DEFAULT_DOCS_PROJECTS_ENDPOINT_PATH,
+      ),
+    }
 
     const collectionSlugsToAdd = [
       ...(docsGroupsEnabled ? [docsGroupsCollectionSlug] : []),
@@ -532,6 +544,14 @@ export const payloadMarkdownDocs =
           syncRunsCollectionSlug,
           syncRunsEnabled,
         }),
+        ...(docsSetsEnabled && projectsApi.enabled
+          ? createDocsProjectsEndpoints({
+              docsGroupsCollectionSlug,
+              docsSetsCollectionSlug,
+              path: projectsApi.path,
+              trustForwardedHeaders: pluginOptions.endpoint?.trustForwardedHeaders === true,
+            })
+          : []),
         ...createDocsAssetsEndpoints({
           docsAssetsCollectionSlug,
           docsAssetsEnabled,

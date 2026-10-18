@@ -17,6 +17,8 @@ class Pmdocs < Formula
   depends_on "pkgconf" => :build
   depends_on "curl"
   depends_on "openssl@3"
+  # Built as a shared library by the formula (bottles carry a dylib), so a runtime dependency.
+  depends_on "tomlplusplus"
 
   def install
     # The source archive carries both skills: payload-markdown-docs and the

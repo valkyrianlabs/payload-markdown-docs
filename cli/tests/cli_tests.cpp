@@ -1668,3 +1668,196 @@ TEST_CASE("doctor reports missing skill data as degraded with a non-zero exit") 
     CHECK(full.stdout_text.find("diagnostics:") == std::string::npos);
   }
 }
+
+namespace {
+
+constexpr std::string_view kStackToml = R"([project]
+title = "Vaulthalla"
+
+[[stack.languages]]
+name = "C++23"
+
+[[stack.libraries]]
+name = "libpqxx"
+)";
+
+} // namespace
+
+TEST_CASE("stack.toml adds project metadata to the manifest right after source") {
+  TempDir temp{"pmdocs-test-stack-manifest"};
+  const auto root = temp.path() / "docs";
+  const auto root_string = root.string();
+  write_text(root / "index.md", "# Home\n");
+
+  const auto without = pmdocs::run(args({"manifest", root_string, "--source", "main-docs", "--no-skills"}));
+  REQUIRE(without.exit_code == 0);
+  CHECK(without.stdout_text.find("\"project\"") == std::string::npos);
+
+  write_text(root / "stack.toml", kStackToml);
+  const auto with = pmdocs::run(args({"manifest", root_string, "--source", "main-docs", "--no-skills"}));
+  REQUIRE(with.exit_code == 0);
+  CHECK(with.stdout_text.find(R"("source":{"id":"main-docs"},"project":{"title":"Vaulthalla","stack":[{"category":"languages","items":[{"name":"C++23"}]},{"category":"libraries","items":[{"name":"libpqxx"}]}]},)") != std::string::npos);
+
+  const auto manifest = nlohmann::json::parse(with.stdout_text);
+  CHECK(manifest["files"].size() == 1);
+  CHECK(manifest["files"][0]["path"] == "index.md");
+}
+
+TEST_CASE("stack.toml is never a docs page and adds no skipped-path warning") {
+  TempDir temp{"pmdocs-test-stack-not-a-page"};
+  const auto root = temp.path() / "docs";
+  const auto root_string = root.string();
+  write_text(root / "index.md", "# Home\n");
+  write_text(root / "stack.toml", kStackToml);
+
+  const auto result = pmdocs::run(args({"validate", root_string, "--source", "main-docs", "--no-skills", "--json"}));
+  REQUIRE(result.exit_code == 0);
+
+  const auto output = nlohmann::json::parse(result.stdout_text);
+  CHECK(output["fileCount"] == 1);
+  CHECK(output["validation"]["warnings"].empty());
+  CHECK(output["package"]["stackToml"] == "present");
+  CHECK(output["project"]["title"] == true);
+  CHECK(output["project"]["description"] == false);
+  CHECK(output["project"]["technologies"] == 2);
+  CHECK(output["validation"]["data"]["project"]["stack"].size() == 2);
+
+  for (const auto& file : output["validation"]["data"]["files"]) {
+    CHECK(file["path"] != "stack.toml");
+  }
+
+  const auto text = pmdocs::run(args({"validate", root_string, "--source", "main-docs", "--no-skills"}));
+  CHECK(text.stdout_text.find("stack.toml: present (title, 2 technologies in 2 categories)\nStack: languages (1), libraries (1)\n") != std::string::npos);
+
+  const auto plan = pmdocs::run(args({"plan", root_string, "--source", "main-docs", "--no-skills"}));
+  REQUIRE(plan.exit_code == 0);
+  CHECK(plan.stdout_text.find("stack.toml: present") != std::string::npos);
+}
+
+TEST_CASE("validate reports missing, empty and invalid stack.toml") {
+  TempDir temp{"pmdocs-test-stack-invalid"};
+  const auto root = temp.path() / "docs";
+  const auto root_string = root.string();
+  write_text(root / "index.md", "# Home\n");
+
+  const auto missing = pmdocs::run(args({"validate", root_string, "--source", "main-docs", "--no-skills"}));
+  CHECK(missing.exit_code == 0);
+  CHECK(missing.stdout_text.find("stack.toml: missing\n") != std::string::npos);
+
+  write_text(root / "stack.toml", "[stack]\n");
+  const auto empty = pmdocs::run(args({"validate", root_string, "--source", "main-docs", "--no-skills"}));
+  CHECK(empty.exit_code == 0);
+  CHECK(empty.stdout_text.find("stack.toml: present (empty stack, clears the synchronized stack)") != std::string::npos);
+
+  write_text(root / "stack.toml", "[project]\ntitle = \"Only a title\"\n");
+  const auto no_stack = pmdocs::run(args({"validate", root_string, "--source", "main-docs", "--no-skills", "--json"}));
+  CHECK(no_stack.exit_code == 0);
+  const auto no_stack_output = nlohmann::json::parse(no_stack.stdout_text);
+  REQUIRE(no_stack_output["validation"]["warnings"].size() == 1);
+  CHECK(no_stack_output["validation"]["warnings"][0]["code"] == "missing_stack");
+  CHECK(no_stack_output["validation"]["warnings"][0]["path"] == "stack.toml");
+
+  write_text(root / "stack.toml", "[[stack.languages]]\nname = \"\"\n\n[stack.tooling]\nname = \"Meson\"\n");
+  const auto invalid = pmdocs::run(args({"validate", root_string, "--source", "main-docs", "--no-skills"}));
+  CHECK(invalid.exit_code == 1);
+  CHECK(invalid.stdout_text.find("stack.toml: invalid\n") != std::string::npos);
+  CHECK(invalid.stdout_text.find("- stack.toml: stack.languages[0].name must not be empty.") != std::string::npos);
+  CHECK(invalid.stdout_text.find("[[stack.tooling]]") != std::string::npos);
+
+  const auto manifest = pmdocs::run(args({"manifest", root_string, "--source", "main-docs", "--no-skills"}));
+  CHECK(manifest.exit_code == 1);
+
+  write_text(root / "stack.toml", "[[stack.languages]\n");
+  const auto syntax = pmdocs::run(args({"validate", root_string, "--source", "main-docs", "--no-skills"}));
+  CHECK(syntax.exit_code == 1);
+  CHECK(syntax.stdout_text.find("- stack.toml: stack.toml is not valid TOML (line 1, column") != std::string::npos);
+
+  write_text(root / "stack.toml", std::string{"[project]\ntitle = \"\xff\"\n"});
+  const auto encoding = pmdocs::run(args({"validate", root_string, "--source", "main-docs", "--no-skills"}));
+  CHECK(encoding.exit_code == 1);
+  CHECK(encoding.stdout_text.find("stack.toml is not valid UTF-8") != std::string::npos);
+}
+
+TEST_CASE("a symlinked stack.toml is not followed") {
+  TempDir temp{"pmdocs-test-stack-symlink"};
+  const auto root = temp.path() / "docs";
+  const auto root_string = root.string();
+  write_text(root / "index.md", "# Home\n");
+  write_text(temp.path() / "elsewhere.toml", kStackToml);
+  std::filesystem::create_symlink(temp.path() / "elsewhere.toml", root / "stack.toml");
+
+  const auto result = pmdocs::run(args({"validate", root_string, "--source", "main-docs", "--no-skills", "--json"}));
+  REQUIRE(result.exit_code == 0);
+  const auto output = nlohmann::json::parse(result.stdout_text);
+  CHECK(output["package"]["stackToml"] == "missing");
+  CHECK(output["project"].is_null());
+  REQUIRE(output["validation"]["warnings"].size() == 1);
+  CHECK(output["validation"]["warnings"][0]["path"] == "stack.toml");
+}
+
+TEST_CASE("push reports the server's project metadata result") {
+  TempDir temp{"pmdocs-test-push-project"};
+  const auto root = temp.path() / "docs";
+  const auto root_string = root.string();
+  write_text(root / "index.md", "# Home\n");
+  write_text(root / "stack.toml", kStackToml);
+  EnvGuard oidc{"PMDOCS_TEST_OIDC_TOKEN", "oidc-token"};
+  SingleRequestServer server{
+    200,
+    R"({"ok":true,"summary":{"update":1},"project":{"applied":true,"stack":"updated","title":"manual","description":"not_provided"}})",
+  };
+
+  const auto result = pmdocs::run(args({"push", root_string, "--endpoint", server.url(), "--source", "main-docs", "--github-oidc", "--oidc-token-env", "PMDOCS_TEST_OIDC_TOKEN", "--no-skills"}));
+  CHECK(result.exit_code == 0);
+  CHECK(result.stdout_text.find("Project metadata: stack updated, title manual, description not_provided\n") != std::string::npos);
+  CHECK(result.stderr_text.find("predates project metadata") == std::string::npos);
+
+  const auto request = server.captured_request();
+  CHECK(request.find(R"("source":{"id":"main-docs"},"project":{"title":"Vaulthalla")") != std::string::npos);
+}
+
+TEST_CASE("push warns when an older server ignores stack.toml") {
+  TempDir temp{"pmdocs-test-push-project-old"};
+  const auto root = temp.path() / "docs";
+  const auto root_string = root.string();
+  write_text(root / "index.md", "# Home\n");
+  write_text(root / "stack.toml", kStackToml);
+  EnvGuard oidc{"PMDOCS_TEST_OIDC_TOKEN", "oidc-token"};
+
+  {
+    SingleRequestServer server{200, R"({"ok":true,"summary":{"update":1}})"};
+    const auto result = pmdocs::run(args({"push", root_string, "--endpoint", server.url(), "--source", "main-docs", "--github-oidc", "--oidc-token-env", "PMDOCS_TEST_OIDC_TOKEN", "--no-skills"}));
+    CHECK(result.exit_code == 0);
+    CHECK(result.stdout_text.find("Project metadata: not synchronized (server too old)") != std::string::npos);
+    CHECK(result.stderr_text.find("predates project metadata support (payload-markdown-docs < 1.3.0)") != std::string::npos);
+    CHECK(result.stderr_text.find("were NOT") != std::string::npos);
+    (void)server.captured_request();
+  }
+
+  {
+    SingleRequestServer server{200, R"({"ok":true,"summary":{"update":1}})"};
+    const auto result = pmdocs::run(args({"push", root_string, "--endpoint", server.url(), "--source", "main-docs", "--github-oidc", "--oidc-token-env", "PMDOCS_TEST_OIDC_TOKEN", "--no-skills", "--json"}));
+    CHECK(result.exit_code == 0);
+    const auto output = nlohmann::json::parse(result.stdout_text);
+    CHECK(output["project"]["sent"] == true);
+    CHECK(output["project"]["acknowledged"] == false);
+    REQUIRE(output["warnings"].size() == 1);
+    CHECK(output["warnings"][0]["code"] == "project_not_acknowledged");
+    CHECK(result.stderr_text.find("predates project metadata") != std::string::npos);
+    (void)server.captured_request();
+  }
+
+  // Without stack.toml there is nothing to acknowledge.
+  std::filesystem::remove(root / "stack.toml");
+  {
+    SingleRequestServer server{200, R"({"ok":true,"summary":{"update":1}})"};
+    const auto result = pmdocs::run(args({"push", root_string, "--endpoint", server.url(), "--source", "main-docs", "--github-oidc", "--oidc-token-env", "PMDOCS_TEST_OIDC_TOKEN", "--no-skills", "--json"}));
+    CHECK(result.exit_code == 0);
+    const auto output = nlohmann::json::parse(result.stdout_text);
+    CHECK_FALSE(output.contains("project"));
+    CHECK_FALSE(output.contains("warnings"));
+    CHECK(result.stderr_text.find("predates project metadata") == std::string::npos);
+    const auto request = server.captured_request();
+    CHECK(request.find("\"project\"") == std::string::npos);
+  }
+}

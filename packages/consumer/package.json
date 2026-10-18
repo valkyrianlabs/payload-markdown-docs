@@ -1,0 +1,46 @@
+{
+  "name": "@valkyrianlabs/payload-markdown-docs-consumer",
+  "version": "1.2.0",
+  "description": "Read published projects (docs sets, docs groups and technology stacks) from one or more payload-markdown-docs sites.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/valkyrianlabs/payload-markdown-docs",
+    "directory": "packages/consumer"
+  },
+  "keywords": [
+    "payload",
+    "payload-markdown-docs",
+    "portfolio",
+    "projects",
+    "tech-stack"
+  ],
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "rimraf dist && tsc -p tsconfig.build.json",
+    "clean": "rimraf dist"
+  },
+  "devDependencies": {
+    "rimraf": "6.1.3",
+    "typescript": "5.9.3"
+  },
+  "engines": {
+    "node": ">=18.17"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

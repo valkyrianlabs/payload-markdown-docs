@@ -9,6 +9,7 @@
 
 #include <openssl/evp.h>
 #include <openssl/pem.h>
+#include <toml++/toml.hpp>
 
 #include <algorithm>
 #include <array>
@@ -2101,6 +2102,490 @@ std::optional<std::string> string_member(const json& entry, const char* key) {
 
 } // namespace
 
+// ------------------------------------------------------------------ project metadata
+
+namespace {
+
+bool is_tab_or_line_feed(std::uint32_t code_point) {
+  return code_point == 0x09 || code_point == 0x0A;
+}
+
+bool is_description_control(std::uint32_t code_point) {
+  return is_control_code_point(code_point) && !is_tab_or_line_feed(code_point);
+}
+
+bool is_stack_category_key(std::string_view value) {
+  if (value.empty() || !is_ascii_alphanumeric(static_cast<unsigned char>(value.front()))) {
+    return false;
+  }
+
+  return std::ranges::all_of(value, [](const char ch) {
+    return is_ascii_alphanumeric(static_cast<unsigned char>(ch)) || ch == '-' || ch == '_';
+  });
+}
+
+// A key suggestion for an invalid category name ("machine learning" -> "machine-learning").
+std::string suggest_category_key(std::string_view value) {
+  std::string suggestion;
+
+  for (const char ch : value) {
+    if (is_ascii_alphanumeric(static_cast<unsigned char>(ch)) || ch == '_') {
+      suggestion.push_back(ch);
+    } else if (!suggestion.empty() && suggestion.back() != '-') {
+      suggestion.push_back('-');
+    }
+  }
+
+  while (!suggestion.empty() && (suggestion.back() == '-' || suggestion.back() == '_')) {
+    suggestion.pop_back();
+  }
+  while (!suggestion.empty() && (suggestion.front() == '-' || suggestion.front() == '_')) {
+    suggestion.erase(suggestion.begin());
+  }
+
+  return suggestion.size() > kMaxStackCategoryBytes ? suggestion.substr(0, kMaxStackCategoryBytes) : suggestion;
+}
+
+// "\r\n" and "\r" -> "\n".
+std::string normalize_line_endings(std::string_view value) {
+  std::string normalized;
+  normalized.reserve(value.size());
+
+  for (std::size_t index = 0; index < value.size(); ++index) {
+    if (value[index] == '\r') {
+      normalized.push_back('\n');
+
+      if (index + 1 < value.size() && value[index + 1] == '\n') {
+        ++index;
+      }
+    } else {
+      normalized.push_back(value[index]);
+    }
+  }
+
+  return normalized;
+}
+
+std::string bytes_over_limit(const std::string& path, std::size_t bytes, std::size_t limit) {
+  return path + " is " + std::to_string(bytes) + " bytes; the limit is " + std::to_string(limit) + " UTF-8 bytes. Shorten it.";
+}
+
+// Title and description share these rules; the description allows tabs and line breaks.
+std::optional<std::string> validate_project_text(
+  const json& value,
+  const std::string& path,
+  bool multi_line,
+  std::size_t max_bytes,
+  const std::string& code,
+  std::vector<Issue>& issues
+) {
+  const auto keep = multi_line ? std::string{"remove it to keep the current docs set description"} : std::string{"remove it to keep the current docs set title"};
+
+  if (!value.is_string()) {
+    issues.push_back(make_issue(code, path + " must be a string; " + keep + ".", path));
+    return std::nullopt;
+  }
+
+  const auto raw = value.get<std::string>();
+  const auto text = js_trim(multi_line ? normalize_line_endings(raw) : raw);
+
+  if (text.empty()) {
+    issues.push_back(make_issue(code, path + " must not be empty; " + keep + ".", path));
+    return std::nullopt;
+  }
+
+  if (contains_code_point_matching(text, multi_line ? is_description_control : is_control_code_point)) {
+    issues.push_back(make_issue(
+      code,
+      multi_line
+        ? path + " must not contain control characters other than tabs and line breaks."
+        : path + " must be a single line without control characters.",
+      path
+    ));
+    return std::nullopt;
+  }
+
+  if (text.size() > max_bytes) {
+    issues.push_back(make_issue(code, bytes_over_limit(path, text.size(), max_bytes), path));
+    return std::nullopt;
+  }
+
+  return text;
+}
+
+void warn_unknown_project_fields(
+  const json& object,
+  const std::set<std::string>& known,
+  const std::string& prefix,
+  std::vector<Issue>& warnings
+) {
+  for (const auto& [key, value] : object.items()) {
+    (void)value;
+
+    if (!known.contains(key)) {
+      const auto path = prefix + "." + key;
+      warnings.push_back(make_issue("unknown_project_field", "Unknown project metadata field " + json_quote(path) + " is ignored.", path));
+    }
+  }
+}
+
+} // namespace
+
+// src/sync/project.ts validateDocsProjectMetadata
+ProjectValidation validate_project(const json& project) {
+  ProjectValidation result;
+  result.project = json::object();
+
+  if (!project.is_object()) {
+    result.issues.push_back(make_issue(
+      "invalid_project",
+      "Project metadata must be an object with optional title, description and stack (in stack.toml: a [project] table and [[stack.<category>]] entries).",
+      "project"
+    ));
+    return result;
+  }
+
+  warn_unknown_project_fields(project, {"description", "stack", "title"}, "project", result.warnings);
+
+  if (project.contains("title")) {
+    if (auto title = validate_project_text(project["title"], "project.title", false, kMaxProjectTitleBytes, "invalid_project_title", result.issues)) {
+      result.project["title"] = *title;
+    }
+  }
+
+  if (project.contains("description")) {
+    if (auto description = validate_project_text(project["description"], "project.description", true, kMaxProjectDescriptionBytes, "invalid_project_description", result.issues)) {
+      result.project["description"] = *description;
+    }
+  }
+
+  if (project.contains("stack")) {
+    const auto& stack = project["stack"];
+
+    if (!stack.is_array()) {
+      result.issues.push_back(make_issue(
+        "invalid_stack",
+        "stack must be a list of categories (in stack.toml: [[stack.<category>]] entries such as [[stack.languages]]).",
+        "stack"
+      ));
+    } else {
+      if (stack.size() > kMaxStackCategories) {
+        result.issues.push_back(make_issue(
+          "stack_limit_exceeded",
+          "stack has " + std::to_string(stack.size()) + " categories; the limit is " + std::to_string(kMaxStackCategories) + ". Merge related categories.",
+          "stack"
+        ));
+      }
+
+      json normalized_stack = json::array();
+      std::set<std::string> seen_categories;
+      std::size_t total_items = 0;
+
+      for (std::size_t index = 0; index < stack.size(); ++index) {
+        const auto& entry = stack[index];
+        const auto entry_path = "stack[" + std::to_string(index) + "]";
+
+        if (!entry.is_object()) {
+          result.issues.push_back(make_issue("invalid_stack_category", entry_path + " must be an object with \"category\" and \"items\".", entry_path));
+          continue;
+        }
+
+        if (!entry.contains("category") || !entry["category"].is_string()) {
+          result.issues.push_back(make_issue("invalid_stack_category", entry_path + ".category must be a string such as \"languages\".", entry_path));
+          continue;
+        }
+
+        const auto category = entry["category"].get<std::string>();
+
+        if (!is_stack_category_key(category) || category.size() > kMaxStackCategoryBytes) {
+          const auto suggestion = suggest_category_key(category);
+          result.issues.push_back(make_issue(
+            "invalid_stack_category",
+            "Category " + json_quote(category) + " must start with a letter or digit, use only letters, digits, \"-\" and \"_\", and be at most "
+              + std::to_string(kMaxStackCategoryBytes) + " bytes"
+              + (suggestion.empty() || suggestion == category ? std::string{"."} : " (for example " + json_quote(suggestion) + ")."),
+            entry_path
+          ));
+          continue;
+        }
+
+        const auto category_path = "stack." + category;
+
+        if (!seen_categories.insert(ascii_lower(category)).second) {
+          result.issues.push_back(make_issue(
+            "duplicate_stack_category",
+            "Category " + json_quote(category) + " is listed more than once (categories compare case-insensitively); merge its technologies into one category.",
+            category_path
+          ));
+          continue;
+        }
+
+        warn_unknown_project_fields(entry, {"category", "items"}, category_path, result.warnings);
+
+        if (!entry.contains("items") || !entry["items"].is_array()) {
+          result.issues.push_back(make_issue(
+            "invalid_stack_category",
+            category_path + " must be a list of technologies: in stack.toml use one [[" + category_path + "]] table per technology, each with name = \"...\".",
+            category_path
+          ));
+          continue;
+        }
+
+        const auto& items = entry["items"];
+        total_items += items.size();
+
+        if (items.size() > kMaxStackItemsPerCategory) {
+          result.issues.push_back(make_issue(
+            "stack_limit_exceeded",
+            category_path + " has " + std::to_string(items.size()) + " technologies; the limit is " + std::to_string(kMaxStackItemsPerCategory) + " per category.",
+            category_path
+          ));
+        }
+
+        if (items.empty()) {
+          result.warnings.push_back(make_issue(
+            "empty_stack_category",
+            "Category " + json_quote(category) + " has no technologies and is ignored.",
+            category_path
+          ));
+          continue;
+        }
+
+        json normalized_items = json::array();
+        std::set<std::string> seen_names;
+
+        for (std::size_t item_index = 0; item_index < items.size(); ++item_index) {
+          const auto& item = items[item_index];
+          const auto item_path = category_path + "[" + std::to_string(item_index) + "]";
+          const auto name_path = item_path + ".name";
+
+          if (!item.is_object()) {
+            result.issues.push_back(make_issue(
+              "invalid_stack_item",
+              item_path + " must be a table with a name (in stack.toml: [[" + category_path + "]] followed by name = \"...\").",
+              item_path
+            ));
+            continue;
+          }
+
+          if (!item.contains("name") || !item["name"].is_string()) {
+            result.issues.push_back(make_issue("invalid_stack_item", name_path + " is required and must be a string, for example name = \"C++\".", name_path));
+          } else {
+            const auto name = js_trim(item["name"].get<std::string>());
+
+            if (name.empty()) {
+              result.issues.push_back(make_issue("invalid_stack_item", name_path + " must not be empty.", name_path));
+            } else if (contains_code_point_matching(name, is_control_code_point)) {
+              result.issues.push_back(make_issue("invalid_stack_item", name_path + " must be a single line without control characters.", name_path));
+            } else if (name.size() > kMaxStackNameBytes) {
+              result.issues.push_back(make_issue("invalid_stack_item", bytes_over_limit(name_path, name.size(), kMaxStackNameBytes), name_path));
+            } else if (!seen_names.insert(ascii_lower(name)).second) {
+              result.issues.push_back(make_issue(
+                "duplicate_stack_item",
+                "Technology " + json_quote(name) + " is listed more than once in " + category_path + " (names compare case-insensitively); remove the duplicate.",
+                name_path
+              ));
+            } else {
+              normalized_items.push_back(json::object({{"name", name}}));
+            }
+          }
+
+          warn_unknown_project_fields(item, {"name"}, item_path, result.warnings);
+        }
+
+        normalized_stack.push_back(json::object({{"category", category}, {"items", std::move(normalized_items)}}));
+      }
+
+      if (total_items > kMaxStackItems) {
+        result.issues.push_back(make_issue(
+          "stack_limit_exceeded",
+          "stack has " + std::to_string(total_items) + " technologies; the limit is " + std::to_string(kMaxStackItems) + " in total.",
+          "stack"
+        ));
+      }
+
+      result.project["stack"] = std::move(normalized_stack);
+    }
+  }
+
+  result.ok = result.issues.empty();
+
+  if (!result.ok) {
+    result.project = json::object();
+  }
+
+  return result;
+}
+
+namespace {
+
+using TomlEntry = std::pair<const toml::key*, const toml::node*>;
+
+// toml++ tables are sorted by key; the file order comes from the key positions.
+std::vector<TomlEntry> entries_in_source_order(const toml::table& table) {
+  std::vector<TomlEntry> entries;
+
+  for (const auto& [key, node] : table) {
+    entries.emplace_back(&key, &node);
+  }
+
+  std::ranges::stable_sort(entries, [](const TomlEntry& left, const TomlEntry& right) {
+    const auto& a = left.first->source().begin;
+    const auto& b = right.first->source().begin;
+    return a.line == b.line ? a.column < b.column : a.line < b.line;
+  });
+
+  return entries;
+}
+
+template <typename T>
+std::string toml_value_text(const T& value) {
+  std::ostringstream out;
+  out << value;
+  return out.str();
+}
+
+json toml_to_json(const toml::node& node) {
+  if (const auto* table = node.as_table()) {
+    json object = json::object();
+
+    for (const auto& [key, value] : entries_in_source_order(*table)) {
+      object[std::string{key->str()}] = toml_to_json(*value);
+    }
+
+    return object;
+  }
+
+  if (const auto* array = node.as_array()) {
+    json values = json::array();
+
+    for (const auto& value : *array) {
+      values.push_back(toml_to_json(value));
+    }
+
+    return values;
+  }
+
+  if (const auto* text = node.as_string()) {
+    return text->get();
+  }
+  if (const auto* integer = node.as_integer()) {
+    return integer->get();
+  }
+  if (const auto* floating = node.as_floating_point()) {
+    return std::isfinite(floating->get()) ? json(floating->get()) : json(toml_value_text(*floating));
+  }
+  if (const auto* boolean = node.as_boolean()) {
+    return boolean->get();
+  }
+  if (const auto* date = node.as_date()) {
+    return toml_value_text(*date);
+  }
+  if (const auto* time = node.as_time()) {
+    return toml_value_text(*time);
+  }
+  if (const auto* date_time = node.as_date_time()) {
+    return toml_value_text(*date_time);
+  }
+
+  return nullptr;
+}
+
+} // namespace
+
+ProjectValidation parse_stack_toml(std::string_view toml_text) {
+  ProjectValidation result;
+  result.project = json::object();
+
+  if (!is_valid_utf8(toml_text)) {
+    result.issues.push_back(make_issue("invalid_stack_toml", "stack.toml is not valid UTF-8; re-save it as UTF-8.", "stack.toml"));
+    return result;
+  }
+
+  toml::table root;
+
+  try {
+    root = toml::parse(toml_text, std::string_view{"stack.toml"});
+  } catch (const toml::parse_error& error) {
+    const auto& begin = error.source().begin;
+    result.issues.push_back(make_issue(
+      "invalid_stack_toml",
+      "stack.toml is not valid TOML (line " + std::to_string(begin.line) + ", column " + std::to_string(begin.column) + "): "
+        + std::string{error.description()} + ".",
+      "stack.toml"
+    ));
+    return result;
+  }
+
+  std::vector<Issue> issues;
+  std::vector<Issue> warnings;
+  json wire = json::object();
+
+  for (const auto& [key, node] : entries_in_source_order(root)) {
+    (void)node;
+    const auto name = std::string{key->str()};
+
+    if (name != "project" && name != "stack") {
+      warnings.push_back(make_issue("unknown_project_field", "Unknown stack.toml key " + json_quote(name) + " is ignored; use [project] and [[stack.<category>]].", name));
+    }
+  }
+
+  if (const auto* project = root.get("project")) {
+    if (const auto* table = project->as_table()) {
+      for (const auto& [key, value] : entries_in_source_order(*table)) {
+        const auto name = std::string{key->str()};
+
+        if (name == "title" || name == "description") {
+          wire[name] = toml_to_json(*value);
+        } else {
+          const auto path = "project." + name;
+          warnings.push_back(make_issue("unknown_project_field", "Unknown project metadata field " + json_quote(path) + " is ignored; [project] supports title and description.", path));
+        }
+      }
+    } else {
+      issues.push_back(make_issue(
+        "invalid_project",
+        "stack.toml key \"project\" must be a table: use a [project] section with title = \"...\" and description = \"...\".",
+        "project"
+      ));
+    }
+  }
+
+  if (const auto* stack = root.get("stack")) {
+    if (const auto* table = stack->as_table()) {
+      wire["stack"] = json::array();
+
+      for (const auto& [key, value] : entries_in_source_order(*table)) {
+        wire["stack"].push_back(json::object({{"category", std::string{key->str()}}, {"items", toml_to_json(*value)}}));
+      }
+    } else {
+      issues.push_back(make_issue(
+        "invalid_stack",
+        "stack.toml key \"stack\" must be a table of categories: use [[stack.<category>]] entries such as [[stack.languages]] with name = \"...\".",
+        "stack"
+      ));
+    }
+  } else {
+    wire["stack"] = json::array();
+    warnings.push_back(make_issue(
+      "missing_stack",
+      "stack.toml has no [stack] table, so the synchronized technology stack will be cleared. Add [[stack.<category>]] entries, or delete stack.toml to leave the stack unchanged.",
+      "stack"
+    ));
+  }
+
+  auto validation = validate_project(wire);
+  issues.insert(issues.end(), validation.issues.begin(), validation.issues.end());
+  warnings.insert(warnings.end(), validation.warnings.begin(), validation.warnings.end());
+
+  result.ok = issues.empty();
+  result.issues = std::move(issues);
+  result.warnings = std::move(warnings);
+  result.project = result.ok ? std::move(validation.project) : json::object();
+
+  return result;
+}
+
 // src/sync/validate.ts validateDocsManifest
 ValidationResult validate_manifest(const json& manifest, const ValidationOptions& options) {
   ValidationResult result;
@@ -2331,6 +2816,17 @@ ValidationResult validate_manifest(const json& manifest, const ValidationOptions
         .route = resolved.ok ? resolved.route : std::nullopt,
         .sha256 = computed_hash,
       });
+    }
+  }
+
+  // After files and assets (contracts/README.md, "Project metadata").
+  if (manifest.contains("project")) {
+    auto project = validate_project(manifest["project"]);
+    result.issues.insert(result.issues.end(), project.issues.begin(), project.issues.end());
+    result.warnings.insert(result.warnings.end(), project.warnings.begin(), project.warnings.end());
+
+    if (project.ok) {
+      result.project = std::move(project.project);
     }
   }
 

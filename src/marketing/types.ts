@@ -224,6 +224,8 @@ export type NormalizedDocsPreviewItem = {
   excerpt?: string
   href?: string
   icon?: string
+  /** Technology stack of a referenced docs set (from docs/stack.toml), when it has one. */
+  stack?: Array<{ category: string; items: Array<{ name: string }> }>
   title: string
 }
 

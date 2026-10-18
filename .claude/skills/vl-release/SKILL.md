@@ -36,7 +36,9 @@ vlr help ci         # the release CI transaction and workflow conventions
      must never ship.
    - `[npm]` only if the repository publishes an npm package (`package.json` without
      `"private": true`), with a tarball contract (`package/...` paths it must and must never ship),
-     and `[[npm.aliases]]` only when the same build must also be published under another name.
+     `[[npm.aliases]]` only when the same build must also be published under another name, and
+     `[[npm.packages]]` for further, independently built packages (each its own `package_dir`,
+     whose package.json is a version target).
    - Publication (`[publish.apt]`, `[[publish.npm]]`, `[homebrew]`, `[source_archive]`):
      **ask the user** for repository URLs, registries, taps and which channels to enable; do not
      guess publication targets.

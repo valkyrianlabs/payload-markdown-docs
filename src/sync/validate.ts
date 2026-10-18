@@ -9,6 +9,7 @@ import type {
   ValidatedDocsManifestAsset,
   ValidatedDocsManifestFile,
 } from './manifest.js'
+import type { DocsProjectIssueCode, DocsProjectMetadata } from './project.js'
 
 import {
   DEFAULT_DOCS_ROUTE_BASE,
@@ -28,6 +29,7 @@ import {
   normalizeDocsPath,
   resolveAssetRoute,
 } from './paths.js'
+import { validateDocsProjectMetadata } from './project.js'
 
 export type DocsValidationErrorCode =
   | 'asset_route_ignored'
@@ -54,6 +56,7 @@ export type DocsValidationErrorCode =
   | 'route_whitespace'
   | 'too_many_assets'
   | 'too_many_files'
+  | DocsProjectIssueCode
 
 export type DocsValidationIssue = {
   code: DocsValidationErrorCode
@@ -697,6 +700,19 @@ export const validateDocsManifest = (
     }
   }
 
+  let project: DocsProjectMetadata | undefined
+
+  if (manifest.project !== undefined) {
+    const projectValidation = validateDocsProjectMetadata(manifest.project)
+
+    issues.push(...projectValidation.issues)
+    warnings.push(...projectValidation.warnings)
+
+    if (projectValidation.ok) {
+      project = projectValidation.project
+    }
+  }
+
   if (totalBytes > maxTotalBytes) {
     issues.push(
       createIssue({
@@ -720,6 +736,7 @@ export const validateDocsManifest = (
       deleteBehavior: deleteBehaviorValidation.deleteBehavior,
       files: validatedFiles,
       mode: modeValidation.mode,
+      ...(project ? { project } : {}),
       publish,
       source: sourceValidation.source,
       version: 1,

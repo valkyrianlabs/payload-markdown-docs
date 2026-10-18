@@ -542,6 +542,12 @@ describe('payloadMarkdownDocs collection wiring', () => {
 
     expect(getField(docsSetsCollection, 'title')?.type).toBe('text')
     expect(getField(docsSetsCollection, 'slug')?.type).toBe('text')
+    expect(getField(docsSetsCollection, 'manualTitleDescription')).toMatchObject({
+      type: 'checkbox',
+      label: 'Manually manage title/desc',
+    })
+    expect(getField(docsSetsCollection, 'manualTitleDescription')?.defaultValue).toBeUndefined()
+    expect(getField(docsSetsCollection, 'stack')).toMatchObject({ type: 'json', admin: { readOnly: true } })
     expect(tabsField?.tabs?.map((tab) => tab.label)).toEqual(['Content', 'SEO', 'Security', 'Sync'])
     expect(getField(docsSetsCollection, 'sourceId')).toBeUndefined()
     expect(getField(docsSetsCollection, 'sourceRoot')).toBeUndefined()
@@ -579,7 +585,12 @@ describe('payloadMarkdownDocs collection wiring', () => {
       'enabled',
       'allowedWorkflowRefs',
     ])
-    expect(syncField?.fields?.map((field) => field.name)).toEqual(['lastSyncedAt', 'lastStatus'])
+    expect(syncField?.fields?.map((field) => field.name)).toEqual([
+      'lastSyncedAt',
+      'lastStatus',
+      'projectTitle',
+      'projectDescription',
+    ])
     expect(getField(docsSetsCollection, 'docsSetManager')).toMatchObject({
       type: 'ui',
       admin: {

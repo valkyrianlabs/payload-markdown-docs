@@ -9,6 +9,7 @@ Build-Depends:
  libcli11-dev,
  libcurl4-openssl-dev,
  libssl-dev,
+ libtomlplusplus-dev,
  meson (>= 1.3.0),
  ninja-build,
  nlohmann-json3-dev,

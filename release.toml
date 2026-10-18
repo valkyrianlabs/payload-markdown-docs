@@ -4,7 +4,8 @@
 schema_version = 1
 
 [tool]
-requires = ">=0.4,<1"
+# 0.6 releases [[npm.packages]] (the consumer package next to the plugin).
+requires = ">=0.6,<1"
 
 [project]
 name = "Payload Markdown Docs"
@@ -17,6 +18,7 @@ canonical = "VERSION"
 targets = [
   { kind = "meson", path = "meson.build" },
   { kind = "package_json", path = "package.json" },
+  { kind = "package_json", path = "packages/consumer/package.json" },
   { kind = "homebrew", path = "homebrew/Formula/pmdocs.rb" },
 ]
 
@@ -138,6 +140,32 @@ identical_files = [
 [[npm.aliases]]
 name = "payload-markdown-docs"
 rewrite = ["package/dist/package.js"]
+
+# The dependency-free client other sites use to read the public projects API: built from
+# packages/consumer (its own tarball, not an alias), version-aligned through [version].
+[[npm.packages]]
+package_dir = "packages/consumer"
+pre_pack = [["pnpm", "build"]]
+required_paths = [
+  "package/package.json",
+  "package/README.md",
+  "package/LICENSE",
+  "package/dist/index.js",
+  "package/dist/index.d.ts",
+  "package/dist/client.js",
+  "package/dist/contract.js",
+]
+forbidden_paths = [
+  "package/src/*",
+  "package/node_modules/*",
+  "package/*.tsbuildinfo",
+  "package/tsconfig*.json",
+  "package/dist/**/*.spec.*",
+]
+identical_files = [
+  { member = "package/LICENSE", source = "LICENSE" },
+  { member = "package/README.md", source = "packages/consumer/README.md" },
+]
 
 # npmjs.com through npm trusted publishing: both packages trust this repository's
 # .github/workflows/release.yml (environment Production); no token secret.

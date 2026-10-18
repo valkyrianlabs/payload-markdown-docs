@@ -12,3 +12,7 @@ One level of nested "  - " detail bullets is allowed. Consolidate; don't paste c
   through upgrades (it owns /usr/share/keyrings/valkyrianlabs.gpg and links an unmodified
   /etc/apt/keyrings/valkyrianlabs.gpg to it). Recommends, not Depends: the standalone .deb must
   install without the repository (GitHub release assets, the clean-install smoke test).
+- Read optional project metadata from docs/stack.toml (title, description, categorized technology
+  stack) with toml++, validate it against the shared contract vectors, and send it as the manifest
+  `project` key; warn when the server does not acknowledge it.
+- Build-depend on libtomlplusplus-dev.

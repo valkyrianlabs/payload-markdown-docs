@@ -4,6 +4,7 @@ import { MetaDescriptionField, MetaImageField, MetaTitleField } from '@payloadcm
 import { slugField } from 'payload'
 
 import { DOCS_GLOBALS_ADMIN_GROUP, DOCS_SET_MANAGER_COMPONENT } from '../constants.js'
+import { createDocsSetProjectGuard, readManualTitleDescription } from '../payload/docsSetProject.js'
 import { populatePublishedAt } from '../payload/populatePublishedAt.js'
 
 export type CreateDocsSetsCollectionOptions = {
@@ -110,6 +111,20 @@ export const createDocsSetsCollection = ({
       tabs: [
         {
           fields: [
+            // No defaultValue: a database default would mark docs sets that predate this field
+            // as agent-owned. The project guard stores false for new docs sets instead.
+            {
+              name: 'manualTitleDescription',
+              type: 'checkbox',
+              admin: {
+                description:
+                  'When off, the title and description come from [project] in docs/stack.toml on every sync (when the file sets them). Docs sets created before this option existed start with it on.',
+              },
+              hooks: {
+                afterRead: [readManualTitleDescription],
+              },
+              label: 'Manually manage title/desc',
+            },
             {
               name: 'title',
               type: 'text',
@@ -118,6 +133,16 @@ export const createDocsSetsCollection = ({
             {
               name: 'description',
               type: 'textarea',
+            },
+            {
+              name: 'stack',
+              type: 'json',
+              admin: {
+                description:
+                  'Technology stack synced from docs/stack.toml by pmdocs. Edit the file in the repository, not this field.',
+                readOnly: true,
+              },
+              label: 'Technology stack',
             },
           ],
           label: 'Content',
@@ -229,6 +254,22 @@ export const createDocsSetsCollection = ({
                   type: 'select',
                   options: ['failed', 'pending', 'success'],
                 },
+                {
+                  name: 'projectTitle',
+                  type: 'text',
+                  admin: {
+                    description: 'Title from docs/stack.toml at the last sync.',
+                    readOnly: true,
+                  },
+                },
+                {
+                  name: 'projectDescription',
+                  type: 'textarea',
+                  admin: {
+                    description: 'Description from docs/stack.toml at the last sync.',
+                    readOnly: true,
+                  },
+                },
               ],
             },
             ...(docsCollectionSlug
@@ -258,7 +299,11 @@ export const createDocsSetsCollection = ({
   hooks: {
     afterChange: hooks?.afterChange ?? [],
     afterDelete: hooks?.afterDelete ?? [],
-    beforeChange: [populatePublishedAt, ...(hooks?.beforeChange ?? [])],
+    beforeChange: [
+      populatePublishedAt,
+      createDocsSetProjectGuard({ collectionSlug: slug }),
+      ...(hooks?.beforeChange ?? []),
+    ],
   },
   labels: {
     plural: 'Sets',

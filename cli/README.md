@@ -15,7 +15,8 @@ meson test -C build
 ```
 
 The native test suite covers command parsing, `doctor`, `skill install`, local
-`validate` / `manifest` / `plan`, `keygen`, and pre-network `push` behavior.
+`validate` / `manifest` / `plan` (including `stack.toml` project metadata),
+`keygen`, and pre-network `push` behavior.
 `meson test` also runs `pmdocs contract vectors`, which executes the shared
 TS/C++ protocol vectors in `../contracts/vectors/` against
 `src/sync_contract.cpp` (see `../contracts/README.md`). Keep protocol logic in
@@ -51,6 +52,7 @@ The native CLI currently supports:
 - `pmdocs push`
 
 The native remote workflow uses direct `libcurl`, OpenSSL 3 EVP APIs,
-`nlohmann_json`, `CLI11`, and `doctest`, following
+`nlohmann_json`, `CLI11`, `toml++` (reading `docs/stack.toml`; Debian/Ubuntu
+`libtomlplusplus-dev`, Homebrew `tomlplusplus`) and `doctest`, following
 [Phase 3 Dependency Plan](./PHASE3_DEPENDENCIES.md). Live endpoint push/OIDC
 coverage still belongs in protected smoke tests, not routine local tests.

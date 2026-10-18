@@ -36,11 +36,12 @@ Each file is a JSON object with `contractVersion` (currently `1`), a
 | `titles.json` | title inference from the first H1, filename fallback, frontmatter title precedence |
 | `frontmatter.json` | the supported YAML subset, issue/warning codes **and messages**, body content |
 | `asset-routes.json` | asset route derivation and confinement of client-supplied routes |
-| `manifests.json` | whole-manifest validation (issue/warning codes and paths, in order), derived routes/titles, in-manifest route collisions |
+| `manifests.json` | whole-manifest validation (issue/warning codes and paths, in order), derived routes/titles, in-manifest route collisions, the optional `project` object |
 | `signing.json` | SHA-256, canonical signing string, endpoint path extraction, deterministic Ed25519 request signatures (RFC 8032 test key in PEM, base64 DER and OpenSSH form) |
 | `limits.json` | compact JSON request-body serialization (byte length and SHA-256) and the body-size decision |
 | `content-types.json` | the asset content-type allowlist and extension mapping |
 | `utf8.json` | strict UTF-8 validity |
+| `project.json` | the manifest `project` object (title, description, categorized stack): codes, paths, limits and normalization; `docs/stack.toml` conversion (C++ only) |
 
 ## Contract rules (version 1)
 
@@ -139,3 +140,55 @@ byte-identical on both sides (`JSON.stringify` and nlohmann `dump()`: only `"`,
 ### Encoding
 
 Docs and asset files must be valid UTF-8 (WHATWG strict decoding).
+
+### Project metadata
+
+`pmdocs` reads `docs/stack.toml` (at the docs root; agents maintain it) and
+sends it as the optional manifest key `project`. The server never parses TOML;
+both sides validate the normalized wire object with the same rules.
+
+```json
+{
+  "title": "Vaulthalla",
+  "description": "The Final Cloud — encrypted storage.",
+  "stack": [{ "category": "languages", "items": [{ "name": "C++23" }] }]
+}
+```
+
+- `project` absent: nothing about the docs set's project metadata changes (old
+  clients, or no `stack.toml`). `project` present but not an object:
+  `invalid_project`.
+- `title`, `description`: optional. When present they must be non-blank strings
+  after trimming. `title` is a single line (no control characters, at most 256
+  UTF-8 bytes). In `description`, CRLF and CR become LF, and tab and LF are the only
+  control characters allowed (at most 2048 bytes).
+- `stack`: optional. Absent means "unchanged"; `[]` clears. Each entry is
+  `{ "category", "items" }`, and `category` is a key matching
+  `[A-Za-z0-9][A-Za-z0-9_-]*` (at most 64 bytes). Categories are free-form:
+  there is no fixed list. Each item is `{ "name" }`, a non-blank single-line
+  string of at most 128 bytes.
+- Duplicate category keys, and duplicate item names within one category, are
+  errors. Both comparisons are ASCII case-insensitive after trimming.
+- Limits: 32 categories, 64 items per category, 256 items in total
+  (`stack_limit_exceeded`).
+- A category with no items is dropped with an `empty_stack_category` warning.
+  Unknown keys on the project, a category or an item are dropped with an
+  `unknown_project_field` warning, so newer clients can add optional
+  properties without breaking older servers.
+- Order is preserved: categories in document order, items in array order.
+- Issue paths name `stack.toml` keys (`project.title`, `stack.languages[1].name`,
+  `stack[3]` for an invalid category key), so one message serves both the CLI
+  and the sync response.
+- In whole-manifest validation, `project` is validated after files and assets.
+
+`stack.toml` conversion (`stackToml` cases, C++ only):
+
+- A syntax error, such as a duplicate key, is `invalid_stack_toml` (path
+  `stack.toml`), and the message carries the line and column.
+- `[project]` supplies `title` and `description`. Every `stack.<category>` must
+  be an array of tables (`[[stack.languages]]`, or an inline array of inline
+  tables). Categories keep their position in the file.
+- A file without a `stack` table converts to `stack: []` with a `missing_stack`
+  warning: an existing file is authoritative and clears the synced stack.
+- Unknown top-level keys warn with the key as the path. Unknown `[project]` keys
+  warn as `project.<key>`.

@@ -53,6 +53,15 @@ export type {
   PlannedAssetChange,
   PlannedDocChange,
 } from './plan.js'
+export { DOCS_PROJECT_LIMITS, validateDocsProjectMetadata } from './project.js'
+export type {
+  DocsProjectIssue,
+  DocsProjectIssueCode,
+  DocsProjectMetadata,
+  DocsProjectStackCategory,
+  DocsProjectStackItem,
+  DocsProjectValidationResult,
+} from './project.js'
 export { findManifestRouteCollisions } from './routeCollisions.js'
 export type { ManifestRouteCollision, ManifestRouteCollisionReason } from './routeCollisions.js'
 export { splitMarkdownLines, stripByteOrderMark } from './text.js'

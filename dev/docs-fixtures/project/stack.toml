@@ -1,0 +1,19 @@
+# Agent-maintained project metadata (see docs/reference/stack-toml.md).
+[project]
+title = "Project Fixture"
+description = "A docs set with agent-maintained project metadata."
+
+[[stack.languages]]
+name = "C++23"
+
+[[stack.languages]]
+name = "TypeScript"
+
+[[stack.libraries]]
+name = "libpqxx"
+
+[[stack.databases]]
+name = "PostgreSQL"
+
+[[stack.tooling]]
+name = "Meson"

@@ -17,7 +17,7 @@ this file says how it applies here.
 ## Versions
 
 - Canonical: `VERSION`
-- Kept in sync by `vlr version …`: `meson.build` (meson), `package.json` (package_json), `homebrew/Formula/pmdocs.rb` (homebrew)
+- Kept in sync by `vlr version …`: `meson.build` (meson), `package.json` (package_json), `packages/consumer/package.json` (package_json), `homebrew/Formula/pmdocs.rb` (homebrew)
 - Tags: `vX.Y.Z` on branch `main`; GitHub release title: `vX.Y.Z - <title>`
 
 ## Release channels
@@ -26,6 +26,7 @@ this file says how it applies here.
   - `pmdocs`: architecture `amd64`; must ship `usr/bin/pmdocs`, `usr/share/doc/pmdocs/copyright`, `usr/share/pmdocs/skills/payload-markdown-docs/codex/SKILL.md`, `usr/share/pmdocs/skills/payload-markdown-docs/claude/SKILL.md`, `usr/share/pmdocs/skills/payload-markdown/codex/SKILL.md`, `usr/share/pmdocs/skills/payload-markdown/claude/SKILL.md`, `usr/share/pmdocs/skills/payload-markdown/codex/skill.json`, `usr/share/pmdocs/skills/payload-markdown/claude/skill.json`; must never ship `usr/share/pmdocs/skills/*/node_modules/*`, `usr/share/pmdocs/skills/*/__pycache__/*`; ships byte-identical copies of `skills/payload-markdown-docs/codex/SKILL.md`, `skills/payload-markdown-docs/claude/SKILL.md`, `skills/payload-markdown/codex/SKILL.md`, `skills/payload-markdown/claude/SKILL.md`, `skills/payload-markdown/codex/skill.json`, `skills/payload-markdown/claude/skill.json`
 - **APT**: https://apt.valkyrianlabs.com (suite `stable`, components main), published by release CI with `vlr publish-deb`
 - **npm package** (built by `vlr build-npm`): packed with `npm` from `.`, dist-tag `latest`, pre-pack: `pnpm build`, also published as `payload-markdown-docs` (`[[npm.aliases]]`, derived from the same tarball)
+- **npm package (`[[npm.packages]]`)** (built by `vlr build-npm`): packed with `npm` from `packages/consumer`, dist-tag `latest`, pre-pack: `pnpm build`
   - registry `npmjs`: https://registry.npmjs.org/ (auth `oidc`), published with `vlr publish-npm`
 - **Source archive** of the prepared tree, attached to the GitHub release
 - **Homebrew**: formula template `homebrew/Formula/pmdocs.rb`, published to `valkyrianlabs/homebrew-tap` as `Formula/pmdocs.rb`

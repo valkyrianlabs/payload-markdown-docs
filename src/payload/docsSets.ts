@@ -9,6 +9,7 @@ import {
   getString,
   isRecord,
 } from '../shared/records.js'
+import { PAYLOAD_MARKDOWN_DOCS_SYNC_CONTEXT_KEY } from './docsSetProject.js'
 import { isPublicDocsSetRecord } from './visibility.js'
 
 export type DocsSetPayloadOperations = {
@@ -35,6 +36,7 @@ export type DocsSetPayloadOperations = {
   }>
   update?: (args: {
     collection: string
+    context?: Record<string, unknown>
     data: Record<string, unknown>
     draft?: boolean
     id: string
@@ -129,6 +131,7 @@ export const updateDocsSetAfterSync = async ({
   docsSetId,
   now,
   payload,
+  project,
   publish,
   req,
 }: {
@@ -136,14 +139,65 @@ export const updateDocsSetAfterSync = async ({
   docsSetId: PayloadRecordId
   now: Date
   payload: DocsSetPayloadOperations
+  /** Project metadata fields (`stack`, `title`, `description`) and `sync.project*` values. */
+  project?: { data: Record<string, unknown>; syncFields: Record<string, unknown> }
   publish: boolean
   req?: unknown
 }): Promise<void> => {
+  const mainRecord = await findDocsSetMainRecord({ collectionSlug, docsSetId, payload, req })
+  const mainSync = isRecord(mainRecord?.sync) ? mainRecord.sync : {}
   const sync = {
     lastStatus: 'success',
     lastSyncedAt: now.toISOString(),
+    // Written whole: some adapters replace the group rather than merging into it.
+    projectDescription: mainSync.projectDescription ?? null,
+    projectTitle: mainSync.projectTitle ?? null,
+    ...project?.syncFields,
   }
-  const mainRecord = (
+  const data = { ...project?.data, sync }
+  const isPublished = isRecord(mainRecord) && mainRecord._status === 'published'
+
+  if (publish && !isPublished) {
+    await payload.update?.({
+      id: String(docsSetId),
+      collection: collectionSlug,
+      // The project metadata guard lets the sync's own values through.
+      context: { [PAYLOAD_MARKDOWN_DOCS_SYNC_CONTEXT_KEY]: true },
+      data: {
+        ...data,
+        _status: 'published',
+      },
+      draft: false,
+      overrideAccess: true,
+      req,
+    })
+
+    return
+  }
+
+  if (typeof payload.db?.updateOne === 'function') {
+    await payload.db.updateOne({
+      id: docsSetId,
+      collection: collectionSlug,
+      data,
+      req,
+    })
+  }
+}
+
+/** The docs set's main record (never a draft version), or undefined when it is missing. */
+export const findDocsSetMainRecord = async ({
+  collectionSlug,
+  docsSetId,
+  payload,
+  req,
+}: {
+  collectionSlug: string
+  docsSetId: PayloadRecordId
+  payload: DocsSetPayloadOperations
+  req?: unknown
+}): Promise<Record<string, unknown> | undefined> => {
+  const doc = (
     await payload.find({
       collection: collectionSlug,
       depth: 0,
@@ -158,34 +212,8 @@ export const updateDocsSetAfterSync = async ({
       },
     })
   ).docs[0]
-  const isPublished = isRecord(mainRecord) && mainRecord._status === 'published'
 
-  if (publish && !isPublished) {
-    await payload.update?.({
-      id: String(docsSetId),
-      collection: collectionSlug,
-      data: {
-        _status: 'published',
-        sync,
-      },
-      draft: false,
-      overrideAccess: true,
-      req,
-    })
-
-    return
-  }
-
-  if (typeof payload.db?.updateOne === 'function') {
-    await payload.db.updateOne({
-      id: docsSetId,
-      collection: collectionSlug,
-      data: {
-        sync,
-      },
-      req,
-    })
-  }
+  return isRecord(doc) ? doc : undefined
 }
 
 const toResolvedDocsSet = ({

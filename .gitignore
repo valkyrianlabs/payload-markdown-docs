@@ -2,6 +2,7 @@
 
 # dependencies
 /node_modules
+/packages/*/node_modules
 /.pnp
 .pnp.js
 .yarn/install-state.gz
@@ -26,6 +27,7 @@
 # production
 /build
 /dist
+/packages/*/dist
 
 # native CLI build trees (CI and local meson builds)
 /build-*/

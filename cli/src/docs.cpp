@@ -145,11 +145,15 @@ struct PublishPackageSummary {
   std::string llms = "missing";
   std::string llms_full = "missing";
   std::size_t skills = 0;
+  // <docs root>/stack.toml: "present", "missing" or "invalid".
+  std::string stack_toml = "missing";
 };
 
 struct PublishPackage {
   std::vector<PackageAsset> assets;
   std::vector<WalkedDocsFile> files;
+  // The manifest `project` from stack.toml; absent when there is no (valid) file.
+  std::optional<json> project;
   // Walk-level problems (invalid encoding) and notes (skipped, hidden paths).
   std::vector<Issue> issues;
   std::vector<Issue> warnings;
@@ -1658,6 +1662,61 @@ std::optional<PackageAsset> read_optional_asset_file(
   };
 }
 
+constexpr std::string_view kStackTomlName = "stack.toml";
+
+// stack.toml findings carry the file as their path and name the key in the
+// message, so an agent can find both.
+Issue stack_toml_issue(const Issue& finding) {
+  auto located = finding;
+
+  if (finding.path && *finding.path != kStackTomlName && !finding.message.starts_with(*finding.path + " ")) {
+    located.message = *finding.path + ": " + finding.message;
+  }
+
+  located.path = std::string{kStackTomlName};
+  return located;
+}
+
+// <docs root>/stack.toml (project title, description and technology stack;
+// agents maintain it). A missing file leaves the manifest without `project`, so
+// the docs set's project metadata stays as it is.
+void read_stack_toml(const std::filesystem::path& docs_root, PublishPackage& package) {
+  const auto path = normalized_directory(docs_root) / kStackTomlName;
+  std::error_code error;
+  const auto status = std::filesystem::symlink_status(path, error);
+
+  if (error || !std::filesystem::exists(status)) {
+    return;
+  }
+
+  // Same policy as the docs walk, which already reported the skipped symlink.
+  if (std::filesystem::is_symlink(status)) {
+    return;
+  }
+
+  if (!std::filesystem::is_regular_file(status)) {
+    package.issues.push_back(issue("invalid_stack_toml", "stack.toml must be a regular file.", std::string{kStackTomlName}));
+    package.summary.stack_toml = "invalid";
+    return;
+  }
+
+  const auto parsed = contract::parse_stack_toml(read_file(path));
+
+  for (const auto& finding : parsed.issues) {
+    package.issues.push_back(stack_toml_issue(finding));
+  }
+  for (const auto& finding : parsed.warnings) {
+    package.warnings.push_back(stack_toml_issue(finding));
+  }
+
+  if (parsed.ok) {
+    package.project = parsed.project;
+    package.summary.stack_toml = "present";
+  } else {
+    package.summary.stack_toml = "invalid";
+  }
+}
+
 PublishPackage collect_publish_package(const DocsCommandOptions& options, const std::string& source_id) {
   PublishPackage package;
   const auto docs_root = effective_docs_root(options);
@@ -1674,6 +1733,7 @@ PublishPackage collect_publish_package(const DocsCommandOptions& options, const 
     }
 
     package.files = walk_docs_files(docs_root, options.skip_hidden, package.issues, package.warnings);
+    read_stack_toml(docs_root, package);
   }
 
   std::vector<PackageAsset> skill_assets;
@@ -1730,13 +1790,11 @@ PublishPackage collect_publish_package(const DocsCommandOptions& options, const 
   std::ranges::stable_sort(package.issues, by_path);
   std::ranges::stable_sort(package.warnings, by_path);
 
-  package.summary = {
-    .assets = package.assets.size(),
-    .docs = package.files.size(),
-    .llms = llms_present ? "present" : "missing",
-    .llms_full = llms_full_present ? "present" : "missing",
-    .skills = skill_assets.size(),
-  };
+  package.summary.assets = package.assets.size();
+  package.summary.docs = package.files.size();
+  package.summary.llms = llms_present ? "present" : "missing";
+  package.summary.llms_full = llms_full_present ? "present" : "missing";
+  package.summary.skills = skill_assets.size();
 
   return package;
 }
@@ -1748,7 +1806,78 @@ json package_summary_to_json(const PublishPackageSummary& summary) {
     {"llms", summary.llms},
     {"llmsFull", summary.llms_full},
     {"skills", summary.skills},
+    {"stackToml", summary.stack_toml},
   };
+}
+
+// What the manifest `project` carries, for validate/plan output.
+json project_summary_to_json(const std::optional<json>& project) {
+  if (!project) {
+    return nullptr;
+  }
+
+  json categories = json::array();
+  std::size_t technologies = 0;
+
+  if (project->contains("stack")) {
+    for (const auto& category : (*project)["stack"]) {
+      categories.push_back({
+        {"category", category["category"]},
+        {"items", category["items"].size()},
+      });
+      technologies += category["items"].size();
+    }
+  }
+
+  return {
+    {"categories", categories},
+    {"description", project->contains("description")},
+    {"technologies", technologies},
+    {"title", project->contains("title")},
+  };
+}
+
+std::string format_project_summary(const PublishPackageSummary& summary, const std::optional<json>& project) {
+  std::ostringstream out;
+  out << "stack.toml: " << summary.stack_toml;
+
+  if (project) {
+    const auto details = project_summary_to_json(project);
+    std::vector<std::string> parts;
+
+    if (details["title"].get<bool>()) {
+      parts.emplace_back("title");
+    }
+    if (details["description"].get<bool>()) {
+      parts.emplace_back("description");
+    }
+
+    const auto technologies = details["technologies"].get<std::size_t>();
+    parts.push_back(
+      technologies == 0
+        ? std::string{"empty stack, clears the synchronized stack"}
+        : std::to_string(technologies) + (technologies == 1 ? " technology" : " technologies") + " in "
+            + std::to_string(details["categories"].size()) + (details["categories"].size() == 1 ? " category" : " categories")
+    );
+
+    std::string joined;
+    for (const auto& part : parts) {
+      joined += (joined.empty() ? "" : ", ") + part;
+    }
+    out << " (" << joined << ")";
+
+    if (technologies > 0) {
+      std::string categories;
+      for (const auto& category : details["categories"]) {
+        categories += (categories.empty() ? "" : ", ") + category["category"].get<std::string>() + " ("
+          + std::to_string(category["items"].get<std::size_t>()) + ")";
+      }
+      out << "\nStack: " << categories;
+    }
+  }
+
+  out << "\n";
+  return out.str();
 }
 
 json source_to_json(const std::string& source_id, const DocsCommandOptions& options) {
@@ -1779,6 +1908,9 @@ json build_manifest(
   json manifest = json::object();
   manifest["version"] = 1;
   manifest["source"] = source_to_json(source_id, options);
+  if (package.project) {
+    manifest["project"] = *package.project;
+  }
   if (mode) {
     manifest["mode"] = *mode;
   }
@@ -1954,6 +2086,9 @@ json validation_to_json(const ValidationResult& validation) {
     }
     data["mode"] = validation.mode_dry_run ? "dry-run" : "sync";
     data["publish"] = validation.publish;
+    if (validation.project) {
+      data["project"] = *validation.project;
+    }
     data["source"] = json::object({{"id", validation.source_id}});
     if (validation.source_branch) {
       data["source"]["branch"] = *validation.source_branch;
@@ -1974,7 +2109,7 @@ json validation_to_json(const ValidationResult& validation) {
   return output;
 }
 
-std::string format_validation_summary(const std::filesystem::path& root, const std::string& source_id, std::size_t file_count, const PublishPackageSummary& summary, const ValidationResult& validation) {
+std::string format_validation_summary(const std::filesystem::path& root, const std::string& source_id, std::size_t file_count, const PublishPackageSummary& summary, const ValidationResult& validation, const std::optional<json>& project) {
   std::ostringstream out;
   out << "pmdocs validate\n\n";
   out << "Source: " << source_id << "\n";
@@ -1984,6 +2119,7 @@ std::string format_validation_summary(const std::filesystem::path& root, const s
   out << "Skills: " << summary.skills << "\n";
   out << "llms.txt: " << summary.llms << "\n";
   out << "llms-full.txt: " << summary.llms_full << "\n";
+  out << format_project_summary(summary, project);
   out << "Status: " << (validation.ok ? "valid" : "invalid") << "\n";
 
   if (!validation.warnings.empty()) {
@@ -2383,6 +2519,7 @@ std::string format_plan_summary(
   const Plan& plan,
   const AssetPlan& asset_plan,
   const PublishPackageSummary& summary,
+  const std::optional<json>& project,
   const std::string& route_base,
   bool publish
 ) {
@@ -2394,7 +2531,8 @@ std::string format_plan_summary(
   out << "Assets: " << summary.assets << "\n";
   out << "Skills: " << summary.skills << "\n";
   out << "llms.txt: " << summary.llms << "\n";
-  out << "llms-full.txt: " << summary.llms_full << "\n\n";
+  out << "llms-full.txt: " << summary.llms_full << "\n";
+  out << format_project_summary(summary, project) << "\n";
   out << "Create: " << plan.create.size() << "\n";
   out << "Update: " << plan.update.size() << "\n";
   out << "Unchanged: " << plan.unchanged.size() << "\n";
@@ -2418,6 +2556,23 @@ std::string format_plan_summary(
   }
 
   return out.str();
+}
+
+constexpr std::string_view kProjectNotAcknowledgedWarning =
+  "Warning: the server did not report on the project metadata from stack.toml. It predates project metadata "
+  "support (payload-markdown-docs < 1.3.0) and ignored it: the docs were synced, but the docs set's technology "
+  "stack, title and description were NOT. Upgrade payload-markdown-docs on the server.\n";
+
+// The sync response's `project` report (sent only when the manifest had `project`):
+// {"applied", "stack", "title", "description"}.
+std::string format_project_report(const json& report) {
+  const auto field = [&report](const char* key) {
+    return report.contains(key) && report[key].is_string() ? report[key].get<std::string>() : std::string{"unknown"};
+  };
+  const auto applied = report.contains("applied") && report["applied"].is_boolean() && report["applied"].get<bool>();
+
+  return "Project metadata: stack " + field("stack") + ", title " + field("title") + ", description " + field("description")
+    + (applied ? "" : " (not applied)") + "\n";
 }
 
 CommandResult validate_or_manifest(const DocsCommandOptions& options, bool print_manifest) {
@@ -2451,6 +2606,7 @@ CommandResult validate_or_manifest(const DocsCommandOptions& options, bool print
       json output = {
         {"fileCount", package.files.size()},
         {"package", package_summary_to_json(package.summary)},
+        {"project", project_summary_to_json(package.project)},
         {"requestBodyBytes", push_body_bytes},
         {"root", effective_docs_root(options).string()},
         {"sourceId", source_id},
@@ -2465,7 +2621,7 @@ CommandResult validate_or_manifest(const DocsCommandOptions& options, bool print
 
     return {
       .exit_code = validation.ok ? 0 : 1,
-      .stdout_text = format_validation_summary(effective_docs_root(options), source_id, package.files.size(), package.summary, validation),
+      .stdout_text = format_validation_summary(effective_docs_root(options), source_id, package.files.size(), package.summary, validation, package.project),
     };
   } catch (const std::exception& error) {
     return {
@@ -2770,6 +2926,7 @@ CommandResult run_plan_command(const PlanCommandOptions& options) {
           {"assets", asset_plan_to_json(asset_plan)},
           {"docs", plan_to_json(plan)},
           {"package", package_summary_to_json(package.summary)},
+          {"project", project_summary_to_json(package.project)},
           {"publish", options.publish},
           {"routeBase", route_base},
         }, options.pretty),
@@ -2779,7 +2936,7 @@ CommandResult run_plan_command(const PlanCommandOptions& options) {
 
     return {
       .exit_code = 0,
-      .stdout_text = format_plan_summary(plan, asset_plan, package.summary, route_base, options.publish),
+      .stdout_text = format_plan_summary(plan, asset_plan, package.summary, package.project, route_base, options.publish),
       .stderr_text = format_warnings_block(validation.warnings),
     };
   } catch (const std::exception& error) {
@@ -2940,6 +3097,13 @@ CommandResult run_push_command(const PushCommandOptions& options) {
     const auto response = curl_json_request("POST", endpoint, request.headers, request.body);
     const auto response_ok = response.ok && response.has_json && response.body.is_object()
       && response.body.contains("ok") && response.body["ok"].is_boolean() && response.body["ok"].get<bool>();
+    const auto project_sent = manifest.contains("project");
+    const auto project_reported = response_ok && response.body.contains("project") && response.body["project"].is_object();
+
+    // Older servers ignore `project` without saying so (they accept unknown manifest keys).
+    if (response_ok && project_sent && !project_reported) {
+      notices += kProjectNotAcknowledgedWarning;
+    }
 
     if (options.print_json) {
       json output = {
@@ -2950,6 +3114,20 @@ CommandResult run_push_command(const PushCommandOptions& options) {
         {"sourceId", source_id},
         {"status", response.status},
       };
+
+      if (project_sent) {
+        output["project"] = {
+          {"acknowledged", project_reported},
+          {"sent", true},
+        };
+
+        if (response_ok && !project_reported) {
+          output["warnings"] = json::array({issue_to_json(issue(
+            "project_not_acknowledged",
+            "The server ignored the project metadata from stack.toml (payload-markdown-docs < 1.3.0): docs were synced, the stack, title and description were not."
+          ))});
+        }
+      }
 
       if (!response_ok) {
         // Normalized failure details; arrays are empty when the server sent none.
@@ -3010,6 +3188,12 @@ CommandResult run_push_command(const PushCommandOptions& options) {
 
     if (response.body.contains("syncRunId") && response.body["syncRunId"].is_string()) {
       out << "Sync run: " << response.body["syncRunId"].get<std::string>() << "\n";
+    }
+
+    if (project_reported) {
+      out << format_project_report(response.body["project"]);
+    } else if (project_sent) {
+      out << "Project metadata: not synchronized (server too old)\n";
     }
 
     return {
