@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# Run independent CI tasks at the same time and report each one on its own.
+#
+#   ci/run-parallel 'label::command' ['label::command' ...]
+#
+# Every command runs in `bash -euo pipefail -c`, with its output captured to a log. When all are
+# done, each log is printed in a collapsible group (GitHub Actions `::group::`), in the order given,
+# with its duration. Exits 1 if any task failed, after naming every failed task.
+set -euo pipefail
+
+[ "$#" -gt 0 ] || { echo "usage: ci/run-parallel 'label::command' ..." >&2; exit 2; }
+
+logs="$(mktemp -d)"
+trap 'rm -rf "$logs"' EXIT
+
+labels=()
+pids=()
+for task in "$@"; do
+  label="${task%%::*}"
+  command="${task#*::}"
+  [ "$label" != "$task" ] || { echo "run-parallel: '$task' is not 'label::command'" >&2; exit 2; }
+  index="${#labels[@]}"
+  labels+=("$label")
+  (
+    start=$SECONDS
+    status=0
+    bash -euo pipefail -c "$command" > "$logs/$index.log" 2>&1 || status=$?
+    echo "$status $((SECONDS - start))" > "$logs/$index.status"
+  ) &
+  pids+=("$!")
+done
+
+for pid in "${pids[@]}"; do
+  wait "$pid" || true
+done
+
+failed=()
+for index in "${!labels[@]}"; do
+  read -r status seconds < "$logs/$index.status"
+  echo "::group::${labels[$index]} (${seconds}s, exit ${status})"
+  cat "$logs/$index.log"
+  echo "::endgroup::"
+  if [ "$status" -ne 0 ]; then
+    failed+=("${labels[$index]}")
+    # Failures stay readable without expanding the group.
+    tail -n 40 "$logs/$index.log" | sed "s/^/[${labels[$index]}] /"
+  fi
+done
+
+if [ "${#failed[@]}" -gt 0 ]; then
+  for label in "${failed[@]}"; do
+    echo "::error::${label} failed"
+  done
+  exit 1
+fi

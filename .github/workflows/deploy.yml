@@ -9,9 +9,10 @@ on:
 permissions:
   contents: read
 
-# One job, one build. Everything is compiled exactly once (plugin dist/, the consumer package,
-# native pmdocs, payload-markdown for the consumer smoke), and every later step reuses that
-# output: no step rebuilds, and nothing queues for a second runner.
+# Build once, test in parallel. The `build` job compiles everything exactly once (plugin dist/,
+# the consumer package, native pmdocs, payload-markdown for the consumer smoke) and uploads the
+# output; `tests` and `consumer-smoke` download it and run side by side on the two runners.
+# Nothing after `build` compiles anything.
 #
 # Every run step executes inside the disposable CI container: the default shell is `./ci/run-ci`
 # (rootless Podman; see ci/README.md and payload-markdown's ci/README.md), so no step needs host
@@ -23,14 +24,12 @@ permissions:
 # runner; pull requests from forks (untrusted code that could also rewrite this file) run on
 # GitHub-hosted runners, which build the same container.
 jobs:
-  ci:
-    name: Build and test
+  build:
+    name: Build
     runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-latest' || fromJSON('["self-hosted","Linux","X64","ubuntu-latest-lts"]') }}
     defaults:
       run:
         shell: bash ./ci/run-ci bash -euo pipefail {0}
-    env:
-      PAYLOAD_SECRET: ci-secret
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -61,23 +60,18 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --prefer-offline --unsafe-perm
 
-      - name: Lint
-        run: pnpm lint
-
-      # The only compilation in this workflow. The native build bundles the skill data, so the
-      # install smoke below can use it as is (`pmdocs doctor` needs it).
-      - name: Build
+      # The only compilation in this workflow, in three parallel lanes. Lint runs before the plugin
+      # build in the same lane, so it never type-checks a half-written dist/. The native build
+      # bundles the skill data, so the install smoke below can use it as is (`pmdocs doctor`
+      # needs it). payload-markdown is built from a copy outside this repository: a pnpm install
+      # nested inside this pnpm workspace replaces the workspace's own node_modules.
+      - name: Lint and build
         run: |
           export NEXT_CPU_COUNT=$(nproc)
-          pnpm build
-          pnpm --filter ./packages/consumer build
-          meson setup build-native -Dinstall_skill_data=true
-          meson compile -C build-native
-          # payload-markdown is its own project, not part of this pnpm workspace.
-          (cd .ci/payload-markdown && pnpm install --frozen-lockfile --ignore-workspace && pnpm build)
-
-      - name: Typecheck dev app
-        run: pnpm exec tsc -p dev/tsconfig.json --noEmit --incremental false --composite false
+          ci/run-parallel \
+            'plugin::pnpm lint && pnpm build && pnpm --filter ./packages/consumer build && pnpm exec tsc -p dev/tsconfig.json --noEmit --incremental false --composite false' \
+            'native::meson setup build-native -Dinstall_skill_data=true && meson compile -C build-native' \
+            'payload-markdown::out="$PWD/build/payload-markdown" && mkdir -p "$out" && cp -a .ci/payload-markdown "$RUNNER_TEMP/" && cd "$RUNNER_TEMP/payload-markdown" && pnpm install --frozen-lockfile && pnpm build && npm pack --ignore-scripts --pack-destination "$out"'
 
       - name: Native CLI tests
         run: meson test -C build-native --print-errorlogs
@@ -93,10 +87,49 @@ jobs:
           "$stage/usr/local/bin/pmdocs" install skill --agent codex
           "$stage/usr/local/bin/pmdocs" skill check
 
-      # The whole vitest suite, including the DB-backed specs: the bugs that mattered (draft
-      # leaks, unique-route sync failures, access defaults) were only visible with real
-      # Payload + Postgres semantics.
-      - name: Tests (Postgres)
+      # Packs the built dist/ (no rebuild), derives the unscoped payload-markdown-docs tarball
+      # like vlr does, and checks both names (same files, every export and its types); packs the
+      # consumer package and imports it with nothing else installed. The tarballs land in
+      # build/npm-packages/ for the consumer smoke.
+      - name: Verify the npm packages
+        run: node scripts/verify-npm-packages.mjs --pack
+
+      - name: Upload the build
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ci-build
+          path: |
+            dist
+            packages/consumer/dist
+            build-native/cli/pmdocs
+            build/npm-packages
+            build/payload-markdown
+          if-no-files-found: error
+          retention-days: 1
+
+  # The whole vitest suite, including the DB-backed specs (the bugs that mattered, such as
+  # draft leaks, unique-route sync failures and access defaults, were only visible with real
+  # Payload + Postgres semantics), then Playwright, against the built dist/.
+  tests:
+    name: Tests (Postgres, Playwright)
+    needs: build
+    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-latest' || fromJSON('["self-hosted","Linux","X64","ubuntu-latest-lts"]') }}
+    defaults:
+      run:
+        shell: bash ./ci/run-ci bash -euo pipefail {0}
+    env:
+      PAYLOAD_SECRET: ci-secret
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ci-build
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --prefer-offline --unsafe-perm
+
+      - name: Vitest (Postgres)
         shell: bash ./ci/run-ci --postgres bash -euo pipefail {0}
         env:
           PAYLOAD_MARKDOWN_DOCS_RUN_DB_TESTS: '1'
@@ -109,40 +142,42 @@ jobs:
           PORT: '3100'
         run: pnpm test:e2e --reporter=line
 
-      # Packs the built dist/ (no rebuild), derives the unscoped payload-markdown-docs tarball
-      # like vlr does, and checks both names (same files, every export and its types); packs the
-      # consumer package and imports it with nothing else installed. The tarballs land in
-      # build/npm-packages/ for the consumer smoke.
-      - name: Verify the npm packages
-        run: node scripts/verify-npm-packages.mjs --pack
+  # Installs the packed plugin and the current payload-markdown main branch into a fresh
+  # Next.js + Payload app the way the README instructs, syncs docs with pmdocs, and renders them
+  # through the real core renderer. Both packages are published under two names; all four
+  # combinations run at once (own app, own port) from the tarballs `build` packed.
+  consumer-smoke:
+    name: Consumer smoke (all package names)
+    needs: build
+    runs-on: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository && 'ubuntu-latest' || fromJSON('["self-hosted","Linux","X64","ubuntu-latest-lts"]') }}
+    defaults:
+      run:
+        shell: bash ./ci/run-ci bash -euo pipefail {0}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      # Installs the packed plugin and the current payload-markdown main branch into a fresh
-      # Next.js + Payload app the way the README instructs, syncs docs with pmdocs, and renders
-      # them through the real core renderer. Both packages are published under two names; all four
-      # combinations run here, one after another, from the same tarballs.
-      - name: Consumer smoke (all package names)
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: ci-build
+
+      # The smoke app pins its Payload and Next.js versions to this workspace's.
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile --prefer-offline --unsafe-perm
+
+      - name: Consumer smoke
         run: |
+          chmod +x build-native/cli/pmdocs
           version="$(node -p "require('./package.json').version")"
-          docs_tarball="build/npm-packages/valkyrianlabs-payload-markdown-docs-${version}.tgz"
-          (cd .ci/payload-markdown && npm pack --ignore-scripts --pack-destination ../)
-          core_tarball="$(ls .ci/valkyrianlabs-payload-markdown-[0-9]*.tgz)"
-          failed=()
-          for docs in payload-markdown-docs @valkyrianlabs/payload-markdown-docs; do
-            for core in payload-markdown @valkyrianlabs/payload-markdown; do
-              echo "::group::$docs + $core"
-              if ! node scripts/consumer-smoke/run.mjs \
-                --core "$core_tarball" \
-                --docs "$docs_tarball" \
-                --core-name "$core" \
-                --docs-name "$docs" \
-                --pmdocs build-native/cli/pmdocs \
-                --workdir "$RUNNER_TEMP/consumer-smoke-${docs//[@\/]/_}-${core//[@\/]/_}"; then
-                failed+=("$docs + $core")
-              fi
-              echo "::endgroup::"
-            done
-          done
-          if [ "${#failed[@]}" -gt 0 ]; then
-            printf '::error::Consumer smoke failed: %s\n' "${failed[@]}"
-            exit 1
-          fi
+          smoke() {
+            local docs=$1 core=$2 port=$3
+            printf "%s::node scripts/consumer-smoke/run.mjs --core %q --docs %q --docs-name %q --core-name %q --pmdocs build-native/cli/pmdocs --port %s --workdir %q" \
+              "$docs + $core" \
+              "$(ls build/payload-markdown/valkyrianlabs-payload-markdown-[0-9]*.tgz)" \
+              "build/npm-packages/valkyrianlabs-payload-markdown-docs-${version}.tgz" \
+              "$docs" "$core" "$port" "$RUNNER_TEMP/consumer-smoke-$port"
+          }
+          ci/run-parallel \
+            "$(smoke payload-markdown-docs payload-markdown 3990)" \
+            "$(smoke @valkyrianlabs/payload-markdown-docs @valkyrianlabs/payload-markdown 3991)" \
+            "$(smoke payload-markdown-docs @valkyrianlabs/payload-markdown 3992)" \
+            "$(smoke @valkyrianlabs/payload-markdown-docs payload-markdown 3993)"
