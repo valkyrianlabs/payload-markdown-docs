@@ -13,12 +13,14 @@
 # bytes. Nothing is written back to main unless every publication succeeded. Publication never
 # replaces published bytes: re-running a failed job skips whatever is already identical.
 #
-# npm: one build, two names. `vlr build-npm` packs @valkyrianlabs/payload-markdown-docs and
-# derives payload-markdown-docs from the same tarball (release.toml [[npm.aliases]]);
-# `vlr publish-npm` plans both before uploading either and uploads the alias first. Both
-# npmjs.com packages trust this workflow file (`release.yml`) and the `Production` environment
-# (trusted publishing, OIDC; no token secret). A brand-new alias cannot use trusted publishing
-# until it exists: see `vlr help ci` ("A new alias on npmjs.com") for the one-time bootstrap.
+# npm: the plugin under two names plus the consumer package. `vlr build-npm` packs
+# @valkyrianlabs/payload-markdown-docs, derives payload-markdown-docs from the same tarball
+# (release.toml [[npm.aliases]]), and packs @valkyrianlabs/payload-markdown-docs-consumer from
+# packages/consumer ([[npm.packages]]); `vlr publish-npm` plans all three before uploading any and
+# uploads the alias and the consumer before the plugin. Every npmjs.com package trusts this
+# workflow file (`release.yml`) and the `Production` environment (trusted publishing, OIDC; no
+# token secret). A brand-new package or alias cannot use trusted publishing until it exists: see
+# `vlr help ci` for the one-time bootstrap.
 #
 # Runners: every job runs on the self-hosted runner inside the disposable CI container
 # (`./ci/run-ci`, rootless Podman; see ci/README.md) except publish-npm, because npm trusted
@@ -123,7 +125,8 @@ jobs:
       - name: Check the vendored payload-markdown skill
         run: node scripts/sync-payload-markdown-skill.mjs --check
 
-      # Runs `pnpm build` (pre_pack) and packs both npm tarballs every later step uses.
+      # Runs each package's `pnpm build` (pre_pack) and packs the plugin (both names) and the consumer
+      # package, the tarballs every later step uses.
       - name: Build and pack npm packages
         run: NEXT_CPU_COUNT="$(nproc)" vlr build-npm
 
@@ -133,9 +136,9 @@ jobs:
       - name: Lint
         run: pnpm lint
 
-      # Both npm names from the built tarballs: same files, every export and its types, and
-      # admin component paths under each installed name.
-      - name: Verify both npm packages
+      # Both plugin npm names from the built tarballs: same files, every export and its types, and
+      # admin component paths under each installed name; the consumer package standalone.
+      - name: Verify the npm packages
         run: node scripts/verify-npm-packages.mjs --release release
 
       - name: Build and test the native CLI

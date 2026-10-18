@@ -109,6 +109,16 @@ What it leaves out, always reported as a `skipped_path` warning:
 Files that are not valid UTF-8 fail validation with an `invalid_encoding`
 error that names the file.
 
+`stack.toml` at the docs root is project metadata, not a page: the walk never
+publishes it as a doc. When it exists, `validate` checks it and prints
+`stack.toml: present` with the title/description it sets and its categories
+(`missing` without the file, `invalid` with errors). Its errors fail validation
+like any other. Each one has the path `stack.toml` and names the key to fix,
+such as `stack.languages[0].name`. A file without a `[stack]` table produces a
+`missing_stack` warning because it clears the synchronized stack. With
+`--json`, `package.stackToml` reports the state and `project` summarizes the
+metadata. See [stack.toml](/reference/stack-toml).
+
 Two files that derive the same route (`index.md` and `Index.md`, or
 `guide.md` and `guide/index.md`) fail validation with a `route_collision` error
 on each file; the sync endpoint would reject them. Routes that differ only in
@@ -134,7 +144,9 @@ pmdocs manifest ./docs --source main-docs --pretty
 ```
 
 Prints manifest JSON. Docs records remain under `files`; skill artifacts and
-optional custom static fallback files are emitted under `assets`.
+optional custom static fallback files are emitted under `assets`. A valid
+`stack.toml` becomes the `project` object right after `source`. Without the file
+there is no `project` key, and the docs set's project metadata stays as it is.
 
 ## plan
 
@@ -159,6 +171,8 @@ The plan is a local approximation of the server's dry-run. To match it:
   (assets) shapes: arrays of `{ "sourcePath", "route", "sourceHash", "status",
   "archived" }` and `{ "sourcePath", "kind", "contentType", "route",
   "sourceHash", "archived" }`
+
+The text and `--json` output also show the `stack.toml` summary.
 
 `pmdocs push --dry-run` asks the server for the authoritative plan.
 `validate` accepts `--route-base` and `--asset-route-base` too, so route
@@ -187,6 +201,8 @@ Access.
   exists
 - `./llms.txt` and `./llms-full.txt` as optional custom static fallback assets
   when present
+- `stack.toml` from the docs root as the manifest `project` object when present
+  ([stack.toml](/reference/stack-toml))
 
 Projects do not need to ship native skills. A missing default `./skills`
 directory is skipped during `push`; pass `--no-skills` to opt out explicitly or
@@ -237,6 +253,15 @@ severity), `routeCollisions`, and manual-edit `conflicts`. With `--json`, the
 output adds a normalized `failure` object with `code`, `message`, `issues`,
 `routeCollisions`, and `conflicts` (empty arrays when an older server does not
 send them).
+
+When the push sent `stack.toml`, the server reports what it did with it, and
+the output prints a line like `Project metadata: stack updated, title manual,
+description not_provided`. `(not applied)` is added for dry runs. Servers
+older than payload-markdown-docs 1.3.0 ignore project metadata without saying
+so. `push` then still succeeds, because the docs were synced, but it prints a
+warning that the stack, title and description were not synchronized. With
+`--json` the output carries `project: { "sent": true, "acknowledged": false }`
+and a `project_not_acknowledged` warning.
 
 If assets are included and public Next asset route files are missing from the
 current working tree, `push` prints a warning. Add `--strict-routes` in CI to

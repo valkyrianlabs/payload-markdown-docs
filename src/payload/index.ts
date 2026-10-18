@@ -25,9 +25,18 @@ export type { DocsSyncConflict, DocsSyncConflictReason } from './docsConflicts.j
 export { buildArchiveData, buildDocsData, getDocsDepth } from './docsData.js'
 export type { BuildDocsDataInput, DocsDraftStatus } from './docsData.js'
 export {
+  getDocsSetProjectSyncFields,
+  getDocsSetStack,
+  isManualTitleDescription,
+  PAYLOAD_MARKDOWN_DOCS_SYNC_CONTEXT_KEY,
+  planDocsSetProjectUpdate,
+} from './docsSetProject.js'
+export type { DocsSetProjectOutcome, DocsSetProjectPlan } from './docsSetProject.js'
+export {
   findAllDocsSets,
   findDocsSetByRoutePrefix,
   findDocsSetBySlug,
+  findDocsSetMainRecord,
   isEd25519AuthEnabled,
   isGitHubOidcAuthEnabled,
   updateDocsSetAfterSync,

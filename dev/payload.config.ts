@@ -77,6 +77,9 @@ export default buildConfig({
         },
       },
       enabled: true,
+      publicApi: {
+        projects: true,
+      },
       sync: {
         allowHardDelete: false,
         allowPublish: true,

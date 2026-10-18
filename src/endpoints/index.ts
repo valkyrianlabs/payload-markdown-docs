@@ -1,4 +1,6 @@
 export { createDocsAssetsEndpoints } from './assets.js'
 export type { CreateDocsAssetsEndpointsOptions } from './assets.js'
+export { createDocsProjectsEndpoints, DEFAULT_DOCS_PROJECTS_ENDPOINT_PATH } from './projects.js'
+export type { CreateDocsProjectsEndpointsOptions } from './projects.js'
 export { createSyncEndpoint } from './sync.js'
 export type { CreateSyncEndpointOptions, DocsSyncEndpointErrorCode } from './sync.js'

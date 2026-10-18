@@ -1,0 +1,2865 @@
+{
+  "contractVersion": 1,
+  "description": "Project metadata: the optional manifest `project` object (src/sync/project.ts validateDocsProjectMetadata; cli/src/sync_contract.cpp validate_project) and docs/stack.toml conversion (cli/src/sync_contract.cpp parse_stack_toml; C++ only, the server never reads TOML). Issues and warnings are compared by code and path, in order; paths name stack.toml keys. A successful result is the normalized wire object. Every `stackToml` result that is ok must also validate unchanged as a `cases` input.",
+  "limits": {
+    "maxCategories": 32,
+    "maxItemsPerCategory": 64,
+    "maxItems": 256,
+    "maxCategoryBytes": 64,
+    "maxNameBytes": 128,
+    "maxTitleBytes": 256,
+    "maxDescriptionBytes": 2048
+  },
+  "cases": [
+    {
+      "name": "minimal stack",
+      "project": {
+        "stack": [
+          {
+            "category": "languages",
+            "items": [
+              {
+                "name": "C++23"
+              }
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "ok": true,
+        "project": {
+          "stack": [
+            {
+              "category": "languages",
+              "items": [
+                {
+                  "name": "C++23"
+                }
+              ]
+            }
+          ]
+        },
+        "issues": [],
+        "warnings": []
+      }
+    },
+    {
+      "name": "title and description are trimmed; description line endings become LF",
+      "project": {
+        "title": "  Vaulthalla  ",
+        "description": "\tThe Final Cloud.\r\nEncrypted storage.\rSelf-hosted.  ",
+        "stack": [
+          {
+            "category": "languages",
+            "items": [
+              {
+                "name": " C++23 "
+              },
+              {
+                "name": "TypeScript"
+              }
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "ok": true,
+        "project": {
+          "title": "Vaulthalla",
+          "description": "The Final Cloud.\nEncrypted storage.\nSelf-hosted.",
+          "stack": [
+            {
+              "category": "languages",
+              "items": [
+                {
+                  "name": "C++23"
+                },
+                {
+                  "name": "TypeScript"
+                }
+              ]
+            }
+          ]
+        },
+        "issues": [],
+        "warnings": []
+      }
+    },
+    {
+      "name": "arbitrary category names keep their order and item order",
+      "project": {
+        "stack": [
+          {
+            "category": "engines",
+            "items": [
+              {
+                "name": "Godot"
+              }
+            ]
+          },
+          {
+            "category": "security",
+            "items": [
+              {
+                "name": "libsodium"
+              },
+              {
+                "name": "OpenSSL"
+              }
+            ]
+          },
+          {
+            "category": "protocols",
+            "items": [
+              {
+                "name": "WebDAV"
+              },
+              {
+                "name": "S3"
+              }
+            ]
+          },
+          {
+            "category": "languages",
+            "items": [
+              {
+                "name": "Zig"
+              },
+              {
+                "name": "C"
+              }
+            ]
+          },
+          {
+            "category": "Infra_2",
+            "items": [
+              {
+                "name": "AWS S3"
+              }
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "ok": true,
+        "project": {
+          "stack": [
+            {
+              "category": "engines",
+              "items": [
+                {
+                  "name": "Godot"
+                }
+              ]
+            },
+            {
+              "category": "security",
+              "items": [
+                {
+                  "name": "libsodium"
+                },
+                {
+                  "name": "OpenSSL"
+                }
+              ]
+            },
+            {
+              "category": "protocols",
+              "items": [
+                {
+                  "name": "WebDAV"
+                },
+                {
+                  "name": "S3"
+                }
+              ]
+            },
+            {
+              "category": "languages",
+              "items": [
+                {
+                  "name": "Zig"
+                },
+                {
+                  "name": "C"
+                }
+              ]
+            },
+            {
+              "category": "Infra_2",
+              "items": [
+                {
+                  "name": "AWS S3"
+                }
+              ]
+            }
+          ]
+        },
+        "issues": [],
+        "warnings": []
+      }
+    },
+    {
+      "name": "explicitly empty stack clears",
+      "project": {
+        "stack": []
+      },
+      "expect": {
+        "ok": true,
+        "project": {
+          "stack": []
+        },
+        "issues": [],
+        "warnings": []
+      }
+    },
+    {
+      "name": "absent stack leaves the stack untouched (no stack key in the result)",
+      "project": {
+        "title": "Only a title"
+      },
+      "expect": {
+        "ok": true,
+        "project": {
+          "title": "Only a title"
+        },
+        "issues": [],
+        "warnings": []
+      }
+    },
+    {
+      "name": "empty project object",
+      "project": {},
+      "expect": {
+        "ok": true,
+        "project": {},
+        "issues": [],
+        "warnings": []
+      }
+    },
+    {
+      "name": "multi-byte names up to 128 UTF-8 bytes",
+      "project": {
+        "stack": [
+          {
+            "category": "languages",
+            "items": [
+              {
+                "name": "éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé"
+              }
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "ok": true,
+        "project": {
+          "stack": [
+            {
+              "category": "languages",
+              "items": [
+                {
+                  "name": "éééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé"
+                }
+              ]
+            }
+          ]
+        },
+        "issues": [],
+        "warnings": []
+      }
+    },
+    {
+      "name": "description keeps tabs and newlines inside",
+      "project": {
+        "description": "A\tB\nC"
+      },
+      "expect": {
+        "ok": true,
+        "project": {
+          "description": "A\tB\nC"
+        },
+        "issues": [],
+        "warnings": []
+      }
+    },
+    {
+      "name": "category without items is dropped with a warning",
+      "project": {
+        "stack": [
+          {
+            "category": "languages",
+            "items": [
+              {
+                "name": "Go"
+              }
+            ]
+          },
+          {
+            "category": "tooling",
+            "items": []
+          }
+        ]
+      },
+      "expect": {
+        "ok": true,
+        "project": {
+          "stack": [
+            {
+              "category": "languages",
+              "items": [
+                {
+                  "name": "Go"
+                }
+              ]
+            }
+          ]
+        },
+        "issues": [],
+        "warnings": [
+          {
+            "code": "empty_stack_category",
+            "path": "stack.tooling"
+          }
+        ]
+      }
+    },
+    {
+      "name": "unknown fields are dropped with warnings (forward compatibility)",
+      "project": {
+        "license": "MIT",
+        "stack": [
+          {
+            "category": "languages",
+            "color": "blue",
+            "items": [
+              {
+                "name": "Go",
+                "version": "1.23",
+                "url": "https://go.dev"
+              }
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "ok": true,
+        "project": {
+          "stack": [
+            {
+              "category": "languages",
+              "items": [
+                {
+                  "name": "Go"
+                }
+              ]
+            }
+          ]
+        },
+        "issues": [],
+        "warnings": [
+          {
+            "code": "unknown_project_field",
+            "path": "project.license"
+          },
+          {
+            "code": "unknown_project_field",
+            "path": "stack.languages.color"
+          },
+          {
+            "code": "unknown_project_field",
+            "path": "stack.languages[0].version"
+          },
+          {
+            "code": "unknown_project_field",
+            "path": "stack.languages[0].url"
+          }
+        ]
+      }
+    },
+    {
+      "name": "project must be an object",
+      "project": "Vaulthalla",
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "invalid_project",
+            "path": "project"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "project must not be an array",
+      "project": [],
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "invalid_project",
+            "path": "project"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "project must not be null",
+      "project": null,
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "invalid_project",
+            "path": "project"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "blank title",
+      "project": {
+        "title": "   "
+      },
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "invalid_project_title",
+            "path": "project.title"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "null title",
+      "project": {
+        "title": null
+      },
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "invalid_project_title",
+            "path": "project.title"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "numeric title",
+      "project": {
+        "title": 42
+      },
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "invalid_project_title",
+            "path": "project.title"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "multi-line title",
+      "project": {
+        "title": "A\nB"
+      },
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "invalid_project_title",
+            "path": "project.title"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "C1 control character in title",
+      "project": {
+        "title": "AB"
+      },
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "invalid_project_title",
+            "path": "project.title"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "title over 256 bytes",
+      "project": {
+        "title": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      },
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "invalid_project_title",
+            "path": "project.title"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "title of exactly 256 bytes",
+      "project": {
+        "title": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      },
+      "expect": {
+        "ok": true,
+        "project": {
+          "title": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        },
+        "issues": [],
+        "warnings": []
+      }
+    },
+    {
+      "name": "blank description",
+      "project": {
+        "description": ""
+      },
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "invalid_project_description",
+            "path": "project.description"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "control character in description",
+      "project": {
+        "description": "Bell\u0007"
+      },
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "invalid_project_description",
+            "path": "project.description"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "description over 2048 bytes",
+      "project": {
+        "description": "ddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+      },
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "invalid_project_description",
+            "path": "project.description"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "stack must be an array",
+      "project": {
+        "stack": {
+          "languages": []
+        }
+      },
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "invalid_stack",
+            "path": "stack"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "stack must not be null",
+      "project": {
+        "stack": null
+      },
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "invalid_stack",
+            "path": "stack"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "category must be an object",
+      "project": {
+        "stack": [
+          "languages"
+        ]
+      },
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "invalid_stack_category",
+            "path": "stack[0]"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "category name must be a key (letters, digits, - and _)",
+      "project": {
+        "stack": [
+          {
+            "category": "languages",
+            "items": [
+              {
+                "name": "Go"
+              }
+            ]
+          },
+          {
+            "category": "machine learning",
+            "items": [
+              {
+                "name": "PyTorch"
+              }
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "invalid_stack_category",
+            "path": "stack[1]"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "category name must not start with - or _",
+      "project": {
+        "stack": [
+          {
+            "category": "-tools",
+            "items": [
+              {
+                "name": "Make"
+              }
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "invalid_stack_category",
+            "path": "stack[0]"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "category name over 64 bytes",
+      "project": {
+        "stack": [
+          {
+            "category": "ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "items": [
+              {
+                "name": "X"
+              }
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "invalid_stack_category",
+            "path": "stack[0]"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "category items must be an array",
+      "project": {
+        "stack": [
+          {
+            "category": "languages",
+            "items": {
+              "name": "Go"
+            }
+          }
+        ]
+      },
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "invalid_stack_category",
+            "path": "stack.languages"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "category items are required",
+      "project": {
+        "stack": [
+          {
+            "category": "languages"
+          }
+        ]
+      },
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "invalid_stack_category",
+            "path": "stack.languages"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "duplicate category (ASCII case-insensitive)",
+      "project": {
+        "stack": [
+          {
+            "category": "languages",
+            "items": [
+              {
+                "name": "Go"
+              }
+            ]
+          },
+          {
+            "category": "Languages",
+            "items": [
+              {
+                "name": "Rust"
+              }
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "duplicate_stack_category",
+            "path": "stack.Languages"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "item must be an object",
+      "project": {
+        "stack": [
+          {
+            "category": "languages",
+            "items": [
+              {
+                "name": "Go"
+              },
+              "Rust"
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "invalid_stack_item",
+            "path": "stack.languages[1]"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "item name is required",
+      "project": {
+        "stack": [
+          {
+            "category": "languages",
+            "items": [
+              {
+                "version": "1"
+              }
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "invalid_stack_item",
+            "path": "stack.languages[0].name"
+          }
+        ],
+        "warnings": [
+          {
+            "code": "unknown_project_field",
+            "path": "stack.languages[0].version"
+          }
+        ]
+      }
+    },
+    {
+      "name": "blank item name",
+      "project": {
+        "stack": [
+          {
+            "category": "languages",
+            "items": [
+              {
+                "name": " "
+              }
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "invalid_stack_item",
+            "path": "stack.languages[0].name"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "non-string item name",
+      "project": {
+        "stack": [
+          {
+            "category": "languages",
+            "items": [
+              {
+                "name": 23
+              }
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "invalid_stack_item",
+            "path": "stack.languages[0].name"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "item name with a newline",
+      "project": {
+        "stack": [
+          {
+            "category": "languages",
+            "items": [
+              {
+                "name": "C\n++"
+              }
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "invalid_stack_item",
+            "path": "stack.languages[0].name"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "item name over 128 bytes (multi-byte)",
+      "project": {
+        "stack": [
+          {
+            "category": "languages",
+            "items": [
+              {
+                "name": "ééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééééé"
+              }
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "invalid_stack_item",
+            "path": "stack.languages[0].name"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "duplicate item in one category (ASCII case-insensitive, after trimming)",
+      "project": {
+        "stack": [
+          {
+            "category": "databases",
+            "items": [
+              {
+                "name": "PostgreSQL"
+              },
+              {
+                "name": " postgresql "
+              }
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "duplicate_stack_item",
+            "path": "stack.databases[1].name"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "the same item in two categories is allowed",
+      "project": {
+        "stack": [
+          {
+            "category": "databases",
+            "items": [
+              {
+                "name": "SQLite"
+              }
+            ]
+          },
+          {
+            "category": "libraries",
+            "items": [
+              {
+                "name": "SQLite"
+              }
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "ok": true,
+        "project": {
+          "stack": [
+            {
+              "category": "databases",
+              "items": [
+                {
+                  "name": "SQLite"
+                }
+              ]
+            },
+            {
+              "category": "libraries",
+              "items": [
+                {
+                  "name": "SQLite"
+                }
+              ]
+            }
+          ]
+        },
+        "issues": [],
+        "warnings": []
+      }
+    },
+    {
+      "name": "more than 32 categories",
+      "project": {
+        "stack": [
+          {
+            "category": "c0",
+            "items": [
+              {
+                "name": "X"
+              }
+            ]
+          },
+          {
+            "category": "c1",
+            "items": [
+              {
+                "name": "X"
+              }
+            ]
+          },
+          {
+            "category": "c2",
+            "items": [
+              {
+                "name": "X"
+              }
+            ]
+          },
+          {
+            "category": "c3",
+            "items": [
+              {
+                "name": "X"
+              }
+            ]
+          },
+          {
+            "category": "c4",
+            "items": [
+              {
+                "name": "X"
+              }
+            ]
+          },
+          {
+            "category": "c5",
+            "items": [
+              {
+                "name": "X"
+              }
+            ]
+          },
+          {
+            "category": "c6",
+            "items": [
+              {
+                "name": "X"
+              }
+            ]
+          },
+          {
+            "category": "c7",
+            "items": [
+              {
+                "name": "X"
+              }
+            ]
+          },
+          {
+            "category": "c8",
+            "items": [
+              {
+                "name": "X"
+              }
+            ]
+          },
+          {
+            "category": "c9",
+            "items": [
+              {
+                "name": "X"
+              }
+            ]
+          },
+          {
+            "category": "c10",
+            "items": [
+              {
+                "name": "X"
+              }
+            ]
+          },
+          {
+            "category": "c11",
+            "items": [
+              {
+                "name": "X"
+              }
+            ]
+          },
+          {
+            "category": "c12",
+            "items": [
+              {
+                "name": "X"
+              }
+            ]
+          },
+          {
+            "category": "c13",
+            "items": [
+              {
+                "name": "X"
+              }
+            ]
+          },
+          {
+            "category": "c14",
+            "items": [
+              {
+                "name": "X"
+              }
+            ]
+          },
+          {
+            "category": "c15",
+            "items": [
+              {
+                "name": "X"
+              }
+            ]
+          },
+          {
+            "category": "c16",
+            "items": [
+              {
+                "name": "X"
+              }
+            ]
+          },
+          {
+            "category": "c17",
+            "items": [
+              {
+                "name": "X"
+              }
+            ]
+          },
+          {
+            "category": "c18",
+            "items": [
+              {
+                "name": "X"
+              }
+            ]
+          },
+          {
+            "category": "c19",
+            "items": [
+              {
+                "name": "X"
+              }
+            ]
+          },
+          {
+            "category": "c20",
+            "items": [
+              {
+                "name": "X"
+              }
+            ]
+          },
+          {
+            "category": "c21",
+            "items": [
+              {
+                "name": "X"
+              }
+            ]
+          },
+          {
+            "category": "c22",
+            "items": [
+              {
+                "name": "X"
+              }
+            ]
+          },
+          {
+            "category": "c23",
+            "items": [
+              {
+                "name": "X"
+              }
+            ]
+          },
+          {
+            "category": "c24",
+            "items": [
+              {
+                "name": "X"
+              }
+            ]
+          },
+          {
+            "category": "c25",
+            "items": [
+              {
+                "name": "X"
+              }
+            ]
+          },
+          {
+            "category": "c26",
+            "items": [
+              {
+                "name": "X"
+              }
+            ]
+          },
+          {
+            "category": "c27",
+            "items": [
+              {
+                "name": "X"
+              }
+            ]
+          },
+          {
+            "category": "c28",
+            "items": [
+              {
+                "name": "X"
+              }
+            ]
+          },
+          {
+            "category": "c29",
+            "items": [
+              {
+                "name": "X"
+              }
+            ]
+          },
+          {
+            "category": "c30",
+            "items": [
+              {
+                "name": "X"
+              }
+            ]
+          },
+          {
+            "category": "c31",
+            "items": [
+              {
+                "name": "X"
+              }
+            ]
+          },
+          {
+            "category": "c32",
+            "items": [
+              {
+                "name": "X"
+              }
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "stack_limit_exceeded",
+            "path": "stack"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "more than 64 items in a category",
+      "project": {
+        "stack": [
+          {
+            "category": "libraries",
+            "items": [
+              {
+                "name": "lib0"
+              },
+              {
+                "name": "lib1"
+              },
+              {
+                "name": "lib2"
+              },
+              {
+                "name": "lib3"
+              },
+              {
+                "name": "lib4"
+              },
+              {
+                "name": "lib5"
+              },
+              {
+                "name": "lib6"
+              },
+              {
+                "name": "lib7"
+              },
+              {
+                "name": "lib8"
+              },
+              {
+                "name": "lib9"
+              },
+              {
+                "name": "lib10"
+              },
+              {
+                "name": "lib11"
+              },
+              {
+                "name": "lib12"
+              },
+              {
+                "name": "lib13"
+              },
+              {
+                "name": "lib14"
+              },
+              {
+                "name": "lib15"
+              },
+              {
+                "name": "lib16"
+              },
+              {
+                "name": "lib17"
+              },
+              {
+                "name": "lib18"
+              },
+              {
+                "name": "lib19"
+              },
+              {
+                "name": "lib20"
+              },
+              {
+                "name": "lib21"
+              },
+              {
+                "name": "lib22"
+              },
+              {
+                "name": "lib23"
+              },
+              {
+                "name": "lib24"
+              },
+              {
+                "name": "lib25"
+              },
+              {
+                "name": "lib26"
+              },
+              {
+                "name": "lib27"
+              },
+              {
+                "name": "lib28"
+              },
+              {
+                "name": "lib29"
+              },
+              {
+                "name": "lib30"
+              },
+              {
+                "name": "lib31"
+              },
+              {
+                "name": "lib32"
+              },
+              {
+                "name": "lib33"
+              },
+              {
+                "name": "lib34"
+              },
+              {
+                "name": "lib35"
+              },
+              {
+                "name": "lib36"
+              },
+              {
+                "name": "lib37"
+              },
+              {
+                "name": "lib38"
+              },
+              {
+                "name": "lib39"
+              },
+              {
+                "name": "lib40"
+              },
+              {
+                "name": "lib41"
+              },
+              {
+                "name": "lib42"
+              },
+              {
+                "name": "lib43"
+              },
+              {
+                "name": "lib44"
+              },
+              {
+                "name": "lib45"
+              },
+              {
+                "name": "lib46"
+              },
+              {
+                "name": "lib47"
+              },
+              {
+                "name": "lib48"
+              },
+              {
+                "name": "lib49"
+              },
+              {
+                "name": "lib50"
+              },
+              {
+                "name": "lib51"
+              },
+              {
+                "name": "lib52"
+              },
+              {
+                "name": "lib53"
+              },
+              {
+                "name": "lib54"
+              },
+              {
+                "name": "lib55"
+              },
+              {
+                "name": "lib56"
+              },
+              {
+                "name": "lib57"
+              },
+              {
+                "name": "lib58"
+              },
+              {
+                "name": "lib59"
+              },
+              {
+                "name": "lib60"
+              },
+              {
+                "name": "lib61"
+              },
+              {
+                "name": "lib62"
+              },
+              {
+                "name": "lib63"
+              },
+              {
+                "name": "lib64"
+              }
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "stack_limit_exceeded",
+            "path": "stack.libraries"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "more than 256 items in total",
+      "project": {
+        "stack": [
+          {
+            "category": "c0",
+            "items": [
+              {
+                "name": "t0"
+              },
+              {
+                "name": "t1"
+              },
+              {
+                "name": "t2"
+              },
+              {
+                "name": "t3"
+              },
+              {
+                "name": "t4"
+              },
+              {
+                "name": "t5"
+              },
+              {
+                "name": "t6"
+              },
+              {
+                "name": "t7"
+              },
+              {
+                "name": "t8"
+              },
+              {
+                "name": "t9"
+              },
+              {
+                "name": "t10"
+              },
+              {
+                "name": "t11"
+              },
+              {
+                "name": "t12"
+              },
+              {
+                "name": "t13"
+              },
+              {
+                "name": "t14"
+              },
+              {
+                "name": "t15"
+              },
+              {
+                "name": "t16"
+              },
+              {
+                "name": "t17"
+              },
+              {
+                "name": "t18"
+              },
+              {
+                "name": "t19"
+              },
+              {
+                "name": "t20"
+              },
+              {
+                "name": "t21"
+              },
+              {
+                "name": "t22"
+              },
+              {
+                "name": "t23"
+              },
+              {
+                "name": "t24"
+              },
+              {
+                "name": "t25"
+              },
+              {
+                "name": "t26"
+              },
+              {
+                "name": "t27"
+              },
+              {
+                "name": "t28"
+              },
+              {
+                "name": "t29"
+              },
+              {
+                "name": "t30"
+              },
+              {
+                "name": "t31"
+              },
+              {
+                "name": "t32"
+              },
+              {
+                "name": "t33"
+              },
+              {
+                "name": "t34"
+              },
+              {
+                "name": "t35"
+              },
+              {
+                "name": "t36"
+              },
+              {
+                "name": "t37"
+              },
+              {
+                "name": "t38"
+              },
+              {
+                "name": "t39"
+              },
+              {
+                "name": "t40"
+              },
+              {
+                "name": "t41"
+              },
+              {
+                "name": "t42"
+              },
+              {
+                "name": "t43"
+              },
+              {
+                "name": "t44"
+              },
+              {
+                "name": "t45"
+              },
+              {
+                "name": "t46"
+              },
+              {
+                "name": "t47"
+              },
+              {
+                "name": "t48"
+              },
+              {
+                "name": "t49"
+              },
+              {
+                "name": "t50"
+              },
+              {
+                "name": "t51"
+              }
+            ]
+          },
+          {
+            "category": "c1",
+            "items": [
+              {
+                "name": "t0"
+              },
+              {
+                "name": "t1"
+              },
+              {
+                "name": "t2"
+              },
+              {
+                "name": "t3"
+              },
+              {
+                "name": "t4"
+              },
+              {
+                "name": "t5"
+              },
+              {
+                "name": "t6"
+              },
+              {
+                "name": "t7"
+              },
+              {
+                "name": "t8"
+              },
+              {
+                "name": "t9"
+              },
+              {
+                "name": "t10"
+              },
+              {
+                "name": "t11"
+              },
+              {
+                "name": "t12"
+              },
+              {
+                "name": "t13"
+              },
+              {
+                "name": "t14"
+              },
+              {
+                "name": "t15"
+              },
+              {
+                "name": "t16"
+              },
+              {
+                "name": "t17"
+              },
+              {
+                "name": "t18"
+              },
+              {
+                "name": "t19"
+              },
+              {
+                "name": "t20"
+              },
+              {
+                "name": "t21"
+              },
+              {
+                "name": "t22"
+              },
+              {
+                "name": "t23"
+              },
+              {
+                "name": "t24"
+              },
+              {
+                "name": "t25"
+              },
+              {
+                "name": "t26"
+              },
+              {
+                "name": "t27"
+              },
+              {
+                "name": "t28"
+              },
+              {
+                "name": "t29"
+              },
+              {
+                "name": "t30"
+              },
+              {
+                "name": "t31"
+              },
+              {
+                "name": "t32"
+              },
+              {
+                "name": "t33"
+              },
+              {
+                "name": "t34"
+              },
+              {
+                "name": "t35"
+              },
+              {
+                "name": "t36"
+              },
+              {
+                "name": "t37"
+              },
+              {
+                "name": "t38"
+              },
+              {
+                "name": "t39"
+              },
+              {
+                "name": "t40"
+              },
+              {
+                "name": "t41"
+              },
+              {
+                "name": "t42"
+              },
+              {
+                "name": "t43"
+              },
+              {
+                "name": "t44"
+              },
+              {
+                "name": "t45"
+              },
+              {
+                "name": "t46"
+              },
+              {
+                "name": "t47"
+              },
+              {
+                "name": "t48"
+              },
+              {
+                "name": "t49"
+              },
+              {
+                "name": "t50"
+              },
+              {
+                "name": "t51"
+              }
+            ]
+          },
+          {
+            "category": "c2",
+            "items": [
+              {
+                "name": "t0"
+              },
+              {
+                "name": "t1"
+              },
+              {
+                "name": "t2"
+              },
+              {
+                "name": "t3"
+              },
+              {
+                "name": "t4"
+              },
+              {
+                "name": "t5"
+              },
+              {
+                "name": "t6"
+              },
+              {
+                "name": "t7"
+              },
+              {
+                "name": "t8"
+              },
+              {
+                "name": "t9"
+              },
+              {
+                "name": "t10"
+              },
+              {
+                "name": "t11"
+              },
+              {
+                "name": "t12"
+              },
+              {
+                "name": "t13"
+              },
+              {
+                "name": "t14"
+              },
+              {
+                "name": "t15"
+              },
+              {
+                "name": "t16"
+              },
+              {
+                "name": "t17"
+              },
+              {
+                "name": "t18"
+              },
+              {
+                "name": "t19"
+              },
+              {
+                "name": "t20"
+              },
+              {
+                "name": "t21"
+              },
+              {
+                "name": "t22"
+              },
+              {
+                "name": "t23"
+              },
+              {
+                "name": "t24"
+              },
+              {
+                "name": "t25"
+              },
+              {
+                "name": "t26"
+              },
+              {
+                "name": "t27"
+              },
+              {
+                "name": "t28"
+              },
+              {
+                "name": "t29"
+              },
+              {
+                "name": "t30"
+              },
+              {
+                "name": "t31"
+              },
+              {
+                "name": "t32"
+              },
+              {
+                "name": "t33"
+              },
+              {
+                "name": "t34"
+              },
+              {
+                "name": "t35"
+              },
+              {
+                "name": "t36"
+              },
+              {
+                "name": "t37"
+              },
+              {
+                "name": "t38"
+              },
+              {
+                "name": "t39"
+              },
+              {
+                "name": "t40"
+              },
+              {
+                "name": "t41"
+              },
+              {
+                "name": "t42"
+              },
+              {
+                "name": "t43"
+              },
+              {
+                "name": "t44"
+              },
+              {
+                "name": "t45"
+              },
+              {
+                "name": "t46"
+              },
+              {
+                "name": "t47"
+              },
+              {
+                "name": "t48"
+              },
+              {
+                "name": "t49"
+              },
+              {
+                "name": "t50"
+              },
+              {
+                "name": "t51"
+              }
+            ]
+          },
+          {
+            "category": "c3",
+            "items": [
+              {
+                "name": "t0"
+              },
+              {
+                "name": "t1"
+              },
+              {
+                "name": "t2"
+              },
+              {
+                "name": "t3"
+              },
+              {
+                "name": "t4"
+              },
+              {
+                "name": "t5"
+              },
+              {
+                "name": "t6"
+              },
+              {
+                "name": "t7"
+              },
+              {
+                "name": "t8"
+              },
+              {
+                "name": "t9"
+              },
+              {
+                "name": "t10"
+              },
+              {
+                "name": "t11"
+              },
+              {
+                "name": "t12"
+              },
+              {
+                "name": "t13"
+              },
+              {
+                "name": "t14"
+              },
+              {
+                "name": "t15"
+              },
+              {
+                "name": "t16"
+              },
+              {
+                "name": "t17"
+              },
+              {
+                "name": "t18"
+              },
+              {
+                "name": "t19"
+              },
+              {
+                "name": "t20"
+              },
+              {
+                "name": "t21"
+              },
+              {
+                "name": "t22"
+              },
+              {
+                "name": "t23"
+              },
+              {
+                "name": "t24"
+              },
+              {
+                "name": "t25"
+              },
+              {
+                "name": "t26"
+              },
+              {
+                "name": "t27"
+              },
+              {
+                "name": "t28"
+              },
+              {
+                "name": "t29"
+              },
+              {
+                "name": "t30"
+              },
+              {
+                "name": "t31"
+              },
+              {
+                "name": "t32"
+              },
+              {
+                "name": "t33"
+              },
+              {
+                "name": "t34"
+              },
+              {
+                "name": "t35"
+              },
+              {
+                "name": "t36"
+              },
+              {
+                "name": "t37"
+              },
+              {
+                "name": "t38"
+              },
+              {
+                "name": "t39"
+              },
+              {
+                "name": "t40"
+              },
+              {
+                "name": "t41"
+              },
+              {
+                "name": "t42"
+              },
+              {
+                "name": "t43"
+              },
+              {
+                "name": "t44"
+              },
+              {
+                "name": "t45"
+              },
+              {
+                "name": "t46"
+              },
+              {
+                "name": "t47"
+              },
+              {
+                "name": "t48"
+              },
+              {
+                "name": "t49"
+              },
+              {
+                "name": "t50"
+              },
+              {
+                "name": "t51"
+              }
+            ]
+          },
+          {
+            "category": "c4",
+            "items": [
+              {
+                "name": "t0"
+              },
+              {
+                "name": "t1"
+              },
+              {
+                "name": "t2"
+              },
+              {
+                "name": "t3"
+              },
+              {
+                "name": "t4"
+              },
+              {
+                "name": "t5"
+              },
+              {
+                "name": "t6"
+              },
+              {
+                "name": "t7"
+              },
+              {
+                "name": "t8"
+              },
+              {
+                "name": "t9"
+              },
+              {
+                "name": "t10"
+              },
+              {
+                "name": "t11"
+              },
+              {
+                "name": "t12"
+              },
+              {
+                "name": "t13"
+              },
+              {
+                "name": "t14"
+              },
+              {
+                "name": "t15"
+              },
+              {
+                "name": "t16"
+              },
+              {
+                "name": "t17"
+              },
+              {
+                "name": "t18"
+              },
+              {
+                "name": "t19"
+              },
+              {
+                "name": "t20"
+              },
+              {
+                "name": "t21"
+              },
+              {
+                "name": "t22"
+              },
+              {
+                "name": "t23"
+              },
+              {
+                "name": "t24"
+              },
+              {
+                "name": "t25"
+              },
+              {
+                "name": "t26"
+              },
+              {
+                "name": "t27"
+              },
+              {
+                "name": "t28"
+              },
+              {
+                "name": "t29"
+              },
+              {
+                "name": "t30"
+              },
+              {
+                "name": "t31"
+              },
+              {
+                "name": "t32"
+              },
+              {
+                "name": "t33"
+              },
+              {
+                "name": "t34"
+              },
+              {
+                "name": "t35"
+              },
+              {
+                "name": "t36"
+              },
+              {
+                "name": "t37"
+              },
+              {
+                "name": "t38"
+              },
+              {
+                "name": "t39"
+              },
+              {
+                "name": "t40"
+              },
+              {
+                "name": "t41"
+              },
+              {
+                "name": "t42"
+              },
+              {
+                "name": "t43"
+              },
+              {
+                "name": "t44"
+              },
+              {
+                "name": "t45"
+              },
+              {
+                "name": "t46"
+              },
+              {
+                "name": "t47"
+              },
+              {
+                "name": "t48"
+              },
+              {
+                "name": "t49"
+              },
+              {
+                "name": "t50"
+              },
+              {
+                "name": "t51"
+              }
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "stack_limit_exceeded",
+            "path": "stack"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "every issue is reported, in document order",
+      "project": {
+        "title": "",
+        "description": 7,
+        "stack": [
+          {
+            "category": "languages",
+            "items": [
+              {
+                "name": "Go"
+              },
+              {
+                "name": "go"
+              }
+            ]
+          },
+          {
+            "category": "x y",
+            "items": []
+          },
+          {
+            "category": "tools",
+            "items": [
+              {}
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "invalid_project_title",
+            "path": "project.title"
+          },
+          {
+            "code": "invalid_project_description",
+            "path": "project.description"
+          },
+          {
+            "code": "duplicate_stack_item",
+            "path": "stack.languages[1].name"
+          },
+          {
+            "code": "invalid_stack_category",
+            "path": "stack[1]"
+          },
+          {
+            "code": "invalid_stack_item",
+            "path": "stack.tools[0].name"
+          }
+        ],
+        "warnings": []
+      }
+    }
+  ],
+  "stackToml": [
+    {
+      "name": "documented example",
+      "toml": "[project]\ntitle = \"Vaulthalla\"\ndescription = \"The Final Cloud — encrypted storage.\"\n\n[[stack.languages]]\nname = \"C++23\"\n\n[[stack.languages]]\nname = \"TypeScript\"\n\n[[stack.libraries]]\nname = \"libfuse3\"\n\n[[stack.libraries]]\nname = \"libpqxx\"\n\n[[stack.databases]]\nname = \"PostgreSQL\"\n\n[[stack.infrastructure]]\nname = \"AWS S3\"\n\n[[stack.infrastructure]]\nname = \"Cloudflare R2\"\n\n[[stack.tooling]]\nname = \"Meson\"\n",
+      "expect": {
+        "ok": true,
+        "project": {
+          "title": "Vaulthalla",
+          "description": "The Final Cloud — encrypted storage.",
+          "stack": [
+            {
+              "category": "languages",
+              "items": [
+                {
+                  "name": "C++23"
+                },
+                {
+                  "name": "TypeScript"
+                }
+              ]
+            },
+            {
+              "category": "libraries",
+              "items": [
+                {
+                  "name": "libfuse3"
+                },
+                {
+                  "name": "libpqxx"
+                }
+              ]
+            },
+            {
+              "category": "databases",
+              "items": [
+                {
+                  "name": "PostgreSQL"
+                }
+              ]
+            },
+            {
+              "category": "infrastructure",
+              "items": [
+                {
+                  "name": "AWS S3"
+                },
+                {
+                  "name": "Cloudflare R2"
+                }
+              ]
+            },
+            {
+              "category": "tooling",
+              "items": [
+                {
+                  "name": "Meson"
+                }
+              ]
+            }
+          ]
+        },
+        "issues": [],
+        "warnings": []
+      }
+    },
+    {
+      "name": "categories keep source order, not key order",
+      "toml": "[[stack.tooling]]\nname = \"Meson\"\n\n[[stack.languages]]\nname = \"C++\"\n\n[[stack.engines]]\nname = \"Godot\"\n",
+      "expect": {
+        "ok": true,
+        "project": {
+          "stack": [
+            {
+              "category": "tooling",
+              "items": [
+                {
+                  "name": "Meson"
+                }
+              ]
+            },
+            {
+              "category": "languages",
+              "items": [
+                {
+                  "name": "C++"
+                }
+              ]
+            },
+            {
+              "category": "engines",
+              "items": [
+                {
+                  "name": "Godot"
+                }
+              ]
+            }
+          ]
+        },
+        "issues": [],
+        "warnings": []
+      }
+    },
+    {
+      "name": "inline arrays of inline tables are equivalent",
+      "toml": "[stack]\nprotocols = [{ name = \"WebDAV\" }, { name = \"S3\" }]\nlanguages = [ { name = \"Rust\" } ]\n",
+      "expect": {
+        "ok": true,
+        "project": {
+          "stack": [
+            {
+              "category": "protocols",
+              "items": [
+                {
+                  "name": "WebDAV"
+                },
+                {
+                  "name": "S3"
+                }
+              ]
+            },
+            {
+              "category": "languages",
+              "items": [
+                {
+                  "name": "Rust"
+                }
+              ]
+            }
+          ]
+        },
+        "issues": [],
+        "warnings": []
+      }
+    },
+    {
+      "name": "dotted keys",
+      "toml": "stack.languages = [{ name = \"Go\" }]\nproject.title = \"Dotted\"\n",
+      "expect": {
+        "ok": true,
+        "project": {
+          "title": "Dotted",
+          "stack": [
+            {
+              "category": "languages",
+              "items": [
+                {
+                  "name": "Go"
+                }
+              ]
+            }
+          ]
+        },
+        "issues": [],
+        "warnings": []
+      }
+    },
+    {
+      "name": "comments and multi-line description",
+      "toml": "# agent-maintained\n[project]\ndescription = \"\"\"\nLine one\nLine two\n\"\"\"\n\n[stack] # empty on purpose\n",
+      "expect": {
+        "ok": true,
+        "project": {
+          "description": "Line one\nLine two",
+          "stack": []
+        },
+        "issues": [],
+        "warnings": []
+      }
+    },
+    {
+      "name": "empty [stack] table clears without a warning",
+      "toml": "[stack]\n",
+      "expect": {
+        "ok": true,
+        "project": {
+          "stack": []
+        },
+        "issues": [],
+        "warnings": []
+      }
+    },
+    {
+      "name": "empty file clears the stack with a warning",
+      "toml": "",
+      "expect": {
+        "ok": true,
+        "project": {
+          "stack": []
+        },
+        "issues": [],
+        "warnings": [
+          {
+            "code": "missing_stack",
+            "path": "stack"
+          }
+        ]
+      }
+    },
+    {
+      "name": "project table only clears the stack with a warning",
+      "toml": "[project]\ntitle = \"No stack yet\"\n",
+      "expect": {
+        "ok": true,
+        "project": {
+          "title": "No stack yet",
+          "stack": []
+        },
+        "issues": [],
+        "warnings": [
+          {
+            "code": "missing_stack",
+            "path": "stack"
+          }
+        ]
+      }
+    },
+    {
+      "name": "explicit empty category is dropped with a warning",
+      "toml": "[stack]\ntooling = []\n\n[[stack.languages]]\nname = \"C\"\n",
+      "expect": {
+        "ok": true,
+        "project": {
+          "stack": [
+            {
+              "category": "languages",
+              "items": [
+                {
+                  "name": "C"
+                }
+              ]
+            }
+          ]
+        },
+        "issues": [],
+        "warnings": [
+          {
+            "code": "empty_stack_category",
+            "path": "stack.tooling"
+          }
+        ]
+      }
+    },
+    {
+      "name": "unknown keys warn and are ignored",
+      "toml": "version = 1\n\n[project]\ntitle = \"T\"\nhomepage = \"https://example.com\"\n\n[[stack.languages]]\nname = \"Go\"\nversion = \"1.23\"\n",
+      "expect": {
+        "ok": true,
+        "project": {
+          "title": "T",
+          "stack": [
+            {
+              "category": "languages",
+              "items": [
+                {
+                  "name": "Go"
+                }
+              ]
+            }
+          ]
+        },
+        "issues": [],
+        "warnings": [
+          {
+            "code": "unknown_project_field",
+            "path": "version"
+          },
+          {
+            "code": "unknown_project_field",
+            "path": "project.homepage"
+          },
+          {
+            "code": "unknown_project_field",
+            "path": "stack.languages[0].version"
+          }
+        ]
+      }
+    },
+    {
+      "name": "syntax error",
+      "toml": "[[stack.languages]\nname = \"C++\"\n",
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "invalid_stack_toml",
+            "path": "stack.toml"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "duplicate key is a syntax error",
+      "toml": "[project]\ntitle = \"A\"\ntitle = \"B\"\n",
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "invalid_stack_toml",
+            "path": "stack.toml"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "project must be a table",
+      "toml": "project = \"Vaulthalla\"\n[stack]\n",
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "invalid_project",
+            "path": "project"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "stack must be a table",
+      "toml": "stack = [\"C++\"]\n",
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "invalid_stack",
+            "path": "stack"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "a category must be an array of tables",
+      "toml": "[stack]\nlanguages = \"C++\"\n",
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "invalid_stack_category",
+            "path": "stack.languages"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "a single [stack.x] table is not an array of tables",
+      "toml": "[stack.languages]\nname = \"C++\"\n",
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "invalid_stack_category",
+            "path": "stack.languages"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "an item must be a table",
+      "toml": "[stack]\nlanguages = [\"C++\"]\n",
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "invalid_stack_item",
+            "path": "stack.languages[0]"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "an item name must be a string",
+      "toml": "[[stack.languages]]\nname = 23\n",
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "invalid_stack_item",
+            "path": "stack.languages[0].name"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "an item name is required",
+      "toml": "[[stack.languages]]\nlabel = \"C++\"\n",
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "invalid_stack_item",
+            "path": "stack.languages[0].name"
+          }
+        ],
+        "warnings": [
+          {
+            "code": "unknown_project_field",
+            "path": "stack.languages[0].label"
+          }
+        ]
+      }
+    },
+    {
+      "name": "title must be a string",
+      "toml": "[project]\ntitle = 2026\n[stack]\n",
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "invalid_project_title",
+            "path": "project.title"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "quoted category names must still be keys",
+      "toml": "[[stack.\"machine learning\"]]\nname = \"PyTorch\"\n",
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "invalid_stack_category",
+            "path": "stack[0]"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "duplicate category in different case",
+      "toml": "[[stack.Languages]]\nname = \"Go\"\n\n[[stack.languages]]\nname = \"Rust\"\n",
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "duplicate_stack_category",
+            "path": "stack.languages"
+          }
+        ],
+        "warnings": []
+      }
+    },
+    {
+      "name": "duplicate technology",
+      "toml": "[[stack.databases]]\nname = \"PostgreSQL\"\n\n[[stack.databases]]\nname = \"postgresql\"\n",
+      "expect": {
+        "ok": false,
+        "issues": [
+          {
+            "code": "duplicate_stack_item",
+            "path": "stack.databases[1].name"
+          }
+        ],
+        "warnings": []
+      }
+    }
+  ]
+}

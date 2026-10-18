@@ -25,6 +25,10 @@ The sync protocol uses JSON manifest uploads, not ZIP files.
   "mode": "sync",
   "deleteBehavior": "archive",
   "publish": false,
+  "project": {
+    "title": "Payload Markdown Docs",
+    "stack": [{ "category": "languages", "items": [{ "name": "TypeScript" }] }]
+  },
   "files": [
     {
       "path": "getting-started/installation.md",
@@ -63,6 +67,23 @@ The sync protocol uses JSON manifest uploads, not ZIP files.
   derived from the docs set, `llms`/`llms-full` routes must be `/llms.txt` /
   `/llms-full.txt` (or that file under the docs set route), and `static`
   routes must stay under the docs set route without `.`/`..`, `%`, `?`, or `#`
+
+## Project Metadata
+
+`project` is optional. `pmdocs` builds it from
+[`docs/stack.toml`](/reference/stack-toml) and omits it when the file does not
+exist. The server validates it with the same rules: issue paths name
+`stack.toml` keys, and unknown fields only warn. When `project` is present, the
+sync response reports what it did:
+
+```json
+"project": { "applied": true, "stack": "updated", "title": "manual", "description": "not_provided" }
+```
+
+`stack` is `updated`, `unchanged`, `cleared` or `not_provided`. `title` and
+`description` are `updated`, `unchanged`, `manual` (the admin manages them) or
+`not_provided`. `applied` is `false` for dry runs. Servers older than 1.3 ignore
+`project` and send no such key.
 
 ## Static Assets
 

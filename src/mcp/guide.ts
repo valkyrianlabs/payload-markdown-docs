@@ -74,7 +74,7 @@ export const getDocsGuide = ({ access = 'user', req }: DocsGuideOptions): string
   return [
     '# payload-markdown-docs agent guide',
     '',
-    'This site publishes documentation from Git. The `pmdocs` CLI (or CI) syncs Markdown files into Payload; Git is the source of truth for every doc body and its frontmatter fields (title, navTitle, description, order, route, dependencies).',
+    'This site publishes documentation from Git. The `pmdocs` CLI (or CI) syncs Markdown files into Payload; Git is the source of truth for every doc body and its frontmatter fields (title, navTitle, description, order, route, dependencies), and for each docs set\'s technology stack (`docs/stack.toml`, which also supplies the docs set title and description unless "Manually manage title/desc" is on).',
     '',
     '## What agents can and cannot do',
     '',

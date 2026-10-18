@@ -4,6 +4,7 @@
  * (for applied syncs) rejects changes to records edited outside the sync workflow.
  */
 import type {
+  DocsSetProjectPlan,
   ExistingPayloadDocsAssetRecord,
   ExistingPayloadDocsRecord,
 } from '../../payload/index.js'
@@ -19,9 +20,11 @@ import type { SyncSummary, SyncWarning } from './respond.js'
 import { DEFAULT_DOCS_ASSETS_COLLECTION_SLUG } from '../../constants.js'
 import {
   findDocsAssetsSyncConflicts,
+  findDocsSetMainRecord,
   findDocsSyncConflicts,
   findExistingPayloadDocsAssetRecords,
   findExistingPayloadDocsRecords,
+  planDocsSetProjectUpdate,
   toExistingAssetRecord,
   toExistingDocsRecord,
 } from '../../payload/index.js'
@@ -37,6 +40,8 @@ export type SyncPlan = {
   existingAssets: ExistingPayloadDocsAssetRecord[]
   existingDocs: ExistingPayloadDocsRecord[]
   plan: DocsSyncPlan
+  /** Docs set project metadata changes; present when the manifest carries `project`. */
+  projectPlan?: DocsSetProjectPlan
   /** Assets are synced (enabled, and the manifest or the docs set has assets). */
   shouldSyncAssets: boolean
   summary: SyncSummary
@@ -165,10 +170,30 @@ export const planSync = async (context: SyncContext): Promise<SyncPlan> => {
     existingAssets,
     existingDocs,
     plan,
+    projectPlan: await planProject(context),
     shouldSyncAssets,
     summary,
     warnings,
   }
+}
+
+const planProject = async ({
+  manifest,
+  options,
+  payload,
+  source,
+}: SyncContext): Promise<DocsSetProjectPlan | undefined> => {
+  if (!manifest.project) {
+    return undefined
+  }
+
+  const current = await findDocsSetMainRecord({
+    collectionSlug: options.docsSetsCollectionSlug,
+    docsSetId: source.docsSet.id,
+    payload,
+  })
+
+  return planDocsSetProjectUpdate({ current: current ?? {}, project: manifest.project })
 }
 
 const getPlannedConflictChanges = ({

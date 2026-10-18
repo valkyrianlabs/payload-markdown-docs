@@ -137,6 +137,9 @@ const runSyncPipeline = async (
     deleteBehavior: context.policy.deleteBehavior,
     dryRun: !context.policy.apply,
     plan: syncPlan.plan,
+    project: syncPlan.projectPlan
+      ? { ...syncPlan.projectPlan.outcome, applied: context.policy.apply }
+      : undefined,
     publishRequested: context.policy.publish,
     summary: syncPlan.summary,
     syncRunId,

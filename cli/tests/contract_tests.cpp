@@ -252,7 +252,66 @@ TEST_CASE("contract vectors: manifests") {
       }
     }
 
+    if (result.ok && result.project) {
+      actual["project"] = *result.project;
+    }
+
     CHECK(plain(actual) == plain(test_case["expect"]));
+  }
+}
+
+namespace {
+
+ordered_json project_result_json(const contract::ProjectValidation& result) {
+  ordered_json actual = {
+    {"ok", result.ok},
+    {"issues", issues_json(result.issues, false)},
+    {"warnings", issues_json(result.warnings, false)},
+  };
+
+  if (result.ok) {
+    actual["project"] = result.project;
+  }
+
+  return actual;
+}
+
+} // namespace
+
+TEST_CASE("contract vectors: project metadata") {
+  const auto vectors = load("project.json");
+  const auto& limits = vectors["limits"];
+  CHECK(limits["maxCategories"] == contract::kMaxStackCategories);
+  CHECK(limits["maxItemsPerCategory"] == contract::kMaxStackItemsPerCategory);
+  CHECK(limits["maxItems"] == contract::kMaxStackItems);
+  CHECK(limits["maxCategoryBytes"] == contract::kMaxStackCategoryBytes);
+  CHECK(limits["maxNameBytes"] == contract::kMaxStackNameBytes);
+  CHECK(limits["maxTitleBytes"] == contract::kMaxProjectTitleBytes);
+  CHECK(limits["maxDescriptionBytes"] == contract::kMaxProjectDescriptionBytes);
+
+  for (const auto& test_case : vectors["cases"]) {
+    INFO(test_case["name"].get<std::string>());
+    const auto result = contract::validate_project(test_case["project"]);
+    CHECK(plain(project_result_json(result)) == plain(test_case["expect"]));
+  }
+}
+
+TEST_CASE("contract vectors: stack.toml") {
+  const auto vectors = load("project.json");
+
+  for (const auto& test_case : vectors["stackToml"]) {
+    INFO(test_case["name"].get<std::string>());
+    const auto result = contract::parse_stack_toml(test_case["toml"].get<std::string>());
+    CHECK(plain(project_result_json(result)) == plain(test_case["expect"]));
+
+    // A converted stack.toml is a valid, already-normalized wire object.
+    if (result.ok) {
+      const auto again = contract::validate_project(result.project);
+      CHECK(again.ok);
+      CHECK(again.issues.empty());
+      CHECK(again.warnings.empty());
+      CHECK(plain(again.project) == plain(result.project));
+    }
   }
 }
 

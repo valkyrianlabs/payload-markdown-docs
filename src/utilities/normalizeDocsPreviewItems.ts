@@ -1,6 +1,8 @@
 import type { NormalizedDocsPreviewItem } from '../marketing/types.js'
 
+import { getStackCategories } from '../shared/stack.js'
 import {
+  getRelationshipValue,
   getRouteLikeDescription,
   getRouteLikeHref,
   getRouteLikeTitle,
@@ -28,6 +30,11 @@ const normalizePreviewItem = (input: unknown): NormalizedDocsPreviewItem | undef
     return undefined
   }
 
+  const sourceRecord = getRelationshipValue(source)
+  const stack = getStackCategories(
+    input.stack ?? (isRecord(sourceRecord) ? sourceRecord.stack : undefined),
+  )
+
   return {
     badge: getString(input.badge),
     excerpt:
@@ -40,6 +47,7 @@ const normalizePreviewItem = (input: unknown): NormalizedDocsPreviewItem | undef
       getString(input.route) ??
       getRouteLikeHref(source),
     icon: getString(input.icon),
+    ...(stack.length > 0 ? { stack } : {}),
     title,
   }
 }

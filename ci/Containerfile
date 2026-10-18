@@ -27,7 +27,7 @@ RUN apt-get update \
       ca-certificates curl git gnupg jq sudo xz-utils \
       python3 python3-yaml \
       build-essential cmake doctest-dev libcli11-dev libcurl4-openssl-dev libssl-dev \
-      meson ninja-build nlohmann-json3-dev pkgconf \
+      libtomlplusplus-dev meson ninja-build nlohmann-json3-dev pkgconf \
       debhelper devscripts dpkg-dev fakeroot ruby \
  && echo 'ALL ALL=(ALL:ALL) NOPASSWD: ALL' > /etc/sudoers.d/ci \
  && chmod 0440 /etc/sudoers.d/ci \

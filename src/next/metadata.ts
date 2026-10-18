@@ -6,6 +6,7 @@ import type {
   ResolvePayloadMarkdownDocsRouteOptions,
 } from './types.js'
 
+import { getDocsSetMetadataSource } from './records.js'
 import { resolvePayloadMarkdownDocsRoute } from './route.js'
 
 const compactObject = <T extends Record<string, unknown>>(input: T): Partial<T> =>
@@ -84,27 +85,13 @@ export const getPayloadMarkdownDocsMetadata = (
   }
 
   if (resolved.type === 'docsSetIndex' && !resolved.doc) {
-    return toMetadata({
-      description: resolved.docsSet.openGraph?.description ?? resolved.docsSet.description,
-      image: resolved.docsSet.openGraph?.image,
-      title:
-        resolved.docsSet.openGraph?.title ??
-        resolved.docsSet.navTitle ??
-        resolved.docsSet.title,
-    })
+    return toMetadata(getDocsSetMetadataSource(resolved.docsSet))
   }
 
   const doc = resolved.doc
 
   if (!doc) {
-    return toMetadata({
-      description: resolved.docsSet.openGraph?.description ?? resolved.docsSet.description,
-      image: resolved.docsSet.openGraph?.image,
-      title:
-        resolved.docsSet.openGraph?.title ??
-        resolved.docsSet.navTitle ??
-        resolved.docsSet.title,
-    })
+    return toMetadata(getDocsSetMetadataSource(resolved.docsSet))
   }
 
   return toMetadata({

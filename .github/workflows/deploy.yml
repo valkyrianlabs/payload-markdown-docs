@@ -44,6 +44,7 @@ jobs:
         run: |
           export NEXT_CPU_COUNT=$(nproc)
           pnpm build
+          pnpm --filter ./packages/consumer build
 
       - name: Typecheck dev app
         run: pnpm exec tsc -p dev/tsconfig.json --noEmit --incremental false --composite false
@@ -53,9 +54,10 @@ jobs:
           set -euo pipefail
           pnpm test:int
 
-      # Rehearses the dual npm publication: packs dist/, derives the unscoped payload-markdown-docs
-      # tarball like vlr does, and checks both names (same files, every export and its types).
-      - name: Verify both npm packages
+      # Rehearses the npm publication: packs dist/, derives the unscoped payload-markdown-docs
+      # tarball like vlr does, and checks both names (same files, every export and its types); packs
+      # the consumer package and imports it with nothing else installed.
+      - name: Verify the npm packages
         run: node scripts/verify-npm-packages.mjs --pack
 
   # The bugs that mattered (draft leaks, unique-route sync failures, access defaults) were only

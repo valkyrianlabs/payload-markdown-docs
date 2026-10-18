@@ -54,12 +54,21 @@ if not openssl_dep.found()
   error('OpenSSL 3 dependency not found. Install libssl-dev on Debian/Ubuntu or openssl@3 on Homebrew.')
 endif
 
+tomlplusplus_dep = dependency('tomlplusplus', version: '>=3.0', required: false)
+if not tomlplusplus_dep.found()
+  tomlplusplus_dep = dependency('tomlplusplus', version: '>=3.0', method: 'cmake', modules: ['tomlplusplus::tomlplusplus'], required: false)
+endif
+if not tomlplusplus_dep.found()
+  error('toml++ (tomlplusplus >= 3.0) dependency not found. Install libtomlplusplus-dev on Debian/Ubuntu or tomlplusplus on Homebrew.')
+endif
+
 pmdocs_include_dirs = include_directories('include')
 pmdocs_deps = [
   cli11_dep,
   curl_dep,
   nlohmann_json_dep,
   openssl_dep,
+  tomlplusplus_dep,
 ]
 
 pmdocs_sources = files(
@@ -113,6 +122,7 @@ pmdocs_contract_test_env.set('PMDOCS_CONTRACT_VECTORS_DIR', pmdocs_contract_vect
 pmdocs_test_env = environment()
 pmdocs_test_env.set('PMDOCS_DATA_DIR', meson.project_source_root())
 pmdocs_docs_fixture = meson.project_source_root() / 'dev' / 'docs-fixtures' / 'basic'
+pmdocs_project_fixture = meson.project_source_root() / 'dev' / 'docs-fixtures' / 'project'
 
 test('pmdocs help', pmdocs_exe, args: ['--help'])
 test('pmdocs version', pmdocs_exe, args: ['--version'])
@@ -125,6 +135,8 @@ test('pmdocs skill install dry-run', pmdocs_exe, args: ['skill', 'install', '--d
 test('pmdocs validate fixture', pmdocs_exe, args: ['validate', pmdocs_docs_fixture, '--source', 'payload-markdown-docs'])
 test('pmdocs manifest fixture', pmdocs_exe, args: ['manifest', pmdocs_docs_fixture, '--source', 'payload-markdown-docs'])
 test('pmdocs plan fixture', pmdocs_exe, args: ['plan', pmdocs_docs_fixture, '--source', 'payload-markdown-docs'])
+test('pmdocs validate project fixture', pmdocs_exe, args: ['validate', pmdocs_project_fixture, '--source', 'payload-markdown-docs', '--no-skills'])
+test('pmdocs manifest project fixture', pmdocs_exe, args: ['manifest', pmdocs_project_fixture, '--source', 'payload-markdown-docs', '--no-skills'])
 test('pmdocs unit tests', pmdocs_test_exe)
 test('pmdocs contract vectors', pmdocs_contract_test_exe, env: pmdocs_contract_test_env)
 
@@ -134,6 +146,7 @@ summary(
     'libcurl': curl_dep.version(),
     'nlohmann_json': nlohmann_json_dep.found(),
     'OpenSSL': openssl_dep.version(),
+    'toml++': tomlplusplus_dep.version(),
     'doctest': doctest_dep.found(),
   },
   section: 'Native CLI dependencies',

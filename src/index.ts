@@ -15,6 +15,8 @@ export type {
   PayloadMarkdownDocsEndpointConfig,
   PayloadMarkdownDocsPagesConfig,
   PayloadMarkdownDocsPagesRoutingConfig,
+  PayloadMarkdownDocsPublicApiConfig,
+  PayloadMarkdownDocsPublicApiEndpointConfig,
   PayloadMarkdownDocsRoutingConfig,
   PayloadMarkdownDocsSyncConfig,
   PayloadMarkdownDocsSyncRevalidateConfig,

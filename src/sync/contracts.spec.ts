@@ -14,6 +14,7 @@ import { signDocsSyncRequest } from '../security/sign.js'
 import {
   checkDocsRouteSegments,
   deriveRouteFromSourcePath,
+  DOCS_PROJECT_LIMITS,
   findManifestRouteCollisions,
   getDocsAssetContentTypeForPath,
   inferTitleFromMarkdown,
@@ -27,6 +28,7 @@ import {
   sha256Hex,
   titleFromSourcePath,
   validateDocsManifest,
+  validateDocsProjectMetadata,
 } from './index.js'
 
 const vectorsDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../contracts/vectors')
@@ -157,10 +159,43 @@ describe('contract vectors: manifests', () => {
         assets: result.data.assets,
         files: result.data.files,
       })
+
+      if (result.data.project) {
+        actual.project = result.data.project
+      }
     }
 
     expect(actual).toEqual(testCase.expect)
   })
+})
+
+describe('contract vectors: project metadata', () => {
+  const vectors = load('project.json')
+
+  test('limits match the server constants', () => {
+    expect(vectors.limits).toEqual(DOCS_PROJECT_LIMITS)
+  })
+
+  test.each(vectors.cases)('$name', (testCase) => {
+    const result = validateDocsProjectMetadata(testCase.project)
+
+    expect({
+      issues: issueList(result.issues, false),
+      ok: result.ok,
+      project: result.ok ? result.project : undefined,
+      warnings: issueList(result.warnings, false),
+    }).toEqual({ ...testCase.expect, project: testCase.expect.project })
+  })
+
+  // The server never reads TOML; it must accept every normalized stack.toml result as is.
+  test.each(vectors.stackToml.filter((testCase: { expect: { ok: boolean } }) => testCase.expect.ok))(
+    'stack.toml result validates unchanged: $name',
+    (testCase) => {
+      const result = validateDocsProjectMetadata(testCase.expect.project)
+
+      expect(result).toMatchObject({ issues: [], ok: true, project: testCase.expect.project, warnings: [] })
+    },
+  )
 })
 
 describe('contract vectors: signing', () => {

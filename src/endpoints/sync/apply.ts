@@ -7,7 +7,12 @@ import type { DocsRouteRelease } from '../../payload/routeClaims.js'
 import type { SyncContext } from './context.js'
 import type { SyncPlan } from './plan.js'
 
-import { applyDocsAssetsSync, applyDocsSync, updateDocsSetAfterSync } from '../../payload/index.js'
+import {
+  applyDocsAssetsSync,
+  applyDocsSync,
+  getDocsSetProjectSyncFields,
+  updateDocsSetAfterSync,
+} from '../../payload/index.js'
 import { runInSyncTransaction } from '../../payload/transaction.js'
 import { SyncApplyConflictError } from './respond.js'
 
@@ -74,6 +79,13 @@ export const applySync = async ({
           docsSetId: source.docsSet.id,
           now: now(),
           payload,
+          project:
+            manifest.project && syncPlan.projectPlan
+              ? {
+                  data: syncPlan.projectPlan.data,
+                  syncFields: getDocsSetProjectSyncFields(manifest.project),
+                }
+              : undefined,
           publish: policy.publish,
           req: transactionReq,
         })

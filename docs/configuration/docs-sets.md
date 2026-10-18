@@ -26,6 +26,9 @@ For a typical docs set, configure:
 - `allowPullRequests`, default off
 - `description`, optional
 - `meta`, optional SEO/social preview metadata
+- `Manually manage title/desc` (`manualTitleDescription`): who owns the title
+  and description, the admin or `docs/stack.toml`
+- `stack`, read-only: the technology stack synced from `docs/stack.toml`
 
 The `slug` is also the manifest source and the GitHub OIDC audience. The
 route base is derived from the optional group route plus the set slug.
@@ -78,9 +81,28 @@ GitHub tag refs are allowed from trusted repositories when advanced security is
 disabled. If tag publishing needs stricter control, enable advanced security and
 add the exact release workflow refs.
 
+## Project Metadata
+
+A docs repository can describe its product in
+[`docs/stack.toml`](/reference/stack-toml). Every sync stores the stack on the
+docs set; the field is read-only in the admin.
+
+`title` and `description` follow **Manually manage title/desc**:
+
+- **Off** (the default for new docs sets): a `title` or `description` in
+  `stack.toml` replaces the docs set's value on every sync. Values the file
+  does not set are kept.
+- **On**: the admin's title and description are kept. Docs sets created before
+  1.3 behave as if it were on until an admin turns it off.
+
+Turning the setting off applies the last synced values right away. SEO `meta`
+fields are never written by sync.
+
 ## Sync Metadata
 
-The `sync` group stores `lastSyncedAt` and `lastStatus`. The Docs Set Admin
+The `sync` group stores `lastSyncedAt` and `lastStatus`, plus the title and
+description from `stack.toml` at the last sync (`projectTitle`,
+`projectDescription`). The Docs Set Admin
 Manager computes generated docs counts directly from linked generated records.
 
 See [Docs Set Admin Manager](/admin/docs-set-manager).

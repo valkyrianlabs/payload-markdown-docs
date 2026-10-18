@@ -11,3 +11,7 @@ One level of nested "  - " detail bullets is allowed. Consolidate; don't paste c
 - Depend on valkyrianlabs-archive-keyring so renewed APT signing-key metadata reaches existing installs
   through upgrades (it owns /usr/share/keyrings/valkyrianlabs.gpg and links an unmodified
   /etc/apt/keyrings/valkyrianlabs.gpg to it).
+- Read optional project metadata from docs/stack.toml (title, description, categorized technology
+  stack) with toml++, validate it against the shared contract vectors, and send it as the manifest
+  `project` key; warn when the server does not acknowledge it.
+- Build-depend on libtomlplusplus-dev.

@@ -22,6 +22,11 @@ export type PayloadMarkdownDocsConfig = {
    * `payload-markdown`.
    */
   payloadMarkdownPackage?: PayloadMarkdownPackageName
+  /**
+   * Public, read-only JSON APIs for other sites. Disabled by default; see
+   * `PayloadMarkdownDocsPublicApiConfig`.
+   */
+  publicApi?: PayloadMarkdownDocsPublicApiConfig
   routing?: PayloadMarkdownDocsRoutingConfig
   seo?: boolean
   sync?: PayloadMarkdownDocsSyncConfig
@@ -37,6 +42,21 @@ export type PayloadMarkdownDocsEndpointConfig = {
    * friends). Enable only behind a proxy that sets these headers. Default false.
    */
   trustForwardedHeaders?: boolean
+}
+
+export type PayloadMarkdownDocsPublicApiConfig = {
+  /**
+   * `GET /api/documentation/projects` and `GET /api/documentation/projects/:slug`: every
+   * published docs set with its title, description, SEO metadata, canonical URLs, docs
+   * group and technology stack. `true` enables it at the default path; `path` moves it
+   * (relative to the Payload API route). Default false.
+   */
+  projects?: boolean | PayloadMarkdownDocsPublicApiEndpointConfig
+}
+
+export type PayloadMarkdownDocsPublicApiEndpointConfig = {
+  enabled?: boolean
+  path?: string
 }
 
 export type PayloadMarkdownDocsAuthConfig =

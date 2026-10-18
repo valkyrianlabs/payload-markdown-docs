@@ -283,5 +283,21 @@ payloadMarkdownDocs({
 })
 ```
 
+## Public Projects API
+
+`publicApi.projects` serves a read-only JSON list of published docs sets with
+their title, description, SEO metadata, canonical URLs, docs group and
+technology stack, so other sites can render them. It is off by default:
+
+```ts
+payloadMarkdownDocs({
+  publicApi: {
+    projects: true, // or { path: '/documentation/projects' }
+  },
+})
+```
+
+See [Projects API](/reference/projects-api).
+
 Set `enabled: false` only for environments where the plugin should be a complete
 no-op.

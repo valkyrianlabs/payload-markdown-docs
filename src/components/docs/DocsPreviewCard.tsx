@@ -1,6 +1,77 @@
 import type { NormalizedDocsPreviewItem } from '../../marketing/types.js'
 
+import { formatStackCategory } from '../../shared/stack.js'
 import { cx } from './shared.js'
+
+/** Pills shown before collapsing the rest into "+N": few on compact cards. */
+const STACK_PILL_LIMIT = {
+  cards: 8,
+  compact: 4,
+  featured: 6,
+} as const
+
+const pillClassName =
+  'rounded-full border border-border px-2 py-0.5 text-[11px] leading-4 text-foreground/60'
+
+const StackPills = ({ limit, names }: { limit: number; names: string[] }) => (
+  <>
+    {names.slice(0, limit).map((name, index) => (
+      <li className={pillClassName} key={`${index}:${name}`}>
+        {name}
+      </li>
+    ))}
+    {names.length > limit ? (
+      <li className={pillClassName} title={names.slice(limit).join(', ')}>
+        +{names.length - limit}
+      </li>
+    ) : null}
+  </>
+)
+
+const DocsPreviewStack = ({
+  layout,
+  stack,
+}: {
+  layout: DocsPreviewCardProps['layout']
+  stack: NonNullable<NormalizedDocsPreviewItem['stack']>
+}) => {
+  if (layout === 'featured') {
+    return (
+      <dl className="mt-4 grid gap-2" data-payload-markdown-docs-stack="">
+        {stack.map((category) => (
+          <div key={category.category}>
+            <dt className="text-[11px] font-medium uppercase tracking-wide text-foreground/45">
+              {formatStackCategory(category.category)}
+            </dt>
+            <dd>
+              <ul className="mt-1 flex flex-wrap gap-1.5">
+                <StackPills
+                  limit={STACK_PILL_LIMIT.featured}
+                  names={category.items.map((item) => item.name)}
+                />
+              </ul>
+            </dd>
+          </div>
+        ))}
+      </dl>
+    )
+  }
+
+  const compact = layout === 'compact' || layout === 'list'
+
+  return (
+    <ul
+      aria-label="Technology stack"
+      className="mt-3 flex flex-wrap gap-1.5"
+      data-payload-markdown-docs-stack=""
+    >
+      <StackPills
+        limit={compact ? STACK_PILL_LIMIT.compact : STACK_PILL_LIMIT.cards}
+        names={stack.flatMap((category) => category.items.map((item) => item.name))}
+      />
+    </ul>
+  )
+}
 
 export type DocsPreviewCardProps = {
   item: NormalizedDocsPreviewItem
@@ -28,6 +99,7 @@ export const DocsPreviewCard = ({ item, layout = 'cards' }: DocsPreviewCardProps
           {item.excerpt}
         </p>
       ) : null}
+      {item.stack && item.stack.length > 0 ? <DocsPreviewStack layout={layout} stack={item.stack} /> : null}
     </>
   )
 

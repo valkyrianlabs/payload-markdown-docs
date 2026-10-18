@@ -105,6 +105,42 @@ when `pmdocs` is not installed.
   features, route helpers, or publishing behavior.
 - Do not describe unsupported features as implemented.
 
+## Project Metadata (`stack.toml`)
+
+`{{docsRoot}}/stack.toml` describes the product the docs are for: an optional
+title and description, and the technology stack grouped into categories. Agents
+own and maintain it; `pmdocs` validates it and syncs it to the docs set, where
+it appears on preview cards and in the site's public projects API. Read
+`reference/stack-toml.md` before creating or changing it.
+
+```toml
+[project]
+title = "Vaulthalla"
+description = "The Final Cloud — encrypted storage."
+
+[[stack.languages]]
+name = "C++23"
+
+[[stack.libraries]]
+name = "libpqxx"
+```
+
+- Update it in the same change whenever the project gains, drops or replaces a
+  language, framework, library, database, runtime, service or major tool. Do not
+  wait to be asked.
+- Categories are free-form keys (`languages`, `libraries`, `databases`,
+  `infrastructure`, `protocols`, `security`, ...). Keep the names a project
+  already uses; order categories and items by importance.
+- List what the project actually uses, as names people recognize (`PostgreSQL`,
+  not `postgres-16-alpine`). No icons, versions in separate keys, or URLs.
+- `title` and `description` replace the docs set's admin title and description
+  unless an admin turned on "Manually manage title/desc". Leave them out to keep
+  the admin's text.
+- Deleting the file stops syncing metadata (the last synced stack stays). An
+  empty `[stack]` table clears the stack.
+- `pmdocs validate` reports problems with the key to fix, such as
+  `stack.languages[1].name`.
+
 ## Negative Rules
 
 - Do not create `index.ai.yml`.
@@ -202,6 +238,7 @@ pmdocs install routes --payload-app "src/app/(payload)"
 
 - `reference/docs-package.md`
 - `reference/frontmatter.md`
+- `reference/stack-toml.md`
 - `reference/workflow.md`
 - `reference/sync.md`
 - `reference/routing.md`
@@ -227,8 +264,9 @@ Before finishing:
 
 1. Confirm changed docs live under the configured docs root, normally `./docs`.
 2. Confirm changed docs have valid plugin frontmatter.
-3. Confirm internal links are root-relative and route-aware.
-4. If directives changed, confirm them against the sibling `payload-markdown` skill.
-5. Run validate.
-6. Run plan when sync behavior matters.
-7. Report validation or plan failures instead of guessing.
+3. Confirm `stack.toml` still matches the project's technologies.
+4. Confirm internal links are root-relative and route-aware.
+5. If directives changed, confirm them against the sibling `payload-markdown` skill.
+6. Run validate.
+7. Run plan when sync behavior matters.
+8. Report validation or plan failures instead of guessing.

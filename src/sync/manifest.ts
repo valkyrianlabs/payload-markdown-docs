@@ -1,4 +1,5 @@
 import type { DocsFrontmatter } from './frontmatter.js'
+import type { DocsProjectMetadata } from './project.js'
 
 import { sha256Hex } from './hash.js'
 
@@ -35,6 +36,8 @@ export type DocsManifest = {
   deleteBehavior?: DocsDeleteBehavior
   files: DocsManifestFile[]
   mode?: DocsSyncMode
+  /** Optional project metadata from `docs/stack.toml`; absent leaves it unchanged. */
+  project?: DocsProjectMetadata
   publish?: boolean
   source: DocsManifestSource
   version: 1
@@ -63,6 +66,7 @@ export type ValidatedDocsManifest = {
   deleteBehavior: DocsDeleteBehavior
   files: ValidatedDocsManifestFile[]
   mode: DocsSyncMode
+  project?: DocsProjectMetadata
   publish: boolean
   source: DocsManifestSource
   version: 1

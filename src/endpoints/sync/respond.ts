@@ -6,6 +6,7 @@
  */
 import type { PayloadRequest } from 'payload'
 
+import type { DocsSetProjectOutcome } from '../../payload/index.js'
 import type {
   DocsAssetsSyncPlan,
   DocsSyncPlan,
@@ -431,6 +432,7 @@ export const syncSuccessResponse = ({
   deleteBehavior,
   dryRun,
   plan,
+  project,
   publishRequested,
   summary,
   syncRunId,
@@ -440,6 +442,8 @@ export const syncSuccessResponse = ({
   deleteBehavior: string
   dryRun: boolean
   plan: DocsSyncPlan
+  /** Present exactly when the manifest carried `project`, so clients can tell old servers apart. */
+  project?: DocsSetProjectOutcome
   publishRequested: boolean
   summary: SyncSummary
   syncRunId?: number | string
@@ -464,6 +468,7 @@ export const syncSuccessResponse = ({
     deleteBehavior,
     dryRun,
     ok: true,
+    ...(project ? { project } : {}),
     publishRequested,
     summary,
     syncRunId: syncRunId === undefined ? undefined : String(syncRunId),

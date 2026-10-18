@@ -168,6 +168,19 @@ export const toResolvedDocsSet = (
   }
 }
 
+/**
+ * The metadata a docs set's own page uses: plugin-seo values first, then the docs set's
+ * nav title or title and its description. Shared by the route adapter's metadata and the
+ * public projects API.
+ */
+export const getDocsSetMetadataSource = (
+  docsSet: ResolvedPayloadMarkdownDocsSet,
+): { description?: string; image?: PayloadMarkdownDocsOpenGraphImage; title: string } => ({
+  description: docsSet.openGraph?.description ?? docsSet.description,
+  image: docsSet.openGraph?.image,
+  title: docsSet.openGraph?.title ?? docsSet.navTitle ?? docsSet.title,
+})
+
 export const isVisibleDocsSet = ({
   docsSet,
   includeDrafts = false,

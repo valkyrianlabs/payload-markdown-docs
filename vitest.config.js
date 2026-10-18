@@ -23,7 +23,7 @@ export default defineConfig(() => {
       fileParallelism: process.env.PAYLOAD_MARKDOWN_DOCS_RUN_DB_TESTS !== '1',
       exclude: ['**/e2e.spec.ts', '**/node_modules/**', '**/dist/**'],
       hookTimeout: 30_000,
-      include: ['dev/**/*.spec.ts', 'src/**/*.spec.ts'],
+      include: ['dev/**/*.spec.ts', 'packages/*/src/**/*.spec.ts', 'src/**/*.spec.ts'],
       // Stub CSS side-effect imports of externalized packages so render tests can use
       // the real payload-markdown renderer (X-10).
       setupFiles: ['./vitest.css-loader.js'],

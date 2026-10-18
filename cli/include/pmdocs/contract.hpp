@@ -21,6 +21,15 @@ constexpr std::size_t kDefaultMaxFiles = 500;
 constexpr std::size_t kDefaultMaxTotalBytes = 5'000'000;
 constexpr std::size_t kDefaultMaxBodyBytes = 5'000'000;
 
+// Project metadata limits (contracts/vectors/project.json "limits").
+constexpr std::size_t kMaxStackCategories = 32;
+constexpr std::size_t kMaxStackItemsPerCategory = 64;
+constexpr std::size_t kMaxStackItems = 256;
+constexpr std::size_t kMaxStackCategoryBytes = 64;
+constexpr std::size_t kMaxStackNameBytes = 128;
+constexpr std::size_t kMaxProjectTitleBytes = 256;
+constexpr std::size_t kMaxProjectDescriptionBytes = 2048;
+
 struct Issue {
   std::string code;
   std::string message;
@@ -107,12 +116,24 @@ struct ValidationOptions {
   std::string route_base;
 };
 
+// Project metadata (the manifest `project` object). Issue paths name
+// stack.toml keys (`project.title`, `stack.languages[1].name`).
+struct ProjectValidation {
+  bool ok = false;
+  // The normalized wire object (title, description, stack) when ok.
+  json project;
+  std::vector<Issue> issues;
+  std::vector<Issue> warnings;
+};
+
 struct ValidationResult {
   std::vector<ValidatedAsset> assets;
   std::string delete_behavior = "archive";
   std::vector<ValidatedFile> files;
   bool mode_dry_run = true;
   bool ok = false;
+  // The normalized manifest `project`, when the manifest has a valid one.
+  std::optional<json> project;
   bool publish = false;
   std::string source_id;
   std::optional<std::string> source_branch;
@@ -179,6 +200,11 @@ json frontmatter_to_json(const Frontmatter& frontmatter);
 // Assets.
 std::string asset_content_type(std::string_view asset_path);
 bool is_allowed_asset_content_type(std::string_view content_type);
+
+// Project metadata.
+ProjectValidation validate_project(const json& project);
+// docs/stack.toml -> the wire object (C++ only: the server never reads TOML).
+ProjectValidation parse_stack_toml(std::string_view toml);
 
 // Manifests.
 bool is_valid_delete_behavior(const std::string& value);

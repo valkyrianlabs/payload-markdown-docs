@@ -140,7 +140,7 @@ describe('sync-owned fields', () => {
     expect(getDocsCollectionMarker(collection('docs-sets'))?.agentPolicy).toEqual({
       create: true,
       delete: true,
-      syncOwnedFields: ['sync'],
+      syncOwnedFields: ['stack', 'sync'],
     })
     expect(getDocsCollectionMarker(collection('docs-sync-runs'))?.agentPolicy?.syncOwnedFields).toBe('*')
     expect(getDocsCollectionMarker(collection('docs-groups'))).toEqual({ role: 'docsGroups' })

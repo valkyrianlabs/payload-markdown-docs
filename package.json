@@ -82,7 +82,7 @@
     "test:e2e": "playwright test",
     "sync:pm-skill": "node scripts/sync-payload-markdown-skill.mjs",
     "test:int": "vitest",
-    "verify:packages": "node scripts/verify-npm-packages.mjs --pack"
+    "verify:packages": "pnpm --filter ./packages/consumer build && node scripts/verify-npm-packages.mjs --pack"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.7",

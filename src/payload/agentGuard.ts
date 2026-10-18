@@ -94,8 +94,8 @@ export const getSyncOwnedDocsFields = (markdownFieldName: string): string[] => [
   'sync',
 ]
 
-/** Docs set fields only the sync endpoint writes (last sync status). */
-export const SYNC_OWNED_DOCS_SET_FIELDS = ['sync']
+/** Docs set fields only the sync endpoint writes (last sync status, stack from docs/stack.toml). */
+export const SYNC_OWNED_DOCS_SET_FIELDS = ['stack', 'sync']
 
 export const getDocsAgentWritePolicy = (
   role: DocsCollectionRole,

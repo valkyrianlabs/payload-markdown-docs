@@ -7,6 +7,10 @@
  *   node scripts/verify-npm-packages.mjs --pack              rehearsal: pack dist/ now (run `pnpm build`
  *                                                            first) and derive the alias like vlr does
  *
+ * Also verifies the separately built consumer package (`[[npm.packages]]`, packages/consumer):
+ * it declares no dependencies and imports in plain Node from a directory outside this repository,
+ * so nothing (Payload, Next.js, React) can resolve from here.
+ *
  * Checks, failing with a non-zero exit:
  * - both tarballs hold the same files with the same bytes and modes, except package.json (only
  *   `name` differs) and the alias's `rewrite` members (only the package name differs);
@@ -31,6 +35,8 @@ const manifest = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'ut
 const canonical = manifest.name
 const version = manifest.version
 const alias = readAlias()
+const consumerDir = path.join(root, 'packages/consumer')
+const consumerName = JSON.parse(fs.readFileSync(path.join(consumerDir, 'package.json'), 'utf8')).name
 
 const failures = []
 const ok = (message) => console.log(`ok   ${message}`)
@@ -86,7 +92,48 @@ function packLocally(dir) {
   run('npm', ['pack', '--ignore-scripts', '--pack-destination', dir], { cwd: pkg })
   fs.rmSync(stage, { force: true, recursive: true })
 
+  if (!fs.existsSync(path.join(consumerDir, 'dist/index.js'))) {
+    throw new Error('packages/consumer/dist is missing; run `pnpm --filter ./packages/consumer build` first')
+  }
+  run('npm', ['pack', '--ignore-scripts', '--pack-destination', dir], { cwd: consumerDir })
+
   return dir
+}
+
+/** The consumer package must stand alone: no dependencies, importable with nothing else installed. */
+function verifyConsumer(tarball) {
+  const stage = fs.mkdtempSync(path.join(os.tmpdir(), 'pmdocs-consumer-'))
+
+  try {
+    const target = path.join(stage, 'node_modules', consumerName)
+    fs.mkdirSync(target, { recursive: true })
+    run('tar', ['-xzf', tarball, '-C', target, '--strip-components=1'])
+    fs.writeFileSync(path.join(stage, 'package.json'), '{ "name": "consumer-verify", "private": true, "type": "module" }\n')
+    summarize(consumerName, tarball, target)
+
+    const pkg = JSON.parse(fs.readFileSync(path.join(target, 'package.json'), 'utf8'))
+    const declared = ['dependencies', 'peerDependencies', 'optionalDependencies'].filter(
+      (key) => Object.keys(pkg[key] ?? {}).length > 0,
+    )
+    if (declared.length > 0) fail(`${consumerName} declares ${declared.join(', ')}`)
+    else ok(`${consumerName} declares no dependencies`)
+    if (pkg.version !== version) fail(`${consumerName} is ${pkg.version}, the plugin is ${version}`)
+    else ok(`${consumerName} is version-aligned (${version})`)
+
+    const result = spawnSync(
+      process.execPath,
+      [
+        '--input-type=module',
+        '-e',
+        `const m = await import(${JSON.stringify(consumerName)}); if (typeof m.createDocsProjectsClient !== 'function' || m.DOCS_PROJECTS_SCHEMA_VERSION !== 1) process.exit(1)`,
+      ],
+      { cwd: stage, encoding: 'utf8' },
+    )
+    if (result.status === 0) ok(`${consumerName} imports in plain Node with nothing else installed`)
+    else fail(`${consumerName} does not import standalone: ${(result.stderr || result.stdout).trim()}`)
+  } finally {
+    fs.rmSync(stage, { force: true, recursive: true })
+  }
 }
 
 /** Every file under `dir` (POSIX paths, sorted). */
@@ -264,6 +311,10 @@ console.log('')
 compare(dirs[0], dirs[1])
 names.forEach((name) => smoke(name))
 checkTypes(names)
+
+const consumerTarball = path.join(source, tarballName(consumerName))
+if (fs.existsSync(consumerTarball)) verifyConsumer(consumerTarball)
+else fail(`missing ${path.relative(root, consumerTarball)} (run \`vlr build-npm\` or use --pack)`)
 
 if (failures.length > 0) {
   console.log(`\n${failures.length} package verification failure(s)`)
