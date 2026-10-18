@@ -1,6 +1,6 @@
 # Consumer smoke test
 
-Installs packed `payload-markdown` and `payload-markdown-docs` (under either npm name of each: `--core-name`, `--docs-name`; CI runs every combination's representative pairs)
+Installs packed `payload-markdown` and `payload-markdown-docs` (under either npm name of each: `--core-name`, `--docs-name`; CI runs all four combinations in one step from the same tarballs)
 tarballs into a fresh Next.js + Payload app (`template/`) exactly as the README instructs, then
 checks what unit tests cannot:
 
