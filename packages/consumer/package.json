@@ -1,5 +1,5 @@
 {
-  "name": "@valkyrianlabs/payload-markdown-docs-consumer",
+  "name": "payload-markdown-docs-consumer",
   "version": "1.3.0",
   "description": "Read published projects (docs sets, docs groups and technology stacks) from one or more payload-markdown-docs sites.",
   "repository": {

@@ -197,7 +197,7 @@ the output. Your site owns the final output.
 - Agent-maintained project metadata in `docs/stack.toml` (title, description,
   categorized technology stack), shown on preview cards.
 - An opt-in public projects API and a dependency-free consumer package
-  (`@valkyrianlabs/payload-markdown-docs-consumer`) for listing projects from
+  (`payload-markdown-docs-consumer`) for listing projects from
   several docs sites, for example on a portfolio.
 - Rendering powered by `payload-markdown`.
 
@@ -302,7 +302,7 @@ The package surface is intentionally split by runtime:
 - `payload-markdown-docs/mcp`: MCP tools for `@payloadcms/plugin-mcp` (server-only).
 
 Other sites read the opt-in projects API (`publicApi: { projects: true }`) with the separate,
-dependency-free `@valkyrianlabs/payload-markdown-docs-consumer` package.
+dependency-free `payload-markdown-docs-consumer` package.
 
 Manual block installation imports from `/blocks`:
 

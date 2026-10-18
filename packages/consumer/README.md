@@ -1,4 +1,6 @@
-# @valkyrianlabs/payload-markdown-docs-consumer
+# payload-markdown-docs-consumer
+
+Also published, from the same tarball, as `@valkyrianlabs/payload-markdown-docs-consumer`.
 
 Lists the projects published by one or more
 [payload-markdown-docs](https://github.com/valkyrianlabs/payload-markdown-docs) sites, such as
@@ -31,11 +33,11 @@ and `pmdocs` syncs it.
 ## Use
 
 ```sh
-pnpm add @valkyrianlabs/payload-markdown-docs-consumer
+pnpm add payload-markdown-docs-consumer
 ```
 
 ```ts
-import { createDocsProjectsClient } from '@valkyrianlabs/payload-markdown-docs-consumer'
+import { createDocsProjectsClient } from 'payload-markdown-docs-consumer'
 
 export const projectsClient = createDocsProjectsClient({
   sites: [
@@ -92,7 +94,7 @@ if (one.ok) {
 Each project's `stack` keeps the categories and their order from `docs/stack.toml`:
 
 ```ts
-import { flattenStack, formatStackCategory } from '@valkyrianlabs/payload-markdown-docs-consumer'
+import { flattenStack, formatStackCategory } from 'payload-markdown-docs-consumer'
 
 project.stack
 // [{ category: 'languages', items: [{ name: 'C++23' }, { name: 'TypeScript' }] }, ...]

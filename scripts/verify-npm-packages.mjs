@@ -7,8 +7,8 @@
  *   node scripts/verify-npm-packages.mjs --pack              rehearsal: pack dist/ now (run `pnpm build`
  *                                                            first) and derive the alias like vlr does
  *
- * Also verifies the separately built consumer package (`[[npm.packages]]`, packages/consumer):
- * it declares no dependencies and imports in plain Node from a directory outside this repository,
+ * Also verifies the separately built consumer package (`[[npm.packages]]`, packages/consumer),
+ * under both of its names: it declares no dependencies and imports in plain Node from a directory outside this repository,
  * so nothing (Payload, Next.js, React) can resolve from here.
  *
  * Checks, failing with a non-zero exit:
@@ -37,6 +37,9 @@ const version = manifest.version
 const alias = readAlias()
 const consumerDir = path.join(root, 'packages/consumer')
 const consumerName = JSON.parse(fs.readFileSync(path.join(consumerDir, 'package.json'), 'utf8')).name
+const consumerAlias = fs
+  .readFileSync(path.join(root, 'release.toml'), 'utf8')
+  .match(/\[\[npm\.packages\.aliases\]\]\s*\nname\s*=\s*"([^"]+)"/)?.[1]
 
 const failures = []
 const ok = (message) => console.log(`ok   ${message}`)
@@ -97,11 +100,22 @@ function packLocally(dir) {
   }
   run('npm', ['pack', '--ignore-scripts', '--pack-destination', dir], { cwd: consumerDir })
 
+  if (consumerAlias) {
+    // Like vlr: the same files, only package.json "name" differs.
+    const consumerStage = fs.mkdtempSync(path.join(os.tmpdir(), 'pmdocs-consumer-alias-'))
+    run('tar', ['-xzf', path.join(dir, tarballName(consumerName)), '-C', consumerStage])
+    const manifestPath = path.join(consumerStage, 'package', 'package.json')
+    const text = fs.readFileSync(manifestPath, 'utf8')
+    fs.writeFileSync(manifestPath, text.replace(`"name": ${JSON.stringify(consumerName)}`, `"name": ${JSON.stringify(consumerAlias)}`))
+    run('npm', ['pack', '--ignore-scripts', '--pack-destination', dir], { cwd: path.join(consumerStage, 'package') })
+    fs.rmSync(consumerStage, { force: true, recursive: true })
+  }
+
   return dir
 }
 
 /** The consumer package must stand alone: no dependencies, importable with nothing else installed. */
-function verifyConsumer(tarball) {
+function verifyConsumer(tarball, consumerName) {
   const stage = fs.mkdtempSync(path.join(os.tmpdir(), 'pmdocs-consumer-'))
 
   try {
@@ -312,9 +326,11 @@ compare(dirs[0], dirs[1])
 names.forEach((name) => smoke(name))
 checkTypes(names)
 
-const consumerTarball = path.join(source, tarballName(consumerName))
-if (fs.existsSync(consumerTarball)) verifyConsumer(consumerTarball)
-else fail(`missing ${path.relative(root, consumerTarball)} (run \`vlr build-npm\` or use --pack)`)
+for (const name of [consumerName, consumerAlias].filter(Boolean)) {
+  const consumerTarball = path.join(source, tarballName(name))
+  if (fs.existsSync(consumerTarball)) verifyConsumer(consumerTarball, name)
+  else fail(`missing ${path.relative(root, consumerTarball)} (run \`vlr build-npm\` or use --pack)`)
+}
 
 if (failures.length > 0) {
   console.log(`\n${failures.length} package verification failure(s)`)

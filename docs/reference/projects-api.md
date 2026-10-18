@@ -122,13 +122,14 @@ that expects version 1 reports a mismatch instead of misreading data.
 
 ## Consumer package
 
-`@valkyrianlabs/payload-markdown-docs-consumer` is a dependency-free client for
+`payload-markdown-docs-consumer` (also published as
+`@valkyrianlabs/payload-markdown-docs-consumer`) is a dependency-free client for
 other sites. It needs no Payload, Next.js or React. It fetches several sites at
 once, validates `schemaVersion`, keeps every key scoped to its site, and reports
 sites that fail without hiding the others:
 
 ```ts
-import { createDocsProjectsClient } from '@valkyrianlabs/payload-markdown-docs-consumer'
+import { createDocsProjectsClient } from 'payload-markdown-docs-consumer'
 
 const client = createDocsProjectsClient({
   sites: [

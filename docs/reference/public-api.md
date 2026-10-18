@@ -123,7 +123,7 @@ SDK subpath.
 
 ## Consumer package
 
-`@valkyrianlabs/payload-markdown-docs-consumer` is a separate package for other
+`payload-markdown-docs-consumer` is a separate package for other
 sites. It has no dependencies, and exports `createDocsProjectsClient`, the wire
 types and parsers of the [projects API](/reference/projects-api), and the
 stack helpers `flattenStack` and `formatStackCategory`.

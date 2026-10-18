@@ -13,11 +13,12 @@
 # bytes. Nothing is written back to main unless every publication succeeded. Publication never
 # replaces published bytes: re-running a failed job skips whatever is already identical.
 #
-# npm: the plugin under two names plus the consumer package. `vlr build-npm` packs
-# @valkyrianlabs/payload-markdown-docs, derives payload-markdown-docs from the same tarball
-# (release.toml [[npm.aliases]]), and packs @valkyrianlabs/payload-markdown-docs-consumer from
-# packages/consumer ([[npm.packages]]); `vlr publish-npm` plans all three before uploading any and
-# uploads the alias and the consumer before the plugin. Every npmjs.com package trusts this
+# npm: the plugin and the consumer package, each under two names. `vlr build-npm` packs
+# @valkyrianlabs/payload-markdown-docs and derives payload-markdown-docs from the same tarball
+# (release.toml [[npm.aliases]]), and packs payload-markdown-docs-consumer from packages/consumer
+# and derives @valkyrianlabs/payload-markdown-docs-consumer from it ([[npm.packages]] and its
+# aliases); `vlr publish-npm` plans all four before uploading any and uploads the aliases and the
+# consumer before the plugin. Every npmjs.com package trusts this
 # workflow file (`release.yml`) and the `Production` environment (trusted publishing, OIDC; no
 # token secret). A brand-new package or alias cannot use trusted publishing until it exists: see
 # `vlr help ci` for the one-time bootstrap.

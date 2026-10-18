@@ -57,9 +57,10 @@ absolute product and docs URLs, the docs group and the stack. Repository, OIDC, 
 settings are never exposed. Responses carry `schemaVersion: 1`, a content-derived strong `ETag`
 with `304 Not Modified` support, and public cache headers.
 
-## `@valkyrianlabs/payload-markdown-docs-consumer`
+## `payload-markdown-docs-consumer`
 
-This new package, released with the same version, reads the projects API from any number of
+This new package (also published as `@valkyrianlabs/payload-markdown-docs-consumer`), released
+with the same version, reads the projects API from any number of
 sites. It has no dependencies (no Payload, Next.js or React). It fetches sites concurrently,
 validates `schemaVersion`, and segments the results by site and then by docs group, plus a flat
 list. Keys are scoped to their site (`valkyrianlabs/docs`). A failing site is reported without

@@ -53,7 +53,7 @@ Table names follow your collection slugs if you changed them.
   set. New docs sets start with it off.
 - **Projects API.** Set `publicApi: { projects: true }` on each site that
   other sites should read. Then install
-  `@valkyrianlabs/payload-markdown-docs-consumer` where you render the
+  `payload-markdown-docs-consumer` where you render the
   projects.
 - **Agent skills.** Run `pmdocs skill update` in docs repositories so agents
   learn to maintain `stack.toml`.

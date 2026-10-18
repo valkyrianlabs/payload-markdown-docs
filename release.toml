@@ -143,6 +143,8 @@ rewrite = ["package/dist/package.js"]
 
 # The dependency-free client other sites use to read the public projects API: built from
 # packages/consumer (its own tarball, not an alias), version-aligned through [version].
+# Published as payload-markdown-docs-consumer (canonical) and, from the same tarball, as
+# @valkyrianlabs/payload-markdown-docs-consumer.
 [[npm.packages]]
 package_dir = "packages/consumer"
 pre_pack = [["pnpm", "build"]]
@@ -167,7 +169,11 @@ identical_files = [
   { member = "package/README.md", source = "packages/consumer/README.md" },
 ]
 
-# npmjs.com through npm trusted publishing: both packages trust this repository's
+# The scoped name: only package.json "name" differs (no member carries the package name).
+[[npm.packages.aliases]]
+name = "@valkyrianlabs/payload-markdown-docs-consumer"
+
+# npmjs.com through npm trusted publishing: every package trusts this repository's
 # .github/workflows/release.yml (environment Production); no token secret.
 [[publish.npm]]
 name = "npmjs"
