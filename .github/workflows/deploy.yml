@@ -207,7 +207,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p .ci/tarballs
-          (cd .ci/payload-markdown && pnpm install --frozen-lockfile && pnpm build && npm pack --ignore-scripts --pack-destination ../tarballs)
+          (cd .ci/payload-markdown && pnpm install --frozen-lockfile --ignore-workspace && pnpm build && npm pack --ignore-scripts --pack-destination ../tarballs)
           pnpm install --frozen-lockfile --prefer-offline --unsafe-perm
           pnpm build
           npm pack --ignore-scripts --pack-destination .ci/tarballs
