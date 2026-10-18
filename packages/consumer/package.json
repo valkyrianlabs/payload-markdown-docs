@@ -1,6 +1,6 @@
 {
   "name": "payload-markdown-docs-consumer",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "description": "Read published projects (docs sets, docs groups and technology stacks) from one or more payload-markdown-docs sites.",
   "repository": {
     "type": "git",
