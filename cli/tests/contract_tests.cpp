@@ -10,10 +10,14 @@
 
 #include <nlohmann/json.hpp>
 
+#include <clocale>
+#include <cmath>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <limits>
 #include <map>
+#include <optional>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -433,4 +437,72 @@ TEST_CASE("contract vectors: utf-8") {
     const std::string value{bytes.begin(), bytes.end()};
     CHECK(contract::is_valid_utf8(value) == test_case["expect"]["valid"].get<bool>());
   }
+}
+
+// Frontmatter `order` follows ECMAScript Number(value), finite results only. Native-only cases:
+// exact doubles, the overflow and underflow edges, and independence from the process locale.
+TEST_CASE("parse_js_number matches Number() for finite values") {
+  const auto parsed = [](const char* text) { return contract::parse_js_number(text); };
+  const auto accepts = [&](const char* text, double expected) {
+    const std::string label{text};
+    INFO(label);
+    const auto value = parsed(text);
+    REQUIRE(value.has_value());
+    CHECK(*value == expected);
+    CHECK(std::signbit(*value) == std::signbit(expected));
+  };
+
+  accepts("", 0.0);
+  accepts("   ", 0.0);
+  accepts("10", 10.0);
+  accepts(" 7 ", 7.0);
+  accepts("+1.5", 1.5);
+  accepts("-2.5", -2.5);
+  accepts(".5", 0.5);
+  accepts("5.", 5.0);
+  accepts("1e3", 1000.0);
+  accepts("1E-2", 0.01);
+  accepts("-0", -0.0);
+  accepts("0.1", 0.1);
+  accepts("123456789.123456789", 123456789.123456789);
+  accepts("1.7976931348623157e308", std::numeric_limits<double>::max());
+  accepts("4.9e-324", std::numeric_limits<double>::denorm_min());
+  accepts("1e-400", 0.0);
+  accepts("-1e-400", -0.0);
+  accepts("0x1F", 31.0);
+  accepts("0o17", 15.0);
+  accepts("0b101", 5.0);
+
+  for (const auto* text : {"1e400", "-1e400", "1.8e308", "abc", "1e", "1e+", ".", "+", "-", "1.2.3", "1,5", "1 2",
+                           "Infinity", "-Infinity", "NaN", "0x", "0xG", "-0x1F", "1_000", "0x1.8p1", "inf", "nan"}) {
+    const std::string label{text};
+    INFO(label);
+    CHECK_FALSE(parsed(text).has_value());
+  }
+
+  // A locale with a decimal comma must not change the result.
+  const char* comma_locale = nullptr;
+  for (const auto* name : {"de_DE.UTF-8", "de_DE.utf8", "fr_FR.UTF-8", "fr_FR.utf8", "de_DE"}) {
+    if (std::setlocale(LC_ALL, name) != nullptr) {
+      comma_locale = name;
+      break;
+    }
+  }
+
+  if (comma_locale == nullptr) {
+    MESSAGE("no decimal-comma locale installed; skipping the locale check");
+    return;
+  }
+
+  const std::string locale_label{comma_locale};
+  INFO(locale_label);
+  const auto in_locale_dot = parsed("1.5");
+  const auto in_locale_comma = parsed("1,5");
+  const auto in_locale_exponent = parsed("2.5e-3");
+  std::setlocale(LC_ALL, "C");
+  REQUIRE(in_locale_dot.has_value());
+  CHECK(*in_locale_dot == 1.5);
+  CHECK_FALSE(in_locale_comma.has_value());
+  REQUIRE(in_locale_exponent.has_value());
+  CHECK(*in_locale_exponent == 0.0025);
 }

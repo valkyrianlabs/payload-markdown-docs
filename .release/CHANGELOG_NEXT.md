@@ -7,3 +7,5 @@ Format: one "- " bullet per change (concise, technical). Indent continuation lin
 Optional "## Section" headings group bullets; if used, every bullet must be under one.
 One level of nested "  - " detail bullets is allowed. Consolidate; don't paste commit logs.
 -->
+- Parse numeric frontmatter values with strtod_l in the "C" locale instead of
+  floating-point std::from_chars, which the macOS 15 SDK's libc++ lacks.

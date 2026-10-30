@@ -2,3 +2,5 @@
 self-hosted-runner:
   labels:
     - ubuntu-latest-lts
+    # GitHub-hosted Intel macOS 15 runner; newer than actionlint 1.7.7's label list.
+    - macos-15-intel
