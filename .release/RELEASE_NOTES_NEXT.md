@@ -7,7 +7,17 @@ Format: the first line is "# <release title>" WITHOUT a version number (vlr adds
 Everything after the title is the Markdown release body. Describe the resulting behavior
 for users and operators; keep it representative of what actually ships.
 -->
-# Homebrew installs without a tap trust step
+# Homebrew installs on macOS 15, without a tap trust step
+
+## Builds on macOS 15 Sequoia
+
+`brew install valkyrianlabs/tap/pmdocs` builds pmdocs from source, and on macOS 15 the build
+failed: that SDK's C++ library has no floating-point `std::from_chars`, which pmdocs used to read
+numeric frontmatter such as `order`. pmdocs now parses those numbers with the C library in the "C"
+locale and builds with the macOS 15 SDK on Apple silicon and Intel. Parsed values are unchanged on
+every platform. CI now builds the formula on macOS 15 as well as the latest macOS.
+
+## No tap trust step
 
 Current Homebrew refuses to load formulae from a third-party tap that you have not trusted. The
 install instructions used to say `brew tap valkyrianlabs/tap` and then `brew install pmdocs`, and on
