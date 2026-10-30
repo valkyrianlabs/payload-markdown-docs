@@ -1,7 +1,8 @@
 # Homebrew Tap Notes
 
-The eventual public tap can live at `valkyrianlabs/homebrew-tap`. Homebrew tap
-repositories commonly keep formulae under a top-level `Formula/` directory.
+The formula is published to the `valkyrianlabs/homebrew-tap` repository (tap
+name `valkyrianlabs/tap`), which keeps formulae under a top-level `Formula/`
+directory.
 
 Expected tap layout:
 
@@ -11,17 +12,27 @@ homebrew-tap/
     pmdocs.rb
 ```
 
-Users can install directly with:
+Users install with the fully qualified name, and nothing else:
 
 ```bash
 brew install valkyrianlabs/tap/pmdocs
 ```
 
-or explicitly tap first:
+Homebrew 6 and later refuse to load formulae from a non-official tap unless the
+tap or the formula is trusted (<https://docs.brew.sh/Tap-Trust>). Installing a
+fully qualified name taps `valkyrianlabs/tap` if needed and records
+`valkyrianlabs/tap/pmdocs` in the user's trust store, so it needs no `brew tap`
+or `brew trust` step, and `brew upgrade`, `brew upgrade pmdocs` and
+`brew doctor` keep working afterwards. Do not document `brew tap` followed by
+`brew install pmdocs`: the short name fails with "Refusing to load formula
+valkyrianlabs/tap/pmdocs from untrusted tap" until the user runs `brew trust`.
+Users who installed that way before tap trust existed run
+`brew upgrade valkyrianlabs/tap/pmdocs` once to trust it.
 
-```bash
-brew tap valkyrianlabs/tap
-brew install pmdocs
+In a `Brewfile`, `brew bundle` trusts the entry before loading it:
+
+```ruby
+brew "valkyrianlabs/tap/pmdocs", trusted: true
 ```
 
 Releases render and publish the formula with vl-release (`release.toml`

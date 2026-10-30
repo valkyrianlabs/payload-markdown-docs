@@ -53,12 +53,22 @@ the package turns the symlink back into a plain copy. Signing key fingerprint:
 Homebrew:
 
 ```bash
-brew tap valkyrianlabs/tap
-brew install pmdocs
+brew install valkyrianlabs/tap/pmdocs
 
 pmdocs --version
 pmdocs --help
 ```
+
+Use the full name `valkyrianlabs/tap/pmdocs`. Homebrew taps
+`valkyrianlabs/tap` if needed and trusts only the `pmdocs` formula, so there is
+no separate `brew tap` or `brew trust` step. Afterwards `brew upgrade` (or
+`brew upgrade pmdocs`) keeps it current.
+
+Installed it earlier with `brew tap valkyrianlabs/tap` and
+`brew install pmdocs`? Current Homebrew refuses to load formulae from a tap you
+have not trusted, so `brew upgrade` skips `pmdocs`. Run
+`brew upgrade valkyrianlabs/tap/pmdocs` once; the full name trusts it from then
+on.
 
 ## doctor
 
