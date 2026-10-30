@@ -17,6 +17,14 @@ numeric frontmatter such as `order`. pmdocs now parses those numbers with the C 
 locale and builds with the macOS 15 SDK on Apple silicon and Intel. Parsed values are unchanged on
 every platform. CI now builds the formula on macOS 15 as well as the latest macOS.
 
+## Invalid `stack.toml` reported properly on macOS
+
+On macOS, `pmdocs validate` (and `plan`, `manifest` and `push`) stopped with a bare toml++ message
+such as "Error while parsing table header: expected ']', saw '\n'" when `docs/stack.toml` had a
+syntax error. It now reports the problem like Linux always did, as a validation error with its
+position: `stack.toml: stack.toml is not valid TOML (line 1, column 19): …`. CI now runs the full
+native test suite on macOS 15 and the latest macOS as well as Linux.
+
 ## No tap trust step
 
 Current Homebrew refuses to load formulae from a third-party tap that you have not trusted. The

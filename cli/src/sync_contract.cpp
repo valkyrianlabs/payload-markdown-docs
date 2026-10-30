@@ -17,11 +17,13 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
 #include <map>
 #include <memory>
 #include <set>
 #include <sstream>
 #include <stdexcept>
+#include <typeinfo>
 #include <utility>
 
 #include <locale.h>
@@ -2504,6 +2506,33 @@ json toml_to_json(const toml::node& node) {
   return nullptr;
 }
 
+// The issue for a stack.toml syntax error, however toml++ reported it.
+Issue toml_syntax_issue(const toml::parse_error& error) {
+  const auto& begin = error.source().begin;
+
+  return make_issue(
+    "invalid_stack_toml",
+    "stack.toml is not valid TOML (line " + std::to_string(begin.line) + ", column " + std::to_string(begin.column) + "): "
+      + std::string{error.description()} + ".",
+    "stack.toml"
+  );
+}
+
+#if TOML_EXCEPTIONS
+// toml++'s shared library (Debian and Homebrew both build one, with exceptions) throws
+// toml::parse_error without exporting that class's type_info. libstdc++ matches catch clauses by
+// type name, so `catch (const toml::parse_error&)` works on Linux, but macOS's libc++abi compares
+// type_info addresses and misses the library's private copy. So catch the exported
+// std::runtime_error base and recognize parse_error by its mangled name, as libstdc++ does.
+const toml::parse_error* as_toml_parse_error(const std::runtime_error& error) {
+  if (std::strcmp(typeid(error).name(), typeid(toml::parse_error).name()) != 0) {
+    return nullptr;
+  }
+
+  return static_cast<const toml::parse_error*>(&error);
+}
+#endif
+
 } // namespace
 
 ProjectValidation parse_stack_toml(std::string_view toml_text) {
@@ -2517,18 +2546,30 @@ ProjectValidation parse_stack_toml(std::string_view toml_text) {
 
   toml::table root;
 
+  // toml++ reports syntax errors by throwing, or (built without exceptions) in its parse_result.
+#if TOML_EXCEPTIONS
   try {
     root = toml::parse(toml_text, std::string_view{"stack.toml"});
-  } catch (const toml::parse_error& error) {
-    const auto& begin = error.source().begin;
-    result.issues.push_back(make_issue(
-      "invalid_stack_toml",
-      "stack.toml is not valid TOML (line " + std::to_string(begin.line) + ", column " + std::to_string(begin.column) + "): "
-        + std::string{error.description()} + ".",
-      "stack.toml"
-    ));
+  } catch (const std::runtime_error& error) {
+    const auto* parse_error = as_toml_parse_error(error);
+
+    if (parse_error == nullptr) {
+      throw;
+    }
+
+    result.issues.push_back(toml_syntax_issue(*parse_error));
     return result;
   }
+#else
+  auto parsed = toml::parse(toml_text, std::string_view{"stack.toml"});
+
+  if (!parsed) {
+    result.issues.push_back(toml_syntax_issue(parsed.error()));
+    return result;
+  }
+
+  root = std::move(parsed).table();
+#endif
 
   std::vector<Issue> issues;
   std::vector<Issue> warnings;
