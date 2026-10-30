@@ -34,8 +34,15 @@ permissions:
 
 jobs:
   formula:
-    name: Homebrew formula (macOS)
-    runs-on: macos-latest
+    name: Homebrew formula (${{ matrix.os }})
+    # macOS 15 stays in the matrix: its SDK's libc++ lacks some C++17/20 library features (such as
+    # floating-point std::from_chars) that newer SDKs have, and Homebrew users on Sequoia build
+    # pmdocs from source against it.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, macos-15, macos-15-intel]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
