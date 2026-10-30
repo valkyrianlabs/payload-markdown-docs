@@ -14,7 +14,6 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
-#include <charconv>
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
@@ -25,8 +24,26 @@
 #include <stdexcept>
 #include <utility>
 
+#include <locale.h>
+#include <stdlib.h>
+#if defined(__APPLE__)
+#include <xlocale.h>
+#endif
+
 namespace pmdocs::contract {
 namespace {
+
+// strtod in the "C" locale, whatever the process locale is. Floating-point std::from_chars would
+// do this, but the macOS 15 SDK's libc++ does not provide it.
+double strtod_c_locale(const char* text, char** end) {
+  static const locale_t c_locale = newlocale(LC_ALL_MASK, "C", static_cast<locale_t>(0));
+
+  if (c_locale == static_cast<locale_t>(0)) {
+    return std::strtod(text, end);
+  }
+
+  return strtod_l(text, end, c_locale);
+}
 
 // ------------------------------------------------------------------ UTF-8
 
@@ -1637,17 +1654,13 @@ std::optional<double> parse_js_number(std::string_view raw) {
     return std::nullopt;
   }
 
-  const auto* begin = value.data() + (value[0] == '+' ? 1 : 0);
-  double parsed = 0;
-  const auto [end, error] = std::from_chars(begin, value.data() + value.size(), parsed);
+  // The grammar check above leaves only ASCII decimal literals, which strtod rounds correctly.
+  // Overflow gives +-HUGE_VAL (Infinity in JS, rejected); underflow rounds towards zero like JS.
+  const std::string text{value};
+  char* end = nullptr;
+  const auto parsed = strtod_c_locale(text.c_str(), &end);
 
-  if (error == std::errc::result_out_of_range) {
-    // Overflow is Infinity (rejected); underflow rounds towards zero like JS.
-    const auto fallback = std::strtod(std::string{value}.c_str(), nullptr);
-    return std::isfinite(fallback) ? std::optional<double>{fallback} : std::nullopt;
-  }
-
-  if (error != std::errc{} || end != value.data() + value.size() || !std::isfinite(parsed)) {
+  if (end != text.c_str() + text.size() || !std::isfinite(parsed)) {
     return std::nullopt;
   }
 

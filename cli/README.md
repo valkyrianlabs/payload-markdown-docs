@@ -56,3 +56,11 @@ The native remote workflow uses direct `libcurl`, OpenSSL 3 EVP APIs,
 `libtomlplusplus-dev`, Homebrew `tomlplusplus`) and `doctest`, following
 [Phase 3 Dependency Plan](./PHASE3_DEPENDENCIES.md). Live endpoint push/OIDC
 coverage still belongs in protected smoke tests, not routine local tests.
+
+The build asks Meson for C++23 and falls back to C++20 (`cpp_std=c++23,c++20`
+in the top-level `meson.build`), and sets no minimum macOS version. The oldest
+toolchain it must build with is the macOS 15 SDK's libc++, which Homebrew uses
+on Sequoia. That libc++ lacks some library features newer SDKs have, notably
+floating-point `std::from_chars`, so parse numbers with `strtod_l` in the "C"
+locale instead. The Homebrew workflow builds on macOS 15 (arm64 and Intel) to
+catch regressions.
