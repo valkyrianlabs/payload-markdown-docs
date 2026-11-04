@@ -1,8 +1,9 @@
 name: Homebrew
 
 # Builds and tests the pmdocs formula on macOS, from a source archive of this checkout, whenever
-# the native CLI, its bundled data or the formula changes. Runs on a GitHub-hosted macOS runner,
-# so it never waits for (or holds) the self-hosted runners that Build and Test uses.
+# the native CLI, its bundled data or the formula changes, and runs the meson test suite there
+# against the formula's Homebrew dependencies. Runs on a GitHub-hosted macOS runner, so it never
+# waits for (or holds) the self-hosted runners that Build and Test uses.
 on:
   push:
     branches: [main]
@@ -46,5 +47,19 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
+      # The unit and contract tests catch what `brew test` cannot: macOS differs from the Linux CI
+      # in its C++ runtime (libc++), its filesystem (case-insensitive APFS, /var -> /private/var)
+      # and how Homebrew builds the dependencies.
+      - name: Run the meson tests against the formula's Homebrew dependencies
+        env:
+          HOMEBREW_NO_AUTO_UPDATE: '1'
+          HOMEBREW_NO_INSTALL_CLEANUP: '1'
+        run: |
+          brew install $(sed -nE 's/^  depends_on "([^"]+)".*/\1/p' homebrew/Formula/pmdocs.rb)
+          meson setup build-native
+          meson compile -C build-native
+          meson test -C build-native --print-errorlogs
+
       - name: Install the formula from a local tap and run its test block
+        if: ${{ !cancelled() }}
         run: bash .github/scripts/homebrew-local-install.sh

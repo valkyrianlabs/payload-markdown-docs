@@ -115,6 +115,38 @@ pmdocs_contract_test_exe = executable(
   link_with: pmdocs_lib,
 )
 
+# toml++ built without exceptions reports parse errors in a parse_result instead of throwing.
+# Debian and Homebrew ship it with exceptions, so the contract vectors also run against
+# header-only toml++ in that mode, keeping both branches of parse_stack_toml tested. Only
+# `meson test` builds these.
+pmdocs_toml_noex_lib = static_library(
+  'pmdocs_core_toml_noex',
+  pmdocs_sources,
+  pmdocs_config_h,
+  dependencies: [
+    cli11_dep,
+    curl_dep,
+    nlohmann_json_dep,
+    openssl_dep,
+    tomlplusplus_dep.partial_dependency(includes: true),
+  ],
+  cpp_args: ['-DTOML_HEADER_ONLY=1', '-DTOML_EXCEPTIONS=0'],
+  include_directories: pmdocs_include_dirs,
+  build_by_default: false,
+)
+
+pmdocs_contract_test_toml_noex_exe = executable(
+  'pmdocs_contract_tests_toml_noex',
+  files('tests/contract_tests.cpp'),
+  dependencies: [
+    doctest_dep,
+    nlohmann_json_dep,
+  ],
+  include_directories: pmdocs_include_dirs,
+  link_with: pmdocs_toml_noex_lib,
+  build_by_default: false,
+)
+
 pmdocs_contract_vectors_dir = meson.project_source_root() / 'contracts' / 'vectors'
 pmdocs_contract_test_env = environment()
 pmdocs_contract_test_env.set('PMDOCS_CONTRACT_VECTORS_DIR', pmdocs_contract_vectors_dir)
@@ -139,6 +171,7 @@ test('pmdocs validate project fixture', pmdocs_exe, args: ['validate', pmdocs_pr
 test('pmdocs manifest project fixture', pmdocs_exe, args: ['manifest', pmdocs_project_fixture, '--source', 'payload-markdown-docs', '--no-skills'])
 test('pmdocs unit tests', pmdocs_test_exe)
 test('pmdocs contract vectors', pmdocs_contract_test_exe, env: pmdocs_contract_test_env)
+test('pmdocs contract vectors (toml++ without exceptions)', pmdocs_contract_test_toml_noex_exe, env: pmdocs_contract_test_env)
 
 summary(
   {

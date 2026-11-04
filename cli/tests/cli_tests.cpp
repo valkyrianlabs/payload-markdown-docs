@@ -1341,7 +1341,10 @@ TEST_CASE("trailing separators in path arguments are handled") {
 
   const auto skill = pmdocs::run(args({"install", "skill", "--codex", "--out", "skillsout/", "--dry-run"}));
   CHECK(skill.exit_code == 0);
-  CHECK(skill.stdout_text.find("payload-markdown: " + (temp.path() / "payload-markdown").lexically_normal().string()) != std::string::npos);
+  // Relative paths resolve against the working directory as getcwd reports it, with symlinks
+  // resolved (on macOS the temp directory /var/folders/... is really /private/var/folders/...).
+  const auto physical_temp = std::filesystem::canonical(temp.path());
+  CHECK(skill.stdout_text.find("payload-markdown: " + (physical_temp / "payload-markdown").lexically_normal().string()) != std::string::npos);
 
   std::filesystem::create_directories(temp.path() / "app" / "(payload)");
   const auto routes = pmdocs::run(args({"install", "routes", "--payload-app", "app/(payload)/", "--dry-run"}));
@@ -1383,10 +1386,44 @@ TEST_CASE("validate reports in-manifest route collisions per file") {
   TempDir temp{"pmdocs-test-collisions"};
   const auto root = temp.path() / "docs";
   const auto root_string = root.string();
-  write_text(root / "index.md", "# Home\n");
-  write_text(root / "Index.md", "# Home again\n");
+  // File names that differ in more than letter case, so they coexist on case-insensitive
+  // filesystems (APFS and HFS+ by default) too.
+  write_text(root / "Home.md", "# Home\n");
+  write_text(root / "Home" / "Index.md", "# Home index\n");
   write_text(root / "sub.md", "# Sub\n");
   write_text(root / "sub" / "index.md", "# Sub index\n");
+  write_text(root / "Guide.md", "# Guide\n");
+  write_text(root / "guide" / "index.md", "# guide\n");
+
+  const auto result = pmdocs::run(args({"validate", root_string, "--source", "main-docs", "--json", "--no-skills", "--no-llms", "--no-llms-full"}));
+  CHECK(result.exit_code == 1);
+  const auto output = nlohmann::json::parse(result.stdout_text);
+  const auto& issues = output["validation"]["issues"];
+  CHECK(has_issue(issues, "route_collision", "Home.md"));
+  CHECK(has_issue(issues, "route_collision", "Home/Index.md"));
+  CHECK(has_issue(issues, "route_collision", "sub.md"));
+  CHECK(has_issue(issues, "route_collision", "sub/index.md"));
+  CHECK(has_issue(output["validation"]["warnings"], "route_case_collision", "Guide.md"));
+  CHECK_FALSE(has_issue(issues, "route_collision", "Guide.md"));
+
+  const auto text = pmdocs::run(args({"validate", root_string, "--source", "main-docs", "--no-skills", "--no-llms", "--no-llms-full"}));
+  CHECK(text.stdout_text.find("- Home/Index.md: Route \"/main-docs/Home\" is also derived by Home.md.") != std::string::npos);
+}
+
+TEST_CASE("validate reports route collisions between names that differ only in case") {
+  TempDir temp{"pmdocs-test-case-collisions"};
+  const auto root = temp.path() / "docs";
+  const auto root_string = root.string();
+  write_text(root / "index.md", "# Home\n");
+  write_text(root / "Index.md", "# Home again\n");
+
+  // A case-insensitive filesystem stores both names as one file, so there is nothing to collide.
+  if (!std::filesystem::exists(root / "index.md") || !std::filesystem::exists(root / "Index.md")
+      || std::filesystem::equivalent(root / "index.md", root / "Index.md")) {
+    MESSAGE("skipped: the temp directory's filesystem is case-insensitive");
+    return;
+  }
+
   write_text(root / "Guide.md", "# Guide\n");
   write_text(root / "guide.md", "# guide\n");
 
@@ -1396,8 +1433,6 @@ TEST_CASE("validate reports in-manifest route collisions per file") {
   const auto& issues = output["validation"]["issues"];
   CHECK(has_issue(issues, "route_collision", "index.md"));
   CHECK(has_issue(issues, "route_collision", "Index.md"));
-  CHECK(has_issue(issues, "route_collision", "sub.md"));
-  CHECK(has_issue(issues, "route_collision", "sub/index.md"));
   CHECK(has_issue(output["validation"]["warnings"], "route_case_collision", "Guide.md"));
   CHECK_FALSE(has_issue(issues, "route_collision", "Guide.md"));
 
